@@ -1,0 +1,20 @@
+{
+  "name": "@fox-harness/contracts",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib/**"
+  ],
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

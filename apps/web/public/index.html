@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fox Harness</title>
+    <!-- Real root-cause bug fixed 2026-09-10 — every asset href/src below is
+       an ABSOLUTE path (`/theme.css`, not `./theme.css`). This exact file
+       is served unchanged for every real route (`/`, `/chat/<id>`, ...) by
+       `scripts/serve-web.mjs`'s SPA fallback — but a RELATIVE path resolves
+       against whatever the browser's address bar currently shows, not
+       where the HTML came from. `./theme.css` on `/chat/<uuid>` resolves
+       to `/chat/theme.css` (the browser drops everything after the last
+       `/`, same as any relative URL) — a real 404, confirmed via the
+       user's own browser console (`GET .../chat/theme.css net::ERR_ABORTED
+       404`). This 404'd `/main.js` too, identically — the JS bundle never
+       loaded at all, so React never started, which is also why adding an
+       error boundary (ErrorBoundary.tsx) didn't help this specific bug:
+       there was no JS running to either crash or be caught. `curl`ing the
+       HTML document alone never caught this — the document itself was
+       always byte-for-byte correct; only a browser actually resolving the
+       hrefs against a non-root address bar path exposes it. -->
+    <!-- Applies a stored light/dark override (apps/web/src/useTheme.ts)
+       BEFORE the stylesheets below paint anything — without this, a user
+       who chose "light" while their OS is in dark mode would see a dark
+       flash on every reload (theme.css's dark block applies automatically
+       via prefers-color-scheme; only React setting data-theme overrides
+       it, and that happens too late to avoid the flash on its own). -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("fox-harness/theme");
+          if (t === "light" || t === "dark")
+            document.documentElement.dataset.theme = t;
+        } catch (e) {}
+      })();
+    </script>
+    <!-- Design tokens (was a dynamically-injected UI plugin, Phase 4-12 — now
+       a real static stylesheet, 2026-09-08 follow-up). Loaded before
+       style.css so the shell's `var(--fh-*, <fallback>)` reads always see
+       real values, not just fallbacks. -->
+    <link rel="stylesheet" href="/theme.css" />
+    <!-- `sonner`'s own compiled stylesheet (2026-09-08 — real toast library,
+       replacing a hand-rolled one). Copied from node_modules on every build
+       by scripts/build-web.mjs, so it can't silently drift out of sync with
+       the installed version. Loaded BEFORE style.css so style.css's
+       `[data-sonner-toaster][data-sonner-theme]` color overrides win their
+       specificity tie by source order, no `!important` needed. -->
+    <link rel="stylesheet" href="/sonner.css" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <!-- The entire app is one real React tree (apps/web/src/App.tsx,
+       2026-09-08 follow-up) — no more server-composed per-session manifest,
+       no more separately-loaded plugin bundles. #root is the only element
+       this file owns; everything else (the #app grid frame, #sidebar-col,
+       #center-col, the connect form, the settings dialog, ...) is rendered
+       by React itself, using the same ids/classes style.css already
+       targets. -->
+    <div id="root"></div>
+
+    <script src="/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+packages:
+  - packages/*
+  # Grouped packages (a group folder holding related packages, e.g.
+  # packages/llm/openai-compat — same convention upstream uses at
+  # packages/<group>/<pkg>, adopted here once a category has more than one
+  # package). A group directory itself has no package.json, so this glob
+  # simply finds nothing there and moves on; singleton packages stay flat at
+  # packages/<name> (docs/code-rules.md §1 default, unchanged for those).
+  - packages/*/*
+  - services/*
+  - apps/*
+
+# Confirmed the hard way: pnpm's default strict/symlinked node_modules hides
+# transitive deps (e.g. @deepseek-ai/dsh-llm, a dep of dsh-base) from the
+# cordis plugin loader's dynamic import() at real boot — dump-config works
+# either way since it never imports anything, but `dsh --profile <name>` (no
+# --dump-config) failed with "Cannot find package '@deepseek-ai/dsh-llm'"
+# until this was set. dsh's own auto-generated per-profile pnpm-workspace.yaml
+# (~/.dsh/profiles/<name>/pnpm-workspace.yaml) uses the same setting.
+nodeLinker: hoisted
+
+# pnpm 10+ blocks postinstall scripts by default. @deepseek-ai/dsh-base pulls in
+# native/build-step transitive deps (e.g. esbuild) — allow them explicitly here
+# once `pnpm install` surfaces which ones are actually needed (see docs/code-rules.md §5).
+# First-party dsh package (subprocess spawning) — allow. The rest are
+# native/optional (FFI, pty, protobuf codegen, Gemini SDK) and not needed for
+# the local boot smoke test — declined for now; flip to true if something at
+# runtime turns out to need one (e.g. the terminal tool needs node-pty).
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true
+  '@google/genai': false
+  koffi: false
+  protobufjs: false
+  # services/orchestrator's `dockerode` pulls these in only for its optional
+  # ssh://-transport support (connecting to a remote Docker host over SSH) —
+  # not used here, orchestrator always talks to the local Docker socket.
+  cpu-features: false
+  ssh2: false
+  # dsh-base's default row set needs this for real (dsh-bash-sandbox,
+  # dsh-tool-bash, dsh-tool-fs-search, dsh-permission-presets all depend on
+  # the 'subprocess'/'shell' services it backs — confirmed the hard way:
+  # disabling the subprocess row instead, to dodge this, left 4 entries stuck
+  # "pending" and boot refuses to start with any entry unactivated). Its
+  # bundled prebuilt binary has no build for infra/docker/worker's platform,
+  # so it needs to actually compile — see that Dockerfile for the toolchain.
+  node-pty: true
+  # Phase 9 (docs/agent-core-architecture-roadmap.md): now a real, direct
+  # devDependency (root package.json) — this project's first bundler,
+  # scripts/build-client-plugins.mjs. Its postinstall fetches a real
+  # platform-specific binary; needs to run for real.
+  esbuild: true

@@ -1,0 +1,1525 @@
+/* This "shell" layer owns layout/structure only — every color,
+ * spacing-of-emphasis, and radius value below reads through a
+ * `var(--fh-*, <fallback>)`, where `--fh-*` comes from `theme.css` (a real
+ * static stylesheet, 2026-09-08 follow-up — used to be a dynamically-
+ * mounted UI plugin, Phase 4-12). The literal fallback values here still
+ * matter: if `theme.css` ever fails to load for some reason, the page stays
+ * fully usable on plain values instead of breaking. */
+:root {
+  color-scheme: light dark;
+  --bg: var(--fh-bg, #ffffff);
+  --surface: var(--fh-surface, #f7f7f7);
+  --fg: var(--fh-text, #1a1a1a);
+  --muted: var(--fh-muted, #6b6b6b);
+  --border: var(--fh-border, #dddddd);
+  --bubble-user: var(--fh-bubble-user, #fdece0);
+  --bubble-assistant: var(--fh-bubble-assistant, #f2f2f2);
+  --bubble-live: var(--fh-bubble-live, #fff8e1);
+  /* Brand orange (2026-09-08, brightness/white-text direction confirmed
+   * same day — see theme.css's own comment for the full reasoning/contrast
+   * math). Light mode is deliberately the BRIGHTER of the 2 themes here. */
+  --accent: var(--fh-accent, #ff7a1f);
+  --accent-contrast: var(--fh-accent-contrast, #ffffff);
+  --accent-text: var(--fh-alias-accent-text, #b3450c);
+  --error: var(--fh-error, #c0392b);
+  --radius-sm: var(--fh-radius-sm, 6px);
+  --radius-md: var(--fh-radius-md, 10px);
+  --radius-lg: var(--fh-radius-lg, 10px);
+  --shadow-sm: var(--fh-shadow-sm, none);
+  /* Phase 12 item 7 — new tokens for this phase's new components. */
+  --status-success: var(--fh-alias-status-success, #1a7f37);
+  --status-neutral: var(--fh-alias-status-neutral, #6b6b6b);
+  --status-danger: var(--fh-alias-status-danger, #c0392b);
+  --overlay-mask: var(--fh-specific-overlay-mask, rgba(0, 0, 0, 0.4));
+  /* Phase 14 — real shadow/motion tokens + 2 new surface tones (see
+   * theme.css's own comment on why bg-hover/bg-raised are new values, not
+   * aliases — this project's palette has fewer distinct surfaces than
+   * dsh's real one). */
+  --shadow-lv1: var(--fh-shadow-lv1, 0 2px 4px 0 rgba(0, 0, 0, 0.05));
+  --shadow-lv2: var(--fh-shadow-lv2, 0 4px 12px 0 rgba(0, 0, 0, 0.06));
+  --shadow-lv3: var(--fh-shadow-lv3, 0 12px 32px 0 rgba(0, 0, 0, 0.12));
+  --ease: var(--fh-ease, ease-in-out);
+  --duration-fast: var(--fh-duration-fast, 0.1s);
+  --duration-base: var(--fh-duration-base, 0.2s);
+  --bg-hover: var(--fh-alias-bg-hover, #ececed);
+  --bg-raised: var(--fh-alias-bg-raised, #f5f5f6);
+  --border-subtle: var(--fh-alias-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--fh-bg, #14161a);
+    --surface: var(--fh-surface, #1b1d22);
+    --fg: var(--fh-text, #eaeaea);
+    --muted: var(--fh-muted, #9a9a9a);
+    --border: var(--fh-border, #333640);
+    --bubble-user: var(--fh-bubble-user, #3a2712);
+    --bubble-assistant: var(--fh-bubble-assistant, #24262b);
+    --bubble-live: var(--fh-bubble-live, #3a3316);
+    --accent: var(--fh-accent, #d9600f);
+    --accent-contrast: var(--fh-accent-contrast, #ffffff);
+    --accent-text: var(--fh-alias-accent-text, #f37021);
+    --error: var(--fh-error, #ff8a75);
+    --shadow-sm: var(--fh-shadow-sm, none);
+    --status-success: var(--fh-alias-status-success, #3fb950);
+    --status-neutral: var(--fh-alias-status-neutral, #9a9a9a);
+    --status-danger: var(--fh-alias-status-danger, #ff8a75);
+    --overlay-mask: var(--fh-specific-overlay-mask, rgba(0, 0, 0, 0.6));
+    --bg-hover: var(--fh-alias-bg-hover, #2a2a2c);
+    --bg-raised: var(--fh-alias-bg-raised, #1e1e20);
+    --border-subtle: var(--fh-alias-border-subtle, rgba(255, 255, 255, 0.08));
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  /* Phase 14: real dsh "general UI" body size (s-14: 400 14px/22px). */
+  font: var(
+    --fh-text-s,
+    14px/1.45 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif
+  );
+}
+
+/* Real 2-column frame (sidebar | center — a `details` column exists in the
+ * algorithm apps/web/src/App.tsx runs but nothing occupies it yet, so it's
+ * never rendered here at all). Reimplements dsh's real `dsh-client-ui-layout`
+ * breakpoint/collapse algorithm (docs/code-rules.md's Phase 10 entry) — same
+ * 1024px breakpoint, same 56px rail width — as a deliberately smaller v1:
+ * fixed sidebar width, no drag-to-resize. `grid-template-columns` is set as
+ * a React inline style (App.tsx's `gridTemplateColumns` computation), not
+ * here — this class only owns the transition/overflow behavior around it.
+ */
+#app {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 100%;
+  overflow: hidden;
+  transition: grid-template-columns var(--duration-base) var(--ease);
+}
+
+/* Phase 15 (2026-09-08) — real dsh-client-ui-sidebar structure/measurements
+ * (docs/agent-core-architecture-roadmap.md's Phase 15 has the full research
+ * + citations): `.root{padding:6px 12px}`. */
+#sidebar-col {
+  padding: 6px 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#sidebar-col.fh-sidebar-rail {
+  align-items: center;
+  padding: 6px;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-brand-mark,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-brand-name,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-search-toggle,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-region,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-new-session-label,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-account-email,
+/* 2026-09-10: the account row's new trailing "..." icon collapses to
+ * icon-only (avatar circle) in rail mode too, same as everything else in
+ * this list — the row is still fully clickable, the icon is only a
+ * discoverability hint that doesn't fit a 56px rail. */
+#sidebar-col.fh-sidebar-rail .fh-sidebar-account-more {
+  display: none;
+}
+
+/* Real `.logoRow{height:60px;padding:8px 0 8px 4px}`, rail's
+ * `{height:36px;padding:0}`. */
+.fh-sidebar-logo-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 60px;
+  margin-bottom: 8px;
+  padding: 8px 0 8px 4px;
+  overflow: hidden;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-logo-row {
+  height: 36px;
+  margin-bottom: 12px;
+  padding: 0;
+  justify-content: center;
+}
+
+.fh-sidebar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-brand {
+  flex: none;
+}
+
+.fh-sidebar-brand-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+/* Real `.brandName{font-size:18px;font-weight:600;letter-spacing:.04em}`.
+ * Color (2026-09-10, user request) — `var(--accent)`, the same brand
+ * orange token `.fh-sidebar-brand-mark` (the icon next to it) already
+ * uses, so the mark and the "Fox Harness" text match instead of the text
+ * defaulting to plain `--fg`. */
+.fh-sidebar-brand-name {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--accent);
+}
+
+/* Real bug fixed 2026-09-09: this rule used to HIDE the collapse toggle in
+ * rail mode — the one control that could ever expand it back. Once
+ * collapsed, the only thing left visible in the logo row was the static,
+ * non-interactive brand mark (which has no onClick at all) — a dead end,
+ * no way to reopen. Fixed above by hiding `.fh-sidebar-brand-mark` in rail
+ * mode instead, so the toggle stays the one visible, always-clickable
+ * control regardless of collapsed state. */
+
+/* Visual identity (height/border/bg/radius/font) moved into `.fh-btn-raised`
+ * (docs/code-rules.md §67 — `primitives/Button.tsx`'s `variant="raised"`);
+ * this residual rule only keeps the layout concerns specific to sitting in
+ * the sidebar (flex/margin) plus the real rail-mode collapse below — a
+ * reusable Button primitive shouldn't dictate its own external margin. */
+.fh-sidebar-new-session {
+  flex: none;
+  margin: 0 2px 8px;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-new-session {
+  width: 36px;
+  height: 36px;
+  margin: 0 0 12px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+/* Real `.regionArea{flex:1;min-height:0;overflow:hidden}` — the session
+ * list grows to fill the sidebar column above the fixed footer, scrolling
+ * independently. */
+.fh-sidebar-region {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Phase 13: real per-session backend-plugin-contributed UI (a fixed,
+ * hand-written set — apps/web/src/pluginUi.tsx — not dynamically loaded
+ * code; see that file's own comment). */
+#sidebar-plugin-ui {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  padding: 0 0.5em;
+}
+
+.fh-plugin-ui-button {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--border);
+  text-align: left;
+  font: var(--fh-text-s, inherit);
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-plugin-ui-button:hover {
+  background: var(--bg-hover);
+}
+
+/* Account row (2026-09-08 follow-up — real chat.deepseek.com screenshot
+ * showed a real avatar+email account row at the bottom, not a plain
+ * "Settings" button with a gear icon). 2026-09-10 follow-up: no longer
+ * opens the Settings dialog directly — opens `AccountMenu`'s own popup
+ * (Settings/Logout) above itself instead; `.fh-sidebar-account-more`
+ * (the trailing "..." icon) is the new visual hint that this is a menu
+ * trigger now, not a direct action. */
+.fh-sidebar-account {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  height: 44px;
+  margin: 0.25em 0;
+  padding: 0 0.5em;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  text-align: left;
+  border-radius: 12px;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-sidebar-account:hover {
+  background: var(--bg-hover);
+}
+
+.fh-sidebar-account-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
+.fh-sidebar-account-email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85em;
+}
+
+.fh-sidebar-account-more {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.fh-sidebar-account:hover .fh-sidebar-account-more {
+  opacity: 1;
+}
+
+/* AccountMenu.tsx's popup — portaled to `document.body` (see that file's
+ * own comment for why: `#sidebar-col`'s real `overflow: hidden` would
+ * otherwise clip it, especially in rail mode). `position: fixed` with
+ * `left`/`bottom` set inline from the trigger's own
+ * `getBoundingClientRect()` — this rule only owns the fixed chrome
+ * (size/border/shadow), not placement. Same visual language as
+ * `.fh-lang-select-popup`/`.fh-history-chat-row-menu-popup`
+ * (border/radius/shadow), a smaller z-index than
+ * `.fh-settings-dialog`'s 1000 (that dialog and this popup are never open
+ * at the same time in practice — clicking "Settings" here closes the
+ * popup before opening it — but the ordering should still hold either
+ * way). */
+.fh-account-menu-popup {
+  position: fixed;
+  min-width: 200px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lv2);
+  padding: 4px;
+  z-index: 50;
+}
+
+/* Real `.footArea{flex-direction:column;flex:none}`. */
+.fh-sidebar-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Search toggle moved into the logo row (2026-09-08 follow-up, real
+ * chat.deepseek.com screenshot — the search icon sits next to the brand
+ * mark and the collapse toggle, not scoped inside the session list). The
+ * expand-on-click interaction itself is unchanged (dsh-client-ui-
+ * workspace's real `.search`/`.searchExpanded`), only WHERE the trigger
+ * lives moved; the resulting input row renders directly below the logo
+ * row. */
+.fh-sidebar-search-row {
+  flex: none;
+  padding: 0 2px 8px;
+}
+
+/* `input[type="text"].fh-history-chat-search`, not just the class — the
+ * general `input[type="text"]` rule further down (Phase 14) has the same
+ * or higher specificity and would otherwise silently win on background/
+ * radius regardless of source order. */
+input[type="text"].fh-history-chat-search {
+  width: 100%;
+  height: 30px;
+  padding: 0 0.6em;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.85em;
+}
+
+/* Date-grouped chat history list (2026-09-08 follow-up — real
+ * chat.deepseek.com screenshot showed "Today"/"30 Days" section headers,
+ * replacing the flat undifferentiated list this had before). Renamed
+ * `fh-session-*` -> `fh-history-chat-*` 2026-09-10 (component renamed
+ * `SessionList.tsx` -> `HistoryChat.tsx`, see that file's own comment). */
+.fh-history-chat-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.fh-history-chat-group-label {
+  padding: 0.6em 0.75em 0.3em;
+  color: var(--muted);
+  font-size: 0.75em;
+  font-weight: 500;
+}
+
+/* Phase 14/15: real dsh session-row convention (`dsh-client-ui-workspace`'s
+ * real `Rows.module.css`, read directly at both phases) — hover AND
+ * selected both just swap the row's background, no left-border indicator.
+ * Kept ONE deliberate addition beyond the literal real behavior: the
+ * active row's title also tints with the accent color, since real dsh's
+ * rows sit inside a real navigation model this app doesn't fully have yet
+ * — a pure background-only "selected" state was too easy to lose track of
+ * in practice. Real `.sessionRow{height:32px;border-radius:8px;padding:0
+ * 8px;gap:6px}` (Phase 15 — fixed height replaces the previous em-relative
+ * padding). */
+.fh-history-chat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 0.85em;
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 0 0.4em;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-history-chat-row:hover {
+  background: var(--bg-hover);
+}
+
+.fh-history-chat-row.active {
+  background: var(--bg-hover);
+}
+
+.fh-history-chat-row.active .fh-history-chat-row-title {
+  /* --accent-text, not --accent (2026-09-08) — plain --accent as TEXT on
+   * this row's own --bg-hover only reaches ~2.5:1 in light mode (computed,
+   * fails WCAG AA); --accent-text is the legible variant for exactly this
+   * kind of "accent color used as text on the page's own surface" case. */
+  color: var(--accent-text);
+}
+
+/* Real `.title{font-size:14px;line-height:20px}` — was inheriting the
+ * row's 0.85em (~11.9px off a 14px base) before this Phase 15 correction. */
+.fh-history-chat-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* Phase 15 (2026-09-08) correction to Phase 14's own earlier fix: real dsh
+ * icon buttons INSIDE a session row specifically (not a settings row —
+ * different package/context) are `.iconButton{width:16px;height:16px;
+ * border-radius:4px}` — smaller and less rounded than the 22px/6px
+ * previously carried over from a settings-list citation — now
+ * `.fh-icon-btn-sm`/`.fh-icon-btn-plain` (docs/code-rules.md §67,
+ * `primitives/IconButton.tsx`). Real too: `.rowActions{display:none}` by
+ * default, shown only on row hover — that part is specific to sitting in
+ * a history-chat row, kept here rather than folded into the shared
+ * primitive. `button.fh-history-chat-row-menu-trigger` (element+class, not
+ * just `.fh-history-chat-row-menu-trigger`) so this `display:none`
+ * reliably beats `.fh-icon-btn`'s own `display` regardless of which rule
+ * happens to come first in the file.
+ *
+ * 2026-09-10: renamed from `.fh-history-chat-row-rename` — this button now
+ * opens a 2-item menu (Rename/Delete), not a direct rename action. Also
+ * revealed on `.menu-open` (a React-state class, not a real `:hover` — set
+ * while THIS row's popup is open), not just `:hover`: the popup itself is
+ * portaled outside the row, so moving the mouse toward it ends the row's
+ * own `:hover` — without this, the trigger would visually vanish out from
+ * under an already-open menu. */
+button.fh-history-chat-row-menu-trigger {
+  display: none;
+}
+
+.fh-history-chat-row:hover .fh-history-chat-row-menu-trigger,
+.fh-history-chat-row.menu-open .fh-history-chat-row-menu-trigger {
+  display: inline-flex;
+}
+
+/* This row's own popup (Rename/Delete) — portaled to `document.body`, same
+ * reasoning as `AccountMenu.tsx`'s popup (`#sidebar-col`'s real
+ * `overflow: hidden`/`overflow-y: auto` would otherwise clip it). 3rd
+ * hand-rolled copy of this exact "floating card" chrome now
+ * (`.fh-account-menu-popup`, `.fh-lang-select-popup`, this one) — a real
+ * consolidation candidate if a 4th ever shows up, not done here to keep
+ * this change scoped to what was actually asked. Positioned via `left`
+ * (2026-09-10, user: "dropdown xuất hiện từ bên phải nút 3 chấm" — opens to
+ * the RIGHT of the trigger, was below-left via `right` before this) — see
+ * `HistoryChat.tsx`'s own `openRowMenu()` comment for why. */
+.fh-history-chat-row-menu-popup {
+  position: fixed;
+  min-width: 160px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lv2);
+  padding: 4px;
+  z-index: 50;
+}
+
+/* Delete's destructive-action tint — `MenuItem`'s own `className`
+ * passthrough (same mechanism every primitive here uses for a call site's
+ * own on-top override), not a new `variant`: this is the only destructive
+ * menu item in the app so far. */
+.fh-menu-item-danger {
+  color: var(--status-danger);
+}
+
+/* Rename's inline `<input>` (2026-09-10, replaces `window.prompt` — user:
+ * "khi ấn đổi tên biến title hiện tại thành ô input để nhập") — sits in the
+ * exact flex slot `.fh-history-chat-row-title` occupied (`flex: 1`, same
+ * `font-size`/`line-height`), just compact enough (22px, not the base
+ * `input[type="text"]` rule's 34px) to fit inside the row's fixed 32px
+ * height without changing it. `input[type="text"].fh-history-chat-row-
+ * rename-input`, not just the class — same reason
+ * `.fh-history-chat-search` needs it (that rule above, `input[type="text"]`
+ * further down, has equal-or-higher specificity and would otherwise
+ * silently win on height/padding/border-radius regardless of source
+ * order). */
+input[type="text"].fh-history-chat-row-rename-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.fh-status-dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  flex: none;
+  background: var(--muted);
+}
+
+.fh-status-dot.running {
+  background: var(--status-success);
+}
+.fh-status-dot.hibernated {
+  background: var(--status-neutral);
+}
+.fh-status-dot.archived {
+  background: var(--status-danger);
+}
+
+#center-col {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#center-col > * {
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* apps/web/src/components/Conversation.tsx's root — the only child of
+ * #center-col that needs to actually grow (everything else, header/
+ * connect-form/session-bar, is a fixed-height row). Every element in this
+ * flex-fill chain needs BOTH `flex:1` (grow) AND `min-height:0` (override
+ * flexbox's default min-height:auto, which would otherwise let #log's
+ * content push the whole chain taller instead of scrolling internally). */
+#center-col > .fh-conversation-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fh-conversation-root > #log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Real chat.deepseek.com screenshot (2026-09-08) — a centered "welcome"
+ * layout before any message exists, instead of an empty #log pinned above
+ * a bottom composer. Only the layout survives here, not the fake mode
+ * tabs (see Conversation.tsx's own comment) — this app's REAL composer,
+ * just centered and enlarged. */
+.fh-conversation-root.fh-conversation-empty {
+  justify-content: center;
+  gap: 1.5em;
+}
+
+.fh-conversation-empty-heading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  color: var(--accent);
+}
+
+.fh-conversation-empty-heading h2 {
+  margin: 0;
+  color: var(--fg);
+  font: var(--fh-text-l, 500 1.4em/1.4 inherit);
+}
+
+.fh-conversation-empty #send-form {
+  margin: 0 1em;
+  padding: 1.1em 1.3em;
+}
+
+.fh-conversation-empty #text-input {
+  font-size: 1.05em;
+  /* User: "bắt đầu default là 3 dòng min khi ở trò chuyện mới" — only the
+   * centered new-conversation composer starts tall; the bottom-docked
+   * composer used once a conversation has messages keeps its normal
+   * 1-line start (`#text-input`'s own `min-height: 1.5em`) and grows from
+   * there like before. 4.5em = 3 lines × the `1.5` line-height inherited
+   * from `#text-input`'s `font` shorthand. */
+  min-height: 4.5em;
+}
+
+/* ============================================================
+ * Real primitives (2026-09-10, docs/code-rules.md §67) —
+ * apps/web/src/components/primitives/{IconButton,Button,MenuItem,
+ * SelectableCard}.tsx. Consolidates what used to be ~10 separate
+ * hand-rolled button classes scattered across this file (.fh-theme-toggle,
+ * .fh-sidebar-collapse-toggle, .fh-sidebar-search-toggle,
+ * .fh-settings-close, .fh-history-chat-row-menu-trigger, .fh-account-menu-item,
+ * .fh-settings-nav-item, .fh-settings-theme-card, .fh-sidebar-new-session,
+ * .fh-settings-profile-logout, .fh-lang-toggle, .fh-auth-switch,
+ * button[type=submit]) into one real, small set of variants — every value
+ * below is copied verbatim from whichever old rule it replaces, this is a
+ * dedup pass, not a redesign. Each component still accepts an extra
+ * `className` for the handful of call sites that need their OWN further
+ * context-specific override on top (rail-mode collapse/hide, a session
+ * row's hover-reveal) — those residual rules stay at their original
+ * locations near the component they belong to, not here.
+ * ============================================================ */
+
+/* IconButton — circular icon-only. `bordered` (visible border, `--fg`)
+ * was `.fh-theme-toggle`/`.fh-sidebar-collapse-toggle`/
+ * `.fh-sidebar-search-toggle` (also `.fh-sidebar-toggle` — the header
+ * hamburger this rule used to also cover no longer exists, removed
+ * 2026-09-10 along with `#header` itself). `plain` (no border, `--muted`
+ * fading to `--fg` on hover) was `.fh-settings-close` (size `md`) and
+ * `.fh-history-chat-row-menu-trigger` (size `sm`, 16px/4px radius instead of the
+ * 28px/circle `md` size). */
+.fh-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border-radius: 999px;
+  transition:
+    background var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.fh-icon-btn:hover {
+  background: var(--bg-hover);
+}
+
+.fh-icon-btn-md {
+  width: 28px;
+  height: 28px;
+}
+
+.fh-icon-btn-sm {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.fh-icon-btn-bordered {
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+
+.fh-icon-btn-plain {
+  border: none;
+  color: var(--muted);
+}
+
+.fh-icon-btn-plain:hover {
+  color: var(--fg);
+}
+
+/* Button — real CTA/action shapes. `primary` declares almost nothing of
+ * its own: the base `button {}` rule (further below) already gives every
+ * plain `<button>` the accent fill — this only adds the pill shape/padding
+ * (was `button[type=submit]`, now removed as its own selector). `raised`
+ * was `.fh-sidebar-new-session`'s base look (that class still exists, now
+ * only for the sidebar-specific margin + rail-mode collapse — see its own
+ * rule). `outline` was `.fh-settings-profile-logout`'s look — used to
+ * also have a 2nd, smaller size for `.fh-lang-toggle`, removed 2026-09-10
+ * along with that component (replaced by the real `LanguageSelect.tsx`
+ * dropdown everywhere), so `Button` dropped its `size` prop entirely
+ * rather than keep a dimension nothing exercises anymore. `link` was
+ * `.fh-auth-switch` — its own `align-self: center` layout concern also
+ * stays at its own rule, same reasoning as `.fh-sidebar-new-session`'s
+ * margin. */
+.fh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.fh-btn-primary {
+  border-radius: 999px;
+  padding: 0 1.3em;
+}
+
+.fh-btn-raised {
+  height: 38px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 500;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-btn-raised:hover {
+  background: var(--bg-hover);
+}
+
+.fh-btn-outline {
+  height: 34px;
+  padding: 0 1em;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.85em;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-btn-outline:hover {
+  background: var(--bg-hover);
+}
+
+.fh-btn-link {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: transparent;
+  border: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 0.85em;
+}
+
+.fh-btn-link:hover {
+  text-decoration: underline;
+  background: transparent;
+}
+
+/* MenuItem — icon + label, full-width flat row, hover background.
+ * `popup` was `.fh-account-menu-item` (AccountMenu's popup — its
+ * container isn't a flex column, so this variant needs its own explicit
+ * `width: 100%`). `nav` was `.fh-settings-nav-item` (Settings' nav rail —
+ * that column IS a flex column with default stretch, so no explicit width
+ * needed there) — the one variant that ever sets `active`. */
+.fh-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  height: 36px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.fh-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.fh-menu-item-popup {
+  width: 100%;
+  padding: 0 0.6em;
+  border-radius: 8px;
+  font-size: 0.85em;
+}
+
+.fh-menu-item-nav {
+  padding: 0 0.75em;
+  border-radius: 10px;
+  font-size: 0.9em;
+}
+
+.fh-menu-item-nav.active {
+  background: var(--bg-hover);
+  font-weight: 600;
+}
+
+/* SelectableCard — bordered card, icon stacked above the label, active
+ * state. Was `.fh-settings-theme-card` (Settings > General's Light/Dark
+ * picker) — only 1 real call site today, extracted anyway as a real,
+ * separately-nameable UI concept (see primitives/SelectableCard.tsx's own
+ * comment). The `height:auto`/`min-height` here is itself a real bug fix
+ * (2026-09-09) — the base `button {height:34px}` rule below was clamping
+ * this, nowhere near enough room for an 18px icon + gap + label stacked in
+ * a column. */
+.fh-selectable-card {
+  flex: 1;
+  height: auto;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 1em;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--fg);
+  font-size: 0.85em;
+}
+
+.fh-selectable-card:hover {
+  background: var(--bg-hover);
+}
+
+.fh-selectable-card.active {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* On the auth screen there's no header row to sit inline in — float the
+ * theme/lang controls in the corner instead, as one flex row (2026-09-10:
+ * was just `.fh-theme-toggle` alone before `LangToggle` existed). Inside
+ * #header (once connected) both stay normal inline flex children of
+ * #header itself, no override needed. */
+.fh-auth-screen {
+  position: relative;
+}
+
+.fh-auth-screen-controls {
+  position: absolute;
+  top: 1.25em;
+  right: 1.25em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+#header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  padding: 1em 1em 0.5em;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+#header h1 {
+  font: var(--fh-text-l, 600 1.4em/1 inherit);
+  margin: 0;
+}
+
+.status {
+  font-size: 0.8em;
+  padding: 0.1em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.status-connected {
+  color: #1a7f37;
+  border-color: #1a7f37;
+}
+.status-connecting {
+  color: #9a6700;
+  border-color: #9a6700;
+}
+.status-disconnected {
+  color: var(--muted);
+}
+
+/* Real gap fixed 2026-09-08: the login/register form used to render packed
+ * into the same row as a "Gateway URL" input inside the app's own header
+ * grid — the very first screen anyone ever sees looked like a debug/config
+ * form, not a product login screen (a user correctly called this "the flow
+ * is wrong"). `#connect-form`'s wrapper `.fh-auth-screen` now owns the
+ * whole viewport pre-login; nothing here shares layout with the connected
+ * app anymore. */
+.fh-auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2em 1em;
+  background: var(--bg);
+}
+
+.fh-auth-card {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25em;
+  padding: 2em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lv2);
+}
+
+.fh-auth-brand h1 {
+  font: var(--fh-text-l, 600 1.4em/1 inherit);
+  margin: 0 0 0.35em;
+}
+
+.fh-auth-brand p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+/* Silent-reconnect loading screen (2026-09-10, "lúc quay lại web khi đang
+ * check token nên có màn loading để tránh hiện form login") — sits inside
+ * the SAME `.fh-auth-screen` shell as the real login form (already
+ * centers its child, already the right full-viewport background), just a
+ * bare spinner instead of `.fh-auth-card` — no brand/copy needed for a
+ * window this brief. This app's first CSS `@keyframes` — a real, if
+ * small, exception to the "no animation until asked" restraint used
+ * elsewhere this session (e.g. deliberately NOT adding a live-streaming
+ * cursor blink, §80) — a loading screen is exactly the situation an
+ * animation was actually asked for. */
+.fh-auth-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fh-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: fh-spin 0.8s linear infinite;
+}
+
+@keyframes fh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#connect-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+}
+
+#connect-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+#connect-form input {
+  width: 100%;
+}
+
+#connect-form #connect-submit {
+  margin-top: 0.25em;
+  width: 100%;
+}
+
+/* Text-link style toggle between "Log in" and "Register" — the two modes
+ * of one screen, not two competing buttons anymore. Visual identity
+ * (height/padding/radius/color, matching real dsh `.linkButton`) moved
+ * into `.fh-btn-link`; this residual rule only keeps the one layout
+ * concern specific to sitting in `.fh-auth-card`'s flex column. */
+.fh-auth-switch {
+  align-self: center;
+}
+
+/* Phase 14: real dsh input convention (`fields.module.css`, read directly)
+ * — 8px radius, 34px height, focus swaps ONLY the border color, no
+ * browser-default glow/ring. */
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  font: inherit;
+  height: 34px;
+  padding: 0 0.7em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* 2026-09-08 follow-up — re-grounded against real dsh button source read
+ * directly from installed compiled output (dsh-client-ui-primitives, where
+ * the actual `Button` component lives, is still not installed anywhere on
+ * this machine — same gap Phase 14 hit — so this is reconstructed from
+ * every CONSUMER package that literally has its own button CSS: real class
+ * names/rules cited below, not guessed):
+ *
+ * `dsh-client-ui-sidebar`'s real `.newSession` (the sidebar's own primary
+ * CTA): `height:38px;border-radius:12px` — a soft ROUNDED RECTANGLE, not a
+ * pill, despite being a prominent 38px-tall primary action. This is the
+ * real basis for keeping 12px (not height/2) as this app's DEFAULT/prominent
+ * button radius. `dsh-client-ui-settings-models`'s real `.addModelButton`/
+ * `.linkButton` (secondary/tertiary, smaller actions): `height:28px;
+ * border-radius:14px` — height/2, a true pill, but only at THIS smaller
+ * size tier. `.iconButton:disabled`/`.addModelButton:disabled`:
+ * `opacity:.4` — the real disabled-state value (this file previously had
+ * 0.5, close but not the real number). Real buttons all use a FIXED pixel
+ * `height`, never em-relative padding alone — switched to match, and to
+ * flush-align with this app's own 34px inputs (Phase 14). */
+button {
+  font: var(--fh-text-s-strong, inherit);
+  height: 34px;
+  padding: 0 0.9em;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* `dsh-client-ui-settings-models`'s real `.primaryButton`/`.addButton`
+ * pairing is a true pill at the LARGER size tier (36px height, 18px
+ * radius = height/2) — `border-radius:999px` here renders IDENTICALLY
+ * (CSS clamps radius to half the element's shorter side), so this app's 2
+ * real primary CTAs (login, send) keep it — same visual result, slightly
+ * more robust if the height ever changes. Was a `button[type="submit"]`
+ * element selector; both real submit buttons now render through
+ * `primitives/Button.tsx`'s `variant="primary"` (docs/code-rules.md §67)
+ * instead, so this is `.fh-btn-primary` up in the Primitives section, not
+ * a selector keyed off the `type` attribute anymore. */
+
+.error {
+  color: var(--error);
+  font-size: 0.85em;
+}
+
+/* Real `sonner` toast library (2026-09-08 follow-up — replaces the
+ * hand-rolled .fh-toast-* version above; user asked for a real library with
+ * real animation instead). `sonner.css` (its own compiled stylesheet, see
+ * index.html — copied from node_modules on every build by
+ * scripts/build-web.mjs so it can never silently drift out of sync with the
+ * installed version) supplies the actual toast markup/animation/gesture
+ * behavior; this block ONLY overrides its color variables to reuse THIS
+ * app's own tokens instead of sonner's built-in palette. Selector matches
+ * sonner's own specificity (`[data-sonner-toaster][data-sonner-theme='…']`)
+ * so this wins purely on source order (sonner.css loads first in
+ * index.html) without needing `!important`; the attribute VALUE is left
+ * unqualified so it applies no matter which theme value the `<Toaster
+ * theme="…">` prop happens to be set to (App.tsx explains why that prop is
+ * fixed and doesn't matter here — these vars point at THIS app's own
+ * `--surface`/`--fg`/`--status-success`/`--error`, which already vary by
+ * light/dark on their own). */
+[data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--surface);
+  --normal-border: var(--border);
+  --normal-text: var(--fg);
+  --success-bg: var(--surface);
+  --success-border: var(--status-success);
+  --success-text: var(--status-success);
+  --error-bg: var(--surface);
+  --error-border: var(--error);
+  --error-text: var(--error);
+  --border-radius: 12px;
+  font-family: var(--fh-font, inherit);
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font: var(--fh-text-s-strong, 500 14px/22px inherit);
+}
+
+#session-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.4em 1em;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+#session-id {
+  font-family: ui-monospace, monospace;
+}
+
+#log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  /* Phase 14: real dsh chat-column vertical rhythm (`ChatView.module.css`'s
+   * real `.column{gap:16px}`) — 1rem, not 1em: this app's body font-size is
+   * 14px, and `rem` reads the ROOT (default 16px) so this is the exact
+   * real value, not a scaled approximation. */
+  gap: 1rem;
+}
+
+/* Phase 14: real dsh bubble radius (`MessageItem.module.css`, 22px) — the
+ * SAME radius the composer card below uses, a deliberate real visual echo
+ * between the two, not independently chosen values. */
+.bubble {
+  max-width: 85%;
+  padding: 0.55em 0.8em;
+  border-radius: 22px;
+  box-shadow: var(--shadow-lv1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble-user {
+  align-self: flex-end;
+  background: var(--bubble-user);
+}
+
+/* Assistant replies (2026-09-10, "ui đoạn chat AI trả lời ko cần bọc
+ * container như 1 chat message full đi") — no `.bubble` wrapper at all,
+ * unlike `.bubble-user` above. Real claude.ai/ChatGPT/Gemini/
+ * chat.deepseek.com convention: the USER's message is a bubble, the
+ * ASSISTANT's reply is plain flowing text, left-aligned, no background/
+ * border/shadow, closer to full column width. No explicit `align-self`
+ * (unlike `.bubble-user`'s `flex-end`) — `#log`'s default flex
+ * `align-items: stretch` already fills the row's width, which is exactly
+ * the point. */
+.assistant-text {
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistant-text-body {
+  color: var(--fg);
+}
+
+/* Collapsed tool-call pill (2026-09-10, "làm UI UX lại cho casual như các
+ * platform ai agent") — replaces the old always-expanded `.card`/
+ * `.card-error` (2 separate raw monospace cards per tool call, one for
+ * the call, one for the result) and `.divider` (a "lượt {n}" turn marker,
+ * removed entirely — see Conversation.tsx's own `turn/start` comment for
+ * why). Same 12px radius/raised-surface/subtle-border shell `.card` used
+ * (real dsh tool-call card convention, `GenericCommandCard`'s real CSS) —
+ * this is a restructure for the collapse/expand interaction, not a new
+ * visual language. */
+.tool-pill {
+  align-self: flex-start;
+  max-width: 85%;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+  overflow: hidden;
+}
+
+.tool-pill-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  width: 100%;
+  padding: 0.5em 0.8em;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-pill-header:hover {
+  background: var(--bg-hover);
+}
+
+.tool-pill-chevron {
+  margin-left: auto;
+  flex: none;
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.tool-pill.expanded .tool-pill-chevron {
+  transform: rotate(180deg);
+}
+
+.tool-pill-error .tool-pill-header {
+  color: var(--error);
+}
+
+.tool-pill-detail {
+  padding: 0 0.8em 0.7em;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 0.1em;
+  padding-top: 0.6em;
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--muted);
+}
+
+.tool-pill-args {
+  margin-bottom: 0.5em;
+}
+
+.notice {
+  align-self: center;
+  font-size: 0.8em;
+  color: var(--error);
+}
+
+/* Phase 14: real dsh composer convention (`InputBar.module.css`'s real
+ * `.card`) — a floating rounded card, NOT a full-width bar with a top
+ * border. 22px radius matches `.bubble` above exactly, on purpose (real
+ * dsh does the same — same radius language for both). `position: relative`
+ * (used to anchor the `/`-command dropdown's `position: absolute` above
+ * it) removed 2026-09-10 along with that whole feature — nothing else
+ * inside this form needs a positioning context. */
+/* Follow-up (2026-09-11, user: "khung chat sai — textarea phải nằm trên
+ * nút send"): real chat platforms (chat.deepseek.com/ChatGPT/claude.ai)
+ * stack the composer — textarea spans the full card width on top, Send
+ * sits in its own row underneath, right-aligned — not side-by-side in 1
+ * row. `flex-direction: column` (was a single flex row); the previous
+ * `align-items: flex-end` note about anchoring Send to the textarea's
+ * bottom no longer applies now that they're stacked rows, not row-mates. */
+#send-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin: 0 1em 1em;
+  padding: 0.75em 1em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-lv2);
+}
+
+/* Send's own row below the textarea, right-aligned — the only action the
+ * composer has today, but a real row (not just `align-self` on the
+ * button) so a 2nd future action (attach, model picker, ...) has an
+ * obvious place to land on the left without restructuring this again. */
+.fh-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* No border at all, in every state including focus (2026-09-10, user:
+ * "khi input focus ko cần outline cam cũng như border input là ko cần
+ * thiết cho input chat") — `#text-input`'s ID specificity (1,0,0) already
+ * beats the shared `input[type="text"]`/`input[type="text"]:focus` base
+ * rule (0,2,1) regardless of state, so this one declaration covers both
+ * the resting AND focused look; no separate `:focus` override needed.
+ * Every OTHER text input in the app (login, search, HistoryChat's rename
+ * field, ...) keeps the shared base rule's real border/focus-color
+ * untouched — this opt-out is scoped to the chat composer specifically,
+ * which already sits inside its own bordered `#send-form` card. */
+/* 2026-09-11: composer switched from a single-line `<input>` to a
+ * `<textarea>` (multi-line + max-10-lines-then-scroll, raised from 6 same
+ * day) — the shared `input[type="text"]` base rule above no longer
+ * matches this element at all, so `background`/`color`/`padding` that
+ * rule used to supply are now declared here explicitly instead of relying
+ * on it. `resize: none` (no drag-handle — height is driven by JS
+ * auto-grow, `Conversation.tsx`, not user dragging) + `overflow-y: auto` +
+ * `max-height: 15em` (10 lines × the `1.5` line-height below) is the
+ * whole "max ~10 lines then scroll" behavior — JS only grows
+ * `style.height` to fit content; the browser clips at `max-height` and
+ * shows the scrollbar on its own. Real bug fixed same day: `flex: 1` here
+ * was a leftover from when `#send-form` was still `flex-direction: row`
+ * (textarea filling horizontal space next to Send). Now that `#send-form`
+ * is `flex-direction: column`, `flex: 1` makes the textarea a MAIN-axis
+ * (vertical) flex item with `flex-basis: 0%` — flexbox's own main-size
+ * calculation then wins over the JS-set `style.height`, silently capping
+ * growth partway (user-reported: stuck around line 4, never reaching the
+ * real 10-line cap). Dropped entirely — `#send-form`'s default
+ * `align-items: stretch` already fills the textarea's width with no flex
+ * property needed, and height is fully JS-driven again. */
+#text-input {
+  border: none;
+  resize: none;
+  overflow-y: auto;
+  min-height: 1.5em;
+  max-height: 15em;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  /* Phase 14: real dsh composer text size (`InputBar.module.css`'s real
+   * `font-size:16px; line-height:24px` — exactly `--dsw-font-base-16`). */
+  font: var(--fh-text-base, 1em/1.5 inherit);
+}
+
+#text-input:focus {
+  outline: none;
+}
+
+/* Real UI added 2026-09-10 — Settings > General's language control used to
+ * be a bare native `<select>` (the generic `select {}`/`select:focus`
+ * rules that used to live here) — replaced by a real trigger + popup
+ * (`features/LanguageSelect.tsx`). Same-day follow-up: also replaces
+ * `LangToggle.tsx` on the pre-login auth screen (deleted, this was its
+ * only other call site), so this trigger now sizes itself the same way
+ * the old native `select {}` rule did (a real `min-width`, no `width:
+ * 100%`/fixed `max-width`) rather than assuming ONE specific layout
+ * context — it sits as a full-width block in Settings' field-group AND as
+ * a compact item in the auth screen's flex-row corner cluster
+ * (`.fh-auth-screen-controls`), and needs to look right in both. */
+.fh-lang-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  min-width: 160px;
+  height: 34px;
+  padding: 0 0.75em;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85em;
+}
+
+.fh-lang-select-trigger:hover {
+  background: var(--bg-hover);
+}
+
+.fh-lang-select-popup {
+  position: fixed;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lv2);
+  padding: 4px;
+  z-index: 50;
+}
+
+/* Phase 12 item 5: a real settings dialog shell — see index.html's own
+ * comment for why this is shell-native chrome (mask + panel + heading), not
+ * a plugin mount target. 2026-09-10: now a real 2-tab (General/Profile)
+ * nav-rail shell after all — see SettingsDialog.tsx's own comment for why
+ * that earlier "not dsh's nav-rail tab-switching" choice got reversed. */
+/* Phase 14: real dsh settings-dialog convention (`SettingsRoot.module.css`,
+ * read directly) — `z-index:1000` (the real literal, not this project's old
+ * ad hoc `10`), a blurred mask (`backdrop-filter`), and 24px radius — the
+ * single largest real radius value found anywhere in dsh's source, reserved
+ * for exactly this: the one big modal in the app. */
+.fh-settings-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fh-settings-mask {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-mask);
+  backdrop-filter: blur(2px);
+}
+
+/* Widened 2026-09-10 (560px -> 720px) — a single-column stack fit in
+ * 560px, a real left nav rail + content area needs real room for both. */
+.fh-settings-panel {
+  position: relative;
+  width: min(720px, 92vw);
+  height: min(520px, 80vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lv3);
+}
+
+.fh-settings-panel-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75em 1em;
+  border-bottom: 1px solid var(--border);
+}
+
+.fh-settings-panel-header h2 {
+  margin: 0;
+  /* Phase 14: real dsh modal-title size, exactly `--dsw-font-l-20`
+   * (500 20px/28px) — confirmed for this specific use (onboarding modal
+   * title) in the real source, not just the general scale. */
+  font: var(--fh-text-l, 500 1.4em/1.4 inherit);
+}
+
+/* Body row (2026-09-10) — nav rail + content, below the header. Replaces
+ * the old single-column `.fh-settings-sections` stack. */
+.fh-settings-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.fh-settings-nav {
+  flex: none;
+  width: 180px;
+  padding: 0.75em;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fh-settings-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1em 1.25em;
+}
+
+.fh-settings-field-group {
+  margin-bottom: 1.5em;
+}
+
+.fh-settings-section-title {
+  font: var(--fh-text-s-strong, 600 1em/1.4 inherit);
+  margin-bottom: 0.6em;
+  color: var(--fg);
+}
+
+/* General tab's Theme picker — 2 real selectable cards (Light/Dark),
+ * matching the reference screenshot; each sets an explicit target via
+ * `useTheme.ts`'s `setTheme()`, not a toggle. */
+.fh-settings-theme-options {
+  display: flex;
+  gap: 0.75em;
+}
+
+/* Visual identity moved into `.fh-selectable-card` (Primitives section
+ * above) — including the real bug fix that section's own comment
+ * describes (base `button {height:34px}` was clamping this). */
+
+/* Profile tab's info rows — label left, real value right, divider between
+ * rows (matches the reference screenshot's row layout). Only the real
+ * field this app actually has (email) — see SettingsDialog.tsx's own
+ * comment for why Name/Phone/Role/"log out of all devices"/"delete
+ * account" from the reference are deliberately NOT here. */
+.fh-settings-profile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75em 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9em;
+}
+
+.fh-settings-profile-row:last-child {
+  border-bottom: none;
+}
+
+.fh-settings-profile-value {
+  color: var(--muted);
+}
+
+/* Real Logout action (2026-09-10) at the end of the Profile tab, right-
+ * aligned — a second real entry point to the same `handleLogout` the
+ * sidebar's AccountMenu popup already calls, not a duplicate fake one. */
+.fh-settings-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1em;
+}
+
+/* Visual identity moved into `.fh-btn-outline`/`.fh-btn-outline-md`
+ * (Primitives section above). */
+
+/* Phase 14: real dsh scrollbar convention (`--dsh-scrollbar-width:8px` +
+ * dedicated thumb-color tokens, read from the real source) — applied to
+ * this app's 2 real scrolling regions. Webkit-only (`::-webkit-scrollbar`
+ * has no standard equivalent for Firefox short of the coarser
+ * `scrollbar-width`/`scrollbar-color` properties, added alongside it here
+ * for the same visual intent, not a full re-implementation). */
+#log,
+.fh-sidebar-region {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+#log::-webkit-scrollbar,
+.fh-sidebar-region::-webkit-scrollbar {
+  width: 8px;
+}
+
+#log::-webkit-scrollbar-thumb,
+.fh-sidebar-region::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+#log::-webkit-scrollbar-thumb:hover,
+.fh-sidebar-region::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+#log::-webkit-scrollbar-track,
+.fh-sidebar-region::-webkit-scrollbar-track {
+  background: transparent;
+}

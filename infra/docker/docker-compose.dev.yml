@@ -1,0 +1,44 @@
+# Local dev only — not a real deployment target (infra/deploy/README.md: not
+# decided yet). No redis-server/redis-cli/mariadb installed on this machine,
+# and Docker is already required for infra/docker/worker anyway.
+#
+#   docker compose -f infra/docker/docker-compose.dev.yml up -d
+#   docker exec -i docker-mariadb-1 mariadb -u fox_harness -pfox_harness_dev fox_harness < infra/migrations/001_init.sql
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    # Named volume (added 2026-09-11 — this file previously had no volumes
+    # at all, so redis/mariadb data lived only in each container's own
+    # writable layer: `docker compose down` (no `-v` needed) silently
+    # destroyed it, `up -d` was the only safe way to bring them back. A
+    # named volume survives `down`; only an explicit `down -v` (or `docker
+    # volume rm`) removes it now — see the root README's "Running locally"
+    # section for the real update-without-losing-data sequence.
+    volumes:
+      - fox-harness-redis-data:/data
+  mariadb:
+    # 10.11 — matches prod's real MariaDB version (docs/code-rules.md's
+    # MariaDB-migration section: dev/prod parity matters here since several
+    # schema features used — CHECK constraints, DESC indexes, CREATE INDEX
+    # IF NOT EXISTS — are version-gated). Replaced the dev `postgres` service
+    # entirely 2026-09-09 — prod's DB server is MariaDB, not Postgres.
+    image: mariadb:10.11
+    environment:
+      MARIADB_USER: fox_harness
+      MARIADB_PASSWORD: fox_harness_dev
+      MARIADB_DATABASE: fox_harness
+      MARIADB_RANDOM_ROOT_PASSWORD: 'yes'
+    ports:
+      # 3307, not 3306 — this machine may already run a local MariaDB/MySQL
+      # on 3306 (same dodge as the old Postgres 5433-not-5432 default, hit
+      # for real back then: binding the standard port silently routes
+      # connections to the wrong server).
+      - '3307:3306'
+    volumes:
+      - fox-harness-mariadb-data:/var/lib/mysql
+
+volumes:
+  fox-harness-redis-data:
+  fox-harness-mariadb-data:

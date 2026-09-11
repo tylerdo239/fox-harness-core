@@ -1,0 +1,14 @@
+node_modules/
+lib/
+dist/
+*.tsbuildinfo
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+.claude/
+
+# services/orchestrator's per-session $DSH_HOME directories (materialize.ts,
+# ORCHESTRATOR_DATA_DIR default) — runtime data, never committed.
+/data/

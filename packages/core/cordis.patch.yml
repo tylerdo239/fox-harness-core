@@ -1,0 +1,15 @@
+# Rows this bundle inserts into the plugin tree. Top level MUST be a YAML
+# array of operations (confirmed the hard way: dsh's own parser rejects
+# anything else with "must be a top-level YAML array of loader patch
+# entries" — a top-level `insert:` mapping key, which is what an earlier
+# draft of this file had, fails to load). A patch replaces the whole `config`
+# of the row targeted by `id` — it never merges (docs/code-rules.md §4).
+#
+# `name` MUST be the real importable package specifier — the loader does
+# `import(name)` at boot. An earlier draft set `name` to the same arbitrary
+# label as `id`, which passes --dump-config (no import happens) but fails at
+# real boot with "Cannot find package 'fox-harness-core'".
+- insert:
+    - id: fox-harness-core
+      name: '@fox-harness/dsh-core'
+      config: {}

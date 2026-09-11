@@ -1,0 +1,174 @@
+/* Design tokens. Was `packages/client-ui-theme`, a separately-loaded UI
+ * plugin bundle that injected this same CSS text into `<head>` at runtime
+ * (Phase 4-12); now a real static stylesheet linked directly from
+ * index.html (2026-09-08 follow-up — see apps/web/README.md). Same values,
+ * same `--fh-*` names, same light/dark split — only the delivery mechanism
+ * changed (no more "session with no theme plugin falls back to plain
+ * values" scenario, since there is no more per-session plugin composition
+ * at all; every user always gets this stylesheet).
+ *
+ * Palette informed by the REAL @deepseek-ai/dsh-client-ui-theme's actual
+ * shipped tokens (extracted from its real compiled lib/client.js — a
+ * 3-tier static/alias/specific system with a distinct "deepseek" blue scale
+ * used specifically for chat bubbles/business accents, and a "neutral-bluish"
+ * gray scale for surfaces/text — not guessed, not copied: our own values,
+ * our own `--fh-*` names, chosen to sit in the same hue families). This is
+ * NOT their brand — we don't use their scale name or claim affiliation —
+ * just the same genre of blue-accent-on-neutral-bluish-gray look. */
+:root {
+  --fh-bg: #ffffff;
+  --fh-surface: #f1f3f5;
+  --fh-border: #e1e5ee;
+  --fh-text: #0f1115;
+  --fh-muted: #61666b;
+  /* 2026-09-08 follow-up — user-specified brand color, both themes now
+   * built around it (was a blue accent scale, Phase 4/14's own "same genre
+   * as dsh's real blue" choice; this replaces that entirely, not just a
+   * retint). Immediate follow-up, same day: user asked explicitly for (1)
+   * WHITE text/icons on any solid-color button background (overriding an
+   * earlier accessibility-driven choice of dark text — #f37021 white-text
+   * contrast is only ~2.9:1, under WCAG AA's 4.5:1, but this is a direct,
+   * explicit brand/design call, not an oversight — accepted as-is) and (2)
+   * a BRIGHTER orange in light mode than in dark mode — the opposite of
+   * this app's usual "lighter accent on dark backgrounds" pattern (used
+   * for the old blue accent), but again a direct instruction, not a
+   * mistake to "correct". `--fh-accent-contrast: #ffffff` in both themes. */
+  --fh-accent: #ff7a1f;
+  --fh-accent-contrast: #ffffff;
+  /* accent used AS TEXT directly on the page's own surface (not on an
+   * accent-colored background) still needs its own darker value in light
+   * mode for legibility — plain accent text only reaches ~2.5:1 against
+   * this app's light surfaces (computed), well under 4.5:1. This is a real
+   * 3rd tier of the SAME existing static/alias/specific convention (see
+   * the Phase 14 comment below), not a new system — and now genuinely
+   * DECOUPLED from `--fh-accent` itself (not just "= accent") since light/
+   * dark `--fh-accent` diverge on brightness now; this token keeps its own
+   * legibility-driven value independent of that. */
+  --fh-alias-accent-text: #b3450c;
+  --fh-bubble-user: #fdece0;
+  --fh-bubble-assistant: #f1f3f5;
+  --fh-bubble-live: #fef5e7;
+  --fh-error: #ec1313;
+  --fh-radius-sm: 6px;
+  --fh-radius-md: 10px;
+  --fh-radius-lg: 14px;
+  --fh-shadow-sm: 0 1px 2px rgba(15, 17, 21, 0.06);
+  --fh-shadow-md: 0 4px 16px rgba(15, 17, 21, 0.08);
+  --fh-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, sans-serif;
+  /* Phase 12 item 7: 3-tier static/alias/specific naming convention (dsh's
+   * real system), sized to what this app's own components actually need —
+   * not padded to look more complete than it is. */
+  --fh-alias-status-success: #1a7f37;
+  --fh-alias-status-neutral: #61666b;
+  --fh-alias-status-danger: #ec1313;
+  --fh-specific-overlay-mask: rgba(15, 17, 21, 0.4);
+
+  /* Phase 14 — real values read from dsh-client-ui-theme's actual compiled
+   * source (docs/agent-core-architecture-roadmap.md's Phase 14 research):
+   * dsh has NO radius/spacing/z-index token scale at all (confirmed by
+   * grep — those are literal values per component, not tokenized), but it
+   * DOES have real shadow (4 levels), motion (1 easing + 3 durations), and
+   * typography scales — those 3 are genuinely worth extracting as tokens,
+   * radius/spacing are applied as literals directly in style.css instead,
+   * matching how dsh itself does it. Values below are the REAL dsh ones
+   * (same in light/dark for shadow — confirmed), not invented. */
+  --fh-shadow-lv1: 0 2px 4px 0 #0000000d;
+  --fh-shadow-lv1-blur: 0 4px 12px 0 #00000005;
+  --fh-shadow-lv2: 0 4px 12px 0 #00000005, 0 2px 8px 0 #0000000a;
+  --fh-shadow-lv3: 0 0 1px 0 #00000033, 0 0 4px 0 #00000005, 0 12px 32px 0 #00000014;
+
+  --fh-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --fh-duration-fast: 0.1s;
+  --fh-duration-base: 0.2s;
+  --fh-duration-slow: 0.3s;
+
+  /* Real "general UI" typography scale (dsh's real token names keep the
+   * literal size in the name even where the value doesn't match — e.g.
+   * their `-m-18` really is 16px — kept faithful, not "corrected"). Only
+   * the sizes with a real, cited `-strong` sibling get one here; `-m`/`-l`/
+   * `-xl` are single-weight in the real source at the depth this project
+   * read it, so no strong variant is invented for them. */
+  --fh-text-xxxs: 400 11px/14px var(--fh-font);
+  --fh-text-xxxs-strong: 500 11px/14px var(--fh-font);
+  --fh-text-xxs: 400 12px/18px var(--fh-font);
+  --fh-text-xxs-strong: 500 12px/18px var(--fh-font);
+  --fh-text-xs: 400 13px/20px var(--fh-font);
+  --fh-text-xs-strong: 500 13px/20px var(--fh-font);
+  --fh-text-s: 400 14px/22px var(--fh-font);
+  --fh-text-s-strong: 500 14px/22px var(--fh-font);
+  --fh-text-base: 400 16px/24px var(--fh-font);
+  --fh-text-base-strong: 500 16px/24px var(--fh-font);
+  --fh-text-m: 500 16px/28px var(--fh-font);
+  --fh-text-l: 500 20px/28px var(--fh-font);
+  --fh-text-xl: 600 24px/32px var(--fh-font);
+
+  /* New alias colors for Phase 14's restyle — this project's palette is
+   * much shallower than dsh's real bg-layer-1/2/3 (only 2 base surfaces,
+   * --fh-bg/--fh-surface, vs. their 3+ distinct layers), so these are
+   * genuinely NEW tones (same hue family as the rest of this palette, not
+   * copied from dsh's real hex values, which weren't extracted) rather than
+   * aliases of existing tokens — a hover/active state needs a shade
+   * visibly different from whatever it sits on top of. */
+  --fh-alias-bg-hover: #e9ebef;
+  --fh-alias-bg-raised: #f5f6f8;
+  --fh-alias-border-subtle: rgba(15, 17, 21, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fh-bg: #151517;
+    --fh-surface: #232324;
+    --fh-border: #353638;
+    --fh-text: #f9fafb;
+    --fh-muted: #adb2b8;
+    /* Deliberately DARKER/less bright than light mode's #ff7a1f
+     * (2026-09-08, explicit user direction — see the :root comment above
+     * for why this is the opposite of the old blue accent's pattern).
+     * --fh-accent-contrast stays white here too (same explicit ask).
+     * --fh-alias-accent-text is now DECOUPLED from --fh-accent (used to
+     * literally equal it, back when both were #f37021) — kept at the
+     * original #f37021 specifically because IT still clears ~4.2-5.3:1
+     * against this theme's real surfaces (computed), while the new darker
+     * #d9600f accent identity color would only reach ~3.75-4.2:1 there. */
+    --fh-accent: #d9600f;
+    --fh-accent-contrast: #ffffff;
+    --fh-alias-accent-text: #f37021;
+    --fh-bubble-user: #3a2712;
+    --fh-bubble-assistant: #232324;
+    --fh-bubble-live: #27241f;
+    --fh-error: #f25a5a;
+    --fh-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --fh-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+    --fh-alias-status-success: #3fb950;
+    --fh-alias-status-neutral: #adb2b8;
+    --fh-alias-status-danger: #f25a5a;
+    --fh-specific-overlay-mask: rgba(0, 0, 0, 0.6);
+    --fh-alias-bg-hover: #2a2c30;
+    --fh-alias-bg-raised: #1c1e21;
+    --fh-alias-border-subtle: rgba(255, 255, 255, 0.08);
+  }
+}
+
+:root[data-theme="dark"] {
+  --fh-bg: #151517;
+  --fh-surface: #232324;
+  --fh-border: #353638;
+  --fh-text: #f9fafb;
+  --fh-muted: #adb2b8;
+  --fh-accent: #d9600f;
+  --fh-accent-contrast: #ffffff;
+  --fh-alias-accent-text: #f37021;
+  --fh-bubble-user: #3a2712;
+  --fh-bubble-assistant: #232324;
+  --fh-bubble-live: #27241f;
+  --fh-error: #f25a5a;
+  --fh-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --fh-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --fh-alias-status-success: #3fb950;
+  --fh-alias-status-neutral: #adb2b8;
+  --fh-alias-status-danger: #f25a5a;
+  --fh-specific-overlay-mask: rgba(0, 0, 0, 0.6);
+  --fh-alias-bg-hover: #2a2c30;
+  --fh-alias-bg-raised: #1c1e21;
+  --fh-alias-border-subtle: rgba(255, 255, 255, 0.08);
+}

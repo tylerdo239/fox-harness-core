@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/core" },
+    { "path": "packages/agent-driver" },
+    { "path": "packages/llm/openai-compat" },
+    { "path": "packages/transport" },
+    { "path": "packages/tool/duckduckgo-web-search" },
+    { "path": "services/gateway" },
+    { "path": "services/orchestrator" },
+    { "path": "apps/web" }
+  ]
+}

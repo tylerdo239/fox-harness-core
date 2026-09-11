@@ -1,0 +1,22 @@
+{
+  "name": "@fox-harness/gateway",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "node --experimental-strip-types src/index.ts"
+  },
+  "dependencies": {
+    "@fox-harness/contracts": "workspace:*",
+    "ioredis": "^5.4.1",
+    "mariadb": "^3.5.4",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.12",
+    "typescript": "^5.6.0"
+  }
+}

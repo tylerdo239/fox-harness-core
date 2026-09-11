@@ -1,0 +1,16 @@
+{
+  "name": "fox-harness",
+  "private": true,
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@fox-harness/dsh-core",
+        "@fox-harness/dsh-agent-driver",
+        "@fox-harness/dsh-transport",
+        "@fox-harness/dsh-llm-openai-compat",
+        "@fox-harness/dsh-tool-duckduckgo-web-search"
+      ]
+    }
+  }
+}

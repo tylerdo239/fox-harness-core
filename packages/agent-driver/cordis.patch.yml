@@ -1,0 +1,40 @@
+# Swaps the default agent-loop row for our driver. `id: agent-loop` is the
+# REAL row id, confirmed 2026-09-03 by installing @deepseek-ai/dsh@0.1.1-rc.2
+# for real and running `dsh --profile web --dump-config`:
+#
+#   # == @deepseek-ai/dsh-base
+#   - id: agent-loop
+#     name: '@deepseek-ai/dsh-agent-loop'
+#     config:
+#       agents: []
+#
+# (docs/code-rules.md §0.1 — not `core/agent-loop`; row ids in the real tree
+# are short flat names, not namespaced paths.) Full captured dump:
+# docs/reference/dsh-web-profile-dump-config.yml
+#
+# Top level MUST be a YAML array. Two real, hard-won corrections below —
+# both confirmed by actually failing to boot, not guessed:
+#
+# 1. `insert:` is ONLY for adding a row whose id doesn't exist yet. Using it
+#    for an id that already exists (like `agent-loop`, inserted by dsh-base)
+#    throws "duplicate loader entry id" at real boot.
+#
+# 2. A patch that targets an existing row by `id` directly (no `insert:`
+#    wrapper) can reconfigure or disable it, but NOT swap its `name` to a
+#    different plugin — the real @deepseek-ai/cordis-plugin-include patch
+#    applier checks `name` matches before applying, and silently skips with
+#    a "name mismatch... skipping" warning otherwise (confirmed the hard
+#    way). So "nấc 2" (roadmap §0.2) isn't done by rewriting the `agent-loop`
+#    row's `name` in place — it's: DISABLE the default row (keeping its real
+#    name so the match succeeds) so `@deepseek-ai/dsh-agent-loop`'s own
+#    `apply()` never runs and never claims `ctx.agents.setFactory()`, then
+#    INSERT our own row under a different id so ours claims that slot
+#    instead (`AgentRegistry.setFactory` throws if a factory is already
+#    registered — exactly one of the two rows may ever be active).
+- id: agent-loop
+  name: '@deepseek-ai/dsh-agent-loop'
+  disabled: true
+- insert:
+    - id: fox-harness-agent-loop
+      name: '@fox-harness/dsh-agent-driver'
+      config: {}

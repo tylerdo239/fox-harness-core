@@ -1,0 +1,6 @@
+# Profile-level overlay, applied after every bundle in the list above.
+# Empty until something needs a profile-wide override that doesn't belong in
+# any one bundle's own cordis.patch.yml. Top level must be a YAML array
+# (confirmed against the real auto-generated per-profile overlay file, which
+# is literally `[]` — not `insert: []`).
+[]

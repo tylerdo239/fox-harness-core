@@ -1,0 +1,8 @@
+# Top level MUST be a YAML array, `name` MUST be the real importable package
+# specifier — see packages/core/cordis.patch.yml (docs/code-rules.md §4/§11).
+# This is a pure ADD (the id doesn't exist upstream), so plain `insert:` is
+# correct here — no disable+insert dance like agent-loop needed.
+- insert:
+    - id: fox-harness-llm-openai-compat
+      name: '@fox-harness/dsh-llm-openai-compat'
+      config: {}

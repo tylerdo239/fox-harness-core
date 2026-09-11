@@ -1,0 +1,7 @@
+# Top level MUST be a YAML array, `name` MUST be the real importable package
+# specifier — see packages/core/cordis.patch.yml (docs/code-rules.md §4/§11).
+# Pure ADD (id doesn't exist upstream) — plain `insert:` is correct here.
+- insert:
+    - id: fox-harness-transport
+      name: '@fox-harness/dsh-transport'
+      config: {}

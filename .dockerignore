@@ -1,0 +1,16 @@
+# infra/docker/worker/Dockerfile builds from the repo root and reinstalls
+# dependencies inside the image — node_modules here would only add weight and
+# platform mismatches. .env must never enter a build context: real credentials
+# reach a worker container only at `docker run` time (services/orchestrator's
+# config.workerEnvPassthrough), never baked into an image layer.
+node_modules/
+**/lib/
+**/dist/
+*.tsbuildinfo
+.git/
+.env
+.env.*
+!.env.example
+data/
+apps/web/public/main.js
+apps/web/public/main.d.ts
