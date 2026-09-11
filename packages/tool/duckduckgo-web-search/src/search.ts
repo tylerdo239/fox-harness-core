@@ -103,12 +103,43 @@ async function curlDuckDuckGoHtml(query: string, signal: AbortSignal | undefined
 const RESULT_LINK_RE = /<a rel="nofollow" class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gs
 const SNIPPET_RE = /<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/gs
 
+// Real bug-class fix (2026-09-11) — Bug #4's original comment (below) said
+// "no verified real sample" of a block/challenge page; now there is one,
+// captured live from this exact machine after a day of repeated manual curl
+// testing triggered it: HTTP 202, a real CAPTCHA page titled "Unfortunately,
+// bots use DuckDuckGo too. ... Select all squares containing a duck", with
+// `id="challenge-form"` and `class="anomaly-modal__..."` markup — confirmed
+// it's an IP-level block, not per-session (a fresh cookie jar still got
+// challenged). `anomaly-modal` is specific enough to never false-positive on
+// a genuine results/no-results page (grepped a real 0-result page and a real
+// results page, both from this same session's testing — neither contains
+// it).
+const BLOCK_CHALLENGE_MARKER = 'anomaly-modal'
+
+export class DuckDuckGoBlockedError extends Error {
+  constructor() {
+    super(
+      'DuckDuckGo is showing a bot-challenge page instead of search results (likely IP-level rate limiting from this server). This is not a 0-result query — try again later.',
+    )
+    this.name = 'DuckDuckGoBlockedError'
+  }
+}
+
 export async function duckDuckGoSearch(
   query: string,
   maxResults: number,
   signal?: AbortSignal,
 ): Promise<DuckDuckGoResult[]> {
   const html = await curlDuckDuckGoHtml(query, signal)
+
+  // Checked BEFORE parsing results, not just as a fallback when `titles`
+  // comes back empty — a block page could theoretically also happen to
+  // contain something `RESULT_LINK_RE` spuriously matches; checking first is
+  // unambiguous either way and costs nothing extra.
+  if (html.includes(BLOCK_CHALLENGE_MARKER)) {
+    console.error(`fox-harness-tool-duckduckgo-web-search: blocked by DuckDuckGo bot-challenge for query "${query}" (html length: ${html.length})`)
+    throw new DuckDuckGoBlockedError()
+  }
 
   const titles: Array<{ url: string; title: string }> = []
   for (const match of html.matchAll(RESULT_LINK_RE)) {
@@ -121,14 +152,11 @@ export async function duckDuckGoSearch(
 
   // Bug fix 2026-09-09 (docs/security-performance-review-2026-09-09.md's
   // Bug #4): the regex parsing above is inherently fragile (already
-  // documented at the top of this file) — if DuckDuckGo changes its markup,
-  // or starts serving this server's IP a block/challenge page instead of
-  // real results, `titles` silently comes back empty, indistinguishable
-  // from a genuine 0-result query. Not attempting to guess at content-based
-  // detection of a block page here (no verified real sample of one to
-  // match against) — just making the empty case observable at all, with
-  // enough to tell the two apart by hand: a genuine 0-result page and a
-  // block/challenge page are very different HTML sizes in practice.
+  // documented at the top of this file) — if DuckDuckGo changes its markup
+  // in some OTHER way than the block page just handled above, `titles` can
+  // still silently come back empty, indistinguishable from a genuine
+  // 0-result query. Kept as a secondary, lower-confidence signal now that
+  // the known real cause has its own explicit check above.
   if (titles.length === 0) {
     console.error(`fox-harness-tool-duckduckgo-web-search: 0 results parsed for query "${query}" (html length: ${html.length})`)
   }

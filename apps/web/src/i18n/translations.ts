@@ -123,6 +123,18 @@ export const vi = {
   "conversation.toolRunning": "Đang dùng {name}…",
   "conversation.toolUsed": "Đã dùng {name}",
   "conversation.toolFailed": "Lỗi khi dùng {name}",
+  // Real bug fixed 2026-09-11 (user: "box contain tool-pill vẫn còn mà ko
+  // có dữ liệu ... bị shrink") — a tool call whose turn ended without a
+  // matching `tool/result` (container hibernated/crashed mid-call, a real,
+  // already-documented gap — `docs/core-overview.md`'s own known-gaps list:
+  // idle sweep doesn't check turn status before hibernating) used to stay
+  // "running" forever: a tiny pill with no result content, no spinner that
+  // ever resolves — indistinguishable from a genuinely broken empty box.
+  // `handleEvent`'s `turn/end` case now sweeps any still-"running" tool
+  // entry from that turn into this labeled state instead of leaving it
+  // stuck — honest about what happened rather than silently vanishing (a
+  // tool call that really did happen), but no longer a dead, confusing box.
+  "conversation.toolInterrupted": "Lượt trò chuyện đã kết thúc trước khi có kết quả.",
   // `conversation.reasoningRunning`/`.reasoningDone` (the collapsed
   // reasoning toggle) and `conversation.newSessionCmd`/
   // `.renameSessionCmd`/`common.renameSessionPrompt` (the `/`-command
@@ -217,6 +229,7 @@ export const en: Record<TranslationKey, string> = {
   "conversation.toolRunning": "Using {name}…",
   "conversation.toolUsed": "Used {name}",
   "conversation.toolFailed": "Failed to use {name}",
+  "conversation.toolInterrupted": "The turn ended before a result arrived.",
 
   "settings.title": "Settings",
   "settings.generalTab": "General",

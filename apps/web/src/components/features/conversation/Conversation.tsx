@@ -67,6 +67,7 @@
 import {
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   useEffect,
   useRef,
   useState,
@@ -93,6 +94,7 @@ type LogEntry =
   | {
       kind: "tool";
       id: string;
+      turn: number;
       name: string;
       args: string;
       status: "running" | "done" | "error";
@@ -119,12 +121,65 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+// Real gap found and fixed (2026-09-11, user: "ko có lịch sử tool search
+// show trên UI chat khi tìm kiếm xong gồm link ntn") — this app has never
+// rendered a link anywhere: assistant replies and tool-pill result text are
+// both plain JSX text interpolation (React auto-escapes, no HTML/markdown
+// parsing at all). The system prompt explicitly tells the model to "Cite
+// result URLs as markdown links" (packages/tool/duckduckgo-web-search's own
+// `tool:duckduckgo_web_search` section), and duckduckgo_web_search's own
+// rendered tool-result text is literally `${title}\n   ${url}\n   ${snippet}`
+// per result — both only ever showed up as inert text, never a clickable
+// link, which is exactly what reads as "no search history" even though the
+// data was there the whole time. Deliberately NOT a full markdown library —
+// this repo pulls in a real dependency only when hand-rolling stops being
+// reasonable (sonner replaced a hand-rolled toast for that exact reason);
+// linkifying `[text](url)` plus bare URLs is the entire need here, one
+// regex pass, no other markdown syntax appears anywhere in this app's real
+// output today.
+const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"')\]]+)/g;
+
+function linkify(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let key = 0;
+  for (const match of text.matchAll(LINK_RE)) {
+    const index = match.index ?? 0;
+    if (index > lastIndex) nodes.push(text.slice(lastIndex, index));
+    const [full, mdLabel, mdUrl, bareUrl] = match;
+    const url = mdUrl ?? bareUrl;
+    nodes.push(
+      <a key={key++} className="fh-link" href={url} target="_blank" rel="noopener noreferrer">
+        {mdLabel ?? bareUrl}
+      </a>,
+    );
+    lastIndex = index + full.length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
+
+// Real bug fixed 2026-09-11 (user: "có rất nhiều assistant text dưới 1
+// tool-pill mà ko có chữ") — confirmed against a real decompressed session
+// log: every step that makes a tool call has dsh's own `BlockAssembler`
+// split off a text block that's JUST `"\n\n"` right before the `tool-call`
+// block (real captured example: `[{type:"reasoning",...},
+// {type:"text",text:"\n\n"}, {type:"tool-call",...}]`). `"\n\n"` is a
+// non-empty string — truthy in JS — so the old plain `if (!text) return`
+// guard let it straight through, producing a real, persisted, empty-looking
+// bubble every single time the model calls a tool. `.trim()` before the
+// emptiness check (and on the stored value, so a message that DOES have
+// real content doesn't render with stray leading/trailing blank lines
+// either — the same real log shows genuine replies prefixed with their own
+// leading `"\n\n"`) is the correct fix — whitespace-only is exactly
+// "nothing to show," same reasoning already applied to the tool-pill fixes
+// this session.
 function buildBubbleEntry(
   id: string,
   role: "user" | "assistant",
   content: ContentBlock[],
 ): LogEntry | undefined {
-  const text = contentToText(content);
+  const text = contentToText(content).trim();
   if (!text) return undefined;
   return { kind: "bubble", id, role, text };
 }
@@ -167,7 +222,7 @@ function ToolPill({
         <div className="tool-pill-detail">
           <div className="tool-pill-args">{entry.args}</div>
           {entry.resultText && (
-            <div className="tool-pill-result">{entry.resultText}</div>
+            <div className="tool-pill-result">{linkify(entry.resultText)}</div>
           )}
         </div>
       )}
@@ -209,7 +264,7 @@ function LogEntryView({
       return (
         <div className="assistant-text">
           {entry.text && (
-            <div className="assistant-text-body">{entry.text}</div>
+            <div className="assistant-text-body">{linkify(entry.text)}</div>
           )}
         </div>
       );
@@ -294,6 +349,31 @@ export function Conversation() {
             }),
           });
         }
+        // Real bug fixed 2026-09-11 (user: "box contain tool-pill vẫn còn
+        // mà ko có dữ liệu ... bị shrink") — a `tool/call` whose turn ended
+        // without a matching `tool/result` ever arriving (container
+        // hibernated/crashed mid-call — docs/core-overview.md's own known
+        // gap: idle sweep doesn't check turn status before hibernating)
+        // used to stay "running" forever: a tiny pill with no result
+        // content and a spinner that never resolves. This turn has now
+        // definitively ended per the server's own event, so any of ITS
+        // tool entries still "running" never will complete — reclassify
+        // instead of leaving them stuck. Scoped to `data.turn` specifically
+        // (not "every running entry") so a DIFFERENT turn's genuinely
+        // in-flight tool call is never touched.
+        setEntries((prev) =>
+          prev.map((entry) =>
+            entry.kind === "tool" &&
+            entry.turn === data.turn &&
+            entry.status === "running"
+              ? {
+                  ...entry,
+                  status: "error",
+                  resultText: tRef.current("conversation.toolInterrupted"),
+                }
+              : entry,
+          ),
+        );
         break;
       }
       case "user/message": {
@@ -367,6 +447,7 @@ export function Conversation() {
         // entry is pushed under, so `tool/result` below can update it in
         // place instead of pushing a 2nd separate entry.
         const data = event.data as {
+          turn: number;
           callId: string;
           name: string;
           arguments: string;
@@ -380,6 +461,7 @@ export function Conversation() {
         pushEntry({
           kind: "tool",
           id: `tool-${data.callId}`,
+          turn: data.turn,
           name: data.name,
           args: pretty,
           status: "running",
@@ -548,8 +630,8 @@ export function Conversation() {
           ))}
           {[...liveBubbles.entries()].map(([key, bubble]) => (
             <div key={key} className="assistant-text">
-              {bubble.text && (
-                <div className="assistant-text-body">{bubble.text}</div>
+              {bubble.text.trim() && (
+                <div className="assistant-text-body">{linkify(bubble.text)}</div>
               )}
             </div>
           ))}

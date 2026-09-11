@@ -27,7 +27,29 @@ FROM node:22-slim
 # request) fails CLOSED — no confinement ever silently degrades to
 # unconfined execution — so this wasn't a security gap, but it did leave the
 # bash tool completely unusable.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ bubblewrap && rm -rf /var/lib/apt/lists/*
+# `curl` + `ca-certificates` (2026-09-11, real bug: "websearch tool đang bị
+# lỗi" — confirmed the hard way, `docker run --entrypoint sh
+# fox-harness-worker:dev -c 'which curl'` → not found) —
+# packages/tool/duckduckgo-web-search/src/search.ts shells out to `curl`
+# specifically (not Node's built-in `fetch()`, which gets DuckDuckGo's
+# bot-challenge even with a full Chrome-shaped header set — see that file's
+# own header comment). Every real search tool call from inside a worker
+# container has been failing since this image existed; `node:22-slim`
+# doesn't ship `curl`, and nothing here ever installed it. Dev testing never
+# caught this because the headless host profile (`dsh --profile
+# fox-harness-headless`, used to verify this tool back in Phase 1) runs on
+# the HOST, where `curl` is already present — the gap only showed up once a
+# real per-session Docker container tried the same tool call. Installing
+# `curl` alone surfaced a SECOND real bug immediately: every HTTPS request
+# failed with `curl: (77) error setting certificate file:
+# /etc/ssl/certs/ca-certificates.crt` — `node:22-slim` also doesn't ship a CA
+# bundle, so curl had no way to verify any TLS certificate at all. Both
+# confirmed fixed together: a real 2-step curl session against the live
+# `duckduckgo.com`/`html.duckduckgo.com` from inside a running container
+# (not just `which curl`) returns real `HOME status=200`/`SEARCH status=200`
+# with real result markup, matching the exact behavior already verified from
+# the host.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ bubblewrap curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
 

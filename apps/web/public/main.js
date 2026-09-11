@@ -25727,6 +25727,18 @@
     "conversation.toolRunning": "\u0110ang d\xF9ng {name}\u2026",
     "conversation.toolUsed": "\u0110\xE3 d\xF9ng {name}",
     "conversation.toolFailed": "L\u1ED7i khi d\xF9ng {name}",
+    // Real bug fixed 2026-09-11 (user: "box contain tool-pill vẫn còn mà ko
+    // có dữ liệu ... bị shrink") — a tool call whose turn ended without a
+    // matching `tool/result` (container hibernated/crashed mid-call, a real,
+    // already-documented gap — `docs/core-overview.md`'s own known-gaps list:
+    // idle sweep doesn't check turn status before hibernating) used to stay
+    // "running" forever: a tiny pill with no result content, no spinner that
+    // ever resolves — indistinguishable from a genuinely broken empty box.
+    // `handleEvent`'s `turn/end` case now sweeps any still-"running" tool
+    // entry from that turn into this labeled state instead of leaving it
+    // stuck — honest about what happened rather than silently vanishing (a
+    // tool call that really did happen), but no longer a dead, confusing box.
+    "conversation.toolInterrupted": "L\u01B0\u1EE3t tr\xF2 chuy\u1EC7n \u0111\xE3 k\u1EBFt th\xFAc tr\u01B0\u1EDBc khi c\xF3 k\u1EBFt qu\u1EA3.",
     // `conversation.reasoningRunning`/`.reasoningDone` (the collapsed
     // reasoning toggle) and `conversation.newSessionCmd`/
     // `.renameSessionCmd`/`common.renameSessionPrompt` (the `/`-command
@@ -25809,6 +25821,7 @@
     "conversation.toolRunning": "Using {name}\u2026",
     "conversation.toolUsed": "Used {name}",
     "conversation.toolFailed": "Failed to use {name}",
+    "conversation.toolInterrupted": "The turn ended before a result arrived.",
     "settings.title": "Settings",
     "settings.generalTab": "General",
     "settings.profileTab": "Profile",
@@ -26297,8 +26310,26 @@
   function truncate(text, max) {
     return text.length > max ? `${text.slice(0, max)}\u2026` : text;
   }
+  var LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"')\]]+)/g;
+  function linkify(text) {
+    const nodes = [];
+    let lastIndex = 0;
+    let key = 0;
+    for (const match of text.matchAll(LINK_RE)) {
+      const index = match.index ?? 0;
+      if (index > lastIndex) nodes.push(text.slice(lastIndex, index));
+      const [full, mdLabel, mdUrl, bareUrl] = match;
+      const url = mdUrl ?? bareUrl;
+      nodes.push(
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("a", { className: "fh-link", href: url, target: "_blank", rel: "noopener noreferrer", children: mdLabel ?? bareUrl }, key++)
+      );
+      lastIndex = index + full.length;
+    }
+    if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+    return nodes;
+  }
   function buildBubbleEntry(id, role, content) {
-    const text = contentToText(content);
+    const text = contentToText(content).trim();
     if (!text) return void 0;
     return { kind: "bubble", id, role, text };
   }
@@ -26309,17 +26340,23 @@
     t
   }) {
     const label = entry.status === "running" ? t("conversation.toolRunning", { name: entry.name }) : entry.status === "error" ? t("conversation.toolFailed", { name: entry.name }) : t("conversation.toolUsed", { name: entry.name });
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: `tool-pill${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { type: "button", className: "tool-pill-header", onClick: onToggle, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Wrench, { size: 13 }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: label }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ChevronDown, { size: 13, className: "tool-pill-chevron" })
-      ] }),
-      expanded && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "tool-pill-detail", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "tool-pill-args", children: entry.args }),
-        entry.resultText && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "tool-pill-result", children: entry.resultText })
-      ] })
-    ] });
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      "div",
+      {
+        className: `tool-pill${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`,
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { type: "button", className: "tool-pill-header", onClick: onToggle, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Wrench, { size: 13 }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: label }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ChevronDown, { size: 13, className: "tool-pill-chevron" })
+          ] }),
+          expanded && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "tool-pill-detail", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "tool-pill-args", children: entry.args }),
+            entry.resultText && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "tool-pill-result", children: linkify(entry.resultText) })
+          ] })
+        ]
+      }
+    );
   }
   function LogEntryView({
     entry,
@@ -26331,20 +26368,32 @@
       case "notice":
         return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "notice", children: entry.text });
       case "tool":
-        return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ToolPill, { entry, expanded: isExpanded(entry.id), onToggle: () => onToggleExpanded(entry.id), t });
+        return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          ToolPill,
+          {
+            entry,
+            expanded: isExpanded(entry.id),
+            onToggle: () => onToggleExpanded(entry.id),
+            t
+          }
+        );
       case "bubble":
         if (entry.role === "user") {
           return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "bubble bubble-user", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: entry.text }) });
         }
-        return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text", children: entry.text && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text-body", children: entry.text }) });
+        return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text", children: entry.text && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text-body", children: linkify(entry.text) }) });
     }
   }
   function Conversation() {
     const runtime = useRuntime();
     const { t } = useLocale();
     const [entries, setEntries] = (0, import_react9.useState)([]);
-    const [liveBubbles, setLiveBubbles] = (0, import_react9.useState)(/* @__PURE__ */ new Map());
-    const [expandedDetails, setExpandedDetails] = (0, import_react9.useState)(/* @__PURE__ */ new Set());
+    const [liveBubbles, setLiveBubbles] = (0, import_react9.useState)(
+      /* @__PURE__ */ new Map()
+    );
+    const [expandedDetails, setExpandedDetails] = (0, import_react9.useState)(
+      /* @__PURE__ */ new Set()
+    );
     const [text, setText] = (0, import_react9.useState)("");
     const logRef = (0, import_react9.useRef)(null);
     const textareaRef = (0, import_react9.useRef)(null);
@@ -26355,7 +26404,9 @@
       setEntries((prev) => [...prev, entry]);
     }
     function updateEntry(id, updater) {
-      setEntries((prev) => prev.map((entry) => entry.id === id ? updater(entry) : entry));
+      setEntries(
+        (prev) => prev.map((entry) => entry.id === id ? updater(entry) : entry)
+      );
     }
     function toggleDetailExpanded(id) {
       setExpandedDetails((prev) => {
@@ -26375,14 +26426,28 @@
             pushEntry({
               kind: "notice",
               id: `evt-${event.seq}`,
-              text: tRef.current("conversation.turnEnded", { n: String(data.turn), reason: data.reason.kind })
+              text: tRef.current("conversation.turnEnded", {
+                n: String(data.turn),
+                reason: data.reason.kind
+              })
             });
           }
+          setEntries(
+            (prev) => prev.map(
+              (entry) => entry.kind === "tool" && entry.turn === data.turn && entry.status === "running" ? {
+                ...entry,
+                status: "error",
+                resultText: tRef.current("conversation.toolInterrupted")
+              } : entry
+            )
+          );
           break;
         }
         case "user/message": {
           const message = event.data;
-          pushEntry(buildBubbleEntry(`evt-${event.seq}`, "user", message.content));
+          pushEntry(
+            buildBubbleEntry(`evt-${event.seq}`, "user", message.content)
+          );
           break;
         }
         case "assistant/chunk": {
@@ -26409,7 +26474,9 @@
             next.delete(key);
             return next;
           });
-          const withoutToolCalls = data.message.content.filter((block) => block.type !== "tool-call");
+          const withoutToolCalls = data.message.content.filter(
+            (block) => block.type !== "tool-call"
+          );
           pushEntry(buildBubbleEntry(key, "assistant", withoutToolCalls));
           break;
         }
@@ -26420,7 +26487,15 @@
             pretty = JSON.stringify(JSON.parse(data.arguments), null, 2);
           } catch {
           }
-          pushEntry({ kind: "tool", id: `tool-${data.callId}`, name: data.name, args: pretty, status: "running", resultText: null });
+          pushEntry({
+            kind: "tool",
+            id: `tool-${data.callId}`,
+            turn: data.turn,
+            name: data.name,
+            args: pretty,
+            status: "running",
+            resultText: null
+          });
           break;
         }
         case "tool/result": {
@@ -26450,7 +26525,11 @@
           handleEvent(frame.event);
           break;
         case "error":
-          pushEntry({ kind: "notice", id: `err-${crypto.randomUUID()}`, text: frame.message });
+          pushEntry({
+            kind: "notice",
+            id: `err-${crypto.randomUUID()}`,
+            text: frame.message
+          });
           break;
         case "session":
           break;
@@ -26467,6 +26546,10 @@
     (0, import_react9.useEffect)(() => {
       const el = textareaRef.current;
       if (!el) return;
+      if (!text) {
+        el.style.height = "";
+        return;
+      }
       el.style.height = "auto";
       el.style.height = `${el.scrollHeight}px`;
     }, [text]);
@@ -26481,45 +26564,52 @@
       sendMessage();
     }
     function onTextareaKeyDown(event) {
-      if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+      if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing)
+        return;
       event.preventDefault();
       sendMessage();
     }
     const isEmpty = entries.length === 0 && liveBubbles.size === 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: `fh-conversation-root${isEmpty ? " fh-conversation-empty" : ""}`, children: [
-      !isEmpty && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { id: "log", ref: logRef, children: [
-        entries.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          LogEntryView,
-          {
-            entry,
-            isExpanded: (id) => expandedDetails.has(id),
-            onToggleExpanded: toggleDetailExpanded,
-            t
-          },
-          entry.id
-        )),
-        [...liveBubbles.entries()].map(([key, bubble]) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text", children: bubble.text && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text-body", children: bubble.text }) }, key))
-      ] }),
-      isEmpty && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "fh-conversation-empty-heading", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Bot, { size: 28 }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h2", { children: t("conversation.emptyHeading") })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("form", { id: "send-form", onSubmit, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "textarea",
-          {
-            id: "text-input",
-            ref: textareaRef,
-            rows: 1,
-            placeholder: t("conversation.placeholder"),
-            value: text,
-            onChange: (event) => setText(event.target.value),
-            onKeyDown: onTextareaKeyDown
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "fh-composer-actions", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Button, { variant: "primary", type: "submit", children: t("conversation.send") }) })
-      ] })
-    ] });
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      "div",
+      {
+        className: `fh-conversation-root${isEmpty ? " fh-conversation-empty" : ""}`,
+        children: [
+          !isEmpty && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { id: "log", ref: logRef, children: [
+            entries.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              LogEntryView,
+              {
+                entry,
+                isExpanded: (id) => expandedDetails.has(id),
+                onToggleExpanded: toggleDetailExpanded,
+                t
+              },
+              entry.id
+            )),
+            [...liveBubbles.entries()].map(([key, bubble]) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text", children: bubble.text.trim() && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text-body", children: linkify(bubble.text) }) }, key))
+          ] }),
+          isEmpty && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "fh-conversation-empty-heading", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Bot, { size: 48 }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h2", { children: t("conversation.emptyHeading") })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("form", { id: "send-form", onSubmit, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              "textarea",
+              {
+                id: "text-input",
+                ref: textareaRef,
+                rows: 1,
+                placeholder: t("conversation.placeholder"),
+                value: text,
+                onChange: (event) => setText(event.target.value),
+                onKeyDown: onTextareaKeyDown
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "fh-composer-actions", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Button, { variant: "primary", type: "submit", children: t("conversation.send") }) })
+          ] })
+        ]
+      }
+    );
   }
 
   // apps/web/src/components/features/LanguageSelect.tsx

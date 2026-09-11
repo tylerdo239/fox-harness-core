@@ -1123,6 +1123,27 @@ button:disabled {
   gap: 1rem;
 }
 
+/* Real bug fixed 2026-09-11 (user: "UI đang bị shrink khi bị tràn thành
+ * scroll" — specifically tool-pill/assistant-text). Root cause: `#log`'s
+ * OWN height is definite (`flex: 1` inside `.fh-conversation-root`'s fixed
+ * chain, not an intrinsic/auto size), so once its children's combined
+ * content height exceeds that, the flexbox spec's default `flex-shrink: 1`
+ * on every child kicks in FIRST — each entry gets proportionally squeezed
+ * to fit, which is what actually read as "shrinking" — before `overflow-y:
+ * auto` ever gets a chance to turn the excess into a scrollbar (that only
+ * ever catches what's left AFTER shrinking, e.g. a `.tool-pill-detail`
+ * that still can't get any smaller). `#log > *` forces every one of its
+ * direct children (each log entry renders as exactly one such child —
+ * `.notice`/`.tool-pill`/`.bubble`/`.assistant-text`) to keep its natural
+ * height instead, so `#log` overflows as a whole and scrolls normally, the
+ * behavior that was actually intended. A well-known real flexbox gotcha,
+ * not specific to any one entry type — every prior fix in this area
+ * (`.tool-pill-detail`'s own internal cap, the composer's `flex: 1`
+ * removal) was correct on its own terms but didn't address this. */
+#log > * {
+  flex-shrink: 0;
+}
+
 /* Phase 14: real dsh bubble radius (`MessageItem.module.css`, 22px) — the
  * SAME radius the composer card below uses, a deliberate real visual echo
  * between the two, not independently chosen values. */
@@ -1157,6 +1178,27 @@ button:disabled {
 
 .assistant-text-body {
   color: var(--fg);
+}
+
+/* Real gap fixed 2026-09-11 (user: "ko có lịch sử tool search show trên UI
+ * chat khi tìm kiếm xong gồm link ntn") — this app never rendered a single
+ * `<a>` before (Conversation.tsx's own `linkify()`, applied to assistant
+ * replies and expanded tool-pill results). `--accent-text`, not `--accent`
+ * directly — same WCAG-contrast-safe alias
+ * `.fh-history-chat-row.active .fh-history-chat-row-title` already uses for
+ * accent-on-text (plain `--accent` as text fails AA on some real
+ * backgrounds, see that rule's own comment); this app has never shipped a
+ * default-blue link since the orange rebrand either. */
+.fh-link {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 0.15em;
+  word-break: break-all;
+}
+
+.fh-link:hover {
+  text-decoration-color: currentColor;
 }
 
 /* Collapsed tool-call pill (2026-09-10, "làm UI UX lại cho casual như các
@@ -1209,6 +1251,17 @@ button:disabled {
   color: var(--error);
 }
 
+/* Real bug fixed 2026-09-11 (user: "UI đang bị shrink khi bị tràn thành
+ * scroll") — this had no `max-height`/`overflow-y` of its own at all, so a
+ * long real tool result (e.g. a full duckduckgo_web_search result set, now
+ * several lines per result plus clickable links) grew this pill without any
+ * bound. `.tool-pill` itself sits inside `#log` (`flex:1; min-height:0;
+ * overflow-y:auto`) — an unbounded pill just pushed `#log`'s scrollable
+ * content taller instead of scrolling on its own, which is what actually
+ * read as "the UI shrinking": the rest of the pill (and anything after it)
+ * got shoved down/out of the visible area rather than the long result
+ * staying contained. Capped like a real deliberate detail panel, with its
+ * own internal scroll instead of growing forever. */
 .tool-pill-detail {
   padding: 0 0.8em 0.7em;
   border-top: 1px solid var(--border-subtle);
@@ -1219,6 +1272,8 @@ button:disabled {
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--muted);
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .tool-pill-args {
@@ -1498,28 +1553,33 @@ button:disabled {
  * `scrollbar-width`/`scrollbar-color` properties, added alongside it here
  * for the same visual intent, not a full re-implementation). */
 #log,
-.fh-sidebar-region {
+.fh-sidebar-region,
+.tool-pill-detail {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 
 #log::-webkit-scrollbar,
-.fh-sidebar-region::-webkit-scrollbar {
+.fh-sidebar-region::-webkit-scrollbar,
+.tool-pill-detail::-webkit-scrollbar {
   width: 8px;
 }
 
 #log::-webkit-scrollbar-thumb,
-.fh-sidebar-region::-webkit-scrollbar-thumb {
+.fh-sidebar-region::-webkit-scrollbar-thumb,
+.tool-pill-detail::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 999px;
 }
 
 #log::-webkit-scrollbar-thumb:hover,
-.fh-sidebar-region::-webkit-scrollbar-thumb:hover {
+.fh-sidebar-region::-webkit-scrollbar-thumb:hover,
+.tool-pill-detail::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
 }
 
 #log::-webkit-scrollbar-track,
-.fh-sidebar-region::-webkit-scrollbar-track {
+.fh-sidebar-region::-webkit-scrollbar-track,
+.tool-pill-detail::-webkit-scrollbar-track {
   background: transparent;
 }
