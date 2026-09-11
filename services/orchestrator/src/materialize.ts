@@ -18,14 +18,40 @@
 // list directly (same as `@fox-harness/dsh-tool-duckduckgo-web-search`
 // always has), materialized as-is for every session.
 
-import { access, copyFile, mkdir, writeFile } from 'node:fs/promises'
+import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const templateDir = dirname(fileURLToPath(import.meta.resolve('@fox-harness/profile-template/template/profile.package.json')))
 
-// Container-specific override on top of the checked-in (currently empty)
-// profile-wide overlay: packages/transport's `host` config defaults to
+// Real bug found and fixed 2026-09-11: `materializeDshHome()` used to write
+// ONLY `transportRow()`'s output to `cordis.patch.yml`, never reading
+// `packages/profile-template/template/cordis.patch.yml` at all — despite
+// that template file's own header comment calling itself "the profile-wide
+// overlay." Any entry checked into that template (the system-prompt
+// override added the same day is the first real one) had zero effect on any
+// materialized session, silently. Caught while wiring that override in, not
+// by a test — a stale-but-plausible comment plus a template file that
+// happened to be `[]` this whole time meant nothing ever exercised the gap.
+// Fixed by actually reading the template and combining it with the
+// container-specific transport row below, instead of discarding it.
+// `stripYamlComments`/the `[]`-equality check exist so the combination
+// stays a valid single top-level YAML array in both states the template can
+// be in (real entries, or the empty `[]` this file used to always ship as) —
+// this repo generates cordis.patch.yml by plain string concatenation
+// throughout (no YAML library dependency anywhere), so this matches that
+// existing convention rather than introducing a new one.
+function stripYamlComments(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('#'))
+    .join('\n')
+    .trim()
+}
+
+// Container-specific override, combined with the checked-in profile-wide
+// overlay by `materializeDshHome` below: packages/transport's `host` config
+// defaults to
 // 127.0.0.1 (loopback-only), which Docker's published port cannot reach from
 // outside the container's network namespace — every containerized worker
 // needs this row overridden to bind 0.0.0.0.
@@ -73,6 +99,9 @@ export async function materializeDshHome(dshHomeDir: string): Promise<void> {
 
   const patchPath = join(profileDir, 'cordis.patch.yml')
   if (!(await exists(patchPath))) {
-    await writeFile(patchPath, transportRow())
+    const templateRaw = await readFile(join(templateDir, 'cordis.patch.yml'), 'utf8')
+    const templateHasEntries = stripYamlComments(templateRaw) !== '[]'
+    const combined = templateHasEntries ? `${templateRaw.trimEnd()}\n${transportRow()}` : transportRow()
+    await writeFile(patchPath, combined)
   }
 }

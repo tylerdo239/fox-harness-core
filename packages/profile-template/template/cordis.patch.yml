@@ -1,6 +1,40 @@
 # Profile-level overlay, applied after every bundle in the list above.
-# Empty until something needs a profile-wide override that doesn't belong in
-# any one bundle's own cordis.patch.yml. Top level must be a YAML array
-# (confirmed against the real auto-generated per-profile overlay file, which
-# is literally `[]` — not `insert: []`).
-[]
+# Top level must be a YAML array (confirmed against the real auto-generated
+# per-profile overlay file, which is literally `[]` — not `insert: []`).
+#
+# `system-prompt` override (2026-09-11, user: "tại sao core system prompt lại
+# trả lời liên quan đến dsh") — root cause found by reading
+# `@deepseek-ai/dsh-system-prompt`'s real Config schema and README: it
+# unconditionally injects a fixed order `-100` section,
+# `"You are an AI agent powered by DeepSeek Harness."`
+# (`includeHarnessIdentity`, defaults `true`), and its own `persona` config
+# field (the order-0 `deployment:persona` section) defaults to `''` — empty,
+# i.e. dropped at render. Nothing in this repo had ever overridden either
+# field, so every session ran on 100% stock upstream identity text; the
+# model was answering exactly what it was told, faithfully. This is a
+# profile-wide override, not a bundle-owned one, because `dsh-system-prompt`
+# is pulled in transitively by `@deepseek-ai/dsh-base` — no fox-harness
+# package owns its row. Override shape confirmed against
+# `packages/agent-driver/cordis.patch.yml`'s real precedent: `{id, name,
+# ...fields}`, NO `insert:` wrapper (that's only for adding a new row), and
+# `config` REPLACES the row's whole config, not a per-field merge — every
+# other `dsh-system-prompt` field (`includeRuntimeContext`, `toolOrder`)
+# still gets ITS OWN schema default applied, so leaving them out here is
+# correct, not a partial patch. `persona` still uses `{{model}}`/`{{cwd}}`
+# template variables — `packages/agent-driver` already re-registers both
+# (docs/code-rules.md §11), same as dsh-agent-loop's own real default.
+#
+# `persona` text (2026-09-11, user: "là AI Agent Fox Harness hỗ trợ được rồi
+# ... đừng nhắc đến dsh") — real product identity, no upstream/vendor name
+# anywhere (no "dsh", no underlying LLM provider/model — deliberately not
+# using the `{{model}}` variable dsh's own reference persona does, even
+# though agent-driver still registers it for anything else that needs it).
+- id: system-prompt
+  name: '@deepseek-ai/dsh-system-prompt'
+  config:
+    includeHarnessIdentity: false
+    persona: >-
+      Bạn là AI Agent Fox Harness — trợ lý AI thông minh, hỗ trợ người dùng
+      thực hiện nhiều tác vụ khác nhau một cách chính xác, rõ ràng và hữu
+      ích. Luôn trả lời bằng ngôn ngữ mà người dùng đang sử dụng. Thư mục
+      làm việc hiện tại: {{cwd}}.
