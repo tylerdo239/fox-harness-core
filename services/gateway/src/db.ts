@@ -9,6 +9,7 @@
 import mariadb from 'mariadb'
 
 import { config } from './config.ts'
+import { deleteSkillContent, getSkillContent, putSkillContent, skillContentKey } from './object-storage.ts'
 
 // Performance fix 2026-09-09 (docs/security-performance-review-2026-09-09.md
 // finding #6): parsed into discrete fields instead of passing
@@ -191,7 +192,11 @@ export async function listSessionIdsForOwner(ownerId: number): Promise<string[]>
   return rows.map((row) => row.session_id)
 }
 
-// Per-user skills — infra/migrations/002_custom_skills.sql.
+// Per-user skills — infra/migrations/001_init.sql's `custom_skills` table.
+// `content` (2026-09-14) no longer lives in this row — it's fetched from/
+// written to object storage (services/gateway/src/object-storage.ts) by
+// `content_key`, transparently, so every caller above this module still
+// sees a plain `content: string` exactly as before.
 export interface CustomSkillRecord {
   name: string
   description: string
@@ -203,21 +208,31 @@ export interface CustomSkillRecord {
 interface CustomSkillRow {
   name: string
   description: string
-  content: string
+  content_key: string
   created_at: string
   updated_at: string
 }
 
-function toCustomSkill(row: CustomSkillRow): CustomSkillRecord {
-  return { name: row.name, description: row.description, content: row.content, createdAt: row.created_at, updatedAt: row.updated_at }
+async function toCustomSkill(row: CustomSkillRow): Promise<CustomSkillRecord> {
+  return {
+    name: row.name,
+    description: row.description,
+    content: await getSkillContent(row.content_key),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
+// N parallel object-storage reads (one per skill) instead of the single DB
+// read this used to be — accepted cost, see docs/data-analysis-flow-plan.md-
+// style tradeoff notes; capped by MAX_SKILLS_PER_USER (skills.ts) so N never
+// exceeds 50.
 export async function listCustomSkills(ownerId: number): Promise<CustomSkillRecord[]> {
   const rows = await pool.query<CustomSkillRow[]>(
-    `select name, description, content, created_at, updated_at from custom_skills where owner_id = ? order by name`,
+    `select name, description, content_key, created_at, updated_at from custom_skills where owner_id = ? order by name`,
     [ownerId],
   )
-  return rows.map(toCustomSkill)
+  return Promise.all(rows.map(toCustomSkill))
 }
 
 export async function countCustomSkills(ownerId: number): Promise<number> {
@@ -226,36 +241,67 @@ export async function countCustomSkills(ownerId: number): Promise<number> {
 }
 
 // `undefined` = a skill with this name already exists for this user.
+//
+// DB insert FIRST, object-storage write SECOND — the opposite order from
+// `updateCustomSkill`/`deleteCustomSkill` below, deliberately: the object
+// key is deterministic (`skillContentKey(ownerId, name)`), so writing
+// content BEFORE checking for a duplicate name would silently overwrite an
+// EXISTING skill's real content the instant a duplicate-name create raced
+// in — the insert's own `errno 1062` is what actually detects the
+// duplicate, so it must run, and fail, before any object-storage write
+// happens at all. If the insert succeeds but the object-storage write then
+// fails, the just-inserted row is deleted (best-effort compensating
+// rollback) so a DB row never ends up pointing at content that was never
+// actually written.
 export async function createCustomSkill(
   ownerId: number,
   skill: { name: string; description: string; content: string },
 ): Promise<CustomSkillRecord | undefined> {
+  const key = skillContentKey(ownerId, skill.name)
+  let inserted: CustomSkillRow
   try {
     const rows = await pool.query<CustomSkillRow[]>(
-      `insert into custom_skills (owner_id, name, description, content) values (?, ?, ?, ?) returning name, description, content, created_at, updated_at`,
-      [ownerId, skill.name, skill.description, skill.content],
+      `insert into custom_skills (owner_id, name, description, content_key) values (?, ?, ?, ?) returning name, description, content_key, created_at, updated_at`,
+      [ownerId, skill.name, skill.description, key],
     )
-    return toCustomSkill(rows[0])
+    inserted = rows[0]
   } catch (error) {
     if ((error as { errno?: number }).errno === 1062) return undefined
     throw error
   }
+  try {
+    await putSkillContent(key, skill.content)
+  } catch (error) {
+    await pool.query(`delete from custom_skills where owner_id = ? and name = ?`, [ownerId, skill.name]).catch(() => {})
+    throw error
+  }
+  return toCustomSkill(inserted)
 }
 
 // `undefined` = no such skill for this user. MariaDB 10.11 has no
 // `update ... returning`, hence the re-select.
+//
+// Object-storage write FIRST here (unlike `createCustomSkill` above) is
+// safe: the key is scoped to THIS owner+name, which already belongs to
+// this user if the row exists at all — no duplicate-name race to protect
+// against, so there's nothing wrong with overwriting the content before
+// confirming the row still exists. If the row turns out to be gone (0
+// rows affected), the write becomes a harmless orphaned object, same as
+// every other "orphan is fine, dangling DB reference is not" case in this
+// file.
 export async function updateCustomSkill(
   ownerId: number,
   name: string,
   fields: { description: string; content: string },
 ): Promise<CustomSkillRecord | undefined> {
+  await putSkillContent(skillContentKey(ownerId, name), fields.content)
   const result = await pool.query<{ affectedRows: number }>(
-    `update custom_skills set description = ?, content = ?, updated_at = now() where owner_id = ? and name = ?`,
-    [fields.description, fields.content, ownerId, name],
+    `update custom_skills set description = ?, updated_at = now() where owner_id = ? and name = ?`,
+    [fields.description, ownerId, name],
   )
   if (result.affectedRows === 0) return undefined
   const rows = await pool.query<CustomSkillRow[]>(
-    `select name, description, content, created_at, updated_at from custom_skills where owner_id = ? and name = ?`,
+    `select name, description, content_key, created_at, updated_at from custom_skills where owner_id = ? and name = ?`,
     [ownerId, name],
   )
   return rows[0] ? toCustomSkill(rows[0]) : undefined
@@ -263,5 +309,9 @@ export async function updateCustomSkill(
 
 export async function deleteCustomSkill(ownerId: number, name: string): Promise<boolean> {
   const result = await pool.query<{ affectedRows: number }>(`delete from custom_skills where owner_id = ? and name = ?`, [ownerId, name])
-  return result.affectedRows > 0
+  if (result.affectedRows === 0) return false
+  // Best-effort — an orphaned object nobody will ever reference again is
+  // harmless; the DB row (the half that actually matters) is already gone.
+  await deleteSkillContent(skillContentKey(ownerId, name)).catch(() => {})
+  return true
 }

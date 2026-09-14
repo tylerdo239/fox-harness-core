@@ -222,8 +222,10 @@ allowedFlows: Object.keys(flows),
   `docs/skill-transfer-changes.md` mục "Lưu ý khi triển khai"): container
   trong `fh:warmpool` được dựng từ image cũ, không tự có bundle mới — xoá
   container + `DEL fh:warmpool` trên Redis rồi bật lại orchestrator
-- Chạy migration `003_add_flow_column.sql` trên DB dev (nối tiếp sau
-  `001_init.sql` + `002_custom_skills.sql` đã chạy)
+- Chạy migration DB dev — **cập nhật 2026-09-14**: `002`/`003`/`004` đã gộp
+  lại vào `infra/migrations/001_init.sql` (xem README trong thư mục đó);
+  DB dev đã chạy đủ trước khi gộp nên không cần chạy lại gì, chỉ fresh DB
+  mới cần `001_init.sql` (đã có sẵn cột `flow`)
 - Chạy gateway + orchestrator local, mở FE:
   - Click "New chat" (flow mặc định) → xác nhận hành vi y hệt hiện tại
     (regression check — profile dir vẫn `profiles/fox-harness`, KHÔNG thấy

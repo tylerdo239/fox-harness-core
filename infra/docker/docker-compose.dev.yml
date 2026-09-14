@@ -38,7 +38,24 @@ services:
       - '3307:3306'
     volumes:
       - fox-harness-mariadb-data:/var/lib/mysql
+  minio:
+    # S3-compatible object storage for local dev (2026-09-14) —
+    # `custom_skills.content` (services/gateway/src/object-storage.ts)
+    # lives here instead of MariaDB. Prod points `S3_ENDPOINT` at real AWS
+    # S3 (or R2/Spaces/other S3-compatible service) instead — same client
+    # code either way, only `.env` changes.
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: fox_harness
+      MINIO_ROOT_PASSWORD: fox_harness_dev
+    ports:
+      - '9000:9000' # S3 API — this is what S3_ENDPOINT points at
+      - '9001:9001' # web console (login with the credentials above)
+    volumes:
+      - fox-harness-minio-data:/data
 
 volumes:
   fox-harness-redis-data:
   fox-harness-mariadb-data:
+  fox-harness-minio-data:

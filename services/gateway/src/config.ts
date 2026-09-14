@@ -83,4 +83,21 @@ export const config = {
   // verified to actually need the object-config form, not a query-string
   // param on the connection URL.
   dbConnectionLimit: envIntOr('DB_CONNECTION_LIMIT', 10),
+  // 2026-09-14: `custom_skills.content` moved off MariaDB onto object
+  // storage (services/gateway/src/object-storage.ts) — the DB row only
+  // keeps a `content_key` reference now. `requireEnv` for bucket/
+  // credentials, same as `internalSecret` above: unconfigured means every
+  // skill create/update/list call fails at runtime anyway, better to fail
+  // loud at boot with a clear message. `s3Endpoint` stays optional — unset
+  // means the real AWS S3 endpoint (SDK default); set it to point at a
+  // local MinIO (or R2/Spaces/other S3-compatible service) instead.
+  s3Endpoint: process.env.S3_ENDPOINT,
+  s3Region: envOr('S3_REGION', 'us-east-1'),
+  s3Bucket: requireEnv('S3_BUCKET'),
+  s3AccessKeyId: requireEnv('S3_ACCESS_KEY_ID'),
+  s3SecretAccessKey: requireEnv('S3_SECRET_ACCESS_KEY'),
+  // MinIO (and most non-AWS S3-compatible services) need path-style
+  // addressing (`http://host/bucket/key`) — they don't support the
+  // virtual-hosted-style (`http://bucket.host/key`) AWS S3 defaults to.
+  s3ForcePathStyle: envOr('S3_FORCE_PATH_STYLE', 'false') === 'true',
 }

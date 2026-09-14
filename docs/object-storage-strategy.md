@@ -1,5 +1,16 @@
 # Chat log + attachment lên object storage (S3) — chiến lược, không phải code chạy được
 
+> **Đã build thật, khác case** (2026-09-14): `custom_skills.content`
+> (`services/gateway/src/db.ts`) đã thật sự chuyển lên S3 —
+> `services/gateway/src/object-storage.ts`, `@aws-sdk/client-s3` trực
+> tiếp, KHÔNG qua interface `dsh` (`SessionPersistence`/`AttachmentStore`)
+> nào cả. Đơn giản hơn nhiều so với 2 case doc này bàn (chat log, ảnh) —
+> không event-sourced, không torn-tail, không content-addressed, chỉ 1 key
+> ổn định theo `(owner_id, name)`, ghi đè khi sửa. Local dev dùng MinIO
+> (`infra/docker/docker-compose.dev.yml`); code không khoá cứng AWS —
+> production đổi `.env` là đủ. Xem migration comment trong
+> `infra/migrations/001_init.sql` (cột `content_key`) để biết chi tiết.
+
 Roadmap §1.2 đã ghi từ đầu dự án: `Stores: Postgres · Redis · Log store
 (object storage)` — mục này chưa từng được build, chỉ dừng ở phần local-disk
 (xem `docs/agent-core-architecture-roadmap.md`). Trigger cho doc này
