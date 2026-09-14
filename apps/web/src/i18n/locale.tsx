@@ -60,7 +60,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   function t(key: TranslationKey, params?: Record<string, string>): string {
     let text = DICTS[locale][key]
     if (params) {
-      for (const [name, value] of Object.entries(params)) text = text.replace(`{${name}}`, value)
+      for (const [name, value] of Object.entries(params)) text = text.replaceAll(`{${name}}`, value)
     }
     return text
   }

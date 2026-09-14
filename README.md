@@ -37,7 +37,7 @@ Worker container (one per session) — a real `dsh` process running:
    packages/agent-driver         replaces core/agent-loop
    packages/core                 agent/request routing + quota
    packages/llm/openai-compat    real LlmAdapter (any OpenAI-compatible endpoint)
-   packages/tool/duckduckgo-web-search
+   packages/tool/serper-web-search
    packages/transport            WS server inside the worker
    — every capability is a FIXED bundle, identical for every user/session
 
@@ -60,7 +60,7 @@ over real HTTP/WS.
 | `packages/agent-driver` | Replacement turn/step/tool-call state machine — `core/agent-loop`'s real job. | The only package that reimplements a dsh internal; everything else only *adds* to dsh through its real extension seams. |
 | `packages/core` | Two listeners: route `provider`/`model` from env vars (`agent/request`), enforce per-session token budget (`agent/pre-step`). | |
 | `packages/llm/openai-compat` | Generic `LlmAdapter` for any OpenAI-compatible `/chat/completions` SSE endpoint (OpenAI, Azure OpenAI, Ollama, vLLM, LM Studio, OpenRouter, ...). | Additive — does not replace dsh's own default adapters. |
-| `packages/tool/duckduckgo-web-search` | One tool, `duckduckgo_web_search`, no API key required. | |
+| `packages/tool/serper-web-search` | Search source `serper` (Google via Serper.dev, needs `SERPER_API_KEY`) behind dsh's own `web_search` tool. | Registers no tool of its own. |
 | `packages/transport` | The WebSocket server running *inside* each worker container (snapshot-then-live protocol). | Binds `127.0.0.1` only — never reachable outside its own container; `services/gateway` is what makes it reachable to a browser. |
 | `packages/contracts` | Type-only definitions shared between `services/*` and `apps/web`. | The only non-`dsh-*` package `services/*` may import. |
 | `packages/profile-template` | Template files (`profile.package.json`, `cordis.patch.yml`) that `services/orchestrator` materializes into a real dsh profile per session. | Not a dsh bundle itself — a build-time template. |
@@ -95,7 +95,7 @@ services/orchestrator/     container lifecycle             (control plane)
 packages/agent-driver/     dsh core/agent-loop replacement
 packages/core/             request routing + quota
 packages/llm/openai-compat/
-packages/tool/duckduckgo-web-search/
+packages/tool/serper-web-search/
 packages/transport/        in-worker WS server
 packages/contracts/        shared types
 packages/profile-template/
@@ -163,7 +163,7 @@ pnpm run build
 # (Cache-Control: no-store) — no restart needed at all, just reload the page.
 
 # any packages/* the WORKER bundles changed (agent-driver, core,
-# llm/openai-compat, tool/duckduckgo-web-search, transport, profile-template):
+# llm/openai-compat, tool/serper-web-search, transport, profile-template):
 docker build -f infra/docker/worker/Dockerfile -t fox-harness-worker:dev .
 # already-running worker containers keep the OLD image until orchestrator
 # naturally hibernates/rehydrates them — session data is unaffected either

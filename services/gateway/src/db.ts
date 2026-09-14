@@ -183,3 +183,85 @@ export async function renameSession(sessionId: string, title: string): Promise<v
 export async function touchSessionRow(sessionId: string): Promise<void> {
   await pool.query(`update sessions set updated_at = now() where session_id = ?`, [sessionId])
 }
+
+// Every session of a user, including ones never chatted in (unlike
+// `listSessionsForOwner`) — a skill edit must reach a freshly opened chat too.
+export async function listSessionIdsForOwner(ownerId: number): Promise<string[]> {
+  const rows = await pool.query<{ session_id: string }[]>(`select session_id from sessions where owner_id = ?`, [ownerId])
+  return rows.map((row) => row.session_id)
+}
+
+// Per-user skills — infra/migrations/002_custom_skills.sql.
+export interface CustomSkillRecord {
+  name: string
+  description: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface CustomSkillRow {
+  name: string
+  description: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
+function toCustomSkill(row: CustomSkillRow): CustomSkillRecord {
+  return { name: row.name, description: row.description, content: row.content, createdAt: row.created_at, updatedAt: row.updated_at }
+}
+
+export async function listCustomSkills(ownerId: number): Promise<CustomSkillRecord[]> {
+  const rows = await pool.query<CustomSkillRow[]>(
+    `select name, description, content, created_at, updated_at from custom_skills where owner_id = ? order by name`,
+    [ownerId],
+  )
+  return rows.map(toCustomSkill)
+}
+
+export async function countCustomSkills(ownerId: number): Promise<number> {
+  const rows = await pool.query<{ n: bigint }[]>(`select count(*) as n from custom_skills where owner_id = ?`, [ownerId])
+  return Number(rows[0].n)
+}
+
+// `undefined` = a skill with this name already exists for this user.
+export async function createCustomSkill(
+  ownerId: number,
+  skill: { name: string; description: string; content: string },
+): Promise<CustomSkillRecord | undefined> {
+  try {
+    const rows = await pool.query<CustomSkillRow[]>(
+      `insert into custom_skills (owner_id, name, description, content) values (?, ?, ?, ?) returning name, description, content, created_at, updated_at`,
+      [ownerId, skill.name, skill.description, skill.content],
+    )
+    return toCustomSkill(rows[0])
+  } catch (error) {
+    if ((error as { errno?: number }).errno === 1062) return undefined
+    throw error
+  }
+}
+
+// `undefined` = no such skill for this user. MariaDB 10.11 has no
+// `update ... returning`, hence the re-select.
+export async function updateCustomSkill(
+  ownerId: number,
+  name: string,
+  fields: { description: string; content: string },
+): Promise<CustomSkillRecord | undefined> {
+  const result = await pool.query<{ affectedRows: number }>(
+    `update custom_skills set description = ?, content = ?, updated_at = now() where owner_id = ? and name = ?`,
+    [fields.description, fields.content, ownerId, name],
+  )
+  if (result.affectedRows === 0) return undefined
+  const rows = await pool.query<CustomSkillRow[]>(
+    `select name, description, content, created_at, updated_at from custom_skills where owner_id = ? and name = ?`,
+    [ownerId, name],
+  )
+  return rows[0] ? toCustomSkill(rows[0]) : undefined
+}
+
+export async function deleteCustomSkill(ownerId: number, name: string): Promise<boolean> {
+  const result = await pool.query<{ affectedRows: number }>(`delete from custom_skills where owner_id = ? and name = ?`, [ownerId, name])
+  return result.affectedRows > 0
+}

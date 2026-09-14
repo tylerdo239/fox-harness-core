@@ -6,11 +6,13 @@ import {
   PanelLeftOpenIcon,
   PlusIcon,
   SearchIcon,
+  SkillIcon,
 } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import { Button } from "../../primitives/Button.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
 import { Input } from "../../primitives/Input.tsx";
+import { MenuItem } from "../../primitives/MenuItem.tsx";
 import { AccountMenu } from "./AccountMenu.tsx";
 import { HistoryChat } from "./HistoryChat.tsx";
 
@@ -51,6 +53,7 @@ export function Sidebar({
   onNewSession,
   newSessionDisabled,
   onOpenSettings,
+  onOpenSkills,
   onLogout,
 }: {
   collapsed: boolean;
@@ -62,6 +65,7 @@ export function Sidebar({
   // this just disables the button so it's not silently inert either).
   newSessionDisabled: boolean;
   onOpenSettings: () => void;
+  onOpenSkills: () => void;
   onLogout: () => void;
 }) {
   const { t } = useLocale();
@@ -136,6 +140,16 @@ export function Sidebar({
           {t("sidebar.newSession")}
         </span>
       </Button>
+
+      <MenuItem
+        variant="nav"
+        className="fh-sidebar-skills"
+        onClick={onOpenSkills}
+        title={t("sidebar.skills")}
+      >
+        <SkillIcon size={16} />
+        <span className="fh-sidebar-skills-label">{t("sidebar.skills")}</span>
+      </MenuItem>
 
       <div className="fh-sidebar-region">
         <HistoryChat query={query} />

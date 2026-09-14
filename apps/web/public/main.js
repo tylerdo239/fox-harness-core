@@ -1085,7 +1085,7 @@
             }
             return dispatcher.useContext(Context);
           }
-          function useState11(initialState) {
+          function useState13(initialState) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useState(initialState);
           }
@@ -1093,11 +1093,11 @@
             var dispatcher = resolveDispatcher();
             return dispatcher.useReducer(reducer, initialArg, init);
           }
-          function useRef7(initialValue) {
+          function useRef8(initialValue) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useRef(initialValue);
           }
-          function useEffect8(create, deps) {
+          function useEffect10(create, deps) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useEffect(create, deps);
           }
@@ -1880,15 +1880,15 @@
           exports.useContext = useContext3;
           exports.useDebugValue = useDebugValue;
           exports.useDeferredValue = useDeferredValue;
-          exports.useEffect = useEffect8;
+          exports.useEffect = useEffect10;
           exports.useId = useId;
           exports.useImperativeHandle = useImperativeHandle;
           exports.useInsertionEffect = useInsertionEffect;
           exports.useLayoutEffect = useLayoutEffect;
           exports.useMemo = useMemo3;
           exports.useReducer = useReducer;
-          exports.useRef = useRef7;
-          exports.useState = useState11;
+          exports.useRef = useRef8;
+          exports.useState = useState13;
           exports.useSyncExternalStore = useSyncExternalStore;
           exports.useTransition = useTransition;
           exports.version = ReactVersion;
@@ -8061,12 +8061,12 @@
                 }
               }
             }
-            var listeners = accumulateTwoPhaseListeners(targetInst, eventType);
-            if (listeners.length > 0) {
+            var listeners2 = accumulateTwoPhaseListeners(targetInst, eventType);
+            if (listeners2.length > 0) {
               var event = new SyntheticCompositionEvent(eventType, domEventName, null, nativeEvent, nativeEventTarget);
               dispatchQueue.push({
                 event,
-                listeners
+                listeners: listeners2
               });
               if (fallbackData) {
                 event.data = fallbackData;
@@ -8137,12 +8137,12 @@
             if (!chars) {
               return null;
             }
-            var listeners = accumulateTwoPhaseListeners(targetInst, "onBeforeInput");
-            if (listeners.length > 0) {
+            var listeners2 = accumulateTwoPhaseListeners(targetInst, "onBeforeInput");
+            if (listeners2.length > 0) {
               var event = new SyntheticInputEvent("onBeforeInput", "beforeinput", null, nativeEvent, nativeEventTarget);
               dispatchQueue.push({
                 event,
-                listeners
+                listeners: listeners2
               });
               event.data = chars;
             }
@@ -8196,12 +8196,12 @@
           }
           function createAndAccumulateChangeEvent(dispatchQueue, inst, nativeEvent, target) {
             enqueueStateRestore(target);
-            var listeners = accumulateTwoPhaseListeners(inst, "onChange");
-            if (listeners.length > 0) {
+            var listeners2 = accumulateTwoPhaseListeners(inst, "onChange");
+            if (listeners2.length > 0) {
               var event = new SyntheticEvent("onChange", "change", null, nativeEvent, target);
               dispatchQueue.push({
                 event,
-                listeners
+                listeners: listeners2
               });
             }
           }
@@ -8699,12 +8699,12 @@
             var currentSelection = getSelection$1(activeElement$1);
             if (!lastSelection || !shallowEqual(lastSelection, currentSelection)) {
               lastSelection = currentSelection;
-              var listeners = accumulateTwoPhaseListeners(activeElementInst$1, "onSelect");
-              if (listeners.length > 0) {
+              var listeners2 = accumulateTwoPhaseListeners(activeElementInst$1, "onSelect");
+              if (listeners2.length > 0) {
                 var event = new SyntheticEvent("onSelect", "select", null, nativeEvent, nativeEventTarget);
                 dispatchQueue.push({
                   event,
-                  listeners
+                  listeners: listeners2
                 });
                 event.target = activeElement$1;
               }
@@ -8978,8 +8978,8 @@
           function processDispatchQueue(dispatchQueue, eventSystemFlags) {
             var inCapturePhase = (eventSystemFlags & IS_CAPTURE_PHASE) !== 0;
             for (var i = 0; i < dispatchQueue.length; i++) {
-              var _dispatchQueue$i = dispatchQueue[i], event = _dispatchQueue$i.event, listeners = _dispatchQueue$i.listeners;
-              processDispatchQueueItemsInOrder(event, listeners, inCapturePhase);
+              var _dispatchQueue$i = dispatchQueue[i], event = _dispatchQueue$i.event, listeners2 = _dispatchQueue$i.listeners;
+              processDispatchQueueItemsInOrder(event, listeners2, inCapturePhase);
             }
             rethrowCaughtError();
           }
@@ -9123,7 +9123,7 @@
           function accumulateSinglePhaseListeners(targetFiber, reactName, nativeEventType, inCapturePhase, accumulateTargetOnly, nativeEvent) {
             var captureName = reactName !== null ? reactName + "Capture" : null;
             var reactEventName = inCapturePhase ? captureName : reactName;
-            var listeners = [];
+            var listeners2 = [];
             var instance = targetFiber;
             var lastHostComponent = null;
             while (instance !== null) {
@@ -9133,7 +9133,7 @@
                 if (reactEventName !== null) {
                   var listener = getListener(instance, reactEventName);
                   if (listener != null) {
-                    listeners.push(createDispatchListener(instance, listener, lastHostComponent));
+                    listeners2.push(createDispatchListener(instance, listener, lastHostComponent));
                   }
                 }
               }
@@ -9142,11 +9142,11 @@
               }
               instance = instance.return;
             }
-            return listeners;
+            return listeners2;
           }
           function accumulateTwoPhaseListeners(targetFiber, reactName) {
             var captureName = reactName + "Capture";
-            var listeners = [];
+            var listeners2 = [];
             var instance = targetFiber;
             while (instance !== null) {
               var _instance3 = instance, stateNode = _instance3.stateNode, tag = _instance3.tag;
@@ -9154,16 +9154,16 @@
                 var currentTarget = stateNode;
                 var captureListener = getListener(instance, captureName);
                 if (captureListener != null) {
-                  listeners.unshift(createDispatchListener(instance, captureListener, currentTarget));
+                  listeners2.unshift(createDispatchListener(instance, captureListener, currentTarget));
                 }
                 var bubbleListener = getListener(instance, reactName);
                 if (bubbleListener != null) {
-                  listeners.push(createDispatchListener(instance, bubbleListener, currentTarget));
+                  listeners2.push(createDispatchListener(instance, bubbleListener, currentTarget));
                 }
               }
               instance = instance.return;
             }
-            return listeners;
+            return listeners2;
           }
           function getParent(inst) {
             if (inst === null) {
@@ -9208,7 +9208,7 @@
           }
           function accumulateEnterLeaveListenersForEvent(dispatchQueue, event, target, common, inCapturePhase) {
             var registrationName = event._reactName;
-            var listeners = [];
+            var listeners2 = [];
             var instance = target;
             while (instance !== null) {
               if (instance === common) {
@@ -9223,21 +9223,21 @@
                 if (inCapturePhase) {
                   var captureListener = getListener(instance, registrationName);
                   if (captureListener != null) {
-                    listeners.unshift(createDispatchListener(instance, captureListener, currentTarget));
+                    listeners2.unshift(createDispatchListener(instance, captureListener, currentTarget));
                   }
                 } else if (!inCapturePhase) {
                   var bubbleListener = getListener(instance, registrationName);
                   if (bubbleListener != null) {
-                    listeners.push(createDispatchListener(instance, bubbleListener, currentTarget));
+                    listeners2.push(createDispatchListener(instance, bubbleListener, currentTarget));
                   }
                 }
               }
               instance = instance.return;
             }
-            if (listeners.length !== 0) {
+            if (listeners2.length !== 0) {
               dispatchQueue.push({
                 event,
-                listeners
+                listeners: listeners2
               });
             }
           }
@@ -24465,11 +24465,11 @@
               return jsxWithValidation(type, props, key, false);
             }
           }
-          var jsx18 = jsxWithValidationDynamic;
-          var jsxs11 = jsxWithValidationStatic;
+          var jsx20 = jsxWithValidationDynamic;
+          var jsxs13 = jsxWithValidationStatic;
           exports.Fragment = REACT_FRAGMENT_TYPE;
-          exports.jsx = jsx18;
-          exports.jsxs = jsxs11;
+          exports.jsx = jsx20;
+          exports.jsxs = jsxs13;
         })();
       }
     }
@@ -24491,7 +24491,7 @@
   var import_client = __toESM(require_client(), 1);
 
   // apps/web/src/App.tsx
-  var import_react15 = __toESM(require_react(), 1);
+  var import_react17 = __toESM(require_react(), 1);
 
   // node_modules/sonner/dist/index.mjs
   var import_react = __toESM(require_react(), 1);
@@ -24878,11 +24878,11 @@
           });
         }
       };
-      this.custom = (jsx18, data) => {
+      this.custom = (jsx20, data) => {
         const id = getToastId(data);
         this.create({
           ...data,
-          jsx: jsx18(id),
+          jsx: jsx20(id),
           id,
           type: void 0
         });
@@ -25657,6 +25657,14 @@
     "error.email_taken": "Email \u0111\xE3 \u0111\u01B0\u1EE3c \u0111\u0103ng k\xFD",
     "error.registration_failed": "\u0110\u0103ng k\xFD th\u1EA5t b\u1EA1i",
     "error.invalid_credentials": "Email ho\u1EB7c m\u1EADt kh\u1EA9u kh\xF4ng \u0111\xFAng",
+    // Per-user skill `code`s (services/gateway/src/skills.ts + index.ts).
+    "error.skill_exists": "\u0110\xE3 c\xF3 skill tr\xF9ng t\xEAn",
+    "error.skill_limit": "\u0110\xE3 \u0111\u1EA1t t\u1ED1i \u0111a 50 skill",
+    "error.skill_name_reserved": "T\xEAn n\xE0y tr\xF9ng m\u1ED9t skill c\xF3 s\u1EB5n",
+    "error.invalid_skill_name": "T\xEAn ch\u1EC9 g\u1ED3m ch\u1EEF th\u01B0\u1EDDng, s\u1ED1, g\u1EA1ch ngang (2\u201364 k\xFD t\u1EF1)",
+    "error.invalid_skill_description": "C\u1EA7n m\xF4 t\u1EA3, t\u1ED1i \u0111a 280 k\xFD t\u1EF1",
+    "error.invalid_skill_content": "C\u1EA7n n\u1ED9i dung, t\u1ED1i \u0111a 64 KB",
+    "error.skill_not_found": "Kh\xF4ng t\xECm th\u1EA5y skill",
     // App shell (App.tsx)
     "app.logout": "\u0110\u0103ng xu\u1EA5t",
     "app.sessionExpired": "Phi\xEAn \u0111\u0103ng nh\u1EADp \u0111\xE3 h\u1EBFt h\u1EA1n \u2014 vui l\xF2ng \u0111\u0103ng nh\u1EADp l\u1EA1i",
@@ -25676,6 +25684,7 @@
     // `sidebar.settings`: the row itself now opens a menu (Settings +
     // Logout), it isn't a direct Settings shortcut anymore.
     "sidebar.accountMenu": "Menu t\xE0i kho\u1EA3n",
+    "sidebar.skills": "K\u1EF9 n\u0103ng",
     // HistoryChat.tsx (renamed from SessionList.tsx 2026-09-10 — "SessionList"
     // described a backend concept, not what this actually is: the sidebar's
     // chat history)
@@ -25761,6 +25770,29 @@
     "settings.themeDark": "T\u1ED1i",
     "settings.language": "Ng\xF4n ng\u1EEF",
     "settings.profileEmail": "\u0110\u1ECBa ch\u1EC9 email",
+    // SkillsDialog.tsx + the "/" menu (conversation/SkillMenu.tsx).
+    "skills.title": "K\u1EF9 n\u0103ng",
+    "skills.new": "T\u1EA1o skill m\u1EDBi",
+    "skills.mine": "Skill c\u1EE7a t\xF4i",
+    "skills.emptyMine": "Ch\u01B0a c\xF3 skill n\xE0o",
+    "skills.builtin": "Skill c\xF3 s\u1EB5n",
+    "skills.builtinReadonly": "Skill c\xF3 s\u1EB5n d\xF9ng chung cho m\u1ECDi ng\u01B0\u1EDDi, kh\xF4ng s\u1EEDa \u0111\u01B0\u1EE3c. G\xF5 /{name} trong \xF4 chat \u0111\u1EC3 d\xF9ng.",
+    "skills.name": "T\xEAn",
+    "skills.namePlaceholder": "vd. bao-cao-tuan",
+    "skills.nameHint": "Ch\u1EEF th\u01B0\u1EDDng, s\u1ED1, g\u1EA1ch ngang. Kh\xF4ng \u0111\u1ED5i \u0111\u01B0\u1EE3c sau khi t\u1EA1o. G\xF5 /t\xEAn trong \xF4 chat \u0111\u1EC3 d\xF9ng.",
+    "skills.description": "M\xF4 t\u1EA3 \u2014 d\xF9ng khi n\xE0o",
+    "skills.content": "N\u1ED9i dung",
+    "skills.expand": "M\u1EDF r\u1ED9ng",
+    "skills.collapse": "Thu g\u1ECDn",
+    "skills.save": "L\u01B0u",
+    "skills.saving": "\u0110ang l\u01B0u\u2026",
+    "skills.delete": "Xo\xE1",
+    "skills.deleteConfirm": 'Xo\xE1 skill "{name}"? Kh\xF4ng th\u1EC3 ho\xE0n t\xE1c.',
+    "skills.saved": "\u0110\xE3 l\u01B0u skill {name}",
+    "skills.deleted": "\u0110\xE3 xo\xE1 skill {name}",
+    "skills.loadFailed": "Kh\xF4ng t\u1EA3i \u0111\u01B0\u1EE3c danh s\xE1ch skill",
+    "skills.createdFromChat": "\u0110\xE3 l\u01B0u skill {name} \u2014 g\xF5 /{name} \u0111\u1EC3 d\xF9ng",
+    "skills.mineBadge": "c\u1EE7a t\xF4i",
     // ThemeToggle.tsx
     "theme.switchToDark": "Chuy\u1EC3n sang giao di\u1EC7n t\u1ED1i",
     "theme.switchToLight": "Chuy\u1EC3n sang giao di\u1EC7n s\xE1ng"
@@ -25786,6 +25818,13 @@
     "error.email_taken": "Email already registered",
     "error.registration_failed": "Registration failed",
     "error.invalid_credentials": "Invalid email or password",
+    "error.skill_exists": "A skill with this name already exists",
+    "error.skill_limit": "You've reached the 50-skill limit",
+    "error.skill_name_reserved": "This name belongs to a built-in skill",
+    "error.invalid_skill_name": "Name: lowercase letters, digits, hyphens (2\u201364 characters)",
+    "error.invalid_skill_description": "Description is required, at most 280 characters",
+    "error.invalid_skill_content": "Content is required, at most 64 KB",
+    "error.skill_not_found": "Skill not found",
     "app.logout": "Logout",
     "app.sessionExpired": "Session expired \u2014 please log in again",
     "app.sessionGoneStartedNew": "Previous session is no longer available \u2014 started a new one",
@@ -25800,6 +25839,7 @@
     "sidebar.settings": "Settings",
     "sidebar.account": "Account",
     "sidebar.accountMenu": "Account menu",
+    "sidebar.skills": "Skills",
     "historyChat.untitled": "Untitled \u2014 {id}",
     "historyChat.groupToday": "Today",
     "historyChat.groupYesterday": "Yesterday",
@@ -25830,6 +25870,28 @@
     "settings.themeDark": "Dark",
     "settings.language": "Language",
     "settings.profileEmail": "Email address",
+    "skills.title": "Skills",
+    "skills.new": "New skill",
+    "skills.mine": "My skills",
+    "skills.emptyMine": "No skills yet",
+    "skills.builtin": "Built-in skills",
+    "skills.builtinReadonly": "Built-in skills are shared by everyone and can't be edited. Type /{name} in the chat to use it.",
+    "skills.name": "Name",
+    "skills.namePlaceholder": "e.g. weekly-report",
+    "skills.nameHint": "Lowercase letters, digits, hyphens. Can't be changed later. Type /name in the chat to use it.",
+    "skills.description": "Description \u2014 when to use it",
+    "skills.content": "Content",
+    "skills.expand": "Expand",
+    "skills.collapse": "Collapse",
+    "skills.save": "Save",
+    "skills.saving": "Saving\u2026",
+    "skills.delete": "Delete",
+    "skills.deleteConfirm": 'Delete skill "{name}"? This cannot be undone.',
+    "skills.saved": "Saved skill {name}",
+    "skills.deleted": "Deleted skill {name}",
+    "skills.loadFailed": "Couldn't load skills",
+    "skills.createdFromChat": "Saved skill {name} \u2014 type /{name} to use it",
+    "skills.mineBadge": "mine",
     "theme.switchToDark": "Switch to dark theme",
     "theme.switchToLight": "Switch to light theme"
   };
@@ -25857,7 +25919,7 @@
     function t(key, params) {
       let text = DICTS[locale][key];
       if (params) {
-        for (const [name, value] of Object.entries(params)) text = text.replace(`{${name}}`, value);
+        for (const [name, value] of Object.entries(params)) text = text.replaceAll(`{${name}}`, value);
       }
       return text;
     }
@@ -26121,6 +26183,22 @@
     ["line", { x1: "21", x2: "9", y1: "12", y2: "12", key: "1uyos4" }]
   ]);
 
+  // node_modules/lucide-react/dist/esm/icons/maximize-2.js
+  var Maximize2 = createLucideIcon("Maximize2", [
+    ["polyline", { points: "15 3 21 3 21 9", key: "mznyad" }],
+    ["polyline", { points: "9 21 3 21 3 15", key: "1avn1i" }],
+    ["line", { x1: "21", x2: "14", y1: "3", y2: "10", key: "ota7mn" }],
+    ["line", { x1: "3", x2: "10", y1: "21", y2: "14", key: "1atl0r" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/minimize-2.js
+  var Minimize2 = createLucideIcon("Minimize2", [
+    ["polyline", { points: "4 14 10 14 10 20", key: "11kfnr" }],
+    ["polyline", { points: "20 10 14 10 14 4", key: "rlmsce" }],
+    ["line", { x1: "14", x2: "21", y1: "10", y2: "3", key: "o5lafz" }],
+    ["line", { x1: "3", x2: "10", y1: "21", y2: "14", key: "1atl0r" }]
+  ]);
+
   // node_modules/lucide-react/dist/esm/icons/moon.js
   var Moon = createLucideIcon("Moon", [
     ["path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z", key: "a7tn18" }]
@@ -26174,6 +26252,21 @@
       }
     ],
     ["circle", { cx: "12", cy: "12", r: "3", key: "1v7zrd" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/sparkles.js
+  var Sparkles = createLucideIcon("Sparkles", [
+    [
+      "path",
+      {
+        d: "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z",
+        key: "4pj2yx"
+      }
+    ],
+    ["path", { d: "M20 3v4", key: "1olli1" }],
+    ["path", { d: "M22 5h-4", key: "1gvqau" }],
+    ["path", { d: "M4 17v2", key: "vumght" }],
+    ["path", { d: "M5 18H3", key: "zchphs" }]
   ]);
 
   // node_modules/lucide-react/dist/esm/icons/sun.js
@@ -26288,7 +26381,7 @@
   }
 
   // apps/web/src/components/features/conversation/Conversation.tsx
-  var import_react9 = __toESM(require_react(), 1);
+  var import_react10 = __toESM(require_react(), 1);
 
   // apps/web/src/runtime.ts
   var import_react8 = __toESM(require_react(), 1);
@@ -26299,8 +26392,115 @@
     return runtime;
   }
 
-  // apps/web/src/components/features/conversation/Conversation.tsx
+  // apps/web/src/components/features/skills/skillsApi.ts
+  var SkillApiError = class extends Error {
+    status;
+    code;
+    constructor(message, status, code) {
+      super(message);
+      this.status = status;
+      this.code = code;
+    }
+  };
+  async function toError(res) {
+    const body = await res.json().catch(() => ({}));
+    return new SkillApiError(body.error ?? `HTTP ${res.status}`, res.status, body.code);
+  }
+  async function listCustomSkills(runtime) {
+    const res = await runtime.authedFetch("/custom-skills");
+    if (!res.ok) throw await toError(res);
+    return (await res.json()).skills;
+  }
+  async function createCustomSkill(runtime, input) {
+    const res = await runtime.authedFetch("/custom-skills", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input)
+    });
+    if (!res.ok) throw await toError(res);
+    return await res.json();
+  }
+  async function updateCustomSkill(runtime, input) {
+    const res = await runtime.authedFetch(`/custom-skills/${encodeURIComponent(input.name)}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ description: input.description, content: input.content })
+    });
+    if (!res.ok) throw await toError(res);
+    return await res.json();
+  }
+  async function deleteCustomSkill(runtime, name) {
+    const res = await runtime.authedFetch(`/custom-skills/${encodeURIComponent(name)}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) throw await toError(res);
+  }
+  var menuItems = [];
+  var listeners = /* @__PURE__ */ new Set();
+  async function refreshSkillMenu(runtime) {
+    const res = await runtime.authedFetch("/skills");
+    if (!res.ok) return;
+    menuItems = (await res.json()).skills;
+    for (const listener of listeners) listener(menuItems);
+  }
+  function subscribeSkillMenu(listener) {
+    listeners.add(listener);
+    listener(menuItems);
+    return () => listeners.delete(listener);
+  }
+
+  // apps/web/src/components/features/conversation/SkillMenu.tsx
+  var import_react9 = __toESM(require_react(), 1);
   var import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
+  function slashQuery(text) {
+    return /^\/([a-z0-9-]*)$/.exec(text)?.[1];
+  }
+  function useSkillMenu(runtime) {
+    const [items, setItems] = (0, import_react9.useState)([]);
+    (0, import_react9.useEffect)(() => {
+      const unsubscribe = subscribeSkillMenu(setItems);
+      void refreshSkillMenu(runtime);
+      return unsubscribe;
+    }, []);
+    return items;
+  }
+  function SkillMenu({
+    items,
+    activeIndex,
+    onChoose,
+    onHover
+  }) {
+    const { t } = useLocale();
+    const listRef = (0, import_react9.useRef)(null);
+    (0, import_react9.useEffect)(() => {
+      listRef.current?.children[activeIndex]?.scrollIntoView({ block: "nearest" });
+    }, [activeIndex]);
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { ref: listRef, className: "fh-skill-menu", role: "listbox", children: items.map((item, index) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      "button",
+      {
+        type: "button",
+        role: "option",
+        "aria-selected": index === activeIndex,
+        className: `fh-skill-menu-item${index === activeIndex ? " active" : ""}`,
+        onMouseDown: (event) => event.preventDefault(),
+        onMouseEnter: () => onHover(index),
+        onClick: () => onChoose(item.name),
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "fh-skill-menu-name", children: [
+            "/",
+            item.name,
+            item.source === "custom" && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "fh-skill-menu-badge", children: t("skills.mineBadge") })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "fh-skill-menu-desc", children: item.description })
+        ]
+      },
+      item.name
+    )) });
+  }
+
+  // apps/web/src/components/features/conversation/Conversation.tsx
+  var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+  var CREATE_SKILL_TOOL = "create_skill";
   function stepKey(turn, step) {
     return `${turn}:${step}`;
   }
@@ -26321,7 +26521,7 @@
       const [full, mdLabel, mdUrl, bareUrl] = match;
       const url = mdUrl ?? bareUrl;
       nodes.push(
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("a", { className: "fh-link", href: url, target: "_blank", rel: "noopener noreferrer", children: mdLabel ?? bareUrl }, key++)
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("a", { className: "fh-link", href: url, target: "_blank", rel: "noopener noreferrer", children: mdLabel ?? bareUrl }, key++)
       );
       lastIndex = index + full.length;
     }
@@ -26340,19 +26540,19 @@
     t
   }) {
     const label = entry.status === "running" ? t("conversation.toolRunning", { name: entry.name }) : entry.status === "error" ? t("conversation.toolFailed", { name: entry.name }) : t("conversation.toolUsed", { name: entry.name });
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
       "div",
       {
         className: `tool-pill${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { type: "button", className: "tool-pill-header", onClick: onToggle, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Wrench, { size: 13 }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: label }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ChevronDown, { size: 13, className: "tool-pill-chevron" })
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { type: "button", className: "tool-pill-header", onClick: onToggle, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Wrench, { size: 13 }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: label }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ChevronDown, { size: 13, className: "tool-pill-chevron" })
           ] }),
-          expanded && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "tool-pill-detail", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "tool-pill-args", children: entry.args }),
-            entry.resultText && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "tool-pill-result", children: linkify(entry.resultText) })
+          expanded && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "tool-pill-detail", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "tool-pill-args", children: entry.args }),
+            entry.resultText && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "tool-pill-result", children: linkify(entry.resultText) })
           ] })
         ]
       }
@@ -26366,9 +26566,9 @@
   }) {
     switch (entry.kind) {
       case "notice":
-        return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "notice", children: entry.text });
+        return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "notice", children: entry.text });
       case "tool":
-        return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
           ToolPill,
           {
             entry,
@@ -26379,25 +26579,29 @@
         );
       case "bubble":
         if (entry.role === "user") {
-          return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "bubble bubble-user", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: entry.text }) });
+          return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "bubble bubble-user", children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: entry.text }) });
         }
-        return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text", children: entry.text && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text-body", children: linkify(entry.text) }) });
+        return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "assistant-text", children: entry.text && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "assistant-text-body", children: linkify(entry.text) }) });
     }
   }
   function Conversation() {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [entries, setEntries] = (0, import_react9.useState)([]);
-    const [liveBubbles, setLiveBubbles] = (0, import_react9.useState)(
+    const [entries, setEntries] = (0, import_react10.useState)([]);
+    const [liveBubbles, setLiveBubbles] = (0, import_react10.useState)(
       /* @__PURE__ */ new Map()
     );
-    const [expandedDetails, setExpandedDetails] = (0, import_react9.useState)(
+    const [expandedDetails, setExpandedDetails] = (0, import_react10.useState)(
       /* @__PURE__ */ new Set()
     );
-    const [text, setText] = (0, import_react9.useState)("");
-    const logRef = (0, import_react9.useRef)(null);
-    const textareaRef = (0, import_react9.useRef)(null);
-    const tRef = (0, import_react9.useRef)(t);
+    const [text, setText] = (0, import_react10.useState)("");
+    const logRef = (0, import_react10.useRef)(null);
+    const textareaRef = (0, import_react10.useRef)(null);
+    const skillItems = useSkillMenu(runtime);
+    const [menuIndex, setMenuIndex] = (0, import_react10.useState)(0);
+    const [menuDismissedFor, setMenuDismissedFor] = (0, import_react10.useState)(null);
+    const skillCallArgsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+    const tRef = (0, import_react10.useRef)(t);
     tRef.current = t;
     function pushEntry(entry) {
       if (!entry) return;
@@ -26416,7 +26620,7 @@
         return next;
       });
     }
-    function handleEvent(event) {
+    function handleEvent(event, live) {
       switch (event.type) {
         case "turn/start":
           break;
@@ -26445,6 +26649,7 @@
         }
         case "user/message": {
           const message = event.data;
+          if (message.source && message.source.kind !== "user") break;
           pushEntry(
             buildBubbleEntry(`evt-${event.seq}`, "user", message.content)
           );
@@ -26496,6 +26701,9 @@
             status: "running",
             resultText: null
           });
+          if (data.name === CREATE_SKILL_TOOL) {
+            skillCallArgsRef.current.set(data.callId, data.arguments);
+          }
           break;
         }
         case "tool/result": {
@@ -26508,6 +26716,12 @@
             `tool-${block?.toolCallId}`,
             (entry) => entry.kind === "tool" ? { ...entry, status: isError ? "error" : "done", resultText } : entry
           );
+          const callId = block?.toolCallId;
+          const skillArgs = callId ? skillCallArgsRef.current.get(callId) : void 0;
+          if (callId && skillArgs !== void 0) {
+            skillCallArgsRef.current.delete(callId);
+            if (live && !isError) void saveSkillFromChat(skillArgs);
+          }
           break;
         }
         default:
@@ -26519,10 +26733,10 @@
         case "snapshot":
           setEntries([]);
           setLiveBubbles(/* @__PURE__ */ new Map());
-          for (const event of frame.events) handleEvent(event);
+          for (const event of frame.events) handleEvent(event, false);
           break;
         case "event":
-          handleEvent(frame.event);
+          handleEvent(frame.event, true);
           break;
         case "error":
           pushEntry({
@@ -26535,15 +26749,15 @@
           break;
       }
     }
-    (0, import_react9.useEffect)(() => {
+    (0, import_react10.useEffect)(() => {
       const unsubscribe = runtime.onFrame(handleFrame);
       return unsubscribe;
     }, []);
-    (0, import_react9.useEffect)(() => {
+    (0, import_react10.useEffect)(() => {
       const el = logRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     }, [entries, liveBubbles]);
-    (0, import_react9.useEffect)(() => {
+    (0, import_react10.useEffect)(() => {
       const el = textareaRef.current;
       if (!el) return;
       if (!text) {
@@ -26553,6 +26767,37 @@
       el.style.height = "auto";
       el.style.height = `${el.scrollHeight}px`;
     }, [text]);
+    async function saveSkillFromChat(argsJson) {
+      let args;
+      try {
+        args = JSON.parse(argsJson);
+      } catch {
+        return;
+      }
+      const name = String(args.name ?? "");
+      try {
+        await createCustomSkill(runtime, {
+          name,
+          description: String(args.description ?? ""),
+          content: String(args.content ?? "")
+        });
+        toast.success(tRef.current("skills.createdFromChat", { name }));
+        void refreshSkillMenu(runtime);
+      } catch (error) {
+        if (error instanceof SkillApiError && error.code === "skill_exists") return;
+        toast.error(
+          error instanceof SkillApiError ? translateErrorCode(tRef.current, error.code, error.message) : String(error)
+        );
+      }
+    }
+    const slash = slashQuery(text);
+    const menuItems2 = slash === void 0 || menuDismissedFor === text ? [] : skillItems.filter((item) => item.name.includes(slash));
+    const activeMenuIndex = Math.min(menuIndex, Math.max(menuItems2.length - 1, 0));
+    function chooseSkill(name) {
+      setText(`/${name} `);
+      setMenuIndex(0);
+      textareaRef.current?.focus();
+    }
     function sendMessage() {
       const trimmed = text.trim();
       if (!trimmed) return;
@@ -26564,19 +26809,37 @@
       sendMessage();
     }
     function onTextareaKeyDown(event) {
+      if (menuItems2.length > 0 && !event.nativeEvent.isComposing) {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          const step = event.key === "ArrowDown" ? 1 : -1;
+          setMenuIndex((activeMenuIndex + step + menuItems2.length) % menuItems2.length);
+          return;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          event.preventDefault();
+          chooseSkill(menuItems2[activeMenuIndex].name);
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setMenuDismissedFor(text);
+          return;
+        }
+      }
       if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing)
         return;
       event.preventDefault();
       sendMessage();
     }
     const isEmpty = entries.length === 0 && liveBubbles.size === 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
       "div",
       {
         className: `fh-conversation-root${isEmpty ? " fh-conversation-empty" : ""}`,
         children: [
-          !isEmpty && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { id: "log", ref: logRef, children: [
-            entries.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          !isEmpty && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { id: "log", ref: logRef, children: [
+            entries.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
               LogEntryView,
               {
                 entry,
@@ -26586,14 +26849,23 @@
               },
               entry.id
             )),
-            [...liveBubbles.entries()].map(([key, bubble]) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text", children: bubble.text.trim() && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "assistant-text-body", children: linkify(bubble.text) }) }, key))
+            [...liveBubbles.entries()].map(([key, bubble]) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "assistant-text", children: bubble.text.trim() && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "assistant-text-body", children: linkify(bubble.text) }) }, key))
           ] }),
-          isEmpty && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "fh-conversation-empty-heading", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Bot, { size: 48 }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h2", { children: t("conversation.emptyHeading") })
+          isEmpty && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "fh-conversation-empty-heading", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Bot, { size: 48 }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("h2", { children: t("conversation.emptyHeading") })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("form", { id: "send-form", onSubmit, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("form", { id: "send-form", onSubmit, children: [
+            menuItems2.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+              SkillMenu,
+              {
+                items: menuItems2,
+                activeIndex: activeMenuIndex,
+                onChoose: chooseSkill,
+                onHover: setMenuIndex
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
               "textarea",
               {
                 id: "text-input",
@@ -26601,11 +26873,14 @@
                 rows: 1,
                 placeholder: t("conversation.placeholder"),
                 value: text,
-                onChange: (event) => setText(event.target.value),
+                onChange: (event) => {
+                  setText(event.target.value);
+                  setMenuIndex(0);
+                },
                 onKeyDown: onTextareaKeyDown
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "fh-composer-actions", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Button, { variant: "primary", type: "submit", children: t("conversation.send") }) })
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "fh-composer-actions", children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Button, { variant: "primary", type: "submit", children: t("conversation.send") }) })
           ] })
         ]
       }
@@ -26613,18 +26888,18 @@
   }
 
   // apps/web/src/components/features/LanguageSelect.tsx
-  var import_react10 = __toESM(require_react(), 1);
+  var import_react11 = __toESM(require_react(), 1);
   var import_react_dom2 = __toESM(require_react_dom(), 1);
 
   // apps/web/src/components/primitives/MenuItem.tsx
-  var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
   function MenuItem({
     variant,
     active,
     className,
     ...rest
   }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
       "button",
       {
         ...rest,
@@ -26635,20 +26910,20 @@
   }
 
   // apps/web/src/components/features/LanguageSelect.tsx
-  var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
   function LanguageSelect() {
     const { locale, setLocale } = useLocale();
-    const [open, setOpen] = (0, import_react10.useState)(false);
-    const [position, setPosition] = (0, import_react10.useState)(null);
-    const triggerRef = (0, import_react10.useRef)(null);
-    const popupRef = (0, import_react10.useRef)(null);
+    const [open, setOpen] = (0, import_react11.useState)(false);
+    const [position, setPosition] = (0, import_react11.useState)(null);
+    const triggerRef = (0, import_react11.useRef)(null);
+    const popupRef = (0, import_react11.useRef)(null);
     function openMenu() {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
       setPosition({ left: rect.left, top: rect.bottom + 4, width: rect.width });
       setOpen(true);
     }
-    (0, import_react10.useEffect)(() => {
+    (0, import_react11.useEffect)(() => {
       if (!open) return;
       function onPointerDown(event) {
         const target = event.target;
@@ -26669,8 +26944,8 @@
       setLocale(next);
       setOpen(false);
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
         "button",
         {
           id: "language-select",
@@ -26679,21 +26954,21 @@
           className: "fh-lang-select-trigger",
           onClick: () => open ? setOpen(false) : openMenu(),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: locale === "vi" ? "Ti\u1EBFng Vi\u1EC7t" : "English" }),
-            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ChevronDown, { size: 14 })
+            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: locale === "vi" ? "Ti\u1EBFng Vi\u1EC7t" : "English" }),
+            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ChevronDown, { size: 14 })
           ]
         }
       ),
       open && position && (0, import_react_dom2.createPortal)(
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
           "div",
           {
             ref: popupRef,
             className: "fh-lang-select-popup",
             style: { left: position.left, top: position.top, width: position.width },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(MenuItem, { variant: "popup", active: locale === "vi", onClick: () => choose("vi"), children: "Ti\u1EBFng Vi\u1EC7t" }),
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(MenuItem, { variant: "popup", active: locale === "en", onClick: () => choose("en"), children: "English" })
+              /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MenuItem, { variant: "popup", active: locale === "vi", onClick: () => choose("vi"), children: "Ti\u1EBFng Vi\u1EC7t" }),
+              /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MenuItem, { variant: "popup", active: locale === "en", onClick: () => choose("en"), children: "English" })
             ]
           }
         ),
@@ -26703,16 +26978,16 @@
   }
 
   // apps/web/src/components/features/settings/SettingsDialog.tsx
-  var import_react11 = __toESM(require_react(), 1);
+  var import_react12 = __toESM(require_react(), 1);
 
   // apps/web/src/components/primitives/SelectableCard.tsx
-  var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
   function SelectableCard({
     active,
     className,
     ...rest
   }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
       "button",
       {
         ...rest,
@@ -26723,57 +26998,57 @@
   }
 
   // apps/web/src/components/features/settings/SettingsDialog.tsx
-  var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
   function SettingsDialog({ open, onClose, onLogout }) {
     const { t } = useLocale();
     const { theme, setTheme } = useTheme();
     const runtime = useRuntime();
-    const [tab, setTab] = (0, import_react11.useState)("general");
+    const [tab, setTab] = (0, import_react12.useState)("general");
     if (!open) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { id: "settings-dialog", className: "fh-settings-dialog", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "fh-settings-panel", role: "dialog", "aria-label": t("settings.title"), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "fh-settings-panel-header", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h2", { children: t("settings.title") }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconButton, { id: "settings-close", variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(X, { size: 14 }) })
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { id: "settings-dialog", className: "fh-settings-dialog", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-panel", role: "dialog", "aria-label": t("settings.title"), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-panel-header", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h2", { children: t("settings.title") }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconButton, { id: "settings-close", variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(X, { size: 14 }) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "fh-settings-body", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "fh-settings-nav", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(MenuItem, { variant: "nav", active: tab === "general", onClick: () => setTab("general"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Settings, { size: 16 }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-nav", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(MenuItem, { variant: "nav", active: tab === "general", onClick: () => setTab("general"), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Settings, { size: 16 }),
               t("settings.generalTab")
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(MenuItem, { variant: "nav", active: tab === "profile", onClick: () => setTab("profile"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(User, { size: 16 }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(MenuItem, { variant: "nav", active: tab === "profile", onClick: () => setTab("profile"), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(User, { size: 16 }),
               t("settings.profileTab")
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { id: "settings-content", className: "fh-settings-content", children: [
-            tab === "general" && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "fh-settings-field-group", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "fh-settings-section-title", children: t("settings.theme") }),
-                /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "fh-settings-theme-options", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(SelectableCard, { active: theme === "light", onClick: () => setTheme("light"), children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Sun, { size: 18 }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { id: "settings-content", className: "fh-settings-content", children: [
+            tab === "general" && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-field-group", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-section-title", children: t("settings.theme") }),
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-theme-options", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(SelectableCard, { active: theme === "light", onClick: () => setTheme("light"), children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Sun, { size: 18 }),
                     t("settings.themeLight")
                   ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(SelectableCard, { active: theme === "dark", onClick: () => setTheme("dark"), children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Moon, { size: 18 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(SelectableCard, { active: theme === "dark", onClick: () => setTheme("dark"), children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Moon, { size: 18 }),
                     t("settings.themeDark")
                   ] })
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "fh-settings-field-group", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "fh-settings-section-title", children: t("settings.language") }),
-                /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(LanguageSelect, {})
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-field-group", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-section-title", children: t("settings.language") }),
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LanguageSelect, {})
               ] })
             ] }),
-            tab === "profile" && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "fh-settings-profile-rows", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "fh-settings-profile-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: t("settings.profileEmail") }),
-                /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "fh-settings-profile-value", children: runtime.userEmail })
+            tab === "profile" && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-profile-rows", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-profile-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: t("settings.profileEmail") }),
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "fh-settings-profile-value", children: runtime.userEmail })
               ] }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "fh-settings-profile-actions", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-profile-actions", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
                 Button,
                 {
                   variant: "outline",
@@ -26783,7 +27058,7 @@
                     onLogout();
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(LogOut, { size: 15 }),
+                    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LogOut, { size: 15 }),
                     t("app.logout")
                   ]
                 }
@@ -26795,27 +27070,220 @@
     ] });
   }
 
+  // apps/web/src/components/features/skills/SkillsDialog.tsx
+  var import_react13 = __toESM(require_react(), 1);
+  var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
+  var EMPTY_DRAFT = { name: "", description: "", content: "" };
+  var DESCRIPTION_MAX = 280;
+  function SkillsDialog({ open, onClose }) {
+    const { t } = useLocale();
+    const runtime = useRuntime();
+    const menu = useSkillMenu(runtime);
+    const [skills, setSkills] = (0, import_react13.useState)([]);
+    const [selection, setSelection] = (0, import_react13.useState)({ kind: "new" });
+    const [draft, setDraft] = (0, import_react13.useState)(EMPTY_DRAFT);
+    const [saving, setSaving] = (0, import_react13.useState)(false);
+    const [expanded, setExpanded] = (0, import_react13.useState)(false);
+    function pick(next, list = skills) {
+      setSelection(next);
+      setExpanded(false);
+      const skill = next.kind === "custom" ? list.find((s) => s.name === next.name) : void 0;
+      setDraft(skill ? { name: skill.name, description: skill.description, content: skill.content } : EMPTY_DRAFT);
+    }
+    async function reload(select) {
+      try {
+        const list = await listCustomSkills(runtime);
+        setSkills(list);
+        const fallback = list[0] ? { kind: "custom", name: list[0].name } : { kind: "new" };
+        pick(select ?? fallback, list);
+      } catch {
+        toast.error(t("skills.loadFailed"));
+      }
+    }
+    function showError(error) {
+      toast.error(
+        error instanceof SkillApiError ? translateErrorCode(t, error.code, error.message) : String(error)
+      );
+    }
+    async function save() {
+      setSaving(true);
+      try {
+        const saved = selection.kind === "custom" ? await updateCustomSkill(runtime, draft) : await createCustomSkill(runtime, draft);
+        toast.success(t("skills.saved", { name: saved.name }));
+        void refreshSkillMenu(runtime);
+        await reload({ kind: "custom", name: saved.name });
+      } catch (error) {
+        showError(error);
+      } finally {
+        setSaving(false);
+      }
+    }
+    async function remove() {
+      if (selection.kind !== "custom") return;
+      const name = selection.name;
+      if (!window.confirm(t("skills.deleteConfirm", { name }))) return;
+      try {
+        await deleteCustomSkill(runtime, name);
+        toast.success(t("skills.deleted", { name }));
+        void refreshSkillMenu(runtime);
+        await reload({ kind: "new" });
+      } catch (error) {
+        showError(error);
+      }
+    }
+    (0, import_react13.useEffect)(() => {
+      if (open) void reload();
+    }, [open]);
+    (0, import_react13.useEffect)(() => {
+      if (!open) return;
+      function onKeyDown(event) {
+        if (event.key !== "Escape") return;
+        if (expanded) setExpanded(false);
+        else onClose();
+      }
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
+    }, [open, expanded, onClose]);
+    if (!open) return null;
+    const builtin = menu.filter((item) => item.source === "builtin");
+    const builtinSelected = selection.kind === "builtin" ? builtin.find((item) => item.name === selection.name) : void 0;
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-dialog", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-panel fh-skills-panel", role: "dialog", "aria-label": t("skills.title"), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-panel-header", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h2", { children: t("skills.title") }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconButton, { variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(X, { size: 14 }) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-nav fh-skills-list", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(MenuItem, { variant: "nav", active: selection.kind === "new", onClick: () => pick({ kind: "new" }), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Plus, { size: 16 }),
+              t("skills.new")
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-skills-list-title", children: t("skills.mine") }),
+            skills.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-skills-list-empty", children: t("skills.emptyMine") }),
+            skills.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+              MenuItem,
+              {
+                variant: "nav",
+                active: selection.kind === "custom" && selection.name === skill.name,
+                onClick: () => pick({ kind: "custom", name: skill.name }),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Sparkles, { size: 15 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
+                ]
+              },
+              skill.name
+            )),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-skills-list-title", children: t("skills.builtin") }),
+            builtin.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+              MenuItem,
+              {
+                variant: "nav",
+                active: selection.kind === "builtin" && selection.name === skill.name,
+                onClick: () => pick({ kind: "builtin", name: skill.name }),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Sparkles, { size: 15 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
+                ]
+              },
+              skill.name
+            ))
+          ] }),
+          builtinSelected ? /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-skills-form", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("h3", { className: "fh-skills-readonly-name", children: [
+              "/",
+              builtinSelected.name
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "fh-skills-readonly-desc", children: builtinSelected.description }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "fh-skills-field-hint", children: t("skills.builtinReadonly", { name: builtinSelected.name }) })
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-skills-form", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "fh-skills-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-field-label", children: t("skills.name") }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+                "input",
+                {
+                  type: "text",
+                  value: draft.name,
+                  disabled: selection.kind === "custom",
+                  placeholder: t("skills.namePlaceholder"),
+                  onChange: (event) => setDraft({ ...draft, name: event.target.value.toLowerCase().replace(/\s+/g, "-") })
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-field-hint", children: t("skills.nameHint") })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "fh-skills-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "fh-skills-field-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-field-label", children: t("skills.description") }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "fh-skills-field-hint", children: [
+                  draft.description.length,
+                  "/",
+                  DESCRIPTION_MAX
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+                "textarea",
+                {
+                  className: "fh-skills-textarea fh-skills-description",
+                  rows: 3,
+                  maxLength: DESCRIPTION_MAX,
+                  value: draft.description,
+                  onChange: (event) => setDraft({ ...draft, description: event.target.value })
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: `fh-skills-field fh-skills-content${expanded ? " fh-skills-content-expanded" : ""}`, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "fh-skills-field-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-field-label", children: t("skills.content") }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(Button, { variant: "link", onClick: () => setExpanded(!expanded), children: [
+                  expanded ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Minimize2, { size: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Maximize2, { size: 14 }),
+                  expanded ? t("skills.collapse") : t("skills.expand")
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+                "textarea",
+                {
+                  className: "fh-skills-textarea",
+                  spellCheck: false,
+                  value: draft.content,
+                  onChange: (event) => setDraft({ ...draft, content: event.target.value })
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-skills-actions", children: [
+              selection.kind === "custom" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(Button, { variant: "outline", onClick: () => void remove(), disabled: saving, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Trash2, { size: 14 }),
+                t("skills.delete")
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Button, { variant: "primary", onClick: () => void save(), disabled: saving, children: saving ? t("skills.saving") : t("skills.save") })
+            ] })
+          ] })
+        ] })
+      ] })
+    ] });
+  }
+
   // apps/web/src/components/features/sidebar/Sidebar.tsx
-  var import_react14 = __toESM(require_react(), 1);
+  var import_react16 = __toESM(require_react(), 1);
 
   // apps/web/src/components/features/sidebar/AccountMenu.tsx
-  var import_react12 = __toESM(require_react(), 1);
+  var import_react14 = __toESM(require_react(), 1);
   var import_react_dom3 = __toESM(require_react_dom(), 1);
-  var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
   function AccountMenu({ onOpenSettings, onLogout }) {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [open, setOpen] = (0, import_react12.useState)(false);
-    const [position, setPosition] = (0, import_react12.useState)(null);
-    const triggerRef = (0, import_react12.useRef)(null);
-    const popupRef = (0, import_react12.useRef)(null);
+    const [open, setOpen] = (0, import_react14.useState)(false);
+    const [position, setPosition] = (0, import_react14.useState)(null);
+    const triggerRef = (0, import_react14.useRef)(null);
+    const popupRef = (0, import_react14.useRef)(null);
     function openMenu() {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
       setPosition({ left: rect.left, bottom: window.innerHeight - rect.top + 8 });
       setOpen(true);
     }
-    (0, import_react12.useEffect)(() => {
+    (0, import_react14.useEffect)(() => {
       if (!open) return;
       function onPointerDown(event) {
         const target = event.target;
@@ -26833,8 +27301,8 @@
       };
     }, [open]);
     const initial = (runtime.userEmail || "?").charAt(0).toUpperCase();
-    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
         "button",
         {
           id: "account-menu-trigger",
@@ -26844,15 +27312,15 @@
           onClick: () => open ? setOpen(false) : openMenu(),
           title: t("sidebar.accountMenu"),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "fh-sidebar-account-avatar", children: initial }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "fh-sidebar-account-email", children: runtime.userEmail || t("sidebar.account") }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Ellipsis, { size: 16, className: "fh-sidebar-account-more" })
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-sidebar-account-avatar", children: initial }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-sidebar-account-email", children: runtime.userEmail || t("sidebar.account") }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Ellipsis, { size: 16, className: "fh-sidebar-account-more" })
           ]
         }
       ),
       open && position && (0, import_react_dom3.createPortal)(
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { ref: popupRef, className: "fh-account-menu-popup", style: { left: position.left, bottom: position.bottom }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { ref: popupRef, className: "fh-account-menu-popup", style: { left: position.left, bottom: position.bottom }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
             MenuItem,
             {
               variant: "popup",
@@ -26861,12 +27329,12 @@
                 onOpenSettings();
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Settings, { size: 15 }),
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Settings, { size: 15 }),
                 t("sidebar.settings")
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
             MenuItem,
             {
               variant: "popup",
@@ -26875,7 +27343,7 @@
                 onLogout();
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LogOut, { size: 15 }),
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(LogOut, { size: 15 }),
                 t("app.logout")
               ]
             }
@@ -26887,9 +27355,9 @@
   }
 
   // apps/web/src/components/features/sidebar/HistoryChat.tsx
-  var import_react13 = __toESM(require_react(), 1);
+  var import_react15 = __toESM(require_react(), 1);
   var import_react_dom4 = __toESM(require_react_dom(), 1);
-  var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
   var TITLE_MAX_LENGTH = 255;
   function rowLabel(row, t) {
     return row.title ?? t("historyChat.untitled", { id: row.sessionId.slice(0, 8) });
@@ -26921,23 +27389,52 @@
   function HistoryChat({ query }) {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [rows, setRows] = (0, import_react13.useState)([]);
-    const [menuRow, setMenuRow] = (0, import_react13.useState)(null);
-    const [menuPosition, setMenuPosition] = (0, import_react13.useState)(null);
-    const menuTriggerRef = (0, import_react13.useRef)(null);
-    const menuPopupRef = (0, import_react13.useRef)(null);
-    const [renamingRow, setRenamingRow] = (0, import_react13.useState)(null);
-    const [renameValue, setRenameValue] = (0, import_react13.useState)("");
-    const renameInputRef = (0, import_react13.useRef)(null);
+    const [rows, setRows] = (0, import_react15.useState)([]);
+    const [menuRow, setMenuRow] = (0, import_react15.useState)(null);
+    const [menuPosition, setMenuPosition] = (0, import_react15.useState)(null);
+    const menuTriggerRef = (0, import_react15.useRef)(null);
+    const menuPopupRef = (0, import_react15.useRef)(null);
+    const [renamingRow, setRenamingRow] = (0, import_react15.useState)(null);
+    const [renameValue, setRenameValue] = (0, import_react15.useState)("");
+    const renameInputRef = (0, import_react15.useRef)(null);
     async function refresh() {
       const res = await runtime.authedFetch("/sessions/mine");
       if (!res.ok) return;
       setRows(await res.json());
     }
-    (0, import_react13.useEffect)(() => {
+    const sessionIdRef = (0, import_react15.useRef)(runtime.sessionId);
+    sessionIdRef.current = runtime.sessionId;
+    async function applyAutoTitle(sessionId, title) {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const res = await runtime.authedFetch("/sessions/mine");
+        if (!res.ok) return;
+        const list = await res.json();
+        const row = list.find((r) => r.sessionId === sessionId);
+        if (row) {
+          if (row.title) return setRows(list);
+          await runtime.authedFetch(`/sessions/${sessionId}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ title: title.slice(0, TITLE_MAX_LENGTH) })
+          });
+          return refresh();
+        }
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      }
+    }
+    (0, import_react15.useEffect)(() => {
+      return runtime.onFrame((frame) => {
+        if (frame.type !== "event" || frame.event.type !== "session/title") return;
+        const data = frame.event.data;
+        if (data.title && data.source?.kind !== "user") {
+          void applyAutoTitle(sessionIdRef.current, data.title);
+        }
+      });
+    }, []);
+    (0, import_react15.useEffect)(() => {
       void refresh();
     }, [runtime.sessionId]);
-    const groups = (0, import_react13.useMemo)(() => {
+    const groups = (0, import_react15.useMemo)(() => {
       const q = query.trim().toLowerCase();
       const filtered = q ? rows.filter((row) => rowLabel(row, t).toLowerCase().includes(q)) : rows;
       const now = /* @__PURE__ */ new Date();
@@ -26954,7 +27451,7 @@
         rows: byGroup.get(key) ?? []
       })).filter((g) => g.rows.length > 0);
     }, [rows, query, t]);
-    (0, import_react13.useEffect)(() => {
+    (0, import_react15.useEffect)(() => {
       if (!menuRow) return;
       function onPointerDown(event) {
         const target = event.target;
@@ -26982,7 +27479,7 @@
       setRenameValue(row.title ?? "");
       setRenamingRow(row);
     }
-    (0, import_react13.useEffect)(() => {
+    (0, import_react15.useEffect)(() => {
       if (!renamingRow) return;
       renameInputRef.current?.focus();
       renameInputRef.current?.select();
@@ -27013,11 +27510,11 @@
       if (row.sessionId === runtime.sessionId) runtime.newSession();
       await refresh();
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { id: "fh-history-chat-list", children: [
-      groups.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(import_jsx_runtime13.Fragment, {}),
-      groups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-history-chat-group", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-history-chat-group-label", children: group.label }),
-        group.rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { id: "fh-history-chat-list", children: [
+      groups.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_jsx_runtime15.Fragment, {}),
+      groups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-history-chat-group", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-history-chat-group-label", children: group.label }),
+        group.rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
           "div",
           {
             className: `fh-history-chat-row${row.sessionId === runtime.sessionId ? " active" : ""}${menuRow?.sessionId === row.sessionId ? " menu-open" : ""}`,
@@ -27027,7 +27524,7 @@
                 runtime.switchSession(row.sessionId);
             },
             children: [
-              renamingRow?.sessionId === row.sessionId ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+              renamingRow?.sessionId === row.sessionId ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
                 Input,
                 {
                   ref: renameInputRef,
@@ -27047,8 +27544,8 @@
                   },
                   onBlur: () => setRenamingRow(null)
                 }
-              ) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-history-chat-row-title", children: rowLabel(row, t) }),
-              renamingRow?.sessionId !== row.sessionId && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+              ) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "fh-history-chat-row-title", children: rowLabel(row, t) }),
+              renamingRow?.sessionId !== row.sessionId && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
                 IconButton,
                 {
                   size: "sm",
@@ -27060,7 +27557,7 @@
                     if (menuRow?.sessionId === row.sessionId) setMenuRow(null);
                     else openRowMenu(row, event.currentTarget);
                   },
-                  children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Ellipsis, { size: 14 })
+                  children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Ellipsis, { size: 14 })
                 }
               )
             ]
@@ -27069,14 +27566,14 @@
         ))
       ] }, group.key)),
       menuRow && menuPosition && (0, import_react_dom4.createPortal)(
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
           "div",
           {
             ref: menuPopupRef,
             className: "fh-history-chat-row-menu-popup",
             style: { top: menuPosition.top, left: menuPosition.left },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
                 MenuItem,
                 {
                   variant: "popup",
@@ -27086,12 +27583,12 @@
                     startRename(row);
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Pencil, { size: 15 }),
+                    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Pencil, { size: 15 }),
                     t("historyChat.rename")
                   ]
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
                 MenuItem,
                 {
                   variant: "popup",
@@ -27102,7 +27599,7 @@
                     void remove(row);
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Trash2, { size: 15 }),
+                    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Trash2, { size: 15 }),
                     t("historyChat.delete")
                   ]
                 }
@@ -27116,31 +27613,32 @@
   }
 
   // apps/web/src/components/features/sidebar/Sidebar.tsx
-  var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime16 = __toESM(require_jsx_runtime(), 1);
   function Sidebar({
     collapsed,
     onToggleCollapse,
     onNewSession,
     newSessionDisabled,
     onOpenSettings,
+    onOpenSkills,
     onLogout
   }) {
     const { t } = useLocale();
-    const [searchOpen, setSearchOpen] = (0, import_react14.useState)(false);
-    const [query, setQuery] = (0, import_react14.useState)("");
-    const searchInputRef = (0, import_react14.useRef)(null);
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+    const [searchOpen, setSearchOpen] = (0, import_react16.useState)(false);
+    const [query, setQuery] = (0, import_react16.useState)("");
+    const searchInputRef = (0, import_react16.useRef)(null);
+    return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
       "div",
       {
         id: "sidebar-col",
         className: `fh-sidebar-col${collapsed ? " fh-sidebar-rail" : ""}`,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-sidebar-logo-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-sidebar-brand", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-sidebar-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Bot, { size: 24 }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-sidebar-brand-name", children: "Fox Harness" })
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "fh-sidebar-logo-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "fh-sidebar-brand", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Bot, { size: 24 }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-brand-name", children: "Fox Harness" })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
               IconButton,
               {
                 className: "fh-sidebar-search-toggle",
@@ -27149,20 +27647,20 @@
                   setTimeout(() => searchInputRef.current?.focus(), 0);
                 },
                 title: t("sidebar.searchSessions"),
-                children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Search, { size: 14 })
+                children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Search, { size: 14 })
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
               IconButton,
               {
                 className: "fh-sidebar-collapse-toggle",
                 onClick: onToggleCollapse,
                 title: collapsed ? t("sidebar.expandSidebar") : t("sidebar.collapseSidebar"),
-                children: collapsed ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(PanelLeftOpen, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(PanelLeftClose, { size: 16 })
+                children: collapsed ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(PanelLeftOpen, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(PanelLeftClose, { size: 16 })
               }
             )
           ] }),
-          searchOpen && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "fh-sidebar-search-row", children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+          searchOpen && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "fh-sidebar-search-row", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
             Input,
             {
               ref: searchInputRef,
@@ -27177,7 +27675,7 @@
               }
             }
           ) }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
             Button,
             {
               variant: "raised",
@@ -27185,20 +27683,33 @@
               onClick: onNewSession,
               disabled: newSessionDisabled,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Plus, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-sidebar-new-session-label", children: t("sidebar.newSession") })
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Plus, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-new-session-label", children: t("sidebar.newSession") })
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "fh-sidebar-region", children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(HistoryChat, { query }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "fh-sidebar-foot", children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(AccountMenu, { onOpenSettings, onLogout }) })
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+            MenuItem,
+            {
+              variant: "nav",
+              className: "fh-sidebar-skills",
+              onClick: onOpenSkills,
+              title: t("sidebar.skills"),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Sparkles, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-skills-label", children: t("sidebar.skills") })
+              ]
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "fh-sidebar-region", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(HistoryChat, { query }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "fh-sidebar-foot", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(AccountMenu, { onOpenSettings, onLogout }) })
         ]
       }
     );
   }
 
   // apps/web/src/App.tsx
-  var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime17 = __toESM(require_jsx_runtime(), 1);
   var STORAGE_TOKEN = "fox-harness/token";
   var STORAGE_GATEWAY = "fox-harness/gatewayUrl";
   var STORAGE_SIDEBAR_COLLAPSED = "fox-harness/sidebarCollapsed";
@@ -27288,37 +27799,38 @@
     });
   }
   function App() {
-    return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(LocaleProvider, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(AppInner, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Toaster, { theme: "light", position: "top-right", closeButton: true, richColors: true })
+    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(LocaleProvider, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(AppInner, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Toaster, { theme: "light", position: "top-right", closeButton: true, richColors: true })
     ] });
   }
   function AppInner() {
     const { t } = useLocale();
-    const [status, setStatus] = (0, import_react15.useState)("disconnected");
-    const [authenticated, setAuthenticated] = (0, import_react15.useState)(false);
-    const [authCheckPending, setAuthCheckPending] = (0, import_react15.useState)(
+    const [status, setStatus] = (0, import_react17.useState)("disconnected");
+    const [authenticated, setAuthenticated] = (0, import_react17.useState)(false);
+    const [authCheckPending, setAuthCheckPending] = (0, import_react17.useState)(
       () => !!localStorage.getItem(STORAGE_TOKEN)
     );
-    const [sessionId, setSessionId] = (0, import_react15.useState)("");
-    const [connectError, setConnectError] = (0, import_react15.useState)(null);
-    const [gatewayUrl] = (0, import_react15.useState)(defaultGatewayUrl());
-    const [selectedModel, setSelectedModel] = (0, import_react15.useState)("");
-    const [settingsOpen, setSettingsOpen] = (0, import_react15.useState)(false);
-    const [viewportWidth, setViewportWidth] = (0, import_react15.useState)(0);
-    const [sidebarManuallyExpanded, setSidebarManuallyExpanded] = (0, import_react15.useState)(false);
-    const [sidebarPinnedCollapsed, setSidebarPinnedCollapsed] = (0, import_react15.useState)(
+    const [sessionId, setSessionId] = (0, import_react17.useState)("");
+    const [connectError, setConnectError] = (0, import_react17.useState)(null);
+    const [gatewayUrl] = (0, import_react17.useState)(defaultGatewayUrl());
+    const [selectedModel, setSelectedModel] = (0, import_react17.useState)("");
+    const [settingsOpen, setSettingsOpen] = (0, import_react17.useState)(false);
+    const [skillsOpen, setSkillsOpen] = (0, import_react17.useState)(false);
+    const [viewportWidth, setViewportWidth] = (0, import_react17.useState)(0);
+    const [sidebarManuallyExpanded, setSidebarManuallyExpanded] = (0, import_react17.useState)(false);
+    const [sidebarPinnedCollapsed, setSidebarPinnedCollapsed] = (0, import_react17.useState)(
       () => localStorage.getItem(STORAGE_SIDEBAR_COLLAPSED) === "1"
     );
-    const [userEmail, setUserEmail] = (0, import_react15.useState)(
+    const [userEmail, setUserEmail] = (0, import_react17.useState)(
       () => localStorage.getItem(STORAGE_EMAIL) ?? ""
     );
-    const [hasChatted, setHasChatted] = (0, import_react15.useState)(() => !!sessionIdFromUrl());
-    const frameRef = (0, import_react15.useRef)(null);
-    const wsRef = (0, import_react15.useRef)(null);
-    const gatewayHttpBaseRef = (0, import_react15.useRef)("");
-    const frameHistoryRef = (0, import_react15.useRef)([]);
-    const frameListenersRef = (0, import_react15.useRef)(/* @__PURE__ */ new Set());
+    const [hasChatted, setHasChatted] = (0, import_react17.useState)(() => !!sessionIdFromUrl());
+    const frameRef = (0, import_react17.useRef)(null);
+    const wsRef = (0, import_react17.useRef)(null);
+    const gatewayHttpBaseRef = (0, import_react17.useRef)("");
+    const frameHistoryRef = (0, import_react17.useRef)([]);
+    const frameListenersRef = (0, import_react17.useRef)(/* @__PURE__ */ new Set());
     function publishFrame(frame) {
       if (frame.type === "snapshot") frameHistoryRef.current = [frame];
       else frameHistoryRef.current.push(frame);
@@ -27442,7 +27954,7 @@
       wsRef.current?.close();
       connect(httpBase, token, "new");
     }
-    const runtime = (0, import_react15.useMemo)(
+    const runtime = (0, import_react17.useMemo)(
       () => ({
         sessionId,
         userEmail,
@@ -27536,7 +28048,7 @@
       setHasChatted(false);
       if (httpBase && token) void logoutRequest(httpBase, token);
     }
-    (0, import_react15.useEffect)(() => {
+    (0, import_react17.useEffect)(() => {
       const storedToken = localStorage.getItem(STORAGE_TOKEN);
       const storedGateway = localStorage.getItem(STORAGE_GATEWAY);
       if (location.pathname.startsWith("/chat/") && !sessionIdFromUrl())
@@ -27545,7 +28057,7 @@
         connect(storedGateway, storedToken, sessionIdFromUrl() ?? "new");
       }
     }, []);
-    (0, import_react15.useEffect)(() => {
+    (0, import_react17.useEffect)(() => {
       function onPopState() {
         const token = localStorage.getItem(STORAGE_TOKEN);
         if (!token || !gatewayHttpBaseRef.current) return;
@@ -27557,10 +28069,10 @@
       window.addEventListener("popstate", onPopState);
       return () => window.removeEventListener("popstate", onPopState);
     }, []);
-    (0, import_react15.useEffect)(() => {
+    (0, import_react17.useEffect)(() => {
       void pickDefaultModel(gatewayUrl.trim().replace(/\/$/, ""));
     }, []);
-    (0, import_react15.useEffect)(() => {
+    (0, import_react17.useEffect)(() => {
       const el = frameRef.current;
       if (!el) return;
       const observer = new ResizeObserver(
@@ -27591,14 +28103,14 @@
     const gridTemplateColumns = `${cols.sidebar}px ${cols.center}px`;
     if (!authenticated) {
       if (authCheckPending) {
-        return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-auth-screen", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-auth-loading", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-spinner" }) }) });
+        return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "fh-auth-screen", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "fh-auth-loading", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "fh-spinner" }) }) });
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-auth-screen", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-auth-screen-controls", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(LanguageSelect, {}),
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ThemeToggle, {})
+      return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "fh-auth-screen", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "fh-auth-screen-controls", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(LanguageSelect, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(ThemeToggle, {})
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
           ConnectForm,
           {
             error: connectError,
@@ -27609,8 +28121,8 @@
         )
       ] });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(RuntimeContext.Provider, { value: runtime, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(RuntimeContext.Provider, { value: runtime, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
         "div",
         {
           id: "app",
@@ -27618,7 +28130,7 @@
           ref: frameRef,
           style: { gridTemplateColumns },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
               Sidebar,
               {
                 collapsed: sidebarCollapsed,
@@ -27626,28 +28138,30 @@
                 onNewSession: startNewSession,
                 newSessionDisabled: !hasChatted,
                 onOpenSettings: () => setSettingsOpen(true),
+                onOpenSkills: () => setSkillsOpen(true),
                 onLogout: handleLogout
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { id: "center-col", className: "fh-center-col", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Conversation, {}) })
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { id: "center-col", className: "fh-center-col", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Conversation, {}) })
           ]
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
         SettingsDialog,
         {
           open: settingsOpen,
           onClose: () => setSettingsOpen(false),
           onLogout: handleLogout
         }
-      )
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SkillsDialog, { open: skillsOpen, onClose: () => setSkillsOpen(false) })
     ] });
   }
 
   // apps/web/src/ErrorBoundary.tsx
-  var import_react16 = __toESM(require_react(), 1);
-  var import_jsx_runtime16 = __toESM(require_jsx_runtime(), 1);
-  var ErrorBoundary = class extends import_react16.Component {
+  var import_react18 = __toESM(require_react(), 1);
+  var import_jsx_runtime18 = __toESM(require_jsx_runtime(), 1);
+  var ErrorBoundary = class extends import_react18.Component {
     state = { error: null };
     static getDerivedStateFromError(error) {
       return { error: error instanceof Error ? error : new Error(String(error)) };
@@ -27658,11 +28172,11 @@
     render() {
       const { error } = this.state;
       if (!error) return this.props.children;
-      return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { style: { maxWidth: 640, margin: "4em auto", padding: "0 1.5em", fontFamily: "system-ui, sans-serif", color: "#1a1a1a" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("h1", { style: { fontSize: "1.3em" }, children: "Something went wrong" }),
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("p", { children: error.message }),
-        error.stack && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("pre", { style: { whiteSpace: "pre-wrap", fontSize: "0.75em", opacity: 0.7, overflowX: "auto" }, children: error.stack }),
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { maxWidth: 640, margin: "4em auto", padding: "0 1.5em", fontFamily: "system-ui, sans-serif", color: "#1a1a1a" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("h1", { style: { fontSize: "1.3em" }, children: "Something went wrong" }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("p", { children: error.message }),
+        error.stack && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("pre", { style: { whiteSpace: "pre-wrap", fontSize: "0.75em", opacity: 0.7, overflowX: "auto" }, children: error.stack }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
           "button",
           {
             type: "button",
@@ -27676,11 +28190,11 @@
   };
 
   // apps/web/src/main.tsx
-  var import_jsx_runtime17 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime19 = __toESM(require_jsx_runtime(), 1);
   var container = document.getElementById("root");
   if (!container) throw new Error("fox-harness-web: missing #root in index.html");
   (0, import_client.createRoot)(container).render(
-    /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(ErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(App, {}) })
+    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(ErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(App, {}) })
   );
 })();
 /*! Bundled license information:
@@ -27806,6 +28320,22 @@ lucide-react/dist/esm/icons/log-out.js:
    * See the LICENSE file in the root directory of this source tree.
    *)
 
+lucide-react/dist/esm/icons/maximize-2.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/minimize-2.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
 lucide-react/dist/esm/icons/moon.js:
   (**
    * @license lucide-react v0.469.0 - ISC
@@ -27855,6 +28385,14 @@ lucide-react/dist/esm/icons/search.js:
    *)
 
 lucide-react/dist/esm/icons/settings.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/sparkles.js:
   (**
    * @license lucide-react v0.469.0 - ISC
    *

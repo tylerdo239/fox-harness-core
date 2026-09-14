@@ -22,6 +22,7 @@ import { ThemeToggle } from "./components/features/auth/ThemeToggle.tsx";
 import { Conversation } from "./components/features/conversation/Conversation.tsx";
 import { LanguageSelect } from "./components/features/LanguageSelect.tsx";
 import { SettingsDialog } from "./components/features/settings/SettingsDialog.tsx";
+import { SkillsDialog } from "./components/features/skills/SkillsDialog.tsx";
 import { Sidebar } from "./components/features/sidebar/Sidebar.tsx";
 import {
   LocaleProvider,
@@ -288,6 +289,7 @@ function AppInner() {
   const [gatewayUrl] = useState(defaultGatewayUrl());
   const [selectedModel, setSelectedModel] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(0);
   // `sidebarManuallyExpanded`: a NARROW-viewport temporary reveal (the
   // header hamburger) — never persisted, since it's inherently a
@@ -884,6 +886,7 @@ function AppInner() {
           onNewSession={startNewSession}
           newSessionDisabled={!hasChatted}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSkills={() => setSkillsOpen(true)}
           onLogout={handleLogout}
         />
         <div id="center-col" className="fh-center-col">
@@ -896,6 +899,8 @@ function AppInner() {
         onClose={() => setSettingsOpen(false)}
         onLogout={handleLogout}
       />
+
+      <SkillsDialog open={skillsOpen} onClose={() => setSkillsOpen(false)} />
     </RuntimeContext.Provider>
   );
 }

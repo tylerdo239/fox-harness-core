@@ -94,7 +94,8 @@ export const config = {
   // nothing unless it's forwarded through this list. Documented in
   // .env.example. `LLM_IDLE_TIMEOUT_MS` added 2026-09-09 (performance fix
   // #4) — `packages/llm/openai-compat`'s adapter reads it the same way.
-  workerEnvPassthrough: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL_ID', 'SESSION_TOKEN_BUDGET', 'LLM_IDLE_TIMEOUT_MS'] as const,
+  // `SERPER_API_KEY` added 2026-09-14 for `packages/tool/serper-web-search`.
+  workerEnvPassthrough: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL_ID', 'SESSION_TOKEN_BUDGET', 'LLM_IDLE_TIMEOUT_MS', 'SERPER_API_KEY'] as const,
   // Phase 12 item 4: model chosen PER SESSION at creation time (not
   // mid-session — see ensure.ts). A comma-separated allow-list; falls back
   // to a single-item list built from OPENAI_MODEL_ID (the pre-Phase-12

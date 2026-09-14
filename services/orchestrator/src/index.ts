@@ -7,7 +7,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage } from 'node:http'
 
-import type { EnsureSessionRequest, EnsureSessionResponse } from '@fox-harness/contracts'
+import type { EnsureSessionRequest, EnsureSessionResponse, SkillsSyncRequest, SkillsSyncResponse } from '@fox-harness/contracts'
 
 import type { ModelsResponse } from '@fox-harness/contracts'
 
@@ -17,6 +17,7 @@ import { removeWorker } from './docker.ts'
 import { ensureSession } from './ensure.ts'
 import { InvalidModelError, QuotaExceededError } from './errors.ts'
 import { deleteSession, getSession, touch } from './redis.ts'
+import { isValidSkillName, syncSkills } from './skills-sync.ts'
 import { startIdleSweep } from './sweep.ts'
 import { replenishWarmPool } from './warmpool.ts'
 
@@ -137,6 +138,37 @@ const server = createServer((req, res) => {
       log('purge_ok', { sessionId })
       res.writeHead(204)
       res.end()
+    })()
+    return
+  }
+
+  // Per-user skills (docs/skill-transfer-plan.md): gateway sends session ids
+  // + files, this writes them into each session's $DSH_HOME/skills.
+  if (req.method === 'PUT' && url.pathname === '/skills-sync') {
+    void (async () => {
+      let body: SkillsSyncRequest
+      try {
+        body = JSON.parse(await readBody(req)) as SkillsSyncRequest
+      } catch {
+        res.writeHead(400, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: 'invalid JSON body' }))
+        return
+      }
+      if (!Array.isArray(body.sessionIds) || !Array.isArray(body.skills) || body.skills.some((skill) => !isValidSkillName(skill.name))) {
+        res.writeHead(400, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: 'sessionIds and skills with valid names are required' }))
+        return
+      }
+      try {
+        const response: SkillsSyncResponse = { synced: await syncSkills(body.sessionIds, body.skills) }
+        log('skills_sync_ok', { synced: response.synced, skills: body.skills.length })
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(response))
+      } catch (error) {
+        log('skills_sync_failed', { error: String(error) })
+        res.writeHead(500, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: 'skills sync failed' }))
+      }
     })()
     return
   }

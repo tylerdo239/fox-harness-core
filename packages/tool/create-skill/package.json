@@ -1,5 +1,5 @@
 {
-  "name": "@fox-harness/dsh-tool-duckduckgo-web-search",
+  "name": "@fox-harness/dsh-tool-create-skill",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-skill": "0.1.1-rc.2",
     "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"

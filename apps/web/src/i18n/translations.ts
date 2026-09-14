@@ -48,6 +48,14 @@ export const vi = {
   "error.email_taken": "Email đã được đăng ký",
   "error.registration_failed": "Đăng ký thất bại",
   "error.invalid_credentials": "Email hoặc mật khẩu không đúng",
+  // Per-user skill `code`s (services/gateway/src/skills.ts + index.ts).
+  "error.skill_exists": "Đã có skill trùng tên",
+  "error.skill_limit": "Đã đạt tối đa 50 skill",
+  "error.skill_name_reserved": "Tên này trùng một skill có sẵn",
+  "error.invalid_skill_name": "Tên chỉ gồm chữ thường, số, gạch ngang (2–64 ký tự)",
+  "error.invalid_skill_description": "Cần mô tả, tối đa 280 ký tự",
+  "error.invalid_skill_content": "Cần nội dung, tối đa 64 KB",
+  "error.skill_not_found": "Không tìm thấy skill",
 
   // App shell (App.tsx)
   "app.logout": "Đăng xuất",
@@ -70,6 +78,7 @@ export const vi = {
   // `sidebar.settings`: the row itself now opens a menu (Settings +
   // Logout), it isn't a direct Settings shortcut anymore.
   "sidebar.accountMenu": "Menu tài khoản",
+  "sidebar.skills": "Kỹ năng",
 
   // HistoryChat.tsx (renamed from SessionList.tsx 2026-09-10 — "SessionList"
   // described a backend concept, not what this actually is: the sidebar's
@@ -159,6 +168,30 @@ export const vi = {
   "settings.language": "Ngôn ngữ",
   "settings.profileEmail": "Địa chỉ email",
 
+  // SkillsDialog.tsx + the "/" menu (conversation/SkillMenu.tsx).
+  "skills.title": "Kỹ năng",
+  "skills.new": "Tạo skill mới",
+  "skills.mine": "Skill của tôi",
+  "skills.emptyMine": "Chưa có skill nào",
+  "skills.builtin": "Skill có sẵn",
+  "skills.builtinReadonly": "Skill có sẵn dùng chung cho mọi người, không sửa được. Gõ /{name} trong ô chat để dùng.",
+  "skills.name": "Tên",
+  "skills.namePlaceholder": "vd. bao-cao-tuan",
+  "skills.nameHint": "Chữ thường, số, gạch ngang. Không đổi được sau khi tạo. Gõ /tên trong ô chat để dùng.",
+  "skills.description": "Mô tả — dùng khi nào",
+  "skills.content": "Nội dung",
+  "skills.expand": "Mở rộng",
+  "skills.collapse": "Thu gọn",
+  "skills.save": "Lưu",
+  "skills.saving": "Đang lưu…",
+  "skills.delete": "Xoá",
+  "skills.deleteConfirm": "Xoá skill \"{name}\"? Không thể hoàn tác.",
+  "skills.saved": "Đã lưu skill {name}",
+  "skills.deleted": "Đã xoá skill {name}",
+  "skills.loadFailed": "Không tải được danh sách skill",
+  "skills.createdFromChat": "Đã lưu skill {name} — gõ /{name} để dùng",
+  "skills.mineBadge": "của tôi",
+
   // ThemeToggle.tsx
   "theme.switchToDark": "Chuyển sang giao diện tối",
   "theme.switchToLight": "Chuyển sang giao diện sáng",
@@ -189,6 +222,13 @@ export const en: Record<TranslationKey, string> = {
   "error.email_taken": "Email already registered",
   "error.registration_failed": "Registration failed",
   "error.invalid_credentials": "Invalid email or password",
+  "error.skill_exists": "A skill with this name already exists",
+  "error.skill_limit": "You've reached the 50-skill limit",
+  "error.skill_name_reserved": "This name belongs to a built-in skill",
+  "error.invalid_skill_name": "Name: lowercase letters, digits, hyphens (2–64 characters)",
+  "error.invalid_skill_description": "Description is required, at most 280 characters",
+  "error.invalid_skill_content": "Content is required, at most 64 KB",
+  "error.skill_not_found": "Skill not found",
 
   "app.logout": "Logout",
   "app.sessionExpired": "Session expired — please log in again",
@@ -206,6 +246,7 @@ export const en: Record<TranslationKey, string> = {
   "sidebar.settings": "Settings",
   "sidebar.account": "Account",
   "sidebar.accountMenu": "Account menu",
+  "sidebar.skills": "Skills",
 
   "historyChat.untitled": "Untitled — {id}",
   "historyChat.groupToday": "Today",
@@ -239,6 +280,29 @@ export const en: Record<TranslationKey, string> = {
   "settings.themeDark": "Dark",
   "settings.language": "Language",
   "settings.profileEmail": "Email address",
+
+  "skills.title": "Skills",
+  "skills.new": "New skill",
+  "skills.mine": "My skills",
+  "skills.emptyMine": "No skills yet",
+  "skills.builtin": "Built-in skills",
+  "skills.builtinReadonly": "Built-in skills are shared by everyone and can't be edited. Type /{name} in the chat to use it.",
+  "skills.name": "Name",
+  "skills.namePlaceholder": "e.g. weekly-report",
+  "skills.nameHint": "Lowercase letters, digits, hyphens. Can't be changed later. Type /name in the chat to use it.",
+  "skills.description": "Description — when to use it",
+  "skills.content": "Content",
+  "skills.expand": "Expand",
+  "skills.collapse": "Collapse",
+  "skills.save": "Save",
+  "skills.saving": "Saving…",
+  "skills.delete": "Delete",
+  "skills.deleteConfirm": "Delete skill \"{name}\"? This cannot be undone.",
+  "skills.saved": "Saved skill {name}",
+  "skills.deleted": "Deleted skill {name}",
+  "skills.loadFailed": "Couldn't load skills",
+  "skills.createdFromChat": "Saved skill {name} — type /{name} to use it",
+  "skills.mineBadge": "mine",
 
   "theme.switchToDark": "Switch to dark theme",
   "theme.switchToLight": "Switch to light theme",
