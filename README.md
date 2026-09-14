@@ -254,7 +254,7 @@ gets written.
 - **Adding a new agent capability** (tool, LLM adapter, etc.): write a real
   package under `packages/` using dsh's real extension seams
   (`ctx.tools.register()`, `ctx.llm.registerAdapter()`, ...), add it to both
-  `packages/profile-template/template/profile.package.json`'s bundle list
+  `packages/profile-template/<flow>/template/profile.package.json`'s bundle list
   *and* root `package.json`'s `dependencies` (both are required — pnpm's
   hoisted linker needs the latter to create the container-visible symlink),
   rebuild the worker image, redeploy. There is no per-user/per-session

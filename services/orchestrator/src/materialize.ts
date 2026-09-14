@@ -33,7 +33,7 @@ function templateDirFor(templatePackage: string): string {
 
 // Real bug found and fixed 2026-09-11: `materializeDshHome()` used to write
 // ONLY `transportRow()`'s output to `cordis.patch.yml`, never reading
-// `packages/profile-template/template/cordis.patch.yml` at all — despite
+// `packages/profile-template/<flow>/template/cordis.patch.yml` at all — despite
 // that template file's own header comment calling itself "the profile-wide
 // overlay." Any entry checked into that template (the system-prompt
 // override added the same day is the first real one) had zero effect on any

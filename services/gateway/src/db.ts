@@ -6,6 +6,8 @@
 // choice this repo already made for `ws`/`ioredis`/`dockerode` rather than
 // an ORM. Schema: infra/migrations/001_init.sql.
 
+import { randomUUID } from 'node:crypto'
+
 import mariadb from 'mariadb'
 
 import { config } from './config.ts'
@@ -98,8 +100,14 @@ export async function listUsers(): Promise<PublicUser[]> {
 // `on conflict do nothing`) — the WS upgrade handler (index.ts) calls this
 // once right after a brand-new session is created; a retried/duplicate call
 // must never silently reassign ownership.
-export async function createSession(sessionId: string, ownerId: number, flow: string): Promise<void> {
-  await pool.query(`insert ignore into sessions (session_id, owner_id, flow) values (?, ?, ?)`, [sessionId, ownerId, flow])
+export async function createSession(sessionId: string, ownerId: number, flow: string, projectId?: string): Promise<void> {
+  await pool.query(`insert ignore into sessions (session_id, owner_id, flow, project_id) values (?, ?, ?, ?)`, [
+    sessionId,
+    ownerId,
+    flow,
+    projectId ?? null,
+  ])
+  if (projectId !== undefined) await pool.query(`update projects set updated_at = now() where project_id = ?`, [projectId])
 }
 
 export async function getSessionOwnerId(sessionId: string): Promise<number | undefined> {
@@ -149,6 +157,34 @@ export interface OwnedSessionRow {
   title: string | null
   createdAt: string
   updatedAt: string
+  flow: string
+  projectId: string | null
+  projectName: string | null
+}
+
+interface OwnedSessionDbRow {
+  session_id: string
+  title: string | null
+  created_at: string
+  updated_at: string
+  flow: string
+  project_id: string | null
+  project_name: string | null
+}
+
+const OWNED_SESSION_SELECT = `select s.session_id, s.title, s.created_at, s.updated_at, s.flow, s.project_id, p.name as project_name
+  from sessions s left join projects p on p.project_id = s.project_id`
+
+function toOwnedSession(row: OwnedSessionDbRow): OwnedSessionRow {
+  return {
+    sessionId: row.session_id,
+    title: row.title,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    flow: row.flow,
+    projectId: row.project_id,
+    projectName: row.project_name,
+  }
 }
 
 // Phase 12 item 2: GET /sessions/mine — the route that didn't exist before
@@ -160,18 +196,41 @@ export interface OwnedSessionRow {
 // (every logout->login opens a fresh one, App.tsx's own comment on why) no
 // longer clutters this list.
 export async function listSessionsForOwner(ownerId: number): Promise<OwnedSessionRow[]> {
-  const rows = await pool.query<{ session_id: string; title: string | null; created_at: string; updated_at: string }[]>(
-    `select session_id, title, created_at, updated_at from sessions where owner_id = ? and first_message_at is not null order by updated_at desc`,
+  const rows = await pool.query<OwnedSessionDbRow[]>(
+    `${OWNED_SESSION_SELECT} where s.owner_id = ? and s.first_message_at is not null order by s.updated_at desc`,
     [ownerId],
   )
-  return rows.map((row) => ({ sessionId: row.session_id, title: row.title, createdAt: row.created_at, updatedAt: row.updated_at }))
+  return rows.map(toOwnedSession)
 }
 
-// Phase 12 item 2: PATCH /sessions/:id {title} — the rename action the
-// sidebar's session-list rows expose. `updated_at` bumps too (a rename is
-// itself activity, matching the "updated" sort's intuitive meaning).
-export async function renameSession(sessionId: string, title: string): Promise<void> {
-  await pool.query(`update sessions set title = ?, updated_at = now() where session_id = ?`, [title, sessionId])
+// The chats of one project (docs/rlm-transfer-plan.md 9.1), same filter as above.
+export async function listSessionsForProject(projectId: string): Promise<OwnedSessionRow[]> {
+  const rows = await pool.query<OwnedSessionDbRow[]>(
+    `${OWNED_SESSION_SELECT} where s.project_id = ? and s.first_message_at is not null order by s.updated_at desc`,
+    [projectId],
+  )
+  return rows.map(toOwnedSession)
+}
+
+// Where a title came from: dsh-session-title's `session/title` source kinds
+// (`fallback` = first words of the first message, `provider` = written by
+// the model) or `user` (a rename in the sidebar).
+export type TitleSource = 'user' | 'fallback' | 'provider'
+
+// Phase 12 item 2: PATCH /sessions/:id {title} — a user rename always wins and
+// bumps `updated_at` (a rename is itself activity, matching the "updated"
+// sort's intuitive meaning). An automatic title only fills an untitled chat
+// or replaces a `fallback` title with the model's `provider` one — never a
+// user rename — and doesn't re-sort the list.
+export async function renameSession(sessionId: string, title: string, source: TitleSource = 'user'): Promise<void> {
+  if (source === 'user') {
+    await pool.query(`update sessions set title = ?, title_source = 'user', updated_at = now() where session_id = ?`, [title, sessionId])
+    return
+  }
+  await pool.query(
+    `update sessions set title = ?, title_source = ? where session_id = ? and (title_source is null or (title_source = 'fallback' and ? = 'provider'))`,
+    [title, source, sessionId, source],
+  )
 }
 
 // Phase 12 item 2: called on every real client->worker message (index.ts,
@@ -189,6 +248,62 @@ export async function touchSessionRow(sessionId: string): Promise<void> {
 // `listSessionsForOwner`) — a skill edit must reach a freshly opened chat too.
 export async function listSessionIdsForOwner(ownerId: number): Promise<string[]> {
   const rows = await pool.query<{ session_id: string }[]>(`select session_id from sessions where owner_id = ?`, [ownerId])
+  return rows.map((row) => row.session_id)
+}
+
+// Projects (docs/rlm-transfer-plan.md 9.1): a named shared data folder for a
+// user's data-analysis chats. `project_id` is a UUID for the same reason as
+// `sessions.session_id` — it appears in URLs and is the folder name on disk.
+export interface ProjectRecord {
+  projectId: string
+  name: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface ProjectRow {
+  project_id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
+
+function toProject(row: ProjectRow): ProjectRecord {
+  return { projectId: row.project_id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at }
+}
+
+export async function createProject(ownerId: number, name: string): Promise<ProjectRecord> {
+  const rows = await pool.query<ProjectRow[]>(
+    `insert into projects (project_id, owner_id, name) values (?, ?, ?) returning project_id, name, created_at, updated_at`,
+    [randomUUID(), ownerId, name],
+  )
+  return toProject(rows[0])
+}
+
+export async function listProjectsForOwner(ownerId: number): Promise<ProjectRecord[]> {
+  const rows = await pool.query<ProjectRow[]>(
+    `select project_id, name, created_at, updated_at from projects where owner_id = ? order by updated_at desc`,
+    [ownerId],
+  )
+  return rows.map(toProject)
+}
+
+export async function getProjectOwnerId(projectId: string): Promise<number | undefined> {
+  const rows = await pool.query<{ owner_id: number }[]>(`select owner_id from projects where project_id = ?`, [projectId])
+  return rows[0]?.owner_id
+}
+
+export async function renameProject(projectId: string, name: string): Promise<void> {
+  await pool.query(`update projects set name = ?, updated_at = now() where project_id = ?`, [name, projectId])
+}
+
+export async function deleteProjectRow(projectId: string): Promise<void> {
+  await pool.query(`delete from projects where project_id = ?`, [projectId])
+}
+
+// Every chat of a project, including never-used ones — deleting a project purges them all.
+export async function listSessionIdsForProject(projectId: string): Promise<string[]> {
+  const rows = await pool.query<{ session_id: string }[]>(`select session_id from sessions where project_id = ?`, [projectId])
   return rows.map((row) => row.session_id)
 }
 

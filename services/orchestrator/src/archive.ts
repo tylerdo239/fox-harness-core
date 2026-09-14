@@ -18,6 +18,8 @@ import { access, mkdir, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
+import { removeDirContentsAsRoot } from './docker.ts'
+
 const execFileAsync = promisify(execFile)
 
 function archivePathFor(archiveDir: string, sessionId: string): string {
@@ -40,9 +42,21 @@ export async function restoreSession(dshHomeDir: string, archiveDir: string, ses
   await execFileAsync('tar', ['-xzf', archivePathFor(archiveDir, sessionId), '-C', parent])
 }
 
+/** `rm -rf dir`, falling back to a root container for files a worker created as root. */
+export async function removeTree(dir: string): Promise<void> {
+  try {
+    await rm(dir, { recursive: true, force: true })
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== 'EACCES' && code !== 'EPERM') throw error
+    await removeDirContentsAsRoot(dir)
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
 /** Real right-to-erasure delete (Phase 6's "xóa theo yêu cầu user") — removes whichever of the live directory / archive tarball actually exists. Does not touch Redis; callers (index.ts) delete the affinity record separately. */
 export async function purgeSession(dshHomeDir: string, archiveDir: string, sessionId: string): Promise<void> {
-  await rm(dshHomeDir, { recursive: true, force: true })
+  await removeTree(dshHomeDir)
   await rm(archivePathFor(archiveDir, sessionId), { force: true })
 }
 

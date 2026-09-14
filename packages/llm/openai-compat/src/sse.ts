@@ -1,3 +1,4 @@
+import { LlmError } from '@deepseek-ai/dsh-llm'
 import { EventSourceParserStream } from 'eventsource-parser/stream'
 
 // Performance fix 2026-09-09 (docs/security-performance-review-2026-09-09.md
@@ -8,12 +9,12 @@ import { EventSourceParserStream } from 'eventsource-parser/stream'
 // this: it only tracks WS connection activity, not turn state). This is an
 // IDLE timeout, reset on every real chunk — not a total-request timeout, a
 // genuinely long real response must still be allowed to keep streaming.
-class SseIdleTimeoutError extends Error {}
+class SseIdleTimeoutError extends LlmError {}
 
 async function readWithIdleTimeout<T>(reader: ReadableStreamDefaultReader<T>, idleTimeoutMs: number): ReturnType<typeof reader.read> {
   let timeoutHandle: ReturnType<typeof setTimeout>
   const timeout = new Promise<never>((_, reject) => {
-    timeoutHandle = setTimeout(() => reject(new SseIdleTimeoutError(`no data received for ${idleTimeoutMs}ms`)), idleTimeoutMs)
+    timeoutHandle = setTimeout(() => reject(new SseIdleTimeoutError(`no data received for ${idleTimeoutMs}ms`, 'TIMEOUT')), idleTimeoutMs)
   })
   try {
     return await Promise.race([reader.read(), timeout])
@@ -65,6 +66,6 @@ export async function* parseSse(stream: ReadableStream<Uint8Array>, idleTimeoutM
     reader.releaseLock()
   }
   if (!sawDone) {
-    throw new Error('fox-harness-llm-openai-compat: stream closed before [DONE]')
+    throw new LlmError('fox-harness-llm-openai-compat: stream closed before [DONE]', 'TRANSPORT')
   }
 }

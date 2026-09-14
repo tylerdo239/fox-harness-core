@@ -58,8 +58,11 @@ Both are now folded into the code (`factory.ts`'s class doc comment, and
 ## Deliberate scope cuts vs. the reference implementation (see `src/agent.ts`'s class doc comment for the full list)
 
 - Tool calls execute sequentially, never in parallel.
-- `agent/request-error` isn't dispatched — a failed model call is terminal (throws), no retry.
-- No `request/header`/`request/context` cosmetic bookkeeping events.
+- ~~`agent/request-error` isn't dispatched~~ — dispatched since 2026-09-14
+  (docs/rlm-transfer-plan.md 0.2): enables `dsh-llm-retry` and
+  `compaction-basic` overflow repair.
+- ~~No `request/header`/`request/context`~~ — logged since 2026-09-14 (0.1),
+  same rules as dsh-agent-loop's `buildRequest`.
 - No `RuntimeContextProjection` — the reference injects a synthetic `user/message`
   describing current sandbox/approval policy state (source:
   `{kind:'plugin', plugin:'@deepseek-ai/dsh-system-prompt', form:'snapshot'}`)

@@ -421,6 +421,12 @@ input[type="text"].fh-history-chat-search {
   background: var(--bg-hover);
 }
 
+/* Marks a "Phân tích dữ liệu" (data-analysis flow) chat in the history list. */
+.fh-history-chat-row-flow {
+  flex: none;
+  color: var(--accent-text);
+}
+
 .fh-history-chat-row.active .fh-history-chat-row-title {
   /* --accent-text, not --accent (2026-09-08) — plain --accent as TEXT on
    * this row's own --bg-hover only reaches ~2.5:1 in light mode (computed,
@@ -1321,6 +1327,86 @@ button:disabled {
   justify-content: flex-end;
 }
 
+/* Files bar of a data-analysis chat (WorkspacePanel.tsx), top of the composer. */
+.fh-workspace-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.fh-workspace-bar .fh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.fh-workspace-list {
+  list-style: none;
+  margin: 0.4em 0 0;
+  padding: 0;
+  max-height: 12em;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.fh-workspace-file {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  width: 100%;
+  padding: 0.4em 0.75em;
+  background: none;
+  color: var(--fg);
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.fh-workspace-file:hover {
+  background: var(--bg-hover);
+}
+
+.fh-workspace-file-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-workspace-file-size,
+.fh-workspace-empty {
+  color: var(--fg-muted, var(--fg));
+  opacity: 0.7;
+  font-size: 0.85em;
+}
+
+.fh-workspace-empty {
+  padding: 0.5em 0.75em;
+}
+
+.fh-workspace-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  cursor: zoom-out;
+}
+
+.fh-workspace-preview img {
+  max-width: 90vw;
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 8px;
+}
+
 /* No border at all, in every state including focus (2026-09-10, user:
  * "khi input focus ko cần outline cam cũng như border input là ko cần
  * thiết cho input chat") — `#text-input`'s ID specificity (1,0,0) already
@@ -1809,4 +1895,479 @@ button:disabled {
   white-space: nowrap;
   font-size: 0.8em;
   color: var(--muted);
+}
+
+/* Data-analysis project hub (docs/rlm-transfer-plan.md 9.1) — layout from
+ * agent-core's packages/ui-projects/src/ProjectHub.module.css, on fox tokens.
+ * It fills the center column (wider than the chat's 760px). Its buttons reset
+ * the global `button` rule's fixed 34px height and 12px radius. */
+#center-col > .fh-hub-scroll {
+  max-width: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.fh-hub {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 34px 18px 56px;
+  color: var(--fg);
+}
+
+.fh-hub-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 34px;
+}
+
+.fh-hub h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.fh-hub-eyebrow {
+  margin: 0 0 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fh-hub-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fh-hub-search {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 270px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.fh-hub-search input,
+.fh-hub-create input,
+.fh-hub-composer input,
+.fh-hub-title-input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+
+.fh-hub-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: auto;
+  min-height: 40px;
+  padding: 0 17px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.fh-hub-pill-primary {
+  border-color: var(--fg);
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.fh-hub-pill:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.fh-hub-create {
+  display: flex;
+  gap: 10px;
+  margin: -16px 0 24px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.fh-hub-create input {
+  padding: 0 10px;
+}
+
+.fh-hub-table-head,
+.fh-hub-project-row {
+  display: grid;
+  grid-template-columns: 1fr 210px;
+  align-items: center;
+  text-align: left;
+}
+
+.fh-hub-table-head {
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fh-hub-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.fh-hub-project-row,
+.fh-hub-content-row {
+  width: 100%;
+  height: auto;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fh-hub-project-row {
+  padding: 15px 2px;
+}
+
+.fh-hub-project-row:hover,
+.fh-hub-content-row:hover {
+  background: var(--bg-hover);
+}
+
+.fh-hub-project-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.fh-hub-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-hub-folder {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.fh-hub-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.fh-hub-header h1 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-hub-title-input {
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.fh-hub-icon-btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.fh-hub-icon-btn:hover {
+  background: var(--bg-hover);
+}
+
+.fh-hub-composer {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 58px;
+  padding: 8px 9px 8px 18px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+}
+
+.fh-hub-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fh-hub-tabs button {
+  height: auto;
+  padding: 11px 17px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fh-hub-tabs button span {
+  margin-left: 6px;
+  opacity: 0.65;
+}
+
+.fh-hub-tabs button.active {
+  border-bottom-color: var(--fg);
+  color: var(--fg);
+  font-weight: 650;
+}
+
+.fh-hub-content-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 8px;
+  text-align: left;
+}
+
+.fh-hub-content-row > span,
+.fh-hub-output-file > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fh-hub-content-row strong,
+.fh-hub-output-file strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-hub-content-row small,
+.fh-hub-output-file small {
+  color: var(--muted);
+}
+
+.fh-hub-sources {
+  padding-top: 18px;
+}
+
+.fh-hub-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: auto;
+  padding: 35px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 18px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fh-hub-dropzone span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fh-hub-progress {
+  width: min(360px, 80%);
+  height: 5px;
+  margin-top: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.fh-hub-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.fh-hub-outputs {
+  display: grid;
+  gap: 28px;
+  padding-top: 22px;
+}
+
+.fh-hub-output-group {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.fh-hub-output-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  background: var(--surface);
+}
+
+.fh-hub-output-heading h2 {
+  margin: 0 0 5px;
+  font-size: 16px;
+}
+
+.fh-hub-output-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fh-hub-output-heading > span {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fh-hub-output-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fh-hub-output-row:last-child {
+  border-bottom: 0;
+}
+
+.fh-hub-output-file {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  height: auto;
+  padding: 15px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fh-hub-promote {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fh-hub-promote:hover {
+  background: var(--bg-hover);
+}
+
+.fh-hub-empty {
+  padding: 44px 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Link back to the project above a chat that belongs to one. */
+.fh-chat-project-bar {
+  display: flex;
+  padding: 10px 16px 0;
+}
+
+.fh-chat-project-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .fh-hub-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .fh-hub-actions {
+    align-items: stretch;
+  }
+
+  .fh-hub-search {
+    width: 100%;
+  }
+
+  .fh-hub-table-head,
+  .fh-hub-project-row {
+    grid-template-columns: 1fr 100px;
+  }
+
+  .fh-hub-output-row {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0 10px 12px;
+  }
 }

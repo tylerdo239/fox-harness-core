@@ -18,8 +18,8 @@ sharing convenience, keep both in sync if the schema changes).
 
 ## Tables
 
-3 tables. `users` must exist before `sessions`/`custom_skills` (both have a
-foreign key to `users.id`).
+4 tables. `users` must exist before `sessions`/`projects`/`custom_skills`
+(all have a foreign key to `users.id`).
 
 ### `users`
 
@@ -50,12 +50,30 @@ no application code queries by it, every query still filters on
 | `owner_id` | `int` | NOT NULL, FOREIGN KEY → `users.id` |
 | `created_at` | `datetime` | NOT NULL, DEFAULT `current_timestamp` |
 | `title` | `varchar(255)` | nullable |
+| `title_source` | `varchar(16)` | nullable — `user` / `fallback` / `provider`; an automatic title never replaces a `user` one |
 | `updated_at` | `datetime` | NOT NULL, DEFAULT `current_timestamp` |
 | `first_message_at` | `datetime` | nullable |
 | `flow` | `varchar(64)` | NOT NULL, DEFAULT `'default'` |
+| `project_id` | `varchar(36)` | nullable — `projects.project_id` of a data-analysis chat inside a project (no foreign key) |
 
-Index: `(owner_id, updated_at DESC)` — supports "list a user's sessions,
-newest first".
+Indexes: `(owner_id, updated_at DESC)` — supports "list a user's sessions,
+newest first"; `(project_id)` — a project's chats.
+
+### `projects`
+
+A named shared data folder for a user's data-analysis chats (files live on
+disk under `data/projects/<project_id>`, not in the database). `project_id` is
+a UUID for the same reason as `sessions.session_id`; `id` is a surrogate
+PRIMARY KEY only.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | `int` | PRIMARY KEY, AUTO_INCREMENT (surrogate only) |
+| `project_id` | `varchar(36)` | UNIQUE, NOT NULL (UUID) |
+| `owner_id` | `int` | NOT NULL, FOREIGN KEY → `users.id` ON DELETE CASCADE |
+| `name` | `varchar(120)` | NOT NULL |
+| `created_at` | `datetime` | NOT NULL, DEFAULT `current_timestamp` |
+| `updated_at` | `datetime` | NOT NULL, DEFAULT `current_timestamp` |
 
 ### `custom_skills`
 

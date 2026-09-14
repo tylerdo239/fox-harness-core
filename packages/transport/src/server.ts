@@ -94,8 +94,9 @@ async function handleConnection(ctx: Context, ws: WebSocket, req: IncomingMessag
       // instead of the normal cwd-keyed directory, and per-session sandbox
       // tooling (dsh-sandbox-policy's workspaceRoot) has no per-session cwd
       // to use. Every real session-creating app (dsh-headless, dsh-web-app)
-      // sets this; our transport must too.
-      await ctx.agents.create({ sessionId, agentOptions: {}, meta: { cwd: process.cwd() } })
+      // sets this; our transport must too. `FOX_SESSION_CWD` is the flow's
+      // working directory, set (and created) by services/orchestrator.
+      await ctx.agents.create({ sessionId, agentOptions: {}, meta: { cwd: process.env.FOX_SESSION_CWD ?? process.cwd() } })
     } catch (error) {
       send(ws, { type: 'error', message: `failed to create session: ${String(error)}` })
       ws.close()

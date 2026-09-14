@@ -12,7 +12,7 @@ This package registers **no tool of its own**. dsh already ships the pieces:
 | `ctx.web` | `@deepseek-ai/dsh-web` | routes each search to the selected search source |
 | search source `serper` | **this package** | calls Serper, returns `{ sources, truncated }` |
 
-The source is selected in `packages/profile-template/template/cordis.patch.yml`:
+The source is selected in each flow's `packages/profile-template/<flow>/template/cordis.patch.yml`:
 
 ```yaml
 - id: web

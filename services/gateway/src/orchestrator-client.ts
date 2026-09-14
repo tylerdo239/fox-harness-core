@@ -8,10 +8,14 @@
 import type {
   EnsureSessionRequest,
   EnsureSessionResponse,
+  ProjectPromoteRequest,
   SkillsSyncRequest,
   SkillsSyncResponse,
   TouchSessionReason,
 } from '@fox-harness/contracts'
+
+import type { IncomingMessage } from 'node:http'
+import { Readable } from 'node:stream'
 
 import { config } from './config.ts'
 
@@ -42,8 +46,8 @@ export class OrchestratorHttpError extends Error {
   }
 }
 
-export async function ensureSession(orchestratorUrl: string, sessionId: string, model?: string, flow?: string): Promise<EnsureSessionResponse> {
-  const body: EnsureSessionRequest = { model, flow }
+export async function ensureSession(orchestratorUrl: string, sessionId: string, model?: string, flow?: string, projectId?: string): Promise<EnsureSessionResponse> {
+  const body: EnsureSessionRequest = { model, flow, projectId }
   const res = await fetch(`${orchestratorUrl}/sessions/${sessionId}/ensure`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...internalAuthHeaders },
@@ -78,6 +82,28 @@ export async function purgeSession(orchestratorUrl: string, sessionId: string): 
   }
 }
 
+// Removes a project's shared folder; its chats must already be purged.
+export async function deleteProjectFiles(orchestratorUrl: string, projectId: string): Promise<void> {
+  const res = await fetch(`${orchestratorUrl}/projects/${projectId}`, {
+    method: 'DELETE',
+    headers: internalAuthHeaders,
+    signal: requestTimeout(),
+  })
+  if (!res.ok && res.status !== 404) {
+    throw new OrchestratorHttpError(`orchestrator deleteProject(${projectId}) failed: HTTP ${res.status}`, res.status)
+  }
+}
+
+// "Đưa vào dự án": the raw Response (201 { path } / 404) goes back to the caller.
+export function promoteProjectOutput(orchestratorUrl: string, projectId: string, body: ProjectPromoteRequest): Promise<Response> {
+  return fetch(`${orchestratorUrl}/projects/${projectId}/promote`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...internalAuthHeaders },
+    body: JSON.stringify(body),
+    signal: requestTimeout(),
+  })
+}
+
 // Per-user skills: orchestrator writes `skills` into every listed session's
 // $DSH_HOME/skills and returns the ids it actually wrote.
 export async function syncSkills(orchestratorUrl: string, body: SkillsSyncRequest): Promise<string[]> {
@@ -89,6 +115,19 @@ export async function syncSkills(orchestratorUrl: string, body: SkillsSyncReques
   })
   if (!res.ok) throw new OrchestratorHttpError(`orchestrator skills-sync failed: HTTP ${res.status}`, res.status)
   return ((await res.json()) as SkillsSyncResponse).synced
+}
+
+// Working directory of a data-analysis chat (`owner` = `sessions/<id>`) or a
+// project (`projects/<id>`): `subpath` '' lists, `/<path>` downloads, and
+// with `upload` set `/<name>` uploads it. The raw Response goes back to the
+// caller so file bodies stream through without buffering; no timeout, since a
+// large file can legitimately take a while.
+export function workspaceFiles(orchestratorUrl: string, owner: string, subpath: string, upload?: IncomingMessage): Promise<Response> {
+  return fetch(`${orchestratorUrl}/${owner}/files${subpath}`, {
+    method: upload ? 'PUT' : 'GET',
+    headers: internalAuthHeaders,
+    ...(upload ? { body: Readable.toWeb(upload) as unknown as BodyInit, duplex: 'half' } : {}),
+  } as RequestInit)
 }
 
 // Fire-and-forget from the caller's perspective — a missed touch just means

@@ -1,28 +1,89 @@
 # Profile-level overlay for the "data-analysis" flow (docs/data-analysis-flow-plan.md).
-# Copied from packages/profile-template/template/cordis.patch.yml — same
+# Copied from packages/profile-template/default/template/cordis.patch.yml — same
 # `web` override (Serper search provider), same override shape rules (see
-# that file's own comments for the full rationale). Only the `persona` text
-# below differs, deliberately: a visible marker so a real end-to-end test can
-# confirm a "Phân tích dữ liệu" session really has
-# @fox-harness/dsh-flow-data-analysis (packages/flow/data-analysis) loaded —
-# that plugin also logs its own marker line on every `agent/pre-step`, a
-# second independent confirmation. This profile uses the SAME
-# @fox-harness/dsh-agent-driver loop as the default profile (see
-# profile.package.json's `bundles`) — @fox-harness/dsh-flow-data-analysis is
-# a companion plugin hooking that loop's event taxonomy, not a competing
-# loop. Chỉnh persona thật cho vai trò phân tích dữ liệu là việc tiếp theo
-# sau khi khung chạy được.
+# that file's own comments for the full rationale). This profile uses the SAME
+# @fox-harness/dsh-agent-driver loop as the default profile; its extra
+# behavior comes from @fox-harness/dsh-flow-data-analysis (working rules) and
+# @fox-harness/dsh-tool-python-repl (see profile.package.json's `bundles`).
+#
+# 2026-09-14 (docs/rlm-transfer-plan.md giai đoạn 3): the `[data-analysis flow]`
+# test marker in `persona` is replaced by the real data-analysis persona, and
+# the 9 data skills are added as an extra skill root visible only here.
 - id: system-prompt
   name: '@deepseek-ai/dsh-system-prompt'
   config:
     includeHarnessIdentity: false
     persona: >-
-      [data-analysis flow] Bạn là AI Agent Fox Harness — trợ lý AI thông
-      minh, hỗ trợ người dùng thực hiện nhiều tác vụ khác nhau một cách
-      chính xác, rõ ràng và hữu ích. Luôn trả lời bằng ngôn ngữ mà người
-      dùng đang sử dụng. Thư mục làm việc hiện tại: {{cwd}}.
+      Bạn là AI Agent Fox Harness ở chế độ Phân tích dữ liệu — giúp người dùng
+      phân tích dữ liệu của họ một cách chính xác, có kiểm chứng và dễ hiểu.
+      Luôn trả lời bằng ngôn ngữ mà người dùng đang sử dụng. Thư mục làm việc
+      hiện tại: {{cwd}}.
 
 - id: web
   name: '@deepseek-ai/dsh-web'
   config:
     searchProvider: serper
+
+# `config` replaces the row's whole config; every other dsh-skill-filesystem
+# field keeps its own default (project, user and bundled roots stay on).
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+  config:
+    customSkillDirs:
+      - /repo/packages/flow/data-analysis/skills
+
+# Same compaction override as the default profile (see its comment).
+- id: compaction-basic
+  name: '@deepseek-ai/dsh-compaction-basic'
+  config:
+    thresholdRatio: 0.7
+    maxTokens: 4096
+
+# Tools a data chat doesn't need (docs/rlm-transfer-plan.md giai đoạn 5): 27 tools
+# ≈ 7.3k tokens on every model call, down to 10 (python, skill, web_search,
+# create_skill, read, write, edit, read_image, glob, grep). Each row also drops
+# its own system-prompt section. `bash` goes too — python covers data work, and
+# with bash the model kept trying to pip/apt-get install missing libraries.
+# `name` must match the dsh-base row or the patch is skipped.
+- id: tool-workflow
+  name: '@deepseek-ai/dsh-tool-workflow'
+  disabled: true
+- id: workflow-worker-thread
+  name: '@deepseek-ai/dsh-workflow-worker-thread'
+  disabled: true
+- id: tool-ralph
+  name: '@deepseek-ai/dsh-tool-ralph'
+  disabled: true
+- id: tool-subagent
+  name: '@deepseek-ai/dsh-tool-subagent'
+  disabled: true
+- id: tool-subagent-fork
+  name: '@deepseek-ai/dsh-tool-subagent'
+  disabled: true
+- id: tool-subagent-control
+  name: '@deepseek-ai/dsh-tool-subagent-control'
+  disabled: true
+- id: tool-subagent-list-agents
+  name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+  disabled: true
+- id: tool-subagent-report
+  name: '@deepseek-ai/dsh-tool-subagent-report'
+  disabled: true
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+  disabled: true
+- id: plan-mode
+  name: '@deepseek-ai/dsh-plan-mode'
+  disabled: true
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  disabled: true
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+  disabled: true
+- id: tool-str-replace-editor
+  name: '@deepseek-ai/dsh-tool-str-replace-editor'
+  disabled: true
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: true
