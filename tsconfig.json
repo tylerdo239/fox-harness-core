@@ -6,7 +6,8 @@
     { "path": "packages/agent-driver" },
     { "path": "packages/llm/openai-compat" },
     { "path": "packages/transport" },
-    { "path": "packages/tool/duckduckgo-web-search" },
+    { "path": "packages/tool/serper-web-search" },
+    { "path": "packages/tool/create-skill" },
     { "path": "services/gateway" },
     { "path": "services/orchestrator" },
     { "path": "apps/web" }

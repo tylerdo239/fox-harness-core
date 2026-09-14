@@ -40,7 +40,7 @@ Container worker thật (1 cái/session) — chạy `dsh` thật với:
    packages/agent-driver   (thay agent-loop)
    packages/core           (agent/request routing + quota)
    packages/llm/openai-compat  (LlmAdapter thật)
-   packages/tool/duckduckgo-web-search
+   packages/tool/serper-web-search
    packages/transport      (WS server bên trong worker)
    -- mọi năng lực đều là bundle CỐ ĐỊNH, giống nhau cho mọi user/session
 
@@ -90,11 +90,14 @@ Chạy được với OpenAI thật, Azure OpenAI, hoặc bất kỳ server tự
 cùng giao thức `/chat/completions` SSE (Ollama, vLLM, LM Studio,
 OpenRouter...). Không thay thế `dsh-llm-deepseek` mặc định — cộng thêm.
 
-### 3.4 `packages/tool/duckduckgo-web-search` — tool tìm kiếm web thật
+### 3.4 `packages/tool/serper-web-search` — nguồn tìm kiếm web (Serper)
 
-Không cần API key. Tên tool model thấy: `duckduckgo_web_search`. Chỉ
-`insert:` thêm 1 row vào cây plugin, không đụng row có sẵn nào. System
-prompt tự dặn model coi kết quả search là data, không phải instruction.
+Cần `SERPER_API_KEY`. Không tự đăng ký tool: model dùng tool `web_search`
+có sẵn của dsh (`dsh-tool-web`), package này chỉ cắm nguồn tìm `serper` vào
+`ctx.web`. Nguồn được chọn bằng dòng `searchProvider: serper` trong
+`packages/profile-template/template/cordis.patch.yml`. Thay cho
+`packages/tool/duckduckgo-web-search` (gỡ 2026-09-14 — DuckDuckGo chặn IP
+máy chủ).
 
 ### 3.5 `packages/transport` (`@fox-harness/dsh-transport`) — WS bên trong worker
 
@@ -207,8 +210,8 @@ Profile thật — KHÔNG còn `PluginInventory.tsx`, đã xoá hẳn khỏi app
 - **Chat turn thật**: streaming reasoning + text qua model OpenAI-compatible
   thật, resume được giữa chừng dù reload trang hoặc container bị kill (log
   event durable là nguồn sự thật, không phải WS connection).
-- **Tool-call thật**: `duckduckgo_web_search` — model gọi thật, có kết quả
-  thật.
+- **Tool-call thật**: `web_search` (nguồn Serper) — model gọi thật, có kết
+  quả thật.
 - **Sandbox thật cho bash/fs tool** (2026-09-11, `docs/
   agent-core-architecture-roadmap.md` Phase 18): `dsh-sandbox`/
   `dsh-sandbox-local` (bwrap trên Linux) đã hoạt động thật trong container
@@ -221,7 +224,7 @@ Profile thật — KHÔNG còn `PluginInventory.tsx`, đã xoá hẳn khỏi app
 - **Quota thật**: giới hạn session đồng thời (global), tuổi tối đa 1
   session, token budget/session — cả 3 đều thật, không phải placeholder.
 - **Năng lực cố định, giống nhau cho mọi user thật**: search
-  (`duckduckgo_web_search`) và mọi capability khác đều là bundle CỐ ĐỊNH
+  (`web_search`) và mọi capability khác đều là bundle CỐ ĐỊNH
   trong profile — không có khái niệm "user tự chọn/bật-tắt". Thêm năng lực
   mới = viết 1 package thật + `insert:` vào cây plugin + redeploy.
 - **1 UI thật, dùng chung mọi user**: theme light/dark thật (đổi được, lưu

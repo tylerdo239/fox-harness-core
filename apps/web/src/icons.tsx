@@ -50,4 +50,9 @@ export {
   // rather than a different icon per tool name); `ChevronDownIcon`
   // (already exists, reused) rotates to show expanded/collapsed state.
   Wrench as ToolIcon,
+  // Skills (docs/skill-transfer-plan.md): sidebar entry, Skills dialog list
+  // and its expand/collapse control for the content editor.
+  Sparkles as SkillIcon,
+  Maximize2 as ExpandIcon,
+  Minimize2 as CollapseIcon,
 } from 'lucide-react'

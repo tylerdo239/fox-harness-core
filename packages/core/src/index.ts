@@ -2,9 +2,11 @@ import type { Context } from '@deepseek-ai/cordis'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import '@deepseek-ai/dsh-agent'
 
+import { apply as applyPrompt } from './prompt.ts'
 import { apply as applyQuota } from './quota.ts'
 
 export const name = 'fox-harness-core'
+export const inject = ['systemPrompt']
 
 // Composition root for our product-specific components. Each component is
 // its own file under src/components/ once Phase 0's real --dump-config run
@@ -31,4 +33,7 @@ export function apply(ctx: Context) {
   // this is session-scoped (no real user identity yet) and in-worker (only
   // place real-time usage is visible).
   applyQuota(ctx)
+
+  // Default chat instructions + today's date (prompt.ts).
+  applyPrompt(ctx)
 }

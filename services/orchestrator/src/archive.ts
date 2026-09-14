@@ -1,8 +1,8 @@
 // Phase 6 checklist item 4: "nén, archive, xóa theo yêu cầu user." A real
 // compress+move, using the real `tar` binary via execFile (args array, no
 // shell string) — same "shell out to one real system tool" pattern already
-// used for `pnpm` (services/plugin-registry/src/build.ts) and `curl`
-// (packages/tool/duckduckgo-web-search), not a reimplementation.
+// used for `pnpm` (services/plugin-registry/src/build.ts), not a
+// reimplementation.
 //
 // Deliberately NOT real object storage (S3 etc.) — same "honestly scoped to
 // this dev environment" tradeoff services/plugin-registry's artifact store

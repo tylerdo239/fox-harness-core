@@ -13,26 +13,33 @@
 // checks it before proxying anywhere.
 
 import { randomUUID } from 'node:crypto'
-import { createServer, type IncomingMessage } from 'node:http'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { WebSocketServer } from 'ws'
 
 import { login, logout, register, resolveIdentity, type AuthedIdentity } from './auth.ts'
 import { config } from './config.ts'
 import {
+  countCustomSkills,
+  createCustomSkill,
   createSession,
+  deleteCustomSkill,
   deleteSessionRow,
   getSessionOwnerId,
+  listCustomSkills,
+  listSessionIdsForOwner,
   listSessionOwners,
   listSessionsForOwner,
   listUsers,
   markSessionFirstMessage,
   renameSession,
   touchSessionRow,
+  updateCustomSkill,
   type Role,
 } from './db.ts'
-import { ensureSession, fetchModels, OrchestratorHttpError, purgeSession, touchSession } from './orchestrator-client.ts'
+import { ensureSession, fetchModels, OrchestratorHttpError, purgeSession, syncSkills, touchSession } from './orchestrator-client.ts'
 import { proxyToWorker } from './proxy.ts'
 import { checkRateLimit, getLiveSessionStatuses, renewToken } from './redis.ts'
+import { loadBuiltinSkills, MAX_SKILLS_PER_USER, validateSkill } from './skills.ts'
 
 // Phase 6 checklist item 2: cross-layer telemetry, tagged with sessionId.
 // Same structured-JSON-to-stdout convention duplicated in
@@ -61,6 +68,29 @@ const SESSION_PURGE_PATH = /^\/sessions\/([^/]+)$/
 const SESSION_MINE_PATH = /^\/sessions\/mine$/
 const SESSION_RENAME_PATH = /^\/sessions\/([^/]+)$/
 const MODELS_PATH = /^\/models$/
+const CUSTOM_SKILL_PATH = /^\/custom-skills\/([^/]+)$/
+
+const builtinSkills = loadBuiltinSkills()
+const builtinSkillNames = new Set(builtinSkills.map((skill) => skill.name))
+
+function sendJson(res: ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, { 'content-type': 'application/json' })
+  res.end(JSON.stringify(body))
+}
+
+// Writes the owner's current skills into the given sessions' $DSH_HOME/skills
+// (docs/skill-transfer-plan.md). A failure is logged, not surfaced: the skill
+// is already saved in MariaDB, and the next WS connect syncs again.
+async function pushSkills(ownerId: number, sessionIds: string[]): Promise<void> {
+  if (sessionIds.length === 0) return
+  try {
+    const skills = (await listCustomSkills(ownerId)).map(({ name, description, content }) => ({ name, description, content }))
+    const synced = await syncSkills(config.orchestratorUrl, { sessionIds, skills })
+    log('skills_sync_ok', { ownerId, synced: synced.length, skills: skills.length })
+  } catch (error) {
+    log('skills_sync_failed', { ownerId, error: String(error) })
+  }
+}
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -121,7 +151,7 @@ const server = createServer((req, res) => {
   // it). `DELETE` already being here (added for the real
   // `DELETE /sessions/:id` route, docs/code-rules.md §74) is what made
   // this specific gap easy to miss — it looked complete.
-  res.setHeader('access-control-allow-methods', 'GET, POST, PATCH, DELETE, OPTIONS')
+  res.setHeader('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
   res.setHeader('access-control-allow-headers', 'content-type, authorization')
 
   if (req.method === 'OPTIONS') {
@@ -303,7 +333,7 @@ const server = createServer((req, res) => {
   // be "every user gets the same fixed capability set", not "each user/
   // session picks their own" — the only thing that whole mechanism ever
   // existed to support. Adding a new capability now works exactly like
-  // `packages/tool/duckduckgo-web-search` always has: write a real package,
+  // `packages/tool/serper-web-search`: write a real package,
   // `insert:` it into the plugin tree, redeploy — always present for every
   // session, no catalog/approval/toggle involved.
 
@@ -482,6 +512,83 @@ const server = createServer((req, res) => {
     return
   }
 
+  // Per-user skills (docs/skill-transfer-plan.md). `GET /skills` feeds the "/"
+  // menu: built-in skills a user may invoke directly + the user's own.
+  if (req.method === 'GET' && url.pathname === '/skills') {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const custom = await listCustomSkills(identity.userId)
+      sendJson(res, 200, {
+        skills: [
+          ...builtinSkills
+            .filter((skill) => skill.userInvocable)
+            .map((skill) => ({ name: skill.name, description: skill.description, source: 'builtin' })),
+          ...custom.map((skill) => ({ name: skill.name, description: skill.description, source: 'custom' })),
+        ],
+      })
+    })()
+    return
+  }
+
+  if (url.pathname === '/custom-skills' && (req.method === 'GET' || req.method === 'POST')) {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      if (req.method === 'GET') return sendJson(res, 200, { skills: await listCustomSkills(identity.userId) })
+      let body: { name?: unknown; description?: unknown; content?: unknown }
+      try {
+        body = JSON.parse(await readBody(req))
+      } catch {
+        return sendJson(res, 400, { error: 'invalid JSON body', code: 'invalid_json' })
+      }
+      const checked = validateSkill(body.name, body, builtinSkillNames)
+      if (!checked.ok) return sendJson(res, 400, { error: checked.error, code: checked.code })
+      if ((await countCustomSkills(identity.userId)) >= MAX_SKILLS_PER_USER) {
+        return sendJson(res, 409, { error: `at most ${MAX_SKILLS_PER_USER} skills per user`, code: 'skill_limit' })
+      }
+      const record = await createCustomSkill(identity.userId, checked.skill)
+      if (!record) return sendJson(res, 409, { error: `skill "${checked.skill.name}" already exists`, code: 'skill_exists' })
+      log('custom_skill_created', { userId: identity.userId, name: record.name })
+      await pushSkills(identity.userId, await listSessionIdsForOwner(identity.userId))
+      sendJson(res, 201, record)
+    })()
+    return
+  }
+
+  const customSkillMatch = CUSTOM_SKILL_PATH.exec(url.pathname)
+  if (customSkillMatch && (req.method === 'PUT' || req.method === 'DELETE')) {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const name = decodeURIComponent(customSkillMatch[1])
+      if (req.method === 'DELETE') {
+        if (!(await deleteCustomSkill(identity.userId, name))) {
+          return sendJson(res, 404, { error: 'skill not found', code: 'skill_not_found' })
+        }
+        log('custom_skill_deleted', { userId: identity.userId, name })
+        await pushSkills(identity.userId, await listSessionIdsForOwner(identity.userId))
+        res.writeHead(204)
+        res.end()
+        return
+      }
+      let body: { description?: unknown; content?: unknown }
+      try {
+        body = JSON.parse(await readBody(req))
+      } catch {
+        return sendJson(res, 400, { error: 'invalid JSON body', code: 'invalid_json' })
+      }
+      const checked = validateSkill(name, body, builtinSkillNames)
+      if (!checked.ok) return sendJson(res, 400, { error: checked.error, code: checked.code })
+      const record = await updateCustomSkill(identity.userId, name, checked.skill)
+      if (!record) return sendJson(res, 404, { error: 'skill not found', code: 'skill_not_found' })
+      log('custom_skill_updated', { userId: identity.userId, name })
+      await pushSkills(identity.userId, await listSessionIdsForOwner(identity.userId))
+      sendJson(res, 200, record)
+    })()
+    return
+  }
+
   res.writeHead(404, { 'content-type': 'application/json' })
   res.end(JSON.stringify({ error: 'not found' }))
 })
@@ -578,6 +685,11 @@ server.on('upgrade', (req, socket, head) => {
     }
 
     if (isNew) await createSession(sessionId, identity.userId)
+
+    // Per-user skills must be on disk before the first message: a warm-pool
+    // container booted before anyone owned it (docs/skill-transfer-plan.md).
+    const skillOwnerId = isNew ? identity.userId : await getSessionOwnerId(sessionId)
+    if (skillOwnerId !== undefined) await pushSkills(skillOwnerId, [sessionId])
 
     wss.handleUpgrade(req, socket, head, (browserWs) => {
       log('ws_connect', { sessionId, isNew, userId: identity.userId })

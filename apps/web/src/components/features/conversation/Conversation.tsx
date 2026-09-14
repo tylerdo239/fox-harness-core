@@ -73,8 +73,10 @@ import {
   useState,
 } from "react";
 
+import { toast } from "sonner";
+
 import { BrandIcon, ChevronDownIcon, ToolIcon } from "../../../icons.tsx";
-import { useLocale } from "../../../i18n/locale.tsx";
+import { translateErrorCode, useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
 import type {
@@ -86,6 +88,17 @@ import type {
   WireMessage,
 } from "../../../wire.ts";
 import { Button } from "../../primitives/Button.tsx";
+import {
+  createCustomSkill,
+  refreshSkillMenu,
+  SkillApiError,
+} from "../skills/skillsApi.ts";
+import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
+
+// docs/skill-transfer-plan.md, giai đoạn 3: the `create_skill` tool only
+// validates inside the worker, which never knows who the user is. The browser,
+// already signed in as that user, does the actual save.
+const CREATE_SKILL_TOOL = "create_skill";
 
 // ---- Declarative log state.
 
@@ -284,6 +297,11 @@ export function Conversation() {
   const [text, setText] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const skillItems = useSkillMenu(runtime);
+  const [menuIndex, setMenuIndex] = useState(0);
+  const [menuDismissedFor, setMenuDismissedFor] = useState<string | null>(null);
+  // create_skill arguments by callId, held until that call's result arrives.
+  const skillCallArgsRef = useRef(new Map<string, string>());
   // `handleEvent`/`handleFrame` below are only ever subscribed ONCE, at
   // mount (see that effect's own comment — a deliberate, load-bearing
   // design, not something i18n should break). A plain closure over `t`
@@ -320,11 +338,13 @@ export function Conversation() {
     });
   }
 
-  function handleEvent(event: {
-    type: string;
-    seq: number;
-    data: unknown;
-  }): void {
+  // `live` = arrived as its own `event` frame, not replayed inside a
+  // `snapshot`. Only a live create_skill result saves a skill, so reopening
+  // an old chat never saves the same skill again.
+  function handleEvent(
+    event: { type: string; seq: number; data: unknown },
+    live: boolean,
+  ): void {
     switch (event.type) {
       case "turn/start":
         // Deliberately not rendered (2026-09-10, user: "hide hết ... làm
@@ -377,7 +397,11 @@ export function Conversation() {
         break;
       }
       case "user/message": {
-        const message = event.data as WireMessage;
+        const message = event.data as WireMessage & { source?: { kind: string } };
+        // Only what the user typed. dsh also appends context for the model as
+        // user messages — the skill catalog (`skill-catalog`) and a `/name`
+        // skill body (`skill-invocation`) — which don't belong in the chat.
+        if (message.source && message.source.kind !== "user") break;
         pushEntry(
           buildBubbleEntry(`evt-${event.seq}`, "user", message.content),
         );
@@ -467,6 +491,9 @@ export function Conversation() {
           status: "running",
           resultText: null,
         });
+        if (data.name === CREATE_SKILL_TOOL) {
+          skillCallArgsRef.current.set(data.callId, data.arguments);
+        }
         break;
       }
       case "tool/result": {
@@ -489,6 +516,12 @@ export function Conversation() {
             ? { ...entry, status: isError ? "error" : "done", resultText }
             : entry,
         );
+        const callId = block?.toolCallId;
+        const skillArgs = callId ? skillCallArgsRef.current.get(callId) : undefined;
+        if (callId && skillArgs !== undefined) {
+          skillCallArgsRef.current.delete(callId);
+          if (live && !isError) void saveSkillFromChat(skillArgs);
+        }
         break;
       }
       default:
@@ -505,10 +538,10 @@ export function Conversation() {
       case "snapshot":
         setEntries([]);
         setLiveBubbles(new Map());
-        for (const event of frame.events) handleEvent(event);
+        for (const event of frame.events) handleEvent(event, false);
         break;
       case "event":
-        handleEvent(frame.event);
+        handleEvent(frame.event, true);
         break;
       case "error":
         pushEntry({
@@ -571,6 +604,47 @@ export function Conversation() {
     el.style.height = `${el.scrollHeight}px`;
   }, [text]);
 
+  async function saveSkillFromChat(argsJson: string): Promise<void> {
+    let args: { name?: unknown; description?: unknown; content?: unknown };
+    try {
+      args = JSON.parse(argsJson);
+    } catch {
+      return;
+    }
+    const name = String(args.name ?? "");
+    try {
+      await createCustomSkill(runtime, {
+        name,
+        description: String(args.description ?? ""),
+        content: String(args.content ?? ""),
+      });
+      toast.success(tRef.current("skills.createdFromChat", { name }));
+      void refreshSkillMenu(runtime);
+    } catch (error) {
+      // The tool already rejected real name clashes inside the worker, so a
+      // skill_exists here means another open tab of this chat saved it first.
+      if (error instanceof SkillApiError && error.code === "skill_exists") return;
+      toast.error(
+        error instanceof SkillApiError
+          ? translateErrorCode(tRef.current, error.code, error.message)
+          : String(error),
+      );
+    }
+  }
+
+  const slash = slashQuery(text);
+  const menuItems =
+    slash === undefined || menuDismissedFor === text
+      ? []
+      : skillItems.filter((item) => item.name.includes(slash));
+  const activeMenuIndex = Math.min(menuIndex, Math.max(menuItems.length - 1, 0));
+
+  function chooseSkill(name: string): void {
+    setText(`/${name} `);
+    setMenuIndex(0);
+    textareaRef.current?.focus();
+  }
+
   function sendMessage(): void {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -592,6 +666,24 @@ export function Conversation() {
   // confirm keystroke would send the message mid-composition instead of
   // just finishing the word.
   function onTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (menuItems.length > 0 && !event.nativeEvent.isComposing) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        setMenuIndex((activeMenuIndex + step + menuItems.length) % menuItems.length);
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        chooseSkill(menuItems[activeMenuIndex].name);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMenuDismissedFor(text);
+        return;
+      }
+    }
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
@@ -644,13 +736,24 @@ export function Conversation() {
         </div>
       )}
       <form id="send-form" onSubmit={onSubmit}>
+        {menuItems.length > 0 && (
+          <SkillMenu
+            items={menuItems}
+            activeIndex={activeMenuIndex}
+            onChoose={chooseSkill}
+            onHover={setMenuIndex}
+          />
+        )}
         <textarea
           id="text-input"
           ref={textareaRef}
           rows={1}
           placeholder={t("conversation.placeholder")}
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => {
+            setText(event.target.value);
+            setMenuIndex(0);
+          }}
           onKeyDown={onTextareaKeyDown}
         />
         <div className="fh-composer-actions">

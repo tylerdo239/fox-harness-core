@@ -5,7 +5,13 @@
 // or a warm-pool claim). Uses the shared @fox-harness/contracts response
 // shape (docs/code-rules.md §1: services/* only imports contracts).
 
-import type { EnsureSessionRequest, EnsureSessionResponse, TouchSessionReason } from '@fox-harness/contracts'
+import type {
+  EnsureSessionRequest,
+  EnsureSessionResponse,
+  SkillsSyncRequest,
+  SkillsSyncResponse,
+  TouchSessionReason,
+} from '@fox-harness/contracts'
 
 import { config } from './config.ts'
 
@@ -70,6 +76,19 @@ export async function purgeSession(orchestratorUrl: string, sessionId: string): 
   if (!res.ok && res.status !== 404) {
     throw new OrchestratorHttpError(`orchestrator purge(${sessionId}) failed: HTTP ${res.status}`, res.status)
   }
+}
+
+// Per-user skills: orchestrator writes `skills` into every listed session's
+// $DSH_HOME/skills and returns the ids it actually wrote.
+export async function syncSkills(orchestratorUrl: string, body: SkillsSyncRequest): Promise<string[]> {
+  const res = await fetch(`${orchestratorUrl}/skills-sync`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...internalAuthHeaders },
+    body: JSON.stringify(body),
+    signal: requestTimeout(),
+  })
+  if (!res.ok) throw new OrchestratorHttpError(`orchestrator skills-sync failed: HTTP ${res.status}`, res.status)
+  return ((await res.json()) as SkillsSyncResponse).synced
 }
 
 // Fire-and-forget from the caller's perspective — a missed touch just means

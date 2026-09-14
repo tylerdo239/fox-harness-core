@@ -1,0 +1,6 @@
+{
+  "name": "@fox-harness/skills",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Built-in skills (<name>/SKILL.md) shared by every user. Loaded by dsh-skill-filesystem through DSH_BUNDLED_SKILL_DIR in the worker image. Not a dsh bundle — see README.md."
+}

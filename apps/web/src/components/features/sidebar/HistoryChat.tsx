@@ -144,6 +144,46 @@ export function HistoryChat({ query }: { query: string }) {
     setRows((await res.json()) as SessionRow[]);
   }
 
+  // Automatic titles: the worker's dsh-session-title appends a `session/title`
+  // event (the first words of the first message); the sidebar shows the
+  // gateway's `sessions.title`. Applied only from a live event and only while
+  // the chat has no title — never over a user rename, and replaying an old chat
+  // doesn't bump its `updated_at` (renaming does, which re-sorts the list).
+  const sessionIdRef = useRef(runtime.sessionId);
+  sessionIdRef.current = runtime.sessionId;
+
+  async function applyAutoTitle(sessionId: string, title: string): Promise<void> {
+    // The row appears only once gateway marks the first message, which can
+    // land a moment after the title event.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const res = await runtime.authedFetch("/sessions/mine");
+      if (!res.ok) return;
+      const list = (await res.json()) as SessionRow[];
+      const row = list.find((r) => r.sessionId === sessionId);
+      if (row) {
+        if (row.title) return setRows(list);
+        await runtime.authedFetch(`/sessions/${sessionId}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ title: title.slice(0, TITLE_MAX_LENGTH) }),
+        });
+        return refresh();
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+  }
+
+  useEffect(() => {
+    return runtime.onFrame((frame) => {
+      if (frame.type !== "event" || frame.event.type !== "session/title") return;
+      const data = frame.event.data as { title?: string; source?: { kind?: string } };
+      if (data.title && data.source?.kind !== "user") {
+        void applyAutoTitle(sessionIdRef.current, data.title);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     // The active session isn't in `GET /sessions/mine`'s row set until its
     // first real WS connect commits a `sessions` insert (services/gateway's

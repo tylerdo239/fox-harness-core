@@ -1,0 +1,7 @@
+# Pure ADD (id doesn't exist upstream) — plain `insert:` is correct here.
+# Which search source `web_search` uses is chosen in
+# packages/profile-template/template/cordis.patch.yml (`searchProvider`).
+- insert:
+    - id: fox-harness-tool-serper-web-search
+      name: '@fox-harness/dsh-tool-serper-web-search'
+      config: {}

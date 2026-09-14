@@ -38,3 +38,11 @@
       thực hiện nhiều tác vụ khác nhau một cách chính xác, rõ ràng và hữu
       ích. Luôn trả lời bằng ngôn ngữ mà người dùng đang sử dụng. Thư mục
       làm việc hiện tại: {{cwd}}.
+
+# `web` override (2026-09-14): dsh-base selects search source
+# `deepseek-official`, which needs DEEPSEEK_API_KEY — fox has none, so
+# `web_search` always failed. `serper` comes from packages/tool/serper-web-search.
+- id: web
+  name: '@deepseek-ai/dsh-web'
+  config:
+    searchProvider: serper

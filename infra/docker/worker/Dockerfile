@@ -49,6 +49,9 @@ FROM node:22-slim
 # (not just `which curl`) returns real `HOME status=200`/`SEARCH status=200`
 # with real result markup, matching the exact behavior already verified from
 # the host.
+# (2026-09-14: that DuckDuckGo tool was removed — web search now goes through
+# packages/tool/serper-web-search with `fetch()`. `curl` stays for the model's
+# bash tool.)
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ bubblewrap curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
@@ -62,6 +65,11 @@ RUN pnpm install --frozen-lockfile && pnpm run build
 # orchestrator (e.g. manual `docker run` for debugging) falls back to.
 ENV DSH_HOME=/data
 VOLUME /data
+
+# Built-in skills shared by every user — dsh-skill-filesystem scans this as
+# its "bundled" root (lowest precedence). Per-user skills land in
+# $DSH_HOME/skills instead (docs/skill-transfer-plan.md).
+ENV DSH_BUNDLED_SKILL_DIR=/repo/packages/skills
 
 COPY infra/docker/worker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

@@ -36,3 +36,24 @@ export type TouchSessionReason = 'connected' | 'disconnected'
 export interface ModelsResponse {
   models: string[]
 }
+
+// Per-user skills (docs/skill-transfer-plan.md). Gateway owns them (MariaDB
+// `custom_skills`); PUT /skills-sync hands orchestrator the files to write
+// into each listed session's $DSH_HOME/skills — session ids and files only,
+// never whose skills they are.
+export interface SkillFile {
+  name: string
+  description: string
+  content: string
+}
+
+export interface SkillsSyncRequest {
+  sessionIds: string[]
+  skills: SkillFile[]
+}
+
+export interface SkillsSyncResponse {
+  // Sessions actually written — unknown and archived ones are skipped (an
+  // archived session gets synced again by gateway when it is reopened).
+  synced: string[]
+}

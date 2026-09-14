@@ -23,6 +23,7 @@
     "@fox-harness/dsh-transport": "workspace:*",
     "@fox-harness/dsh-agent-driver": "workspace:*",
     "@fox-harness/dsh-llm-openai-compat": "workspace:*",
-    "@fox-harness/dsh-tool-duckduckgo-web-search": "workspace:*"
+    "@fox-harness/dsh-tool-serper-web-search": "workspace:*",
+    "@fox-harness/dsh-tool-create-skill": "workspace:*"
   }
 }

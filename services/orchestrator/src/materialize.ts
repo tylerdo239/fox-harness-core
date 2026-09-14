@@ -15,8 +15,8 @@
 // by services/plugin-registry) — removed for real, along with that whole
 // service. The real need was "every user gets the same fixed capability
 // set", so a new capability now just lives in the template's own `bundles`
-// list directly (same as `@fox-harness/dsh-tool-duckduckgo-web-search`
-// always has), materialized as-is for every session.
+// list directly (e.g. `@fox-harness/dsh-tool-serper-web-search`),
+// materialized as-is for every session.
 
 import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
