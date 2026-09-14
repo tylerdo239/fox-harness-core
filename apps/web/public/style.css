@@ -1603,6 +1603,25 @@ button:disabled {
   display: none;
 }
 
+/* ---- Data analysis flow (docs/data-analysis-flow-plan.md) ---- */
+
+/* Sidebar entry under "Skills". */
+.fh-sidebar-data-analysis {
+  flex: none;
+  margin: 0 2px 8px;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-data-analysis {
+  width: 36px;
+  justify-content: center;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-data-analysis-label {
+  display: none;
+}
+
 /* Skills dialog — the Settings dialog shell, larger. */
 .fh-skills-panel {
   width: min(1040px, 94vw);

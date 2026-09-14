@@ -357,7 +357,12 @@ function AppInner() {
     toast.info(t("app.sessionExpired"));
   }
 
-  function connect(httpBase: string, token: string, sessionPath: string): void {
+  function connect(
+    httpBase: string,
+    token: string,
+    sessionPath: string,
+    flow?: string,
+  ): void {
     gatewayHttpBaseRef.current = httpBase;
     localStorage.setItem(STORAGE_TOKEN, token);
     localStorage.setItem(STORAGE_GATEWAY, httpBase);
@@ -370,8 +375,13 @@ function AppInner() {
       sessionPath === "new" && selectedModel
         ? `&model=${encodeURIComponent(selectedModel)}`
         : "";
+    // docs/data-analysis-flow-plan.md: same rule as `modelParam` above, for
+    // which agent loop/profile a brand-new session spawns with. Undefined
+    // means the default flow — omitted entirely, not sent as an empty param.
+    const flowParam =
+      sessionPath === "new" && flow ? `&flow=${encodeURIComponent(flow)}` : "";
     const socket = new WebSocket(
-      `${wsBaseFor(httpBase)}/sessions/${sessionPath}?token=${encodeURIComponent(token)}${modelParam}`,
+      `${wsBaseFor(httpBase)}/sessions/${sessionPath}?token=${encodeURIComponent(token)}${modelParam}${flowParam}`,
     );
     wsRef.current = socket;
     // Set by the 'open' handler below — read by 'close'/the 'error' grace
@@ -561,7 +571,7 @@ function AppInner() {
     }
   }
 
-  function startNewSession(): void {
+  function startNewSession(flow?: string): void {
     // Real bug fixed 2026-09-10: clicking "New chat" while already on a
     // fresh, never-chatted session (`!hasChatted`) used to close the
     // current socket and open ANOTHER brand-new one anyway — a real
@@ -574,7 +584,12 @@ function AppInner() {
     // on an empty new chat -> this is a no-op, matching real chat
     // platforms (clicking "New chat" there doesn't spawn a second empty
     // conversation either).
-    if (!hasChatted) return;
+    // docs/data-analysis-flow-plan.md: this no-op guard only makes sense for
+    // "New chat" re-clicked on its own empty session — an explicit `flow`
+    // request (the "Phân tích dữ liệu" button) always means "switch to a
+    // session on THIS flow", even from an empty default-flow one, so it
+    // skips the guard rather than silently doing nothing.
+    if (!hasChatted && flow === undefined) return;
     const httpBase = gatewayHttpBaseRef.current;
     const token = localStorage.getItem(STORAGE_TOKEN);
     if (!token) return;
@@ -584,7 +599,7 @@ function AppInner() {
     pushHomeUrl();
     setHasChatted(false);
     wsRef.current?.close();
-    connect(httpBase, token, "new");
+    connect(httpBase, token, "new", flow);
   }
 
   const runtime: Runtime = useMemo(
@@ -883,7 +898,8 @@ function AppInner() {
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggleCollapse={toggleSidebarCollapse}
-          onNewSession={startNewSession}
+          onNewSession={() => startNewSession()}
+          onNewDataAnalysisSession={() => startNewSession("data-analysis")}
           newSessionDisabled={!hasChatted}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSkills={() => setSkillsOpen(true)}

@@ -23,6 +23,14 @@ export interface EnsureSessionRequest {
   // `SessionRecord.model`), since Phase 12 deliberately only supports
   // choosing a model at session-creation time, not mid-session.
   model?: string
+  // Which agent loop/profile to spawn a BRAND-NEW session's container with —
+  // validated against orchestrator's own `config.allowedFlows`
+  // (services/orchestrator/src/config.ts). Ignored for an existing session's
+  // reconnect/rehydrate — orchestrator reuses the value already stored on
+  // that session's Redis record (`SessionRecord.flow`), same rule as
+  // `model` above: chosen once at creation, never mid-session. Undefined
+  // means the default flow/loop (`@fox-harness/dsh-agent-driver`).
+  flow?: string
 }
 
 // Gateway calls this on connect/disconnect so the orchestrator's idle sweep

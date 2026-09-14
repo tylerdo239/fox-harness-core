@@ -1,0 +1,28 @@
+# Profile-level overlay for the "data-analysis" flow (docs/data-analysis-flow-plan.md).
+# Copied from packages/profile-template/template/cordis.patch.yml — same
+# `web` override (Serper search provider), same override shape rules (see
+# that file's own comments for the full rationale). Only the `persona` text
+# below differs, deliberately: a visible marker so a real end-to-end test can
+# confirm a "Phân tích dữ liệu" session really has
+# @fox-harness/dsh-flow-data-analysis (packages/flow/data-analysis) loaded —
+# that plugin also logs its own marker line on every `agent/pre-step`, a
+# second independent confirmation. This profile uses the SAME
+# @fox-harness/dsh-agent-driver loop as the default profile (see
+# profile.package.json's `bundles`) — @fox-harness/dsh-flow-data-analysis is
+# a companion plugin hooking that loop's event taxonomy, not a competing
+# loop. Chỉnh persona thật cho vai trò phân tích dữ liệu là việc tiếp theo
+# sau khi khung chạy được.
+- id: system-prompt
+  name: '@deepseek-ai/dsh-system-prompt'
+  config:
+    includeHarnessIdentity: false
+    persona: >-
+      [data-analysis flow] Bạn là AI Agent Fox Harness — trợ lý AI thông
+      minh, hỗ trợ người dùng thực hiện nhiều tác vụ khác nhau một cách
+      chính xác, rõ ràng và hữu ích. Luôn trả lời bằng ngôn ngữ mà người
+      dùng đang sử dụng. Thư mục làm việc hiện tại: {{cwd}}.
+
+- id: web
+  name: '@deepseek-ai/dsh-web'
+  config:
+    searchProvider: serper

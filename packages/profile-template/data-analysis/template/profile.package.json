@@ -1,0 +1,18 @@
+{
+  "name": "fox-harness-data-analysis",
+  "private": true,
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@fox-harness/dsh-core",
+        "@fox-harness/dsh-agent-driver",
+        "@fox-harness/dsh-flow-data-analysis",
+        "@fox-harness/dsh-transport",
+        "@fox-harness/dsh-llm-openai-compat",
+        "@fox-harness/dsh-tool-serper-web-search",
+        "@fox-harness/dsh-tool-create-skill"
+      ]
+    }
+  }
+}

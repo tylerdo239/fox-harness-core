@@ -1,0 +1,16 @@
+# Pure ADD (id doesn't exist upstream) — plain `insert:` is correct here,
+# same as packages/tool/serper-web-search/cordis.patch.yml's own precedent.
+#
+# docs/data-analysis-flow-plan.md: deliberately does NOT touch the `agent-loop`
+# row the way packages/agent-driver/cordis.patch.yml does — this bundle is a
+# companion plugin that hooks the SAME default @fox-harness/dsh-agent-driver
+# loop's event taxonomy (agent/pre-step, agent/request, tools/pre-execute,
+# ...), not a competing AgentFactory. Only ever listed in
+# @fox-harness/profile-template-data-analysis's `bundles` (never the default
+# profile's), so its hooks only ever fire inside a "data-analysis" flow
+# session's own container — no runtime flow check needed inside the hook
+# itself.
+- insert:
+    - id: fox-harness-flow-data-analysis
+      name: '@fox-harness/dsh-flow-data-analysis'
+      config: {}

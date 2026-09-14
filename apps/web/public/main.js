@@ -25685,6 +25685,9 @@
     // Logout), it isn't a direct Settings shortcut anymore.
     "sidebar.accountMenu": "Menu t\xE0i kho\u1EA3n",
     "sidebar.skills": "K\u1EF9 n\u0103ng",
+    // docs/data-analysis-flow-plan.md — opens a new session on the
+    // "data-analysis" flow (a different agent loop).
+    "sidebar.dataAnalysis": "Ph\xE2n t\xEDch d\u1EEF li\u1EC7u",
     // HistoryChat.tsx (renamed from SessionList.tsx 2026-09-10 — "SessionList"
     // described a backend concept, not what this actually is: the sidebar's
     // chat history)
@@ -25840,6 +25843,7 @@
     "sidebar.account": "Account",
     "sidebar.accountMenu": "Account menu",
     "sidebar.skills": "Skills",
+    "sidebar.dataAnalysis": "Data analysis",
     "historyChat.untitled": "Untitled \u2014 {id}",
     "historyChat.groupToday": "Today",
     "historyChat.groupYesterday": "Yesterday",
@@ -26162,6 +26166,14 @@
     ["path", { d: "M20 14h2", key: "4cs60a" }],
     ["path", { d: "M15 13v2", key: "1xurst" }],
     ["path", { d: "M9 13v2", key: "rq6x2g" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/chart-column.js
+  var ChartColumn = createLucideIcon("ChartColumn", [
+    ["path", { d: "M3 3v16a2 2 0 0 0 2 2h16", key: "c24i48" }],
+    ["path", { d: "M18 17V9", key: "2bz60n" }],
+    ["path", { d: "M13 17V5", key: "1frdt8" }],
+    ["path", { d: "M8 17v-3", key: "17ska0" }]
   ]);
 
   // node_modules/lucide-react/dist/esm/icons/chevron-down.js
@@ -27618,6 +27630,7 @@
     collapsed,
     onToggleCollapse,
     onNewSession,
+    onNewDataAnalysisSession,
     newSessionDisabled,
     onOpenSettings,
     onOpenSkills,
@@ -27698,6 +27711,20 @@
               children: [
                 /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Sparkles, { size: 16 }),
                 /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-skills-label", children: t("sidebar.skills") })
+              ]
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+            MenuItem,
+            {
+              variant: "nav",
+              className: "fh-sidebar-data-analysis",
+              onClick: onNewDataAnalysisSession,
+              disabled: newSessionDisabled,
+              title: t("sidebar.dataAnalysis"),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ChartColumn, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-data-analysis-label", children: t("sidebar.dataAnalysis") })
               ]
             }
           ),
@@ -27845,14 +27872,15 @@
       setAuthCheckPending(false);
       toast.info(t("app.sessionExpired"));
     }
-    function connect(httpBase, token, sessionPath) {
+    function connect(httpBase, token, sessionPath, flow) {
       gatewayHttpBaseRef.current = httpBase;
       localStorage.setItem(STORAGE_TOKEN, token);
       localStorage.setItem(STORAGE_GATEWAY, httpBase);
       setStatus("connecting");
       const modelParam = sessionPath === "new" && selectedModel ? `&model=${encodeURIComponent(selectedModel)}` : "";
+      const flowParam = sessionPath === "new" && flow ? `&flow=${encodeURIComponent(flow)}` : "";
       const socket = new WebSocket(
-        `${wsBaseFor(httpBase)}/sessions/${sessionPath}?token=${encodeURIComponent(token)}${modelParam}`
+        `${wsBaseFor(httpBase)}/sessions/${sessionPath}?token=${encodeURIComponent(token)}${modelParam}${flowParam}`
       );
       wsRef.current = socket;
       let didOpen = false;
@@ -27944,15 +27972,15 @@
         console.error("fox-harness-web: failed to fetch models", error);
       }
     }
-    function startNewSession() {
-      if (!hasChatted) return;
+    function startNewSession(flow) {
+      if (!hasChatted && flow === void 0) return;
       const httpBase = gatewayHttpBaseRef.current;
       const token = localStorage.getItem(STORAGE_TOKEN);
       if (!token) return;
       pushHomeUrl();
       setHasChatted(false);
       wsRef.current?.close();
-      connect(httpBase, token, "new");
+      connect(httpBase, token, "new", flow);
     }
     const runtime = (0, import_react17.useMemo)(
       () => ({
@@ -28135,7 +28163,8 @@
               {
                 collapsed: sidebarCollapsed,
                 onToggleCollapse: toggleSidebarCollapse,
-                onNewSession: startNewSession,
+                onNewSession: () => startNewSession(),
+                onNewDataAnalysisSession: () => startNewSession("data-analysis"),
                 newSessionDisabled: !hasChatted,
                 onOpenSettings: () => setSettingsOpen(true),
                 onOpenSkills: () => setSkillsOpen(true),
@@ -28289,6 +28318,14 @@ lucide-react/dist/esm/createLucideIcon.js:
    *)
 
 lucide-react/dist/esm/icons/bot.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/chart-column.js:
   (**
    * @license lucide-react v0.469.0 - ISC
    *

@@ -97,8 +97,8 @@ export async function listUsers(): Promise<PublicUser[]> {
 // `on conflict do nothing`) — the WS upgrade handler (index.ts) calls this
 // once right after a brand-new session is created; a retried/duplicate call
 // must never silently reassign ownership.
-export async function createSession(sessionId: string, ownerId: number): Promise<void> {
-  await pool.query(`insert ignore into sessions (session_id, owner_id) values (?, ?)`, [sessionId, ownerId])
+export async function createSession(sessionId: string, ownerId: number, flow: string): Promise<void> {
+  await pool.query(`insert ignore into sessions (session_id, owner_id, flow) values (?, ?, ?)`, [sessionId, ownerId, flow])
 }
 
 export async function getSessionOwnerId(sessionId: string): Promise<number | undefined> {

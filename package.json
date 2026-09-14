@@ -22,6 +22,7 @@
     "@fox-harness/dsh-core": "workspace:*",
     "@fox-harness/dsh-transport": "workspace:*",
     "@fox-harness/dsh-agent-driver": "workspace:*",
+    "@fox-harness/dsh-flow-data-analysis": "workspace:*",
     "@fox-harness/dsh-llm-openai-compat": "workspace:*",
     "@fox-harness/dsh-tool-serper-web-search": "workspace:*",
     "@fox-harness/dsh-tool-create-skill": "workspace:*"

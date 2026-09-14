@@ -42,8 +42,8 @@ export class OrchestratorHttpError extends Error {
   }
 }
 
-export async function ensureSession(orchestratorUrl: string, sessionId: string, model?: string): Promise<EnsureSessionResponse> {
-  const body: EnsureSessionRequest = { model }
+export async function ensureSession(orchestratorUrl: string, sessionId: string, model?: string, flow?: string): Promise<EnsureSessionResponse> {
+  const body: EnsureSessionRequest = { model, flow }
   const res = await fetch(`${orchestratorUrl}/sessions/${sessionId}/ensure`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...internalAuthHeaders },

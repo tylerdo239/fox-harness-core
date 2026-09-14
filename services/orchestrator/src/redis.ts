@@ -40,6 +40,13 @@ export interface SessionRecord {
   // Phase 12, or the pool-spawn path (warmpool.ts) — spawnWorker() falls
   // back to the orchestrator's own OPENAI_MODEL_ID env value when undefined.
   model?: string
+  // docs/data-analysis-flow-plan.md: which agent loop/profile this session's
+  // container was spawned with, chosen once at creation from
+  // config.allowedFlows and carried unchanged through every rehydrate
+  // (ensure.ts) — same rule as `model` above. Absent for a session created
+  // before this field existed, or the pool-spawn path (warmpool.ts) — both
+  // mean the `default` flow.
+  flow?: string
 }
 
 export interface WarmPoolEntry {

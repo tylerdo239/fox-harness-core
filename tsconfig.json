@@ -4,6 +4,7 @@
     { "path": "packages/contracts" },
     { "path": "packages/core" },
     { "path": "packages/agent-driver" },
+    { "path": "packages/flow/data-analysis" },
     { "path": "packages/llm/openai-compat" },
     { "path": "packages/transport" },
     { "path": "packages/tool/serper-web-search" },

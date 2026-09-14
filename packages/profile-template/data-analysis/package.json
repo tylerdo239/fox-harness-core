@@ -1,0 +1,6 @@
+{
+  "name": "@fox-harness/profile-template-data-analysis",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Template files for the \"data-analysis\" flow's profile (docs/data-analysis-flow-plan.md), materialized into $DSH_HOME/profiles/fox-harness-data-analysis/ by the orchestrator. Same shape as @fox-harness/profile-template — see that package's README."
+}

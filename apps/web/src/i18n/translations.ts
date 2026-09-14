@@ -79,6 +79,9 @@ export const vi = {
   // Logout), it isn't a direct Settings shortcut anymore.
   "sidebar.accountMenu": "Menu tài khoản",
   "sidebar.skills": "Kỹ năng",
+  // docs/data-analysis-flow-plan.md — opens a new session on the
+  // "data-analysis" flow (a different agent loop).
+  "sidebar.dataAnalysis": "Phân tích dữ liệu",
 
   // HistoryChat.tsx (renamed from SessionList.tsx 2026-09-10 — "SessionList"
   // described a backend concept, not what this actually is: the sidebar's
@@ -247,6 +250,7 @@ export const en: Record<TranslationKey, string> = {
   "sidebar.account": "Account",
   "sidebar.accountMenu": "Account menu",
   "sidebar.skills": "Skills",
+  "sidebar.dataAnalysis": "Data analysis",
 
   "historyChat.untitled": "Untitled — {id}",
   "historyChat.groupToday": "Today",

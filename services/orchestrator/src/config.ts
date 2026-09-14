@@ -36,6 +36,19 @@ function requireEnv(name: string): string {
   return raw
 }
 
+// docs/data-analysis-flow-plan.md: which agent loop/profile a session's
+// container boots with. A static registry, not env-driven like
+// `allowedModels` below — which flows exist is a product/deploy decision,
+// not something an operator tunes. `default`'s `profileName` MUST stay
+// `'fox-harness'` — sessions created before this registry existed already
+// have `profiles/fox-harness/` materialized on disk (materialize.ts never
+// re-materializes an existing session's directory), and rehydrating one
+// must find that same directory name.
+const flows = {
+  default: { profileName: 'fox-harness', templatePackage: '@fox-harness/profile-template' },
+  'data-analysis': { profileName: 'fox-harness-data-analysis', templatePackage: '@fox-harness/profile-template-data-analysis' },
+} as const
+
 export const config = {
   port: envIntOr('ORCHESTRATOR_PORT', 4100),
   // Security fix 2026-09-09: checked against the `x-fox-harness-internal-secret`
@@ -108,4 +121,6 @@ export const config = {
       .filter(Boolean)
     return raw.length > 0 ? raw : [envOr('OPENAI_MODEL_ID', 'default')]
   })(),
+  flows,
+  allowedFlows: Object.keys(flows),
 }

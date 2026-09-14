@@ -26,7 +26,12 @@ set -e
 # would mean re-resolving a lockfile for no reason, since the target is
 # always this same image's own already-hoisted node_modules — a symlink to
 # the whole scope is equivalent and instant.
-mkdir -p /data/profiles/fox-harness/node_modules
-ln -sfn /repo/node_modules/@fox-harness /data/profiles/fox-harness/node_modules/@fox-harness
+# docs/data-analysis-flow-plan.md: which profile dir this container boots
+# with — set by services/orchestrator/src/docker.ts per-flow, defaults to
+# the original single-profile name for any image run without it set.
+PROFILE_NAME="${DSH_PROFILE_NAME:-fox-harness}"
 
-exec node --expose-internals node_modules/@deepseek-ai/dsh/lib/bin.js --profile fox-harness
+mkdir -p /data/profiles/$PROFILE_NAME/node_modules
+ln -sfn /repo/node_modules/@fox-harness /data/profiles/$PROFILE_NAME/node_modules/@fox-harness
+
+exec node --expose-internals node_modules/@deepseek-ai/dsh/lib/bin.js --profile $PROFILE_NAME

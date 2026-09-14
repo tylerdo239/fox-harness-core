@@ -55,4 +55,8 @@ export {
   Sparkles as SkillIcon,
   Maximize2 as ExpandIcon,
   Minimize2 as CollapseIcon,
+  // docs/data-analysis-flow-plan.md: sidebar entry for the "data-analysis"
+  // flow — a new chat session driven by a different agent loop
+  // (@fox-harness/dsh-agent-driver-data-analysis).
+  BarChart3 as DataAnalysisIcon,
 } from 'lucide-react'

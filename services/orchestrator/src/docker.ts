@@ -66,7 +66,7 @@ async function waitUntilReachable(host: string, port: number, timeoutMs = 15000)
  * what actually exercises the "state comes only from the log" invariant
  * instead of quietly relying on in-container memory surviving.
  */
-export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelOverride?: string): Promise<SpawnedWorker> {
+export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelOverride?: string, profileName: string = 'fox-harness'): Promise<SpawnedWorker> {
   const env = config.workerEnvPassthrough
     .filter((name) => name !== 'OPENAI_MODEL_ID' && process.env[name] !== undefined)
     .map((name) => `${name}=${process.env[name]}`)
@@ -77,6 +77,10 @@ export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelO
   const modelId = modelOverride ?? process.env.OPENAI_MODEL_ID
   if (modelId !== undefined) env.push(`OPENAI_MODEL_ID=${modelId}`)
   env.push(`DSH_HOME=/data`)
+  // docs/data-analysis-flow-plan.md: which profile dir/`dsh --profile` name
+  // entrypoint.sh should boot with — defaults to the original single-profile
+  // name so an image run without this set still behaves exactly as before.
+  env.push(`DSH_PROFILE_NAME=${profileName}`)
 
   const containerPort = `${config.workerTransportPort}/tcp`
   const container = await docker.createContainer({

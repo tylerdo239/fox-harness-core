@@ -10,7 +10,7 @@ import type { EnsureSessionResponse } from '@fox-harness/contracts'
 import { restoreSession } from './archive.ts'
 import { config } from './config.ts'
 import { isRunning, spawnWorker } from './docker.ts'
-import { InvalidModelError, QuotaExceededError } from './errors.ts'
+import { InvalidFlowError, InvalidModelError, QuotaExceededError } from './errors.ts'
 import { materializeDshHome } from './materialize.ts'
 import { acquireSpawnLock, getSession, listRunningSessionIds, setSession, touch, type SessionRecord } from './redis.ts'
 import { claimWarmPoolMember } from './warmpool.ts'
@@ -32,12 +32,17 @@ async function waitForLockHolder(sessionId: string): Promise<EnsureSessionRespon
   throw new Error(`fox-harness-orchestrator: timed out waiting for concurrent spawn of session ${sessionId}`)
 }
 
-export async function ensureSession(sessionId: string, model?: string): Promise<EnsureSessionResponse> {
+export async function ensureSession(sessionId: string, model?: string, flow?: string): Promise<EnsureSessionResponse> {
   // Phase 12 item 4: validated here, once, for the only path that can ever
   // set it (a brand-new session, below) — a reconnect/rehydrate ignores this
   // parameter entirely and reuses whatever the session already carries.
   if (model !== undefined && !config.allowedModels.includes(model)) {
     throw new InvalidModelError(`model '${model}' is not in the configured allow-list`)
+  }
+  // docs/data-analysis-flow-plan.md: same rule as `model` above, for which
+  // agent loop/profile a brand-new session spawns with.
+  if (flow !== undefined && !config.allowedFlows.includes(flow)) {
+    throw new InvalidFlowError(`flow '${flow}' is not in the configured allow-list`)
   }
 
   const release = await acquireSpawnLock(sessionId)
@@ -62,15 +67,19 @@ export async function ensureSession(sessionId: string, model?: string): Promise<
       // Hibernated, or its container died unexpectedly (idle-TTL sweep vs. a
       // `kill -9` both land here identically) — rehydrate: same directory,
       // brand-new container. Never restart the old one (see README). Reuses
-      // `existing.model` (Phase 12) — a rehydrate must spawn with the SAME
-      // model chosen at creation, never today's caller-supplied `model`.
-      const worker = await spawnWorker(existing.dshHomeDir, sessionId, existing.model)
+      // `existing.model`/`existing.flow` (Phase 12 / docs/data-analysis-flow-plan.md)
+      // — a rehydrate must spawn with the SAME model/flow chosen at
+      // creation, never today's caller-supplied values.
+      const existingFlow = existing.flow ?? 'default'
+      const profileName = config.flows[existingFlow as keyof typeof config.flows]?.profileName ?? config.flows.default.profileName
+      const worker = await spawnWorker(existing.dshHomeDir, sessionId, existing.model, profileName)
       const record: SessionRecord = {
         ...worker,
         dshHomeDir: existing.dshHomeDir,
         status: 'running',
         createdAt: existing.createdAt,
         ...(existing.model !== undefined ? { model: existing.model } : {}),
+        ...(existing.flow !== undefined ? { flow: existing.flow } : {}),
       }
       await setSession(sessionId, record)
       await touch(sessionId)
@@ -97,14 +106,15 @@ export async function ensureSession(sessionId: string, model?: string): Promise<
 
     // Brand new session (gateway pre-assigned this id — see
     // services/gateway/README.md). Prefer a warm pool member to hide cold
-    // start — but only for the default model: pool members are always
-    // spawned with `config.allowedModels[0]` specifically (warmpool.ts), so
-    // a request naming a different one skips the pool and cold-spawns with
-    // it instead of silently ignoring it.
-    if (model === undefined) {
+    // start — but only for the default model AND the default flow: pool
+    // members are always spawned with `config.allowedModels[0]` and the
+    // `default` flow specifically (warmpool.ts), so a request naming a
+    // different model or a non-default flow skips the pool and cold-spawns
+    // instead of silently ignoring what it asked for.
+    if (model === undefined && flow === undefined) {
       const claimed = await claimWarmPoolMember()
       if (claimed) {
-        const record: SessionRecord = { ...claimed, status: 'running', createdAt, model: config.allowedModels[0] }
+        const record: SessionRecord = { ...claimed, status: 'running', createdAt, model: config.allowedModels[0], flow: 'default' }
         await setSession(sessionId, record)
         await touch(sessionId)
         return { host: claimed.host, port: claimed.port }
@@ -112,10 +122,12 @@ export async function ensureSession(sessionId: string, model?: string): Promise<
     }
 
     const resolvedModel = model ?? config.allowedModels[0]
+    const resolvedFlow = flow ?? 'default'
+    const profileName = config.flows[resolvedFlow as keyof typeof config.flows].profileName
     const dshHomeDir = join(config.dataDir, sessionId)
-    await materializeDshHome(dshHomeDir)
-    const worker = await spawnWorker(dshHomeDir, sessionId, resolvedModel)
-    const record: SessionRecord = { ...worker, dshHomeDir, status: 'running', createdAt, model: resolvedModel }
+    await materializeDshHome(dshHomeDir, resolvedFlow)
+    const worker = await spawnWorker(dshHomeDir, sessionId, resolvedModel, profileName)
+    const record: SessionRecord = { ...worker, dshHomeDir, status: 'running', createdAt, model: resolvedModel, flow: resolvedFlow }
     await setSession(sessionId, record)
     await touch(sessionId)
     return { host: worker.host, port: worker.port }

@@ -653,10 +653,14 @@ server.on('upgrade', (req, socket, head) => {
     // (services/orchestrator/src/ensure.ts), not whatever this reconnect's
     // URL happens to carry.
     const model = url.searchParams.get('model') ?? undefined
+    // Same rule as `model` above, for which agent loop/profile to spawn a
+    // brand-new session with (docs/data-analysis-flow-plan.md) — a
+    // reconnect/rehydrate always reuses the session's original flow instead.
+    const flow = url.searchParams.get('flow') ?? undefined
 
     let target
     try {
-      target = await ensureSession(config.orchestratorUrl, sessionId, isNew ? model : undefined)
+      target = await ensureSession(config.orchestratorUrl, sessionId, isNew ? model : undefined, isNew ? flow : undefined)
     } catch (error) {
       // Phase 6 checklist item 1: a quota rejection (orchestrator's 429,
       // services/orchestrator/src/errors.ts's QuotaExceededError) is an
@@ -684,7 +688,7 @@ server.on('upgrade', (req, socket, head) => {
       return
     }
 
-    if (isNew) await createSession(sessionId, identity.userId)
+    if (isNew) await createSession(sessionId, identity.userId, flow ?? 'default')
 
     // Per-user skills must be on disk before the first message: a warm-pool
     // container booted before anyone owned it (docs/skill-transfer-plan.md).

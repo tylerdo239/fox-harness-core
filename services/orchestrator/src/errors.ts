@@ -7,3 +7,7 @@ export class QuotaExceededError extends Error {}
 // config.allowedModels — a client bug (stale/tampered picker), not a server
 // fault, so index.ts answers 400 for this one specifically.
 export class InvalidModelError extends Error {}
+
+// docs/data-analysis-flow-plan.md: a caller named a `flow` that isn't in
+// config.allowedFlows — same treatment as InvalidModelError above.
+export class InvalidFlowError extends Error {}

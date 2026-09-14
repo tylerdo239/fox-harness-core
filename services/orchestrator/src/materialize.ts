@@ -22,7 +22,14 @@ import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const templateDir = dirname(fileURLToPath(import.meta.resolve('@fox-harness/profile-template/template/profile.package.json')))
+import { config } from './config.ts'
+
+// docs/data-analysis-flow-plan.md: one template package per flow, each
+// resolved independently — `import.meta.resolve` works for any real
+// package specifier, not just `@fox-harness/profile-template`.
+function templateDirFor(templatePackage: string): string {
+  return dirname(fileURLToPath(import.meta.resolve(`${templatePackage}/template/profile.package.json`)))
+}
 
 // Real bug found and fixed 2026-09-11: `materializeDshHome()` used to write
 // ONLY `transportRow()`'s output to `cordis.patch.yml`, never reading
@@ -88,8 +95,14 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-export async function materializeDshHome(dshHomeDir: string): Promise<void> {
-  const profileDir = join(dshHomeDir, 'profiles', 'fox-harness')
+// `flow` picks which entry of `config.flows` (services/orchestrator/src/
+// config.ts) to materialize from — defaults to `'default'` so every existing
+// call site (single-flow era) keeps materializing `profiles/fox-harness/`
+// from `@fox-harness/profile-template` exactly as before.
+export async function materializeDshHome(dshHomeDir: string, flow: string = 'default'): Promise<void> {
+  const { profileName, templatePackage } = config.flows[flow as keyof typeof config.flows] ?? config.flows.default
+  const templateDir = templateDirFor(templatePackage)
+  const profileDir = join(dshHomeDir, 'profiles', profileName)
   await mkdir(profileDir, { recursive: true })
 
   const packageJsonPath = join(profileDir, 'package.json')

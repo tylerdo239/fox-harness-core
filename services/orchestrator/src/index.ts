@@ -15,7 +15,7 @@ import { purgeSession } from './archive.ts'
 import { config } from './config.ts'
 import { removeWorker } from './docker.ts'
 import { ensureSession } from './ensure.ts'
-import { InvalidModelError, QuotaExceededError } from './errors.ts'
+import { InvalidFlowError, InvalidModelError, QuotaExceededError } from './errors.ts'
 import { deleteSession, getSession, touch } from './redis.ts'
 import { isValidSkillName, syncSkills } from './skills-sync.ts'
 import { startIdleSweep } from './sweep.ts'
@@ -79,7 +79,7 @@ const server = createServer((req, res) => {
       try {
         const raw = await readBody(req)
         const parsed = raw ? (JSON.parse(raw) as EnsureSessionRequest) : {}
-        const body: EnsureSessionResponse = await ensureSession(sessionId, parsed.model)
+        const body: EnsureSessionResponse = await ensureSession(sessionId, parsed.model, parsed.flow)
         log('ensure_ok', { sessionId, host: body.host, port: body.port })
         res.writeHead(200, { 'content-type': 'application/json' })
         res.end(JSON.stringify(body))
@@ -92,6 +92,12 @@ const server = createServer((req, res) => {
         }
         if (error instanceof InvalidModelError) {
           log('ensure_invalid_model', { sessionId, reason: error.message })
+          res.writeHead(400, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ error: error.message }))
+          return
+        }
+        if (error instanceof InvalidFlowError) {
+          log('ensure_invalid_flow', { sessionId, reason: error.message })
           res.writeHead(400, { 'content-type': 'application/json' })
           res.end(JSON.stringify({ error: error.message }))
           return
