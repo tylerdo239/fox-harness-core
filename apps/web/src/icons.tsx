@@ -55,8 +55,16 @@ export {
   Sparkles as SkillIcon,
   Maximize2 as ExpandIcon,
   Minimize2 as CollapseIcon,
-  // docs/data-analysis-flow-plan.md: sidebar entry for the "data-analysis"
-  // flow — a new chat session driven by a different agent loop
-  // (@fox-harness/dsh-agent-driver-data-analysis).
+  // docs/data-analysis-flow-plan.md: sidebar entry and history-row marker for
+  // the "data-analysis" flow (same agent loop, its own profile).
   BarChart3 as DataAnalysisIcon,
+  Paperclip as PaperclipIcon,
+  Folder as FolderIcon,
+  // Project hub (docs/rlm-transfer-plan.md 9.1) — same glyphs as agent-core's ui-projects.
+  ArrowLeft as ArrowLeftIcon,
+  FileOutput as FileOutputIcon,
+  FileSpreadsheet as FileSpreadsheetIcon,
+  FileText as FileTextIcon,
+  MessageSquare as MessageSquareIcon,
+  Share2 as ShareIcon,
 } from 'lucide-react'

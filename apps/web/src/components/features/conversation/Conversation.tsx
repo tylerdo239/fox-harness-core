@@ -94,6 +94,7 @@ import {
   SkillApiError,
 } from "../skills/skillsApi.ts";
 import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
+import { WorkspacePanel } from "./WorkspacePanel.tsx";
 
 // docs/skill-transfer-plan.md, giai đoạn 3: the `create_skill` tool only
 // validates inside the worker, which never knows who the user is. The browser,
@@ -358,8 +359,20 @@ export function Conversation() {
         // event this session emits) — only the UI marker is gone.
         break;
       case "turn/end": {
-        const data = event.data as { turn: number; reason: { kind: string } };
-        if (data.reason.kind !== "completed") {
+        const data = event.data as {
+          turn: number;
+          reason: { kind: string; error?: { code: string; message: string } };
+        };
+        if (data.reason.kind === "error" && data.reason.error) {
+          pushEntry({
+            kind: "notice",
+            id: `evt-${event.seq}`,
+            text: tRef.current("conversation.modelError", {
+              code: data.reason.error.code,
+              message: data.reason.error.message,
+            }),
+          });
+        } else if (data.reason.kind !== "completed") {
           pushEntry({
             kind: "notice",
             id: `evt-${event.seq}`,
@@ -736,6 +749,7 @@ export function Conversation() {
         </div>
       )}
       <form id="send-form" onSubmit={onSubmit}>
+        <WorkspacePanel />
         {menuItems.length > 0 && (
           <SkillMenu
             items={menuItems}

@@ -23,6 +23,7 @@ import { Conversation } from "./components/features/conversation/Conversation.ts
 import { LanguageSelect } from "./components/features/LanguageSelect.tsx";
 import { SettingsDialog } from "./components/features/settings/SettingsDialog.tsx";
 import { SkillsDialog } from "./components/features/skills/SkillsDialog.tsx";
+import { ProjectChatBar, ProjectHub } from "./components/features/projects/ProjectHub.tsx";
 import { Sidebar } from "./components/features/sidebar/Sidebar.tsx";
 import {
   LocaleProvider,
@@ -290,6 +291,12 @@ function AppInner() {
   const [selectedModel, setSelectedModel] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
+  // docs/rlm-transfer-plan.md 9.1: the data-analysis project hub replaces the
+  // chat in the center column while set (`projectId` null = the project list).
+  const [projectView, setProjectView] = useState<{ projectId: string | null } | null>(null);
+  // First message typed in a project page's composer, sent once the new chat's
+  // `session` frame arrives (handleFrame).
+  const pendingFirstMessageRef = useRef<string | null>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   // `sidebarManuallyExpanded`: a NARROW-viewport temporary reveal (the
   // header hamburger) — never persisted, since it's inherently a
@@ -362,6 +369,7 @@ function AppInner() {
     token: string,
     sessionPath: string,
     flow?: string,
+    projectId?: string,
   ): void {
     gatewayHttpBaseRef.current = httpBase;
     localStorage.setItem(STORAGE_TOKEN, token);
@@ -380,8 +388,11 @@ function AppInner() {
     // means the default flow — omitted entirely, not sent as an empty param.
     const flowParam =
       sessionPath === "new" && flow ? `&flow=${encodeURIComponent(flow)}` : "";
+    // docs/rlm-transfer-plan.md 9.1: a new chat inside a project.
+    const projectParam =
+      sessionPath === "new" && projectId ? `&project=${encodeURIComponent(projectId)}` : "";
     const socket = new WebSocket(
-      `${wsBaseFor(httpBase)}/sessions/${sessionPath}?token=${encodeURIComponent(token)}${modelParam}${flowParam}`,
+      `${wsBaseFor(httpBase)}/sessions/${sessionPath}?token=${encodeURIComponent(token)}${modelParam}${flowParam}${projectParam}`,
     );
     wsRef.current = socket;
     // Set by the 'open' handler below — read by 'close'/the 'error' grace
@@ -543,6 +554,12 @@ function AppInner() {
         // — the whole point of this feature (hide session state until
         // there's something real behind it).
         setSessionId(frame.sessionId);
+        if (pendingFirstMessageRef.current !== null && wsRef.current) {
+          wsRef.current.send(JSON.stringify({ type: "followup", text: pendingFirstMessageRef.current }));
+          pendingFirstMessageRef.current = null;
+          replaceChatUrl(frame.sessionId);
+          setHasChatted(true);
+        }
         break;
       case "error":
         if (/unknown session/i.test(frame.message)) {
@@ -571,7 +588,7 @@ function AppInner() {
     }
   }
 
-  function startNewSession(flow?: string): void {
+  function startNewSession(flow?: string, projectId?: string, firstMessage?: string): void {
     // Real bug fixed 2026-09-10: clicking "New chat" while already on a
     // fresh, never-chatted session (`!hasChatted`) used to close the
     // current socket and open ANOTHER brand-new one anyway — a real
@@ -599,7 +616,9 @@ function AppInner() {
     pushHomeUrl();
     setHasChatted(false);
     wsRef.current?.close();
-    connect(httpBase, token, "new", flow);
+    pendingFirstMessageRef.current = firstMessage ?? null;
+    setProjectView(null);
+    connect(httpBase, token, "new", flow, projectId);
   }
 
   const runtime: Runtime = useMemo(
@@ -656,6 +675,7 @@ function AppInner() {
         // "hide until chatted" rule.
         pushChatUrl(id);
         setHasChatted(true);
+        setProjectView(null);
         wsRef.current?.close();
         connect(gatewayHttpBaseRef.current, token, id);
       },
@@ -898,15 +918,31 @@ function AppInner() {
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggleCollapse={toggleSidebarCollapse}
-          onNewSession={() => startNewSession()}
-          onNewDataAnalysisSession={() => startNewSession("data-analysis")}
-          newSessionDisabled={!hasChatted}
+          onNewSession={() => {
+            setProjectView(null);
+            startNewSession();
+          }}
+          onOpenDataAnalysis={() => setProjectView({ projectId: null })}
+          dataAnalysisActive={projectView !== null}
+          newSessionDisabled={!hasChatted && projectView === null}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSkills={() => setSkillsOpen(true)}
           onLogout={handleLogout}
         />
         <div id="center-col" className="fh-center-col">
-          <Conversation />
+          {projectView ? (
+            <ProjectHub
+              key={projectView.projectId ?? "project-list"}
+              projectId={projectView.projectId}
+              onOpenProject={(projectId) => setProjectView({ projectId })}
+              onStartChat={(projectId, message) => startNewSession("data-analysis", projectId, message)}
+            />
+          ) : (
+            <>
+              <ProjectChatBar onOpenProject={(projectId) => setProjectView({ projectId })} />
+              <Conversation />
+            </>
+          )}
         </div>
       </div>
 

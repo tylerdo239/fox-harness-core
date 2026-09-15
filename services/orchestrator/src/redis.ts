@@ -47,6 +47,10 @@ export interface SessionRecord {
   // before this field existed, or the pool-spawn path (warmpool.ts) — both
   // mean the `default` flow.
   flow?: string
+  // docs/rlm-transfer-plan.md 9.1: the project this data-analysis session
+  // belongs to — its container mounts that project's shared folder on every
+  // spawn and rehydrate (ensure.ts). Chosen once at creation, same as `flow`.
+  projectId?: string
 }
 
 export interface WarmPoolEntry {

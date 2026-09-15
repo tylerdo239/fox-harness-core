@@ -95,7 +95,7 @@ OpenRouter...). Không thay thế `dsh-llm-deepseek` mặc định — cộng th
 Cần `SERPER_API_KEY`. Không tự đăng ký tool: model dùng tool `web_search`
 có sẵn của dsh (`dsh-tool-web`), package này chỉ cắm nguồn tìm `serper` vào
 `ctx.web`. Nguồn được chọn bằng dòng `searchProvider: serper` trong
-`packages/profile-template/template/cordis.patch.yml`. Thay cho
+`packages/profile-template/{default,data-analysis}/template/cordis.patch.yml`. Thay cho
 `packages/tool/duckduckgo-web-search` (gỡ 2026-09-14 — DuckDuckGo chặn IP
 máy chủ).
 

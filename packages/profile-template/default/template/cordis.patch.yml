@@ -46,3 +46,14 @@
   name: '@deepseek-ai/dsh-web'
   config:
     searchProvider: serper
+
+# Compaction for a small context window (OPENAI_CONTEXT_WINDOW, 32k on the dev
+# Qwen): compact earlier than the 0.8 default, because one step can add several
+# thousand tokens past the threshold before the next check, and cap the summary
+# because the provider counts max_tokens against the window — the summarization
+# request resends the compacted region and must still fit.
+- id: compaction-basic
+  name: '@deepseek-ai/dsh-compaction-basic'
+  config:
+    thresholdRatio: 0.7
+    maxTokens: 4096

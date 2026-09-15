@@ -53,7 +53,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
-import { MoreIcon, PencilIcon, TrashIcon } from "../../../icons.tsx";
+import { DataAnalysisIcon, MoreIcon, PencilIcon, TrashIcon } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
@@ -69,6 +69,8 @@ interface SessionRow {
   createdAt: string;
   updatedAt: string;
   status: "running" | "hibernated" | "archived";
+  flow: string;
+  projectId: string | null;
 }
 
 function rowLabel(
@@ -144,28 +146,27 @@ export function HistoryChat({ query }: { query: string }) {
     setRows((await res.json()) as SessionRow[]);
   }
 
-  // Automatic titles: the worker's dsh-session-title appends a `session/title`
-  // event (the first words of the first message); the sidebar shows the
-  // gateway's `sessions.title`. Applied only from a live event and only while
-  // the chat has no title — never over a user rename, and replaying an old chat
-  // doesn't bump its `updated_at` (renaming does, which re-sorts the list).
+  // Automatic titles: the worker's dsh-session-title appends `session/title`
+  // events — first the first words of the first message (source `fallback`),
+  // then the model's own title (`provider`). Sent from live events only, with
+  // their source; gateway (db.ts renameSession) keeps them only while the chat
+  // has no title or just a `fallback` one — never over a user rename — and
+  // without bumping `updated_at` (a user rename does, which re-sorts the list).
   const sessionIdRef = useRef(runtime.sessionId);
   sessionIdRef.current = runtime.sessionId;
 
-  async function applyAutoTitle(sessionId: string, title: string): Promise<void> {
+  async function applyAutoTitle(sessionId: string, title: string, source: string): Promise<void> {
     // The row appears only once gateway marks the first message, which can
     // land a moment after the title event.
     for (let attempt = 0; attempt < 5; attempt++) {
       const res = await runtime.authedFetch("/sessions/mine");
       if (!res.ok) return;
       const list = (await res.json()) as SessionRow[];
-      const row = list.find((r) => r.sessionId === sessionId);
-      if (row) {
-        if (row.title) return setRows(list);
+      if (list.some((r) => r.sessionId === sessionId)) {
         await runtime.authedFetch(`/sessions/${sessionId}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ title: title.slice(0, TITLE_MAX_LENGTH) }),
+          body: JSON.stringify({ title: title.slice(0, TITLE_MAX_LENGTH), source }),
         });
         return refresh();
       }
@@ -177,8 +178,9 @@ export function HistoryChat({ query }: { query: string }) {
     return runtime.onFrame((frame) => {
       if (frame.type !== "event" || frame.event.type !== "session/title") return;
       const data = frame.event.data as { title?: string; source?: { kind?: string } };
-      if (data.title && data.source?.kind !== "user") {
-        void applyAutoTitle(sessionIdRef.current, data.title);
+      const source = data.source?.kind;
+      if (data.title && (source === "fallback" || source === "provider")) {
+        void applyAutoTitle(sessionIdRef.current, data.title, source);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,9 +197,11 @@ export function HistoryChat({ query }: { query: string }) {
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
+    // Project chats are listed on their project's page (ProjectHub), not here.
+    const own = rows.filter((row) => !row.projectId);
     const filtered = q
-      ? rows.filter((row) => rowLabel(row, t).toLowerCase().includes(q))
-      : rows;
+      ? own.filter((row) => rowLabel(row, t).toLowerCase().includes(q))
+      : own;
     const now = new Date();
     const byGroup = new Map<GroupKey, SessionRow[]>();
     for (const row of filtered) {
@@ -373,9 +377,18 @@ export function HistoryChat({ query }: { query: string }) {
                   onBlur={() => setRenamingRow(null)}
                 />
               ) : (
-                <span className="fh-history-chat-row-title">
-                  {rowLabel(row, t)}
-                </span>
+                <>
+                  {row.flow === "data-analysis" && (
+                    <DataAnalysisIcon
+                      size={14}
+                      className="fh-history-chat-row-flow"
+                      aria-label={t("sidebar.dataAnalysis")}
+                    />
+                  )}
+                  <span className="fh-history-chat-row-title">
+                    {rowLabel(row, t)}
+                  </span>
+                </>
               )}
               {renamingRow?.sessionId !== row.sessionId && (
                 <IconButton

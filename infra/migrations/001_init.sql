@@ -2,9 +2,9 @@
 -- MariaDB — this repo ran Postgres from Phase 5 through 2026-09-08; the
 -- Postgres-era migration files and the `pg` driver code have been removed
 -- entirely (2026-09-09), not kept as history, per explicit instruction.
--- 3 tables: users, sessions, custom_skills. Run on an empty database; users
--- must be created before sessions/custom_skills (both have a foreign key
--- to users.id).
+-- 4 tables: users, sessions, projects, custom_skills. Run on an empty database;
+-- users must be created before sessions/projects/custom_skills (all have a
+-- foreign key to users.id).
 --
 -- Consolidated 2026-09-14: this file used to be 001_init.sql plus 3
 -- follow-up ALTER migrations (002_custom_skills.sql, 003_add_flow_column.sql,
@@ -85,19 +85,44 @@ create table if not exists users (
 -- rehydrate (services/orchestrator's Redis record is the operational
 -- source of truth for a running session, not this column) — 'default' for
 -- every session created before this column existed.
+-- `title_source` (2026-09-14): where `title` came from — 'user' (a sidebar
+-- rename), 'fallback' (first words of the first message) or 'provider' (the
+-- model's title); an automatic title never replaces a user rename
+-- (services/gateway/src/db.ts renameSession). `project_id` (2026-09-14,
+-- docs/rlm-transfer-plan.md 9.1): the project a data-analysis chat belongs
+-- to (`projects.project_id`), null for a chat outside any project.
 create table if not exists sessions (
   id int auto_increment primary key,
   session_id varchar(36) not null unique,
   owner_id int not null,
   created_at datetime not null default current_timestamp,
   title varchar(255),
+  title_source varchar(16),
   updated_at datetime not null default current_timestamp,
   first_message_at datetime,
   flow varchar(64) not null default 'default',
+  project_id varchar(36),
   constraint sessions_owner_id_fkey foreign key (owner_id) references users (id)
 ) engine=innodb;
 
 create index if not exists sessions_owner_id_updated_at_idx on sessions (owner_id, updated_at desc);
+create index if not exists sessions_project_id_idx on sessions (project_id);
+
+-- Projects (2026-09-14, docs/rlm-transfer-plan.md 9.1): a named shared data
+-- folder for a user's data-analysis chats. `project_id` is a UUID for the same
+-- reason as `sessions.session_id` (URLs, on-disk folder name
+-- `data/projects/<project_id>`), `id` a surrogate int primary key.
+-- `sessions.project_id` has no foreign key: deleting a project purges its
+-- chats through services/gateway first (their data lives outside the DB).
+create table if not exists projects (
+  id int auto_increment primary key,
+  project_id varchar(36) not null unique,
+  owner_id int not null,
+  name varchar(120) not null,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp,
+  constraint projects_owner_id_fkey foreign key (owner_id) references users (id) on delete cascade
+) engine=innodb;
 
 -- Per-user skills (docs/skill-transfer-plan.md, giai đoạn 2). Owned by
 -- services/gateway; services/orchestrator only ever receives the rendered

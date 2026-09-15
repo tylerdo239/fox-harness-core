@@ -1,9 +1,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 import {
+  CONTEXT_WINDOW_EXCEEDED_CODE,
   LlmAdapter,
   LlmError,
+  QUOTA_EXCEEDED_CODE,
   assertUsableApiKey,
   attributionHeaders,
+  isContextWindowExceededError,
+  isQuotaExceededError,
   type GenerateOptions,
   type StreamChunk,
 } from '@deepseek-ai/dsh-llm'
@@ -16,6 +20,18 @@ import { translate } from './translate.ts'
 import type { Config } from './index.ts'
 
 const PACKAGE_NAME = '@fox-harness/dsh-llm-openai-compat'
+
+// Same status → code mapping as @deepseek-ai/dsh-llm-deepseek's adapter. These
+// codes are what dsh-llm-retry (RATE_LIMIT, SERVER, TIMEOUT, TRANSPORT) and
+// compaction-basic (CONTEXT_WINDOW_EXCEEDED) act on.
+function httpErrorCode(status: number, body: string): string {
+  if (status === 401 || status === 403) return 'AUTH'
+  if (isQuotaExceededError(body)) return QUOTA_EXCEEDED_CODE
+  if (status === 429) return 'RATE_LIMIT'
+  if (status === 400 && isContextWindowExceededError(body)) return CONTEXT_WINDOW_EXCEEDED_CODE
+  if (status >= 500) return 'SERVER'
+  return 'REQUEST_FAILED'
+}
 
 /**
  * Generic OpenAI-compatible chat-completions adapter — works against real
@@ -60,6 +76,33 @@ export class OpenAiCompatAdapter extends LlmAdapter {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 120_000
   }
 
+  // Adds the model's context size (OPENAI_CONTEXT_WINDOW) to the base default.
+  // compaction-basic needs it to compact before the provider rejects an
+  // oversized request; without it only overflow recovery runs, and that fails
+  // once the conversation itself no longer fits.
+  resolveModel(provider: string, model: string) {
+    const contextWindow = Number(launchEnvironmentOf(this.ctx).get('OPENAI_CONTEXT_WINDOW')?.value)
+    return Promise.resolve({
+      provider,
+      id: model,
+      name: model,
+      ...(Number.isInteger(contextWindow) && contextWindow > 0 ? { context: { contextWindow } } : {}),
+    })
+  }
+
+  // OPENAI_EXTRA_BODY: a JSON object merged into every request body, for
+  // server-specific fields — e.g. vLLM's
+  // {"chat_template_kwargs":{"enable_thinking":false}} turns Qwen's thinking off.
+  private resolveExtraBody(): Record<string, unknown> {
+    const raw = launchEnvironmentOf(this.ctx).get('OPENAI_EXTRA_BODY')?.value
+    if (!raw) return {}
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new LlmError('OPENAI_EXTRA_BODY must be a JSON object', 'MISSING_CONFIG')
+    }
+    return parsed as Record<string, unknown>
+  }
+
   private async resolveApiKey(): Promise<string> {
     const ref = credentialRef(this.config.apiKeyEnv)
 
@@ -83,24 +126,30 @@ export class OpenAiCompatAdapter extends LlmAdapter {
 
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const apiKey = await this.resolveApiKey()
-    const body = serializeRequest(options)
+    const body = { ...serializeRequest(options), ...this.resolveExtraBody() }
     const url = `${this.resolveBaseURL().replace(/\/+$/, '')}/chat/completions`
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        'content-type': 'application/json',
-        accept: 'text/event-stream',
-        ...attributionHeaders(),
-      },
-      body: JSON.stringify(body),
-      signal: options.signal,
-    })
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          'content-type': 'application/json',
+          accept: 'text/event-stream',
+          ...attributionHeaders(),
+        },
+        body: JSON.stringify(body),
+        signal: options.signal,
+      })
+    } catch (error) {
+      if (options.signal?.aborted) throw error
+      throw new LlmError(`request to ${url} failed`, 'TRANSPORT', { cause: error })
+    }
 
     if (!response.ok || !response.body) {
       const text = await response.text().catch(() => '')
-      throw new LlmError(`request to ${url} failed: ${response.status} ${response.statusText}`, 'REQUEST_FAILED', {
+      throw new LlmError(`request to ${url} failed: ${response.status} ${response.statusText}`, httpErrorCode(response.status, text), {
         status: response.status,
         cause: text || undefined,
       })

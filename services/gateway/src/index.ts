@@ -14,6 +14,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { Readable } from 'node:stream'
 import { WebSocketServer } from 'ws'
 
 import { login, logout, register, resolveIdentity, type AuthedIdentity } from './auth.ts'
@@ -21,22 +22,40 @@ import { config } from './config.ts'
 import {
   countCustomSkills,
   createCustomSkill,
+  createProject,
   createSession,
   deleteCustomSkill,
+  deleteProjectRow,
   deleteSessionRow,
+  getProjectOwnerId,
   getSessionOwnerId,
   listCustomSkills,
+  listProjectsForOwner,
   listSessionIdsForOwner,
+  listSessionIdsForProject,
   listSessionOwners,
   listSessionsForOwner,
+  listSessionsForProject,
   listUsers,
   markSessionFirstMessage,
+  renameProject,
   renameSession,
   touchSessionRow,
   updateCustomSkill,
   type Role,
+  type TitleSource,
 } from './db.ts'
-import { ensureSession, fetchModels, OrchestratorHttpError, purgeSession, syncSkills, touchSession } from './orchestrator-client.ts'
+import {
+  deleteProjectFiles,
+  ensureSession,
+  fetchModels,
+  OrchestratorHttpError,
+  promoteProjectOutput,
+  purgeSession,
+  syncSkills,
+  touchSession,
+  workspaceFiles,
+} from './orchestrator-client.ts'
 import { proxyToWorker } from './proxy.ts'
 import { checkRateLimit, getLiveSessionStatuses, renewToken } from './redis.ts'
 import { loadBuiltinSkills, MAX_SKILLS_PER_USER, validateSkill } from './skills.ts'
@@ -69,6 +88,16 @@ const SESSION_MINE_PATH = /^\/sessions\/mine$/
 const SESSION_RENAME_PATH = /^\/sessions\/([^/]+)$/
 const MODELS_PATH = /^\/models$/
 const CUSTOM_SKILL_PATH = /^\/custom-skills\/([^/]+)$/
+// Data-analysis working directory (docs/rlm-transfer-plan.md giai đoạn 4) of a
+// chat, or of a project (9.1) — shared by that project's chats.
+const WORKSPACE_FILES_PATH = /^\/(sessions|projects)\/([^/]+)\/files(?:\/(.+))?$/
+// Projects (docs/rlm-transfer-plan.md 9.1). Project ids are UUIDs, the same
+// shape SESSION_ID_RE checks.
+const PROJECTS_PATH = /^\/projects$/
+const PROJECT_PATH = /^\/projects\/([^/]+)$/
+const PROJECT_SESSIONS_PATH = /^\/projects\/([^/]+)\/sessions$/
+const PROJECT_PROMOTE_PATH = /^\/projects\/([^/]+)\/promote$/
+const PROJECT_NAME_MAX = 120
 
 const builtinSkills = loadBuiltinSkills()
 const builtinSkillNames = new Set(builtinSkills.map((skill) => skill.name))
@@ -126,6 +155,24 @@ async function canAccessSession(identity: AuthedIdentity, sessionId: string): Pr
   if (identity.role === 'admin') return true
   const ownerId = await getSessionOwnerId(sessionId)
   return ownerId === identity.userId
+}
+
+// Same rule as canAccessSession, for a project (docs/rlm-transfer-plan.md 9.1).
+async function canAccessProject(identity: AuthedIdentity, projectId: string): Promise<boolean> {
+  if (!SESSION_ID_RE.test(projectId)) return false
+  if (identity.role === 'admin') return true
+  return (await getProjectOwnerId(projectId)) === identity.userId
+}
+
+// A project name from a JSON body `{ name }`: trimmed, 1..PROJECT_NAME_MAX characters.
+async function readProjectName(req: IncomingMessage): Promise<string | undefined> {
+  try {
+    const body = JSON.parse(await readBody(req)) as { name?: unknown }
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    return name.length > 0 && name.length <= PROJECT_NAME_MAX ? name : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function requireRole(identity: AuthedIdentity | undefined, role: Role): identity is AuthedIdentity {
@@ -437,7 +484,7 @@ const server = createServer((req, res) => {
         res.end(JSON.stringify({ error: 'forbidden' }))
         return
       }
-      let body: { title?: unknown }
+      let body: { title?: unknown; source?: unknown }
       try {
         body = JSON.parse(await readBody(req))
       } catch {
@@ -464,8 +511,10 @@ const server = createServer((req, res) => {
         res.end(JSON.stringify({ error: 'title must be at most 255 characters' }))
         return
       }
-      await renameSession(sessionId, title)
-      log('rename_ok', { sessionId, userId: identity.userId })
+      // `source` is set only by the sidebar's automatic titles (db.ts renameSession).
+      const source: TitleSource = body.source === 'fallback' || body.source === 'provider' ? body.source : 'user'
+      await renameSession(sessionId, title, source)
+      log('rename_ok', { sessionId, userId: identity.userId, source })
       res.writeHead(204)
       res.end()
     })()
@@ -527,6 +576,123 @@ const server = createServer((req, res) => {
           ...custom.map((skill) => ({ name: skill.name, description: skill.description, source: 'custom' })),
         ],
       })
+    })()
+    return
+  }
+
+  // Projects (docs/rlm-transfer-plan.md 9.1): GET/POST /projects,
+  // PATCH/DELETE /projects/:id, GET /projects/:id/sessions. Owner (or admin) only.
+  if (PROJECTS_PATH.test(url.pathname) && (req.method === 'GET' || req.method === 'POST')) {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      if (req.method === 'GET') return sendJson(res, 200, { projects: await listProjectsForOwner(identity.userId) })
+      const name = await readProjectName(req)
+      if (name === undefined) return sendJson(res, 400, { error: `name is required, at most ${PROJECT_NAME_MAX} characters` })
+      const project = await createProject(identity.userId, name)
+      log('project_created', { projectId: project.projectId, userId: identity.userId })
+      sendJson(res, 201, project)
+    })()
+    return
+  }
+
+  const projectMatch = PROJECT_PATH.exec(url.pathname)
+  const projectSessionsMatch = PROJECT_SESSIONS_PATH.exec(url.pathname)
+  if ((projectMatch && (req.method === 'PATCH' || req.method === 'DELETE')) || (projectSessionsMatch && req.method === 'GET')) {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const projectId = (projectMatch ?? projectSessionsMatch)![1]
+      if (!(await canAccessProject(identity, projectId))) return sendJson(res, 404, { error: 'project not found' })
+      if (projectSessionsMatch) return sendJson(res, 200, { sessions: await listSessionsForProject(projectId) })
+      if (req.method === 'PATCH') {
+        const name = await readProjectName(req)
+        if (name === undefined) return sendJson(res, 400, { error: `name is required, at most ${PROJECT_NAME_MAX} characters` })
+        await renameProject(projectId, name)
+        res.writeHead(204)
+        res.end()
+        return
+      }
+      // Deleting a project deletes its chats and its shared folder.
+      try {
+        for (const sessionId of await listSessionIdsForProject(projectId)) {
+          await purgeSession(config.orchestratorUrl, sessionId)
+          await deleteSessionRow(sessionId)
+        }
+        await deleteProjectFiles(config.orchestratorUrl, projectId)
+        await deleteProjectRow(projectId)
+        log('project_deleted', { projectId, userId: identity.userId })
+        res.writeHead(204)
+        res.end()
+      } catch (error) {
+        log('project_delete_failed', { projectId, error: String(error) })
+        sendJson(res, 502, { error: 'failed to delete project' })
+      }
+    })()
+    return
+  }
+
+  // "Đưa vào dự án": POST /projects/:id/promote { sessionId, path } copies that
+  // chat's output into the project's shared outputs/. The chat must belong to the project.
+  const promoteMatch = PROJECT_PROMOTE_PATH.exec(url.pathname)
+  if (req.method === 'POST' && promoteMatch) {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const projectId = promoteMatch[1]
+      if (!(await canAccessProject(identity, projectId))) return sendJson(res, 404, { error: 'project not found' })
+      let body: { sessionId?: unknown; path?: unknown }
+      try {
+        body = JSON.parse(await readBody(req))
+      } catch {
+        return sendJson(res, 400, { error: 'invalid JSON body' })
+      }
+      const { sessionId, path } = body
+      if (typeof sessionId !== 'string' || typeof path !== 'string' || !(await listSessionIdsForProject(projectId)).includes(sessionId)) {
+        return sendJson(res, 404, { error: 'output not found' })
+      }
+      try {
+        const upstream = await promoteProjectOutput(config.orchestratorUrl, projectId, { sessionId, path })
+        sendJson(res, upstream.status, await upstream.json())
+      } catch (error) {
+        log('project_promote_failed', { projectId, error: String(error) })
+        sendJson(res, 502, { error: 'orchestrator unavailable' })
+      }
+    })()
+    return
+  }
+
+  // GET /sessions/:id/files lists, POST /sessions/:id/files?name=<file> uploads
+  // the raw body, GET /sessions/:id/files/<path> downloads — the same under
+  // /projects/:id/files for a project's shared folder. Owner (or admin) only;
+  // orchestrator answers 404 for a chat without a working directory.
+  const workspaceMatch = WORKSPACE_FILES_PATH.exec(url.pathname)
+  if (workspaceMatch && (req.method === 'GET' || (req.method === 'POST' && !workspaceMatch[3]))) {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const [, kind, id, path] = workspaceMatch
+      const owner = `${kind}/${id}`
+      const allowed =
+        kind === 'projects' ? await canAccessProject(identity, id) : SESSION_ID_RE.test(id) && (await canAccessSession(identity, id))
+      if (!allowed) return sendJson(res, 404, { error: 'not found' })
+      const upload = req.method === 'POST'
+      const subpath = upload ? `/${encodeURIComponent(url.searchParams.get('name') ?? '')}` : path ? `/${path}` : ''
+      let upstream: Response
+      try {
+        upstream = await workspaceFiles(config.orchestratorUrl, owner, subpath, upload ? req : undefined)
+      } catch (error) {
+        log('workspace_files_failed', { owner, error: String(error) })
+        return sendJson(res, 502, { error: 'orchestrator unavailable' })
+      }
+      if (upload && upstream.ok) log('workspace_upload', { owner, userId: identity.userId })
+      const length = upstream.headers.get('content-length')
+      res.writeHead(upstream.status, {
+        'content-type': upstream.headers.get('content-type') ?? 'application/octet-stream',
+        ...(length ? { 'content-length': length } : {}),
+      })
+      if (upstream.body) Readable.fromWeb(upstream.body as never).pipe(res)
+      else res.end()
     })()
     return
   }
@@ -656,11 +822,19 @@ server.on('upgrade', (req, socket, head) => {
     // Same rule as `model` above, for which agent loop/profile to spawn a
     // brand-new session with (docs/data-analysis-flow-plan.md) — a
     // reconnect/rehydrate always reuses the session's original flow instead.
-    const flow = url.searchParams.get('flow') ?? undefined
+    // docs/rlm-transfer-plan.md 9.1: a brand-new chat inside a project must be in
+    // the caller's own project, and is always a data-analysis chat.
+    const projectId = isNew ? (url.searchParams.get('project') ?? undefined) : undefined
+    if (projectId !== undefined && !(await canAccessProject(identity, projectId))) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n')
+      socket.destroy()
+      return
+    }
+    const flow = projectId !== undefined ? 'data-analysis' : (url.searchParams.get('flow') ?? undefined)
 
     let target
     try {
-      target = await ensureSession(config.orchestratorUrl, sessionId, isNew ? model : undefined, isNew ? flow : undefined)
+      target = await ensureSession(config.orchestratorUrl, sessionId, isNew ? model : undefined, isNew ? flow : undefined, projectId)
     } catch (error) {
       // Phase 6 checklist item 1: a quota rejection (orchestrator's 429,
       // services/orchestrator/src/errors.ts's QuotaExceededError) is an
@@ -688,7 +862,7 @@ server.on('upgrade', (req, socket, head) => {
       return
     }
 
-    if (isNew) await createSession(sessionId, identity.userId, flow ?? 'default')
+    if (isNew) await createSession(sessionId, identity.userId, flow ?? 'default', projectId)
 
     // Per-user skills must be on disk before the first message: a warm-pool
     // container booted before anyone owned it (docs/skill-transfer-plan.md).

@@ -31,6 +31,10 @@ export interface EnsureSessionRequest {
   // `model` above: chosen once at creation, never mid-session. Undefined
   // means the default flow/loop (`@fox-harness/dsh-agent-driver`).
   flow?: string
+  // docs/rlm-transfer-plan.md 9.1: the project a BRAND-NEW data-analysis
+  // session belongs to — it works in the project's shared folder. Ignored on
+  // reconnect/rehydrate (the Redis record keeps it), same rule as `flow`.
+  projectId?: string
 }
 
 // Gateway calls this on connect/disconnect so the orchestrator's idle sweep
@@ -64,4 +68,25 @@ export interface SkillsSyncResponse {
   // Sessions actually written — unknown and archived ones are skipped (an
   // archived session gets synced again by gateway when it is reopened).
   synced: string[]
+}
+
+// Data-analysis working directory (docs/rlm-transfer-plan.md giai đoạn 4):
+// GET /sessions/:id/files on orchestrator, relayed by gateway.
+export interface WorkspaceFile {
+  // Relative to the working directory, `/`-separated.
+  path: string
+  sizeBytes: number
+  modified: string
+}
+
+export interface WorkspaceFilesResponse {
+  files: WorkspaceFile[]
+}
+
+// POST /projects/:id/promote (docs/rlm-transfer-plan.md 9.1, "Đưa vào dự án"):
+// copy one chat's output, `generated/<sessionId>/<path>`, into the project's
+// shared `outputs/` folder.
+export interface ProjectPromoteRequest {
+  sessionId: string
+  path: string
 }

@@ -14,6 +14,7 @@ import { InvalidFlowError, InvalidModelError, QuotaExceededError } from './error
 import { materializeDshHome } from './materialize.ts'
 import { acquireSpawnLock, getSession, listRunningSessionIds, setSession, touch, type SessionRecord } from './redis.ts'
 import { claimWarmPoolMember } from './warmpool.ts'
+import { projectDirFor } from './workspace-files.ts'
 
 async function waitForLockHolder(sessionId: string): Promise<EnsureSessionResponse> {
   // Another request is already spawning this exact session (the roadmap's
@@ -32,7 +33,7 @@ async function waitForLockHolder(sessionId: string): Promise<EnsureSessionRespon
   throw new Error(`fox-harness-orchestrator: timed out waiting for concurrent spawn of session ${sessionId}`)
 }
 
-export async function ensureSession(sessionId: string, model?: string, flow?: string): Promise<EnsureSessionResponse> {
+export async function ensureSession(sessionId: string, model?: string, flow?: string, projectId?: string): Promise<EnsureSessionResponse> {
   // Phase 12 item 4: validated here, once, for the only path that can ever
   // set it (a brand-new session, below) — a reconnect/rehydrate ignores this
   // parameter entirely and reuses whatever the session already carries.
@@ -43,6 +44,12 @@ export async function ensureSession(sessionId: string, model?: string, flow?: st
   // agent loop/profile a brand-new session spawns with.
   if (flow !== undefined && !config.allowedFlows.includes(flow)) {
     throw new InvalidFlowError(`flow '${flow}' is not in the configured allow-list`)
+  }
+  // docs/rlm-transfer-plan.md 9.1: a project chat is a data-analysis chat that
+  // works in the project's shared folder. Brand-new sessions only, like `flow`.
+  const projectDir = projectId === undefined ? undefined : projectDirFor(projectId)
+  if (projectId !== undefined && (projectDir === undefined || flow !== 'data-analysis')) {
+    throw new InvalidFlowError(`project '${projectId}' needs a valid id and the data-analysis flow`)
   }
 
   const release = await acquireSpawnLock(sessionId)
@@ -70,9 +77,9 @@ export async function ensureSession(sessionId: string, model?: string, flow?: st
       // `existing.model`/`existing.flow` (Phase 12 / docs/data-analysis-flow-plan.md)
       // — a rehydrate must spawn with the SAME model/flow chosen at
       // creation, never today's caller-supplied values.
-      const existingFlow = existing.flow ?? 'default'
-      const profileName = config.flows[existingFlow as keyof typeof config.flows]?.profileName ?? config.flows.default.profileName
-      const worker = await spawnWorker(existing.dshHomeDir, sessionId, existing.model, profileName)
+      const existingFlow = config.flows[(existing.flow ?? 'default') as keyof typeof config.flows] ?? config.flows.default
+      const existingProjectDir = existing.projectId === undefined ? undefined : projectDirFor(existing.projectId)
+      const worker = await spawnWorker(existing.dshHomeDir, sessionId, existing.model, existingFlow.profileName, existingFlow.cwd, existingProjectDir)
       const record: SessionRecord = {
         ...worker,
         dshHomeDir: existing.dshHomeDir,
@@ -80,6 +87,7 @@ export async function ensureSession(sessionId: string, model?: string, flow?: st
         createdAt: existing.createdAt,
         ...(existing.model !== undefined ? { model: existing.model } : {}),
         ...(existing.flow !== undefined ? { flow: existing.flow } : {}),
+        ...(existing.projectId !== undefined ? { projectId: existing.projectId } : {}),
       }
       await setSession(sessionId, record)
       await touch(sessionId)
@@ -123,11 +131,19 @@ export async function ensureSession(sessionId: string, model?: string, flow?: st
 
     const resolvedModel = model ?? config.allowedModels[0]
     const resolvedFlow = flow ?? 'default'
-    const profileName = config.flows[resolvedFlow as keyof typeof config.flows].profileName
+    const flowConfig = config.flows[resolvedFlow as keyof typeof config.flows]
     const dshHomeDir = join(config.dataDir, sessionId)
     await materializeDshHome(dshHomeDir, resolvedFlow)
-    const worker = await spawnWorker(dshHomeDir, sessionId, resolvedModel, profileName)
-    const record: SessionRecord = { ...worker, dshHomeDir, status: 'running', createdAt, model: resolvedModel, flow: resolvedFlow }
+    const worker = await spawnWorker(dshHomeDir, sessionId, resolvedModel, flowConfig.profileName, flowConfig.cwd, projectDir)
+    const record: SessionRecord = {
+      ...worker,
+      dshHomeDir,
+      status: 'running',
+      createdAt,
+      model: resolvedModel,
+      flow: resolvedFlow,
+      ...(projectId !== undefined ? { projectId } : {}),
+    }
     await setSession(sessionId, record)
     await touch(sessionId)
     return { host: worker.host, port: worker.port }

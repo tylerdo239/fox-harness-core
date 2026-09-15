@@ -54,6 +54,18 @@ FROM node:22-slim
 # bash tool.)
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ bubblewrap curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
+# Python for the data-analysis flow's `python` tool (packages/tool/python-repl).
+# A venv because Debian's system pip refuses global installs (PEP 668).
+# statsmodels, duckdb, pillow, lightgbm, xgboost-cpu (2026-09-14): libraries of
+# agent-core's RLM environment (bundles/loop-drivers/loop-rlm/python/requirements.txt)
+# that the data skills and benchmark tasks use; torch/transformers left out (~1 GB).
+# The list is repeated in packages/flow/data-analysis/src/index.ts's prompt.
+RUN apt-get update && apt-get install -y --no-install-recommends python3-venv && rm -rf /var/lib/apt/lists/* \
+  && python3 -m venv /opt/fox-py \
+  && /opt/fox-py/bin/pip install --no-cache-dir ipython pandas numpy matplotlib scipy scikit-learn seaborn openpyxl pyarrow \
+    statsmodels duckdb pillow lightgbm xgboost-cpu
+ENV FOX_PYTHON=/opt/fox-py/bin/python
+
 RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
 
 WORKDIR /repo

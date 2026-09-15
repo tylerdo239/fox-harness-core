@@ -44,9 +44,12 @@ function requireEnv(name: string): string {
 // have `profiles/fox-harness/` materialized on disk (materialize.ts never
 // re-materializes an existing session's directory), and rehydrating one
 // must find that same directory name.
+// `cwd` (docs/rlm-transfer-plan.md giai đoạn 2): the container path a session
+// of that flow works in. Must be under /data (the bind mount) so files survive
+// hibernation; `undefined` keeps the image's WORKDIR (/repo).
 const flows = {
-  default: { profileName: 'fox-harness', templatePackage: '@fox-harness/profile-template' },
-  'data-analysis': { profileName: 'fox-harness-data-analysis', templatePackage: '@fox-harness/profile-template-data-analysis' },
+  default: { profileName: 'fox-harness', templatePackage: '@fox-harness/profile-template', cwd: undefined },
+  'data-analysis': { profileName: 'fox-harness-data-analysis', templatePackage: '@fox-harness/profile-template-data-analysis', cwd: '/data/workspace' },
 } as const
 
 export const config = {
@@ -62,6 +65,9 @@ export const config = {
   // into its container as $DSH_HOME. Must be absolute: Docker bind mounts
   // reject relative host paths.
   dataDir: envOr('ORCHESTRATOR_DATA_DIR', `${process.cwd()}/data/dsh-home`),
+  // docs/rlm-transfer-plan.md 9.1: one shared working directory per project,
+  // bind-mounted over a project chat's own. Absolute, same as dataDir.
+  projectsDir: envOr('ORCHESTRATOR_PROJECTS_DIR', `${process.cwd()}/data/projects`),
   // Fixed container-internal port — packages/transport's own default
   // (packages/transport/README.md). Only the HOST side varies per container
   // (random, so many can run concurrently); no reason to make this configurable.
@@ -79,6 +85,9 @@ export const config = {
   workerCpuLimit: envIntOr('WORKER_CPU_LIMIT', 2),
   workerPidsLimit: envIntOr('WORKER_PIDS_LIMIT', 512),
   warmPoolSize: envIntOr('WARM_POOL_SIZE', 2),
+  // Largest file accepted into a data-analysis working directory (same 70 MiB
+  // cap agent-core's api-rest used for uploads).
+  maxUploadBytes: envIntOr('MAX_UPLOAD_BYTES', 70 * 1024 * 1024),
   idleTtlMs: envIntOr('IDLE_TTL_MS', 10 * 60 * 1000),
   sweepIntervalMs: envIntOr('SWEEP_INTERVAL_MS', 60 * 1000),
   spawnLockTtlMs: 10 * 1000,
@@ -108,7 +117,10 @@ export const config = {
   // .env.example. `LLM_IDLE_TIMEOUT_MS` added 2026-09-09 (performance fix
   // #4) — `packages/llm/openai-compat`'s adapter reads it the same way.
   // `SERPER_API_KEY` added 2026-09-14 for `packages/tool/serper-web-search`.
-  workerEnvPassthrough: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL_ID', 'SESSION_TOKEN_BUDGET', 'LLM_IDLE_TIMEOUT_MS', 'SERPER_API_KEY'] as const,
+  // `OPENAI_CONTEXT_WINDOW` (2026-09-14): the model's context size, read by
+  // the openai-compat adapter so compaction-basic can compact before overflow.
+  // `OPENAI_EXTRA_BODY` (2026-09-14): extra request fields for that adapter.
+  workerEnvPassthrough: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL_ID', 'OPENAI_CONTEXT_WINDOW', 'OPENAI_EXTRA_BODY', 'SESSION_TOKEN_BUDGET', 'LLM_IDLE_TIMEOUT_MS', 'SERPER_API_KEY'] as const,
   // Phase 12 item 4: model chosen PER SESSION at creation time (not
   // mid-session — see ensure.ts). A comma-separated allow-list; falls back
   // to a single-item list built from OPENAI_MODEL_ID (the pre-Phase-12

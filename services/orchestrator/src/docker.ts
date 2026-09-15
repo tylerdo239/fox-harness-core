@@ -4,6 +4,9 @@
 // already made for `ws` (packages/transport, services/gateway) and `ioredis`
 // here — rather than shelling out to the `docker` CLI and parsing its output.
 
+import { mkdir } from 'node:fs/promises'
+import { join, relative } from 'node:path'
+
 import Docker from 'dockerode'
 import { WebSocket } from 'ws'
 
@@ -66,7 +69,7 @@ async function waitUntilReachable(host: string, port: number, timeoutMs = 15000)
  * what actually exercises the "state comes only from the log" invariant
  * instead of quietly relying on in-container memory surviving.
  */
-export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelOverride?: string, profileName: string = 'fox-harness'): Promise<SpawnedWorker> {
+export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelOverride?: string, profileName: string = 'fox-harness', sessionCwd?: string, projectDir?: string): Promise<SpawnedWorker> {
   const env = config.workerEnvPassthrough
     .filter((name) => name !== 'OPENAI_MODEL_ID' && process.env[name] !== undefined)
     .map((name) => `${name}=${process.env[name]}`)
@@ -81,6 +84,22 @@ export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelO
   // entrypoint.sh should boot with — defaults to the original single-profile
   // name so an image run without this set still behaves exactly as before.
   env.push(`DSH_PROFILE_NAME=${profileName}`)
+  // The flow's working directory (config.flows[...].cwd, under /data). Created
+  // here on the host so host-side writers (file uploads) own it, not the
+  // container's root user.
+  const binds = [`${dshHomeDir}:/data`]
+  if (sessionCwd !== undefined) {
+    await mkdir(join(dshHomeDir, relative('/data', sessionCwd)), { recursive: true })
+    env.push(`FOX_SESSION_CWD=${sessionCwd}`)
+    // A project chat (docs/rlm-transfer-plan.md 9.1) works in the project's
+    // shared folder, mounted over its own; its outputs go to generated/<sessionId>
+    // so chats of one project don't overwrite each other.
+    if (projectDir !== undefined) {
+      await mkdir(projectDir, { recursive: true })
+      binds.push(`${projectDir}:${sessionCwd}`)
+      if (sessionId) env.push(`FOX_OUTPUT_DIR=generated/${sessionId}`)
+    }
+  }
 
   const containerPort = `${config.workerTransportPort}/tcp`
   const container = await docker.createContainer({
@@ -92,7 +111,7 @@ export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelO
     },
     ExposedPorts: { [containerPort]: {} },
     HostConfig: {
-      Binds: [`${dshHomeDir}:/data`],
+      Binds: binds,
       PortBindings: { [containerPort]: [{ HostPort: '0' }] },
       // Security fix 2026-09-09: real fields confirmed against the
       // installed @types/dockerode (Docker Engine's own HostConfig
@@ -152,6 +171,25 @@ export async function removeWorker(containerId: string): Promise<void> {
     await container.remove({ force: true })
   } catch {
     // already gone (e.g. removed out-of-band) — nothing left to do
+  }
+}
+
+/**
+ * Empty a host directory from inside a throwaway container. Workers run as
+ * root, so files they create (e.g. `sessions/`, mode 700) can't be removed by
+ * this process directly.
+ */
+export async function removeDirContentsAsRoot(hostDir: string): Promise<void> {
+  const container = await docker.createContainer({
+    Image: config.workerImage,
+    Entrypoint: ['find', '/target', '-mindepth', '1', '-delete'],
+    HostConfig: { Binds: [`${hostDir}:/target`] },
+  })
+  try {
+    await container.start()
+    await container.wait()
+  } finally {
+    await container.remove({ force: true })
   }
 }
 

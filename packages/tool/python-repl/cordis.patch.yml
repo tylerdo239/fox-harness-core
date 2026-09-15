@@ -1,0 +1,6 @@
+# Pure ADD (id doesn't exist upstream) — plain `insert:` is correct here.
+# Listed only in the data-analysis flow's profile (packages/profile-template/data-analysis).
+- insert:
+    - id: fox-harness-tool-python-repl
+      name: '@fox-harness/dsh-tool-python-repl'
+      config: {}

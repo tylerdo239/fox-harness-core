@@ -9,6 +9,7 @@
     { "path": "packages/transport" },
     { "path": "packages/tool/serper-web-search" },
     { "path": "packages/tool/create-skill" },
+    { "path": "packages/tool/python-repl" },
     { "path": "services/gateway" },
     { "path": "services/orchestrator" },
     { "path": "apps/web" }

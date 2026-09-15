@@ -89,7 +89,15 @@ Two ways, pick one:
 OPENAI_API_KEY=...           # apiKeyEnv defaults to this name already
 OPENAI_BASE_URL=https://your-endpoint/v1
 OPENAI_MODEL_ID=your/model-id
+OPENAI_CONTEXT_WINDOW=32000  # optional: the model's context size, needed for automatic compaction
+OPENAI_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'  # optional: JSON merged into every request
 ```
+
+`OPENAI_CONTEXT_WINDOW` becomes `context.contextWindow` in `resolveModel()`;
+without it `dsh-compaction-basic` cannot compact before the provider rejects
+an oversized request. `OPENAI_EXTRA_BODY` carries server-specific request
+fields — the example turns Qwen's thinking off on vLLM, whose answers and tool
+calls otherwise often end up inside `reasoning_content`.
 
 `baseURL` falls back to `OPENAI_BASE_URL` (`adapter.ts`'s `resolveBaseURL()`)
 when not set in config; `@fox-harness/dsh-core`'s `agent/request` listener

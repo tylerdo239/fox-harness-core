@@ -1085,7 +1085,7 @@
             }
             return dispatcher.useContext(Context);
           }
-          function useState13(initialState) {
+          function useState15(initialState) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useState(initialState);
           }
@@ -1093,11 +1093,11 @@
             var dispatcher = resolveDispatcher();
             return dispatcher.useReducer(reducer, initialArg, init);
           }
-          function useRef8(initialValue) {
+          function useRef10(initialValue) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useRef(initialValue);
           }
-          function useEffect10(create, deps) {
+          function useEffect12(create, deps) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useEffect(create, deps);
           }
@@ -1113,7 +1113,7 @@
             var dispatcher = resolveDispatcher();
             return dispatcher.useCallback(callback, deps);
           }
-          function useMemo3(create, deps) {
+          function useMemo4(create, deps) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useMemo(create, deps);
           }
@@ -1880,15 +1880,15 @@
           exports.useContext = useContext3;
           exports.useDebugValue = useDebugValue;
           exports.useDeferredValue = useDeferredValue;
-          exports.useEffect = useEffect10;
+          exports.useEffect = useEffect12;
           exports.useId = useId;
           exports.useImperativeHandle = useImperativeHandle;
           exports.useInsertionEffect = useInsertionEffect;
           exports.useLayoutEffect = useLayoutEffect;
-          exports.useMemo = useMemo3;
+          exports.useMemo = useMemo4;
           exports.useReducer = useReducer;
-          exports.useRef = useRef8;
-          exports.useState = useState13;
+          exports.useRef = useRef10;
+          exports.useState = useState15;
           exports.useSyncExternalStore = useSyncExternalStore;
           exports.useTransition = useTransition;
           exports.version = ReactVersion;
@@ -2435,7 +2435,7 @@
           var HostPortal = 4;
           var HostComponent = 5;
           var HostText = 6;
-          var Fragment5 = 7;
+          var Fragment6 = 7;
           var Mode = 8;
           var ContextConsumer = 9;
           var ContextProvider = 10;
@@ -3592,7 +3592,7 @@
                 return "DehydratedFragment";
               case ForwardRef:
                 return getWrappedName$1(type, type.render, "ForwardRef");
-              case Fragment5:
+              case Fragment6:
                 return "Fragment";
               case HostComponent:
                 return type;
@@ -12021,7 +12021,7 @@
               }
             }
             function updateFragment2(returnFiber, current2, fragment, lanes, key) {
-              if (current2 === null || current2.tag !== Fragment5) {
+              if (current2 === null || current2.tag !== Fragment6) {
                 var created = createFiberFromFragment(fragment, returnFiber.mode, lanes, key);
                 created.return = returnFiber;
                 return created;
@@ -12424,7 +12424,7 @@
                 if (child.key === key) {
                   var elementType = element.type;
                   if (elementType === REACT_FRAGMENT_TYPE) {
-                    if (child.tag === Fragment5) {
+                    if (child.tag === Fragment6) {
                       deleteRemainingChildren(returnFiber, child.sibling);
                       var existing = useFiber(child, element.props.children);
                       existing.return = returnFiber;
@@ -17900,7 +17900,7 @@
                 var _resolvedProps2 = workInProgress2.elementType === type ? _unresolvedProps2 : resolveDefaultProps(type, _unresolvedProps2);
                 return updateForwardRef(current2, workInProgress2, type, _resolvedProps2, renderLanes2);
               }
-              case Fragment5:
+              case Fragment6:
                 return updateFragment(current2, workInProgress2, renderLanes2);
               case Mode:
                 return updateMode(current2, workInProgress2, renderLanes2);
@@ -18172,7 +18172,7 @@
               case SimpleMemoComponent:
               case FunctionComponent:
               case ForwardRef:
-              case Fragment5:
+              case Fragment6:
               case Mode:
               case Profiler:
               case ContextConsumer:
@@ -22433,7 +22433,7 @@
             return fiber;
           }
           function createFiberFromFragment(elements, mode, lanes, key) {
-            var fiber = createFiber(Fragment5, elements, key, mode);
+            var fiber = createFiber(Fragment6, elements, key, mode);
             fiber.lanes = lanes;
             return fiber;
           }
@@ -24465,11 +24465,11 @@
               return jsxWithValidation(type, props, key, false);
             }
           }
-          var jsx20 = jsxWithValidationDynamic;
-          var jsxs13 = jsxWithValidationStatic;
+          var jsx22 = jsxWithValidationDynamic;
+          var jsxs15 = jsxWithValidationStatic;
           exports.Fragment = REACT_FRAGMENT_TYPE;
-          exports.jsx = jsx20;
-          exports.jsxs = jsxs13;
+          exports.jsx = jsx22;
+          exports.jsxs = jsxs15;
         })();
       }
     }
@@ -24491,7 +24491,7 @@
   var import_client = __toESM(require_client(), 1);
 
   // apps/web/src/App.tsx
-  var import_react17 = __toESM(require_react(), 1);
+  var import_react19 = __toESM(require_react(), 1);
 
   // node_modules/sonner/dist/index.mjs
   var import_react = __toESM(require_react(), 1);
@@ -24878,11 +24878,11 @@
           });
         }
       };
-      this.custom = (jsx20, data) => {
+      this.custom = (jsx22, data) => {
         const id = getToastId(data);
         this.create({
           ...data,
-          jsx: jsx20(id),
+          jsx: jsx22(id),
           id,
           type: void 0
         });
@@ -25731,6 +25731,9 @@
     // divider anymore (removed 2026-09-10, see Conversation.tsx's own
     // comment on `turn/start`).
     "conversation.turnEnded": "l\u01B0\u1EE3t {n} k\u1EBFt th\xFAc: {reason}",
+    // Turn ended because the model call failed (after dsh-llm-retry gave up,
+    // or a code it does not retry such as AUTH).
+    "conversation.modelError": "Kh\xF4ng g\u1ECDi \u0111\u01B0\u1EE3c model ({code}): {message}",
     // Collapsed tool-call pill (2026-09-10, "làm UI UX lại cho casual như
     // các platform ai agent" — replaces the old always-expanded
     // `→ tool(args)` / `← result` technical cards, and the old
@@ -25751,6 +25754,54 @@
     // stuck — honest about what happened rather than silently vanishing (a
     // tool call that really did happen), but no longer a dead, confusing box.
     "conversation.toolInterrupted": "L\u01B0\u1EE3t tr\xF2 chuy\u1EC7n \u0111\xE3 k\u1EBFt th\xFAc tr\u01B0\u1EDBc khi c\xF3 k\u1EBFt qu\u1EA3.",
+    // WorkspacePanel.tsx — files of a data-analysis chat.
+    "workspace.upload": "T\u1EA3i file l\xEAn",
+    "workspace.uploading": "\u0110ang t\u1EA3i l\xEAn\u2026",
+    "workspace.files": "T\u1EC7p ({n})",
+    "workspace.empty": "Ch\u01B0a c\xF3 t\u1EC7p n\xE0o. T\u1EA3i d\u1EEF li\u1EC7u l\xEAn \u0111\u1EC3 b\u1EAFt \u0111\u1EA7u.",
+    "workspace.uploaded": "\u0110\xE3 t\u1EA3i l\xEAn {name}",
+    "workspace.uploadFailed": "Kh\xF4ng t\u1EA3i l\xEAn \u0111\u01B0\u1EE3c {name}",
+    "workspace.tooLarge": "{name} qu\xE1 l\u1EDBn (t\u1ED1i \u0111a 70 MB)",
+    "workspace.openFailed": "Kh\xF4ng m\u1EDF \u0111\u01B0\u1EE3c {name}",
+    // ProjectHub.tsx (docs/rlm-transfer-plan.md 9.1) — wording from agent-core's
+    // packages/ui-projects/src/ProjectHub.tsx.
+    "projects.eyebrow": "Ph\xE2n t\xEDch d\u1EEF li\u1EC7u",
+    "projects.title": "D\u1EF1 \xE1n",
+    "projects.search": "T\xECm d\u1EF1 \xE1n",
+    "projects.create": "T\u1EA1o",
+    "projects.newName": "T\xEAn d\u1EF1 \xE1n m\u1EDBi",
+    "projects.createSubmit": "T\u1EA1o d\u1EF1 \xE1n",
+    "projects.cancel": "Hu\u1EF7",
+    "projects.colName": "T\xEAn",
+    "projects.colModified": "\u0110\xE3 s\u1EEDa \u0111\u1ED5i",
+    "projects.today": "H\xF4m nay",
+    "projects.emptyList": "Ch\u01B0a c\xF3 d\u1EF1 \xE1n. T\u1EA1o m\u1ED9t d\u1EF1 \xE1n \u0111\u1EC3 gom ngu\u1ED3n d\u1EEF li\u1EC7u v\xE0 c\xE1c \u0111o\u1EA1n chat li\xEAn quan.",
+    "projects.back": "Quay l\u1EA1i danh s\xE1ch d\u1EF1 \xE1n",
+    "projects.rename": "\u0110\u1ED5i t\xEAn d\u1EF1 \xE1n",
+    "projects.delete": "Xo\xE1 d\u1EF1 \xE1n",
+    "projects.deleteConfirm": 'Xo\xE1 d\u1EF1 \xE1n "{name}" c\xF9ng m\u1ECDi \u0111o\u1EA1n chat v\xE0 t\u1EC7p c\u1EE7a n\xF3? Kh\xF4ng th\u1EC3 ho\xE0n t\xE1c.',
+    "projects.composer": "\u0110o\u1EA1n chat m\u1EDBi trong {name}",
+    "projects.start": "B\u1EAFt \u0111\u1EA7u",
+    "projects.tabChats": "\u0110o\u1EA1n chat",
+    "projects.tabSources": "Ngu\u1ED3n",
+    "projects.tabOutputs": "Output",
+    "projects.noChats": "Ch\u01B0a c\xF3 \u0111o\u1EA1n chat trong d\u1EF1 \xE1n n\xE0y.",
+    "projects.dropTitle": "Th\xEAm ngu\u1ED3n cho d\u1EF1 \xE1n",
+    "projects.dropHint": "CSV, Excel, Parquet, JSON ho\u1EB7c t\xE0i li\u1EC7u \u2014 t\u1ED1i \u0111a 70 MB",
+    "projects.sourceDataset": "Ngu\u1ED3n d\u1EEF li\u1EC7u",
+    "projects.sourceFile": "T\u1EC7p \u0111\u1EA7u v\xE0o",
+    "projects.noSources": "Ch\u01B0a c\xF3 ngu\u1ED3n \u0111\u1EA7u v\xE0o trong d\u1EF1 \xE1n.",
+    "projects.outputsProject": "Output d\u1EF1 \xE1n",
+    "projects.outputsProjectHint": "K\u1EBFt qu\u1EA3 \u0111\xE3 \u0111\u01B0\u1EE3c ch\u1ECDn \u0111\u1EC3 m\u1ECDi \u0111o\u1EA1n chat trong d\u1EF1 \xE1n s\u1EED d\u1EE5ng.",
+    "projects.outputsChats": "K\u1EBFt qu\u1EA3 t\u1EEB c\xE1c \u0111o\u1EA1n chat",
+    "projects.outputsChatsHint": "K\u1EBFt qu\u1EA3 n\u1EB1m ri\xEAng theo t\u1EEBng \u0111o\u1EA1n chat; \u0111\u01B0a v\xE0o d\u1EF1 \xE1n khi mu\u1ED1n d\xF9ng chung.",
+    "projects.sharedInProject": "D\xF9ng chung trong d\u1EF1 \xE1n",
+    "projects.promote": "\u0110\u01B0a v\xE0o d\u1EF1 \xE1n",
+    "projects.promoted": "\u0110\xE3 \u0111\u01B0a {name} v\xE0o d\u1EF1 \xE1n",
+    "projects.promoteFailed": "Kh\xF4ng \u0111\u01B0a \u0111\u01B0\u1EE3c v\xE0o d\u1EF1 \xE1n",
+    "projects.noOutputs": "Ch\u01B0a c\xF3 output.",
+    "projects.loadFailed": "Kh\xF4ng t\u1EA3i \u0111\u01B0\u1EE3c d\u1EF1 \xE1n",
+    "projects.saveFailed": "Kh\xF4ng l\u01B0u \u0111\u01B0\u1EE3c d\u1EF1 \xE1n",
     // `conversation.reasoningRunning`/`.reasoningDone` (the collapsed
     // reasoning toggle) and `conversation.newSessionCmd`/
     // `.renameSessionCmd`/`common.renameSessionPrompt` (the `/`-command
@@ -25862,10 +25913,56 @@
     "conversation.placeholder": "Message the agent\u2026",
     "conversation.send": "Send",
     "conversation.turnEnded": "turn {n} ended: {reason}",
+    "conversation.modelError": "Model call failed ({code}): {message}",
     "conversation.toolRunning": "Using {name}\u2026",
     "conversation.toolUsed": "Used {name}",
     "conversation.toolFailed": "Failed to use {name}",
     "conversation.toolInterrupted": "The turn ended before a result arrived.",
+    "workspace.upload": "Upload file",
+    "workspace.uploading": "Uploading\u2026",
+    "workspace.files": "Files ({n})",
+    "workspace.empty": "No files yet. Upload data to get started.",
+    "workspace.uploaded": "Uploaded {name}",
+    "workspace.uploadFailed": "Could not upload {name}",
+    "workspace.tooLarge": "{name} is too large (max 70 MB)",
+    "workspace.openFailed": "Could not open {name}",
+    "projects.eyebrow": "Data analysis",
+    "projects.title": "Projects",
+    "projects.search": "Search projects",
+    "projects.create": "Create",
+    "projects.newName": "New project name",
+    "projects.createSubmit": "Create project",
+    "projects.cancel": "Cancel",
+    "projects.colName": "Name",
+    "projects.colModified": "Modified",
+    "projects.today": "Today",
+    "projects.emptyList": "No projects yet. Create one to gather data sources and related chats.",
+    "projects.back": "Back to projects",
+    "projects.rename": "Rename project",
+    "projects.delete": "Delete project",
+    "projects.deleteConfirm": 'Delete project "{name}" with all its chats and files? This cannot be undone.',
+    "projects.composer": "New chat in {name}",
+    "projects.start": "Start",
+    "projects.tabChats": "Chats",
+    "projects.tabSources": "Sources",
+    "projects.tabOutputs": "Outputs",
+    "projects.noChats": "No chats in this project yet.",
+    "projects.dropTitle": "Add sources to the project",
+    "projects.dropHint": "CSV, Excel, Parquet, JSON or documents \u2014 up to 70 MB",
+    "projects.sourceDataset": "Data source",
+    "projects.sourceFile": "Input file",
+    "projects.noSources": "No sources in this project yet.",
+    "projects.outputsProject": "Project outputs",
+    "projects.outputsProjectHint": "Results chosen for every chat in the project to use.",
+    "projects.outputsChats": "Results from chats",
+    "projects.outputsChatsHint": "Each chat keeps its own results; add one to the project to share it.",
+    "projects.sharedInProject": "Shared in the project",
+    "projects.promote": "Add to project",
+    "projects.promoted": "Added {name} to the project",
+    "projects.promoteFailed": "Couldn't add it to the project",
+    "projects.noOutputs": "No outputs yet.",
+    "projects.loadFailed": "Couldn't load projects",
+    "projects.saveFailed": "Couldn't save the project",
     "settings.title": "Settings",
     "settings.generalTab": "General",
     "settings.profileTab": "Profile",
@@ -26158,6 +26255,12 @@
     return Component2;
   };
 
+  // node_modules/lucide-react/dist/esm/icons/arrow-left.js
+  var ArrowLeft = createLucideIcon("ArrowLeft", [
+    ["path", { d: "m12 19-7-7 7-7", key: "1l729n" }],
+    ["path", { d: "M19 12H5", key: "x3x0zl" }]
+  ]);
+
   // node_modules/lucide-react/dist/esm/icons/bot.js
   var Bot = createLucideIcon("Bot", [
     ["path", { d: "M12 8V4H8", key: "hb8ula" }],
@@ -26188,6 +26291,45 @@
     ["circle", { cx: "5", cy: "12", r: "1", key: "1pcz8c" }]
   ]);
 
+  // node_modules/lucide-react/dist/esm/icons/file-output.js
+  var FileOutput = createLucideIcon("FileOutput", [
+    ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4", key: "tnqrlb" }],
+    ["path", { d: "M4 7V4a2 2 0 0 1 2-2 2 2 0 0 0-2 2", key: "1vk7w2" }],
+    ["path", { d: "M4.063 20.999a2 2 0 0 0 2 1L18 22a2 2 0 0 0 2-2V7l-5-5H6", key: "1jink5" }],
+    ["path", { d: "m5 11-3 3", key: "1dgrs4" }],
+    ["path", { d: "m5 17-3-3h10", key: "1mvvaf" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/file-spreadsheet.js
+  var FileSpreadsheet = createLucideIcon("FileSpreadsheet", [
+    ["path", { d: "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", key: "1rqfz7" }],
+    ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4", key: "tnqrlb" }],
+    ["path", { d: "M8 13h2", key: "yr2amv" }],
+    ["path", { d: "M14 13h2", key: "un5t4a" }],
+    ["path", { d: "M8 17h2", key: "2yhykz" }],
+    ["path", { d: "M14 17h2", key: "10kma7" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/file-text.js
+  var FileText = createLucideIcon("FileText", [
+    ["path", { d: "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", key: "1rqfz7" }],
+    ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4", key: "tnqrlb" }],
+    ["path", { d: "M10 9H8", key: "b1mrlr" }],
+    ["path", { d: "M16 13H8", key: "t4e002" }],
+    ["path", { d: "M16 17H8", key: "z1uh3a" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/folder.js
+  var Folder = createLucideIcon("Folder", [
+    [
+      "path",
+      {
+        d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
+        key: "1kt360"
+      }
+    ]
+  ]);
+
   // node_modules/lucide-react/dist/esm/icons/log-out.js
   var LogOut = createLucideIcon("LogOut", [
     ["path", { d: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4", key: "1uf3rs" }],
@@ -26201,6 +26343,11 @@
     ["polyline", { points: "9 21 3 21 3 15", key: "1avn1i" }],
     ["line", { x1: "21", x2: "14", y1: "3", y2: "10", key: "ota7mn" }],
     ["line", { x1: "3", x2: "10", y1: "21", y2: "14", key: "1atl0r" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/message-square.js
+  var MessageSquare = createLucideIcon("MessageSquare", [
+    ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", key: "1lielz" }]
   ]);
 
   // node_modules/lucide-react/dist/esm/icons/minimize-2.js
@@ -26228,6 +26375,18 @@
     ["rect", { width: "18", height: "18", x: "3", y: "3", rx: "2", key: "afitv7" }],
     ["path", { d: "M9 3v18", key: "fh3hqa" }],
     ["path", { d: "m14 9 3 3-3 3", key: "8010ee" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/paperclip.js
+  var Paperclip = createLucideIcon("Paperclip", [
+    ["path", { d: "M13.234 20.252 21 12.3", key: "1cbrk9" }],
+    [
+      "path",
+      {
+        d: "m16 6-8.414 8.586a2 2 0 0 0 0 2.828 2 2 0 0 0 2.828 0l8.414-8.586a4 4 0 0 0 0-5.656 4 4 0 0 0-5.656 0l-8.415 8.585a6 6 0 1 0 8.486 8.486",
+        key: "1pkts6"
+      }
+    ]
   ]);
 
   // node_modules/lucide-react/dist/esm/icons/pencil.js
@@ -26264,6 +26423,15 @@
       }
     ],
     ["circle", { cx: "12", cy: "12", r: "3", key: "1v7zrd" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/share-2.js
+  var Share2 = createLucideIcon("Share2", [
+    ["circle", { cx: "18", cy: "5", r: "3", key: "gq8acd" }],
+    ["circle", { cx: "6", cy: "12", r: "3", key: "w7nqdw" }],
+    ["circle", { cx: "18", cy: "19", r: "3", key: "1xt0gg" }],
+    ["line", { x1: "8.59", x2: "15.42", y1: "13.51", y2: "17.49", key: "47mynk" }],
+    ["line", { x1: "15.41", x2: "8.59", y1: "6.51", y2: "10.49", key: "1n3mei" }]
   ]);
 
   // node_modules/lucide-react/dist/esm/icons/sparkles.js
@@ -26393,7 +26561,7 @@
   }
 
   // apps/web/src/components/features/conversation/Conversation.tsx
-  var import_react10 = __toESM(require_react(), 1);
+  var import_react11 = __toESM(require_react(), 1);
 
   // apps/web/src/runtime.ts
   var import_react8 = __toESM(require_react(), 1);
@@ -26510,8 +26678,143 @@
     )) });
   }
 
-  // apps/web/src/components/features/conversation/Conversation.tsx
+  // apps/web/src/components/features/conversation/WorkspacePanel.tsx
+  var import_react10 = __toESM(require_react(), 1);
+
+  // apps/web/src/components/features/conversation/workspaceApi.ts
+  function formatSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+  var MAX_UPLOAD_BYTES = 70 * 1024 * 1024;
+  async function listWorkspaceFiles(runtime, base) {
+    const res = await runtime.authedFetch(`${base}/files`);
+    if (res.status === 404) return void 0;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()).files;
+  }
+  async function uploadWorkspaceFile(runtime, base, file) {
+    const res = await runtime.authedFetch(
+      `${base}/files?name=${encodeURIComponent(file.name)}`,
+      { method: "POST", headers: { "content-type": "application/octet-stream" }, body: file }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  }
+  async function fetchWorkspaceFile(runtime, base, path) {
+    const encoded = path.split("/").map(encodeURIComponent).join("/");
+    const res = await runtime.authedFetch(`${base}/files/${encoded}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.blob();
+  }
+
+  // apps/web/src/components/features/conversation/WorkspacePanel.tsx
   var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+  var IMAGE_RE = /\.(png|jpe?g|gif|webp)$/i;
+  function WorkspacePanel() {
+    const runtime = useRuntime();
+    const { t } = useLocale();
+    const base = runtime.sessionId ? `/sessions/${runtime.sessionId}` : "";
+    const [files, setFiles] = (0, import_react10.useState)();
+    const [open, setOpen] = (0, import_react10.useState)(false);
+    const [uploading, setUploading] = (0, import_react10.useState)(false);
+    const [preview, setPreview] = (0, import_react10.useState)(null);
+    const inputRef = (0, import_react10.useRef)(null);
+    async function refresh() {
+      if (!base) return;
+      try {
+        setFiles(await listWorkspaceFiles(runtime, base));
+      } catch {
+      }
+    }
+    (0, import_react10.useEffect)(() => {
+      setFiles(void 0);
+      setOpen(false);
+      void refresh();
+      let live = false;
+      const unsubscribe = runtime.onFrame((frame) => {
+        if (live && frame.type === "event" && frame.event.type === "turn/end") void refresh();
+      });
+      live = true;
+      return unsubscribe;
+    }, [base]);
+    if (files === void 0) return null;
+    async function upload(list) {
+      if (!list || list.length === 0) return;
+      setUploading(true);
+      for (const file of Array.from(list)) {
+        if (file.size > MAX_UPLOAD_BYTES) {
+          toast.error(t("workspace.tooLarge", { name: file.name }));
+          continue;
+        }
+        try {
+          await uploadWorkspaceFile(runtime, base, file);
+          toast.success(t("workspace.uploaded", { name: file.name }));
+        } catch {
+          toast.error(t("workspace.uploadFailed", { name: file.name }));
+        }
+      }
+      setUploading(false);
+      setOpen(true);
+      await refresh();
+    }
+    async function openFile(file) {
+      try {
+        const url = URL.createObjectURL(await fetchWorkspaceFile(runtime, base, file.path));
+        if (IMAGE_RE.test(file.path)) {
+          setPreview({ path: file.path, url });
+          return;
+        }
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = file.path.split("/").pop() ?? file.path;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1e4);
+      } catch {
+        toast.error(t("workspace.openFailed", { name: file.path }));
+      }
+    }
+    function closePreview() {
+      if (preview) URL.revokeObjectURL(preview.url);
+      setPreview(null);
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "fh-workspace", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "fh-workspace-bar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Button, { variant: "outline", onClick: () => inputRef.current?.click(), disabled: uploading, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Paperclip, { size: 14 }),
+          uploading ? t("workspace.uploading") : t("workspace.upload")
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Button, { variant: "link", className: "fh-workspace-toggle", onClick: () => setOpen(!open), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Folder, { size: 14 }),
+          t("workspace.files", { n: String(files.length) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+          "input",
+          {
+            ref: inputRef,
+            type: "file",
+            multiple: true,
+            hidden: true,
+            onChange: (event) => {
+              void upload(event.target.files);
+              event.target.value = "";
+            }
+          }
+        )
+      ] }),
+      open && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("ul", { className: "fh-workspace-list", children: files.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("li", { className: "fh-workspace-empty", children: t("workspace.empty") }) : files.map((file) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { type: "button", className: "fh-workspace-file", onClick: () => void openFile(file), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "fh-workspace-file-path", children: file.path }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "fh-workspace-file-size", children: formatSize(file.sizeBytes) })
+      ] }) }, file.path)) }),
+      preview && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "fh-workspace-preview", role: "dialog", onClick: closePreview, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("img", { src: preview.url, alt: preview.path }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: preview.path })
+      ] })
+    ] });
+  }
+
+  // apps/web/src/components/features/conversation/Conversation.tsx
+  var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
   var CREATE_SKILL_TOOL = "create_skill";
   function stepKey(turn, step) {
     return `${turn}:${step}`;
@@ -26533,7 +26836,7 @@
       const [full, mdLabel, mdUrl, bareUrl] = match;
       const url = mdUrl ?? bareUrl;
       nodes.push(
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("a", { className: "fh-link", href: url, target: "_blank", rel: "noopener noreferrer", children: mdLabel ?? bareUrl }, key++)
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("a", { className: "fh-link", href: url, target: "_blank", rel: "noopener noreferrer", children: mdLabel ?? bareUrl }, key++)
       );
       lastIndex = index + full.length;
     }
@@ -26552,19 +26855,19 @@
     t
   }) {
     const label = entry.status === "running" ? t("conversation.toolRunning", { name: entry.name }) : entry.status === "error" ? t("conversation.toolFailed", { name: entry.name }) : t("conversation.toolUsed", { name: entry.name });
-    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
       "div",
       {
         className: `tool-pill${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { type: "button", className: "tool-pill-header", onClick: onToggle, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Wrench, { size: 13 }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: label }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ChevronDown, { size: 13, className: "tool-pill-chevron" })
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("button", { type: "button", className: "tool-pill-header", onClick: onToggle, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Wrench, { size: 13 }),
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: label }),
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ChevronDown, { size: 13, className: "tool-pill-chevron" })
           ] }),
-          expanded && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "tool-pill-detail", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "tool-pill-args", children: entry.args }),
-            entry.resultText && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "tool-pill-result", children: linkify(entry.resultText) })
+          expanded && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "tool-pill-detail", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "tool-pill-args", children: entry.args }),
+            entry.resultText && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "tool-pill-result", children: linkify(entry.resultText) })
           ] })
         ]
       }
@@ -26578,9 +26881,9 @@
   }) {
     switch (entry.kind) {
       case "notice":
-        return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "notice", children: entry.text });
+        return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "notice", children: entry.text });
       case "tool":
-        return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
           ToolPill,
           {
             entry,
@@ -26591,29 +26894,29 @@
         );
       case "bubble":
         if (entry.role === "user") {
-          return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "bubble bubble-user", children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: entry.text }) });
+          return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "bubble bubble-user", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: entry.text }) });
         }
-        return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "assistant-text", children: entry.text && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "assistant-text-body", children: linkify(entry.text) }) });
+        return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "assistant-text", children: entry.text && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "assistant-text-body", children: linkify(entry.text) }) });
     }
   }
   function Conversation() {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [entries, setEntries] = (0, import_react10.useState)([]);
-    const [liveBubbles, setLiveBubbles] = (0, import_react10.useState)(
+    const [entries, setEntries] = (0, import_react11.useState)([]);
+    const [liveBubbles, setLiveBubbles] = (0, import_react11.useState)(
       /* @__PURE__ */ new Map()
     );
-    const [expandedDetails, setExpandedDetails] = (0, import_react10.useState)(
+    const [expandedDetails, setExpandedDetails] = (0, import_react11.useState)(
       /* @__PURE__ */ new Set()
     );
-    const [text, setText] = (0, import_react10.useState)("");
-    const logRef = (0, import_react10.useRef)(null);
-    const textareaRef = (0, import_react10.useRef)(null);
+    const [text, setText] = (0, import_react11.useState)("");
+    const logRef = (0, import_react11.useRef)(null);
+    const textareaRef = (0, import_react11.useRef)(null);
     const skillItems = useSkillMenu(runtime);
-    const [menuIndex, setMenuIndex] = (0, import_react10.useState)(0);
-    const [menuDismissedFor, setMenuDismissedFor] = (0, import_react10.useState)(null);
-    const skillCallArgsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
-    const tRef = (0, import_react10.useRef)(t);
+    const [menuIndex, setMenuIndex] = (0, import_react11.useState)(0);
+    const [menuDismissedFor, setMenuDismissedFor] = (0, import_react11.useState)(null);
+    const skillCallArgsRef = (0, import_react11.useRef)(/* @__PURE__ */ new Map());
+    const tRef = (0, import_react11.useRef)(t);
     tRef.current = t;
     function pushEntry(entry) {
       if (!entry) return;
@@ -26638,7 +26941,16 @@
           break;
         case "turn/end": {
           const data = event.data;
-          if (data.reason.kind !== "completed") {
+          if (data.reason.kind === "error" && data.reason.error) {
+            pushEntry({
+              kind: "notice",
+              id: `evt-${event.seq}`,
+              text: tRef.current("conversation.modelError", {
+                code: data.reason.error.code,
+                message: data.reason.error.message
+              })
+            });
+          } else if (data.reason.kind !== "completed") {
             pushEntry({
               kind: "notice",
               id: `evt-${event.seq}`,
@@ -26761,15 +27073,15 @@
           break;
       }
     }
-    (0, import_react10.useEffect)(() => {
+    (0, import_react11.useEffect)(() => {
       const unsubscribe = runtime.onFrame(handleFrame);
       return unsubscribe;
     }, []);
-    (0, import_react10.useEffect)(() => {
+    (0, import_react11.useEffect)(() => {
       const el = logRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     }, [entries, liveBubbles]);
-    (0, import_react10.useEffect)(() => {
+    (0, import_react11.useEffect)(() => {
       const el = textareaRef.current;
       if (!el) return;
       if (!text) {
@@ -26845,13 +27157,13 @@
       sendMessage();
     }
     const isEmpty = entries.length === 0 && liveBubbles.size === 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
       "div",
       {
         className: `fh-conversation-root${isEmpty ? " fh-conversation-empty" : ""}`,
         children: [
-          !isEmpty && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { id: "log", ref: logRef, children: [
-            entries.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+          !isEmpty && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { id: "log", ref: logRef, children: [
+            entries.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
               LogEntryView,
               {
                 entry,
@@ -26861,14 +27173,15 @@
               },
               entry.id
             )),
-            [...liveBubbles.entries()].map(([key, bubble]) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "assistant-text", children: bubble.text.trim() && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "assistant-text-body", children: linkify(bubble.text) }) }, key))
+            [...liveBubbles.entries()].map(([key, bubble]) => /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "assistant-text", children: bubble.text.trim() && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "assistant-text-body", children: linkify(bubble.text) }) }, key))
           ] }),
-          isEmpty && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "fh-conversation-empty-heading", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Bot, { size: 48 }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("h2", { children: t("conversation.emptyHeading") })
+          isEmpty && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "fh-conversation-empty-heading", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Bot, { size: 48 }),
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h2", { children: t("conversation.emptyHeading") })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("form", { id: "send-form", onSubmit, children: [
-            menuItems2.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("form", { id: "send-form", onSubmit, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(WorkspacePanel, {}),
+            menuItems2.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
               SkillMenu,
               {
                 items: menuItems2,
@@ -26877,7 +27190,7 @@
                 onHover: setMenuIndex
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
               "textarea",
               {
                 id: "text-input",
@@ -26892,7 +27205,7 @@
                 onKeyDown: onTextareaKeyDown
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "fh-composer-actions", children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Button, { variant: "primary", type: "submit", children: t("conversation.send") }) })
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "fh-composer-actions", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Button, { variant: "primary", type: "submit", children: t("conversation.send") }) })
           ] })
         ]
       }
@@ -26900,18 +27213,18 @@
   }
 
   // apps/web/src/components/features/LanguageSelect.tsx
-  var import_react11 = __toESM(require_react(), 1);
+  var import_react12 = __toESM(require_react(), 1);
   var import_react_dom2 = __toESM(require_react_dom(), 1);
 
   // apps/web/src/components/primitives/MenuItem.tsx
-  var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
   function MenuItem({
     variant,
     active,
     className,
     ...rest
   }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
       "button",
       {
         ...rest,
@@ -26922,20 +27235,20 @@
   }
 
   // apps/web/src/components/features/LanguageSelect.tsx
-  var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
   function LanguageSelect() {
     const { locale, setLocale } = useLocale();
-    const [open, setOpen] = (0, import_react11.useState)(false);
-    const [position, setPosition] = (0, import_react11.useState)(null);
-    const triggerRef = (0, import_react11.useRef)(null);
-    const popupRef = (0, import_react11.useRef)(null);
+    const [open, setOpen] = (0, import_react12.useState)(false);
+    const [position, setPosition] = (0, import_react12.useState)(null);
+    const triggerRef = (0, import_react12.useRef)(null);
+    const popupRef = (0, import_react12.useRef)(null);
     function openMenu() {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
       setPosition({ left: rect.left, top: rect.bottom + 4, width: rect.width });
       setOpen(true);
     }
-    (0, import_react11.useEffect)(() => {
+    (0, import_react12.useEffect)(() => {
       if (!open) return;
       function onPointerDown(event) {
         const target = event.target;
@@ -26956,8 +27269,8 @@
       setLocale(next);
       setOpen(false);
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
         "button",
         {
           id: "language-select",
@@ -26966,21 +27279,21 @@
           className: "fh-lang-select-trigger",
           onClick: () => open ? setOpen(false) : openMenu(),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: locale === "vi" ? "Ti\u1EBFng Vi\u1EC7t" : "English" }),
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ChevronDown, { size: 14 })
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: locale === "vi" ? "Ti\u1EBFng Vi\u1EC7t" : "English" }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ChevronDown, { size: 14 })
           ]
         }
       ),
       open && position && (0, import_react_dom2.createPortal)(
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
           "div",
           {
             ref: popupRef,
             className: "fh-lang-select-popup",
             style: { left: position.left, top: position.top, width: position.width },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MenuItem, { variant: "popup", active: locale === "vi", onClick: () => choose("vi"), children: "Ti\u1EBFng Vi\u1EC7t" }),
-              /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MenuItem, { variant: "popup", active: locale === "en", onClick: () => choose("en"), children: "English" })
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(MenuItem, { variant: "popup", active: locale === "vi", onClick: () => choose("vi"), children: "Ti\u1EBFng Vi\u1EC7t" }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(MenuItem, { variant: "popup", active: locale === "en", onClick: () => choose("en"), children: "English" })
             ]
           }
         ),
@@ -26990,16 +27303,16 @@
   }
 
   // apps/web/src/components/features/settings/SettingsDialog.tsx
-  var import_react12 = __toESM(require_react(), 1);
+  var import_react13 = __toESM(require_react(), 1);
 
   // apps/web/src/components/primitives/SelectableCard.tsx
-  var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
   function SelectableCard({
     active,
     className,
     ...rest
   }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
       "button",
       {
         ...rest,
@@ -27010,57 +27323,57 @@
   }
 
   // apps/web/src/components/features/settings/SettingsDialog.tsx
-  var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
   function SettingsDialog({ open, onClose, onLogout }) {
     const { t } = useLocale();
     const { theme, setTheme } = useTheme();
     const runtime = useRuntime();
-    const [tab, setTab] = (0, import_react12.useState)("general");
+    const [tab, setTab] = (0, import_react13.useState)("general");
     if (!open) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { id: "settings-dialog", className: "fh-settings-dialog", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-panel", role: "dialog", "aria-label": t("settings.title"), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-panel-header", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h2", { children: t("settings.title") }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconButton, { id: "settings-close", variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(X, { size: 14 }) })
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { id: "settings-dialog", className: "fh-settings-dialog", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-panel", role: "dialog", "aria-label": t("settings.title"), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-panel-header", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h2", { children: t("settings.title") }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconButton, { id: "settings-close", variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(X, { size: 14 }) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-body", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-nav", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(MenuItem, { variant: "nav", active: tab === "general", onClick: () => setTab("general"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Settings, { size: 16 }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-nav", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(MenuItem, { variant: "nav", active: tab === "general", onClick: () => setTab("general"), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Settings, { size: 16 }),
               t("settings.generalTab")
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(MenuItem, { variant: "nav", active: tab === "profile", onClick: () => setTab("profile"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(User, { size: 16 }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(MenuItem, { variant: "nav", active: tab === "profile", onClick: () => setTab("profile"), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(User, { size: 16 }),
               t("settings.profileTab")
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { id: "settings-content", className: "fh-settings-content", children: [
-            tab === "general" && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-field-group", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-section-title", children: t("settings.theme") }),
-                /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-theme-options", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(SelectableCard, { active: theme === "light", onClick: () => setTheme("light"), children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Sun, { size: 18 }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { id: "settings-content", className: "fh-settings-content", children: [
+            tab === "general" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-field-group", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-settings-section-title", children: t("settings.theme") }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-theme-options", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(SelectableCard, { active: theme === "light", onClick: () => setTheme("light"), children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Sun, { size: 18 }),
                     t("settings.themeLight")
                   ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(SelectableCard, { active: theme === "dark", onClick: () => setTheme("dark"), children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Moon, { size: 18 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(SelectableCard, { active: theme === "dark", onClick: () => setTheme("dark"), children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Moon, { size: 18 }),
                     t("settings.themeDark")
                   ] })
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-field-group", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-section-title", children: t("settings.language") }),
-                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LanguageSelect, {})
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-field-group", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-settings-section-title", children: t("settings.language") }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(LanguageSelect, {})
               ] })
             ] }),
-            tab === "profile" && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-profile-rows", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "fh-settings-profile-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: t("settings.profileEmail") }),
-                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "fh-settings-profile-value", children: runtime.userEmail })
+            tab === "profile" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-settings-profile-rows", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-profile-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: t("settings.profileEmail") }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-settings-profile-value", children: runtime.userEmail })
               ] }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "fh-settings-profile-actions", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-settings-profile-actions", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
                 Button,
                 {
                   variant: "outline",
@@ -27070,7 +27383,7 @@
                     onLogout();
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LogOut, { size: 15 }),
+                    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(LogOut, { size: 15 }),
                     t("app.logout")
                   ]
                 }
@@ -27083,19 +27396,19 @@
   }
 
   // apps/web/src/components/features/skills/SkillsDialog.tsx
-  var import_react13 = __toESM(require_react(), 1);
-  var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
+  var import_react14 = __toESM(require_react(), 1);
+  var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
   var EMPTY_DRAFT = { name: "", description: "", content: "" };
   var DESCRIPTION_MAX = 280;
   function SkillsDialog({ open, onClose }) {
     const { t } = useLocale();
     const runtime = useRuntime();
     const menu = useSkillMenu(runtime);
-    const [skills, setSkills] = (0, import_react13.useState)([]);
-    const [selection, setSelection] = (0, import_react13.useState)({ kind: "new" });
-    const [draft, setDraft] = (0, import_react13.useState)(EMPTY_DRAFT);
-    const [saving, setSaving] = (0, import_react13.useState)(false);
-    const [expanded, setExpanded] = (0, import_react13.useState)(false);
+    const [skills, setSkills] = (0, import_react14.useState)([]);
+    const [selection, setSelection] = (0, import_react14.useState)({ kind: "new" });
+    const [draft, setDraft] = (0, import_react14.useState)(EMPTY_DRAFT);
+    const [saving, setSaving] = (0, import_react14.useState)(false);
+    const [expanded, setExpanded] = (0, import_react14.useState)(false);
     function pick(next, list = skills) {
       setSelection(next);
       setExpanded(false);
@@ -27143,10 +27456,10 @@
         showError(error);
       }
     }
-    (0, import_react13.useEffect)(() => {
+    (0, import_react14.useEffect)(() => {
       if (open) void reload();
     }, [open]);
-    (0, import_react13.useEffect)(() => {
+    (0, import_react14.useEffect)(() => {
       if (!open) return;
       function onKeyDown(event) {
         if (event.key !== "Escape") return;
@@ -27159,60 +27472,60 @@
     if (!open) return null;
     const builtin = menu.filter((item) => item.source === "builtin");
     const builtinSelected = selection.kind === "builtin" ? builtin.find((item) => item.name === selection.name) : void 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-dialog", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-panel fh-skills-panel", role: "dialog", "aria-label": t("skills.title"), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-panel-header", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h2", { children: t("skills.title") }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconButton, { variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(X, { size: 14 }) })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-settings-dialog", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-settings-panel fh-skills-panel", role: "dialog", "aria-label": t("skills.title"), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-settings-panel-header", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("h2", { children: t("skills.title") }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconButton, { variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(X, { size: 14 }) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-body", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-settings-nav fh-skills-list", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(MenuItem, { variant: "nav", active: selection.kind === "new", onClick: () => pick({ kind: "new" }), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Plus, { size: 16 }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-settings-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-settings-nav fh-skills-list", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(MenuItem, { variant: "nav", active: selection.kind === "new", onClick: () => pick({ kind: "new" }), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Plus, { size: 16 }),
               t("skills.new")
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-skills-list-title", children: t("skills.mine") }),
-            skills.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-skills-list-empty", children: t("skills.emptyMine") }),
-            skills.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "fh-skills-list-title", children: t("skills.mine") }),
+            skills.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "fh-skills-list-empty", children: t("skills.emptyMine") }),
+            skills.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
               MenuItem,
               {
                 variant: "nav",
                 active: selection.kind === "custom" && selection.name === skill.name,
                 onClick: () => pick({ kind: "custom", name: skill.name }),
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Sparkles, { size: 15 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Sparkles, { size: 15 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
                 ]
               },
               skill.name
             )),
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "fh-skills-list-title", children: t("skills.builtin") }),
-            builtin.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "fh-skills-list-title", children: t("skills.builtin") }),
+            builtin.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
               MenuItem,
               {
                 variant: "nav",
                 active: selection.kind === "builtin" && selection.name === skill.name,
                 onClick: () => pick({ kind: "builtin", name: skill.name }),
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Sparkles, { size: 15 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Sparkles, { size: 15 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
                 ]
               },
               skill.name
             ))
           ] }),
-          builtinSelected ? /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-skills-form", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("h3", { className: "fh-skills-readonly-name", children: [
+          builtinSelected ? /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-skills-form", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("h3", { className: "fh-skills-readonly-name", children: [
               "/",
               builtinSelected.name
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "fh-skills-readonly-desc", children: builtinSelected.description }),
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "fh-skills-field-hint", children: t("skills.builtinReadonly", { name: builtinSelected.name }) })
-          ] }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-skills-form", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "fh-skills-field", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-field-label", children: t("skills.name") }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("p", { className: "fh-skills-readonly-desc", children: builtinSelected.description }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("p", { className: "fh-skills-field-hint", children: t("skills.builtinReadonly", { name: builtinSelected.name }) })
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-skills-form", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "fh-skills-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-skills-field-label", children: t("skills.name") }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
                 "input",
                 {
                   type: "text",
@@ -27222,18 +27535,18 @@
                   onChange: (event) => setDraft({ ...draft, name: event.target.value.toLowerCase().replace(/\s+/g, "-") })
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-field-hint", children: t("skills.nameHint") })
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-skills-field-hint", children: t("skills.nameHint") })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "fh-skills-field", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "fh-skills-field-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-field-label", children: t("skills.description") }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "fh-skills-field-hint", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "fh-skills-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { className: "fh-skills-field-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-skills-field-label", children: t("skills.description") }),
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { className: "fh-skills-field-hint", children: [
                   draft.description.length,
                   "/",
                   DESCRIPTION_MAX
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
                 "textarea",
                 {
                   className: "fh-skills-textarea fh-skills-description",
@@ -27244,15 +27557,15 @@
                 }
               )
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: `fh-skills-field fh-skills-content${expanded ? " fh-skills-content-expanded" : ""}`, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "fh-skills-field-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "fh-skills-field-label", children: t("skills.content") }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(Button, { variant: "link", onClick: () => setExpanded(!expanded), children: [
-                  expanded ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Minimize2, { size: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Maximize2, { size: 14 }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: `fh-skills-field fh-skills-content${expanded ? " fh-skills-content-expanded" : ""}`, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { className: "fh-skills-field-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-skills-field-label", children: t("skills.content") }),
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(Button, { variant: "link", onClick: () => setExpanded(!expanded), children: [
+                  expanded ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Minimize2, { size: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Maximize2, { size: 14 }),
                   expanded ? t("skills.collapse") : t("skills.expand")
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
                 "textarea",
                 {
                   className: "fh-skills-textarea",
@@ -27262,12 +27575,12 @@
                 }
               )
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "fh-skills-actions", children: [
-              selection.kind === "custom" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(Button, { variant: "outline", onClick: () => void remove(), disabled: saving, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Trash2, { size: 14 }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-skills-actions", children: [
+              selection.kind === "custom" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(Button, { variant: "outline", onClick: () => void remove(), disabled: saving, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Trash2, { size: 14 }),
                 t("skills.delete")
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Button, { variant: "primary", onClick: () => void save(), disabled: saving, children: saving ? t("skills.saving") : t("skills.save") })
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Button, { variant: "primary", onClick: () => void save(), disabled: saving, children: saving ? t("skills.saving") : t("skills.save") })
             ] })
           ] })
         ] })
@@ -27275,27 +27588,496 @@
     ] });
   }
 
+  // apps/web/src/components/features/projects/ProjectHub.tsx
+  var import_react15 = __toESM(require_react(), 1);
+
+  // apps/web/src/components/features/projects/projectsApi.ts
+  var PROJECT_NAME_MAX = 120;
+  async function send(runtime, path, method, body) {
+    const res = await runtime.authedFetch(path, {
+      method,
+      ...body === void 0 ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res;
+  }
+  async function listProjects(runtime) {
+    return (await (await send(runtime, "/projects", "GET")).json()).projects;
+  }
+  async function createProject(runtime, name) {
+    return await (await send(runtime, "/projects", "POST", { name })).json();
+  }
+  async function renameProject(runtime, projectId, name) {
+    await send(runtime, `/projects/${projectId}`, "PATCH", { name });
+  }
+  async function deleteProject(runtime, projectId) {
+    await send(runtime, `/projects/${projectId}`, "DELETE");
+  }
+  function uploadProjectFile(runtime, projectId, file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", runtime.apiUrl(`/projects/${projectId}/files?name=${encodeURIComponent(file.name)}`));
+      for (const [name, value] of Object.entries(runtime.authHeaders())) xhr.setRequestHeader(name, value);
+      xhr.setRequestHeader("content-type", "application/octet-stream");
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress(event.loaded / event.total);
+      };
+      xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`));
+      xhr.onerror = () => reject(new Error("upload failed"));
+      xhr.send(file);
+    });
+  }
+  async function promoteProjectOutput(runtime, projectId, sessionId, path) {
+    await send(runtime, `/projects/${projectId}/promote`, "POST", { sessionId, path });
+  }
+  async function listProjectChats(runtime, projectId) {
+    return (await (await send(runtime, `/projects/${projectId}/sessions`, "GET")).json()).sessions;
+  }
+
+  // apps/web/src/components/features/projects/ProjectHub.tsx
+  var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
+  var DATASET_RE = /\.(csv|tsv|xlsx?|parquet)$/i;
+  var IMAGE_RE2 = /\.(png|jpe?g|gif|webp)$/i;
+  function dateLabel(value, t) {
+    const date = new Date(value);
+    return date.toDateString() === (/* @__PURE__ */ new Date()).toDateString() ? t("projects.today") : date.toLocaleDateString(void 0, { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+  function ProjectHub({
+    projectId,
+    onOpenProject,
+    onStartChat
+  }) {
+    const runtime = useRuntime();
+    const { t } = useLocale();
+    const [projects, setProjects] = (0, import_react15.useState)();
+    const [query, setQuery] = (0, import_react15.useState)("");
+    const [creating, setCreating] = (0, import_react15.useState)(false);
+    const [name, setName] = (0, import_react15.useState)("");
+    (0, import_react15.useEffect)(() => {
+      listProjects(runtime).then(setProjects).catch(() => {
+        setProjects([]);
+        toast.error(t("projects.loadFailed"));
+      });
+    }, []);
+    const visible = (0, import_react15.useMemo)(
+      () => (projects ?? []).filter((project) => project.name.toLowerCase().includes(query.trim().toLowerCase())),
+      [projects, query]
+    );
+    async function create(event) {
+      event.preventDefault();
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      try {
+        const created = await createProject(runtime, trimmed);
+        onOpenProject(created.projectId);
+      } catch {
+        toast.error(t("projects.saveFailed"));
+      }
+    }
+    if (projectId) {
+      const project = projects?.find((item) => item.projectId === projectId);
+      if (!projects) return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-scroll" });
+      if (!project) {
+        return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-scroll", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("section", { className: "fh-hub", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-empty", children: t("projects.loadFailed") }) }) });
+      }
+      return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ProjectPage, { project, onBack: () => onOpenProject(null), onStartChat });
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-scroll", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("section", { className: "fh-hub", "aria-label": t("projects.title"), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-hero", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("p", { className: "fh-hub-eyebrow", children: t("projects.eyebrow") }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("h1", { children: t("projects.title") })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("label", { className: "fh-hub-search", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Search, { size: 17 }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("input", { value: query, onChange: (event) => setQuery(event.target.value), placeholder: t("projects.search") })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { type: "button", className: "fh-hub-pill fh-hub-pill-primary fh-hub-create-open", onClick: () => setCreating(true), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Plus, { size: 17 }),
+            t("projects.create")
+          ] })
+        ] })
+      ] }),
+      creating && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("form", { className: "fh-hub-create", onSubmit: (event) => void create(event), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+          "input",
+          {
+            autoFocus: true,
+            value: name,
+            maxLength: PROJECT_NAME_MAX,
+            onChange: (event) => setName(event.target.value),
+            placeholder: t("projects.newName")
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { type: "submit", className: "fh-hub-pill fh-hub-pill-primary", disabled: !name.trim(), children: t("projects.createSubmit") }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { type: "button", className: "fh-hub-pill", onClick: () => setCreating(false), children: t("projects.cancel") })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-table-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: t("projects.colName") }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: t("projects.colModified") })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-list", children: [
+        visible.map((project) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "fh-hub-project-row",
+            onClick: () => onOpenProject(project.projectId),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { className: "fh-hub-project-name", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "fh-hub-folder", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Folder, { size: 18 }) }),
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "fh-hub-ellipsis", children: project.name })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: dateLabel(project.updatedAt, t) })
+            ]
+          },
+          project.projectId
+        )),
+        projects !== void 0 && visible.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-empty", children: t("projects.emptyList") })
+      ] })
+    ] }) });
+  }
+  function ProjectPage({
+    project,
+    onBack,
+    onStartChat
+  }) {
+    const runtime = useRuntime();
+    const { t } = useLocale();
+    const base = `/projects/${project.projectId}`;
+    const [tab, setTab] = (0, import_react15.useState)("chats");
+    const [chats, setChats] = (0, import_react15.useState)([]);
+    const [files, setFiles] = (0, import_react15.useState)([]);
+    const [title, setTitle] = (0, import_react15.useState)(project.name);
+    const [prompt, setPrompt] = (0, import_react15.useState)("");
+    const [progress, setProgress] = (0, import_react15.useState)();
+    const [renaming, setRenaming] = (0, import_react15.useState)(false);
+    const [renameValue, setRenameValue] = (0, import_react15.useState)("");
+    const [preview, setPreview] = (0, import_react15.useState)(null);
+    const inputRef = (0, import_react15.useRef)(null);
+    async function refresh() {
+      const [chatList, fileList] = await Promise.all([
+        listProjectChats(runtime, project.projectId).catch(() => []),
+        listWorkspaceFiles(runtime, base).catch(() => [])
+      ]);
+      setChats(chatList);
+      setFiles(fileList ?? []);
+    }
+    (0, import_react15.useEffect)(() => {
+      void refresh();
+    }, []);
+    const sources = files.filter((file) => !file.path.startsWith("generated/") && !file.path.startsWith("outputs/"));
+    const projectOutputs = files.filter((file) => file.path.startsWith("outputs/"));
+    const chatOutputs = files.filter((file) => file.path.startsWith("generated/")).map((file) => {
+      const [, sessionId, ...rest] = file.path.split("/");
+      return { file, sessionId, path: rest.join("/") };
+    }).filter((output) => output.path);
+    const chatTitle = (sessionId) => chats.find((chat) => chat.sessionId === sessionId)?.title ?? t("historyChat.untitled", { id: sessionId.slice(0, 8) });
+    async function upload(list) {
+      const picked = Array.from(list ?? []);
+      for (const [index, file] of picked.entries()) {
+        if (file.size > MAX_UPLOAD_BYTES) {
+          toast.error(t("workspace.tooLarge", { name: file.name }));
+          continue;
+        }
+        try {
+          await uploadProjectFile(
+            runtime,
+            project.projectId,
+            file,
+            (fraction) => setProgress(Math.round((index + fraction) / picked.length * 100))
+          );
+          toast.success(t("workspace.uploaded", { name: file.name }));
+        } catch {
+          toast.error(t("workspace.uploadFailed", { name: file.name }));
+        }
+      }
+      setProgress(void 0);
+      await refresh();
+    }
+    async function openFile(path) {
+      try {
+        const url = URL.createObjectURL(await fetchWorkspaceFile(runtime, base, path));
+        if (IMAGE_RE2.test(path)) {
+          setPreview({ path, url });
+          return;
+        }
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = path.split("/").pop() ?? path;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1e4);
+      } catch {
+        toast.error(t("workspace.openFailed", { name: path }));
+      }
+    }
+    function closePreview() {
+      if (preview) URL.revokeObjectURL(preview.url);
+      setPreview(null);
+    }
+    async function promote(sessionId, path) {
+      try {
+        await promoteProjectOutput(runtime, project.projectId, sessionId, path);
+        toast.success(t("projects.promoted", { name: path.split("/").pop() ?? path }));
+        await refresh();
+      } catch {
+        toast.error(t("projects.promoteFailed"));
+      }
+    }
+    async function commitRename() {
+      const trimmed = renameValue.trim();
+      setRenaming(false);
+      if (!trimmed || trimmed === title) return;
+      try {
+        await renameProject(runtime, project.projectId, trimmed);
+        setTitle(trimmed);
+      } catch {
+        toast.error(t("projects.saveFailed"));
+      }
+    }
+    async function remove() {
+      if (!window.confirm(t("projects.deleteConfirm", { name: title }))) return;
+      try {
+        await deleteProject(runtime, project.projectId);
+        onBack();
+      } catch {
+        toast.error(t("projects.saveFailed"));
+      }
+    }
+    const tabs = [
+      { key: "chats", label: t("projects.tabChats"), count: chats.length },
+      { key: "sources", label: t("projects.tabSources"), count: sources.length },
+      { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length }
+    ];
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-scroll", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("section", { className: "fh-hub", "aria-label": title, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-header", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { type: "button", className: "fh-hub-icon-btn fh-hub-back", onClick: onBack, title: t("projects.back"), "aria-label": t("projects.back"), children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ArrowLeft, { size: 18 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Folder, { size: 25 }),
+          renaming ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+            "input",
+            {
+              autoFocus: true,
+              className: "fh-hub-title-input",
+              value: renameValue,
+              maxLength: PROJECT_NAME_MAX,
+              onChange: (event) => setRenameValue(event.target.value),
+              onKeyDown: (event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) void commitRename();
+                else if (event.key === "Escape") setRenaming(false);
+              },
+              onBlur: () => setRenaming(false)
+            }
+          ) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("h1", { children: title }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "fh-hub-icon-btn fh-hub-rename",
+              title: t("projects.rename"),
+              "aria-label": t("projects.rename"),
+              onClick: () => {
+                setRenameValue(title);
+                setRenaming(true);
+              },
+              children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Pencil, { size: 16 })
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { type: "button", className: "fh-hub-icon-btn fh-hub-delete", title: t("projects.delete"), "aria-label": t("projects.delete"), onClick: () => void remove(), children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Trash2, { size: 16 }) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+          "form",
+          {
+            className: "fh-hub-composer",
+            onSubmit: (event) => {
+              event.preventDefault();
+              if (prompt.trim()) onStartChat(project.projectId, prompt.trim());
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Plus, { size: 20 }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("input", { value: prompt, onChange: (event) => setPrompt(event.target.value), placeholder: t("projects.composer", { name: title }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { type: "submit", className: "fh-hub-pill fh-hub-pill-primary", disabled: !prompt.trim(), children: t("projects.start") })
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-tabs", role: "tablist", children: tabs.map((item) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+          "button",
+          {
+            type: "button",
+            role: "tab",
+            "aria-selected": tab === item.key,
+            className: `fh-hub-tab-${item.key}${tab === item.key ? " active" : ""}`,
+            onClick: () => setTab(item.key),
+            children: [
+              item.label,
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: item.count })
+            ]
+          },
+          item.key
+        )) }),
+        tab === "chats" && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-list", children: [
+          chats.map((chat) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { type: "button", className: "fh-hub-content-row", onClick: () => runtime.switchSession(chat.sessionId), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(MessageSquare, { size: 18 }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("strong", { children: chat.title ?? t("historyChat.untitled", { id: chat.sessionId.slice(0, 8) }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("small", { children: dateLabel(chat.updatedAt, t) })
+            ] })
+          ] }, chat.sessionId)),
+          chats.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-empty", children: t("projects.noChats") })
+        ] }),
+        tab === "sources" && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-sources", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+            "input",
+            {
+              ref: inputRef,
+              type: "file",
+              multiple: true,
+              hidden: true,
+              onChange: (event) => {
+                void upload(event.target.files);
+                event.target.value = "";
+              }
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { type: "button", className: "fh-hub-dropzone", onClick: () => inputRef.current?.click(), disabled: progress !== void 0, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Paperclip, { size: 24 }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("strong", { children: t("projects.dropTitle") }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: t("projects.dropHint") }),
+            progress !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "fh-hub-progress", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("i", { style: { width: `${progress}%` } }) })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-list", children: [
+            sources.map((file) => {
+              const dataset = DATASET_RE.test(file.path);
+              const Icon2 = dataset ? FileSpreadsheet : FileText;
+              return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { type: "button", className: "fh-hub-content-row", onClick: () => void openFile(file.path), children: [
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Icon2, { size: 18 }),
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("strong", { children: file.path }),
+                  /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("small", { children: [
+                    t(dataset ? "projects.sourceDataset" : "projects.sourceFile"),
+                    " \xB7 ",
+                    formatSize(file.sizeBytes)
+                  ] })
+                ] })
+              ] }, file.path);
+            }),
+            sources.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-empty", children: t("projects.noSources") })
+          ] })
+        ] }),
+        tab === "outputs" && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-outputs", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("section", { className: "fh-hub-output-group", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-output-heading", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("h2", { children: t("projects.outputsProject") }),
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("p", { children: t("projects.outputsProjectHint") })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: projectOutputs.length })
+            ] }),
+            projectOutputs.map((file) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-output-row", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { type: "button", className: "fh-hub-output-file", onClick: () => void openFile(file.path), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(FileOutput, { size: 18 }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("strong", { children: file.path.slice("outputs/".length) }),
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("small", { children: [
+                  t("projects.sharedInProject"),
+                  " \xB7 ",
+                  formatSize(file.sizeBytes)
+                ] })
+              ] })
+            ] }) }, file.path)),
+            projectOutputs.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-empty", children: t("projects.noOutputs") })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("section", { className: "fh-hub-output-group", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-output-heading", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("h2", { children: t("projects.outputsChats") }),
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("p", { children: t("projects.outputsChatsHint") })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: chatOutputs.length })
+            ] }),
+            chatOutputs.map((output) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-output-row", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { type: "button", className: "fh-hub-output-file", onClick: () => void openFile(output.file.path), children: [
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(FileOutput, { size: 18 }),
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("strong", { children: output.path }),
+                  /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("small", { children: [
+                    chatTitle(output.sessionId),
+                    " \xB7 ",
+                    formatSize(output.file.sizeBytes)
+                  ] })
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { type: "button", className: "fh-hub-promote", onClick: () => void promote(output.sessionId, output.path), children: [
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Share2, { size: 15 }),
+                t("projects.promote")
+              ] })
+            ] }, output.file.path)),
+            chatOutputs.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-hub-empty", children: t("projects.noOutputs") })
+          ] })
+        ] })
+      ] }),
+      preview && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-workspace-preview", role: "dialog", onClick: closePreview, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("img", { src: preview.url, alt: preview.path }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: preview.path })
+      ] })
+    ] });
+  }
+  function ProjectChatBar({ onOpenProject }) {
+    const runtime = useRuntime();
+    const [project, setProject] = (0, import_react15.useState)(null);
+    (0, import_react15.useEffect)(() => {
+      let cancelled = false;
+      let found = false;
+      async function lookup() {
+        const res = await runtime.authedFetch("/sessions/mine");
+        if (!res.ok || cancelled) return;
+        const rows = await res.json();
+        const row = rows.find((item) => item.sessionId === runtime.sessionId);
+        if (cancelled || !row?.projectId || !row.projectName) return;
+        found = true;
+        setProject({ projectId: row.projectId, name: row.projectName });
+      }
+      setProject(null);
+      if (runtime.sessionId) void lookup();
+      let live = false;
+      const unsubscribe = runtime.onFrame((frame) => {
+        if (live && !found && frame.type === "event" && frame.event.type === "turn/start") void lookup();
+      });
+      live = true;
+      return () => {
+        cancelled = true;
+        unsubscribe();
+      };
+    }, [runtime.sessionId]);
+    if (!project) return null;
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-chat-project-bar", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { type: "button", onClick: () => onOpenProject(project.projectId), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ArrowLeft, { size: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Folder, { size: 14 }),
+      project.name
+    ] }) });
+  }
+
   // apps/web/src/components/features/sidebar/Sidebar.tsx
-  var import_react16 = __toESM(require_react(), 1);
+  var import_react18 = __toESM(require_react(), 1);
 
   // apps/web/src/components/features/sidebar/AccountMenu.tsx
-  var import_react14 = __toESM(require_react(), 1);
+  var import_react16 = __toESM(require_react(), 1);
   var import_react_dom3 = __toESM(require_react_dom(), 1);
-  var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime16 = __toESM(require_jsx_runtime(), 1);
   function AccountMenu({ onOpenSettings, onLogout }) {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [open, setOpen] = (0, import_react14.useState)(false);
-    const [position, setPosition] = (0, import_react14.useState)(null);
-    const triggerRef = (0, import_react14.useRef)(null);
-    const popupRef = (0, import_react14.useRef)(null);
+    const [open, setOpen] = (0, import_react16.useState)(false);
+    const [position, setPosition] = (0, import_react16.useState)(null);
+    const triggerRef = (0, import_react16.useRef)(null);
+    const popupRef = (0, import_react16.useRef)(null);
     function openMenu() {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
       setPosition({ left: rect.left, bottom: window.innerHeight - rect.top + 8 });
       setOpen(true);
     }
-    (0, import_react14.useEffect)(() => {
+    (0, import_react16.useEffect)(() => {
       if (!open) return;
       function onPointerDown(event) {
         const target = event.target;
@@ -27313,8 +28095,8 @@
       };
     }, [open]);
     const initial = (runtime.userEmail || "?").charAt(0).toUpperCase();
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_jsx_runtime16.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
         "button",
         {
           id: "account-menu-trigger",
@@ -27324,15 +28106,15 @@
           onClick: () => open ? setOpen(false) : openMenu(),
           title: t("sidebar.accountMenu"),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-sidebar-account-avatar", children: initial }),
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-sidebar-account-email", children: runtime.userEmail || t("sidebar.account") }),
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Ellipsis, { size: 16, className: "fh-sidebar-account-more" })
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-account-avatar", children: initial }),
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-account-email", children: runtime.userEmail || t("sidebar.account") }),
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Ellipsis, { size: 16, className: "fh-sidebar-account-more" })
           ]
         }
       ),
       open && position && (0, import_react_dom3.createPortal)(
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { ref: popupRef, className: "fh-account-menu-popup", style: { left: position.left, bottom: position.bottom }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { ref: popupRef, className: "fh-account-menu-popup", style: { left: position.left, bottom: position.bottom }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
             MenuItem,
             {
               variant: "popup",
@@ -27341,12 +28123,12 @@
                 onOpenSettings();
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Settings, { size: 15 }),
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Settings, { size: 15 }),
                 t("sidebar.settings")
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
             MenuItem,
             {
               variant: "popup",
@@ -27355,7 +28137,7 @@
                 onLogout();
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(LogOut, { size: 15 }),
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(LogOut, { size: 15 }),
                 t("app.logout")
               ]
             }
@@ -27367,9 +28149,9 @@
   }
 
   // apps/web/src/components/features/sidebar/HistoryChat.tsx
-  var import_react15 = __toESM(require_react(), 1);
+  var import_react17 = __toESM(require_react(), 1);
   var import_react_dom4 = __toESM(require_react_dom(), 1);
-  var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime17 = __toESM(require_jsx_runtime(), 1);
   var TITLE_MAX_LENGTH = 255;
   function rowLabel(row, t) {
     return row.title ?? t("historyChat.untitled", { id: row.sessionId.slice(0, 8) });
@@ -27401,54 +28183,54 @@
   function HistoryChat({ query }) {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [rows, setRows] = (0, import_react15.useState)([]);
-    const [menuRow, setMenuRow] = (0, import_react15.useState)(null);
-    const [menuPosition, setMenuPosition] = (0, import_react15.useState)(null);
-    const menuTriggerRef = (0, import_react15.useRef)(null);
-    const menuPopupRef = (0, import_react15.useRef)(null);
-    const [renamingRow, setRenamingRow] = (0, import_react15.useState)(null);
-    const [renameValue, setRenameValue] = (0, import_react15.useState)("");
-    const renameInputRef = (0, import_react15.useRef)(null);
+    const [rows, setRows] = (0, import_react17.useState)([]);
+    const [menuRow, setMenuRow] = (0, import_react17.useState)(null);
+    const [menuPosition, setMenuPosition] = (0, import_react17.useState)(null);
+    const menuTriggerRef = (0, import_react17.useRef)(null);
+    const menuPopupRef = (0, import_react17.useRef)(null);
+    const [renamingRow, setRenamingRow] = (0, import_react17.useState)(null);
+    const [renameValue, setRenameValue] = (0, import_react17.useState)("");
+    const renameInputRef = (0, import_react17.useRef)(null);
     async function refresh() {
       const res = await runtime.authedFetch("/sessions/mine");
       if (!res.ok) return;
       setRows(await res.json());
     }
-    const sessionIdRef = (0, import_react15.useRef)(runtime.sessionId);
+    const sessionIdRef = (0, import_react17.useRef)(runtime.sessionId);
     sessionIdRef.current = runtime.sessionId;
-    async function applyAutoTitle(sessionId, title) {
+    async function applyAutoTitle(sessionId, title, source) {
       for (let attempt = 0; attempt < 5; attempt++) {
         const res = await runtime.authedFetch("/sessions/mine");
         if (!res.ok) return;
         const list = await res.json();
-        const row = list.find((r) => r.sessionId === sessionId);
-        if (row) {
-          if (row.title) return setRows(list);
+        if (list.some((r) => r.sessionId === sessionId)) {
           await runtime.authedFetch(`/sessions/${sessionId}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ title: title.slice(0, TITLE_MAX_LENGTH) })
+            body: JSON.stringify({ title: title.slice(0, TITLE_MAX_LENGTH), source })
           });
           return refresh();
         }
         await new Promise((resolve) => setTimeout(resolve, 600));
       }
     }
-    (0, import_react15.useEffect)(() => {
+    (0, import_react17.useEffect)(() => {
       return runtime.onFrame((frame) => {
         if (frame.type !== "event" || frame.event.type !== "session/title") return;
         const data = frame.event.data;
-        if (data.title && data.source?.kind !== "user") {
-          void applyAutoTitle(sessionIdRef.current, data.title);
+        const source = data.source?.kind;
+        if (data.title && (source === "fallback" || source === "provider")) {
+          void applyAutoTitle(sessionIdRef.current, data.title, source);
         }
       });
     }, []);
-    (0, import_react15.useEffect)(() => {
+    (0, import_react17.useEffect)(() => {
       void refresh();
     }, [runtime.sessionId]);
-    const groups = (0, import_react15.useMemo)(() => {
+    const groups = (0, import_react17.useMemo)(() => {
       const q = query.trim().toLowerCase();
-      const filtered = q ? rows.filter((row) => rowLabel(row, t).toLowerCase().includes(q)) : rows;
+      const own = rows.filter((row) => !row.projectId);
+      const filtered = q ? own.filter((row) => rowLabel(row, t).toLowerCase().includes(q)) : own;
       const now = /* @__PURE__ */ new Date();
       const byGroup = /* @__PURE__ */ new Map();
       for (const row of filtered) {
@@ -27463,7 +28245,7 @@
         rows: byGroup.get(key) ?? []
       })).filter((g) => g.rows.length > 0);
     }, [rows, query, t]);
-    (0, import_react15.useEffect)(() => {
+    (0, import_react17.useEffect)(() => {
       if (!menuRow) return;
       function onPointerDown(event) {
         const target = event.target;
@@ -27491,7 +28273,7 @@
       setRenameValue(row.title ?? "");
       setRenamingRow(row);
     }
-    (0, import_react15.useEffect)(() => {
+    (0, import_react17.useEffect)(() => {
       if (!renamingRow) return;
       renameInputRef.current?.focus();
       renameInputRef.current?.select();
@@ -27522,11 +28304,11 @@
       if (row.sessionId === runtime.sessionId) runtime.newSession();
       await refresh();
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { id: "fh-history-chat-list", children: [
-      groups.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_jsx_runtime15.Fragment, {}),
-      groups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-history-chat-group", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-history-chat-group-label", children: group.label }),
-        group.rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { id: "fh-history-chat-list", children: [
+      groups.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(import_jsx_runtime17.Fragment, {}),
+      groups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "fh-history-chat-group", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "fh-history-chat-group-label", children: group.label }),
+        group.rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
           "div",
           {
             className: `fh-history-chat-row${row.sessionId === runtime.sessionId ? " active" : ""}${menuRow?.sessionId === row.sessionId ? " menu-open" : ""}`,
@@ -27536,7 +28318,7 @@
                 runtime.switchSession(row.sessionId);
             },
             children: [
-              renamingRow?.sessionId === row.sessionId ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+              renamingRow?.sessionId === row.sessionId ? /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
                 Input,
                 {
                   ref: renameInputRef,
@@ -27556,8 +28338,18 @@
                   },
                   onBlur: () => setRenamingRow(null)
                 }
-              ) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "fh-history-chat-row-title", children: rowLabel(row, t) }),
-              renamingRow?.sessionId !== row.sessionId && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+              ) : /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(import_jsx_runtime17.Fragment, { children: [
+                row.flow === "data-analysis" && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+                  ChartColumn,
+                  {
+                    size: 14,
+                    className: "fh-history-chat-row-flow",
+                    "aria-label": t("sidebar.dataAnalysis")
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "fh-history-chat-row-title", children: rowLabel(row, t) })
+              ] }),
+              renamingRow?.sessionId !== row.sessionId && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
                 IconButton,
                 {
                   size: "sm",
@@ -27569,7 +28361,7 @@
                     if (menuRow?.sessionId === row.sessionId) setMenuRow(null);
                     else openRowMenu(row, event.currentTarget);
                   },
-                  children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Ellipsis, { size: 14 })
+                  children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Ellipsis, { size: 14 })
                 }
               )
             ]
@@ -27578,14 +28370,14 @@
         ))
       ] }, group.key)),
       menuRow && menuPosition && (0, import_react_dom4.createPortal)(
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
           "div",
           {
             ref: menuPopupRef,
             className: "fh-history-chat-row-menu-popup",
             style: { top: menuPosition.top, left: menuPosition.left },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
                 MenuItem,
                 {
                   variant: "popup",
@@ -27595,12 +28387,12 @@
                     startRename(row);
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Pencil, { size: 15 }),
+                    /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Pencil, { size: 15 }),
                     t("historyChat.rename")
                   ]
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
                 MenuItem,
                 {
                   variant: "popup",
@@ -27611,7 +28403,7 @@
                     void remove(row);
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Trash2, { size: 15 }),
+                    /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Trash2, { size: 15 }),
                     t("historyChat.delete")
                   ]
                 }
@@ -27625,33 +28417,34 @@
   }
 
   // apps/web/src/components/features/sidebar/Sidebar.tsx
-  var import_jsx_runtime16 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime18 = __toESM(require_jsx_runtime(), 1);
   function Sidebar({
     collapsed,
     onToggleCollapse,
     onNewSession,
-    onNewDataAnalysisSession,
+    onOpenDataAnalysis,
+    dataAnalysisActive,
     newSessionDisabled,
     onOpenSettings,
     onOpenSkills,
     onLogout
   }) {
     const { t } = useLocale();
-    const [searchOpen, setSearchOpen] = (0, import_react16.useState)(false);
-    const [query, setQuery] = (0, import_react16.useState)("");
-    const searchInputRef = (0, import_react16.useRef)(null);
-    return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+    const [searchOpen, setSearchOpen] = (0, import_react18.useState)(false);
+    const [query, setQuery] = (0, import_react18.useState)("");
+    const searchInputRef = (0, import_react18.useRef)(null);
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
       "div",
       {
         id: "sidebar-col",
         className: `fh-sidebar-col${collapsed ? " fh-sidebar-rail" : ""}`,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "fh-sidebar-logo-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "fh-sidebar-brand", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Bot, { size: 24 }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-brand-name", children: "Fox Harness" })
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "fh-sidebar-logo-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "fh-sidebar-brand", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "fh-sidebar-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(Bot, { size: 24 }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "fh-sidebar-brand-name", children: "Fox Harness" })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
               IconButton,
               {
                 className: "fh-sidebar-search-toggle",
@@ -27660,20 +28453,20 @@
                   setTimeout(() => searchInputRef.current?.focus(), 0);
                 },
                 title: t("sidebar.searchSessions"),
-                children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Search, { size: 14 })
+                children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(Search, { size: 14 })
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
               IconButton,
               {
                 className: "fh-sidebar-collapse-toggle",
                 onClick: onToggleCollapse,
                 title: collapsed ? t("sidebar.expandSidebar") : t("sidebar.collapseSidebar"),
-                children: collapsed ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(PanelLeftOpen, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(PanelLeftClose, { size: 16 })
+                children: collapsed ? /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(PanelLeftOpen, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(PanelLeftClose, { size: 16 })
               }
             )
           ] }),
-          searchOpen && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "fh-sidebar-search-row", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+          searchOpen && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "fh-sidebar-search-row", children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
             Input,
             {
               ref: searchInputRef,
@@ -27688,7 +28481,7 @@
               }
             }
           ) }),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
             Button,
             {
               variant: "raised",
@@ -27696,12 +28489,12 @@
               onClick: onNewSession,
               disabled: newSessionDisabled,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Plus, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-new-session-label", children: t("sidebar.newSession") })
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(Plus, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "fh-sidebar-new-session-label", children: t("sidebar.newSession") })
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
             MenuItem,
             {
               variant: "nav",
@@ -27709,34 +28502,34 @@
               onClick: onOpenSkills,
               title: t("sidebar.skills"),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Sparkles, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-skills-label", children: t("sidebar.skills") })
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(Sparkles, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "fh-sidebar-skills-label", children: t("sidebar.skills") })
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
             MenuItem,
             {
               variant: "nav",
               className: "fh-sidebar-data-analysis",
-              onClick: onNewDataAnalysisSession,
-              disabled: newSessionDisabled,
+              active: dataAnalysisActive,
+              onClick: onOpenDataAnalysis,
               title: t("sidebar.dataAnalysis"),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ChartColumn, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "fh-sidebar-data-analysis-label", children: t("sidebar.dataAnalysis") })
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ChartColumn, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "fh-sidebar-data-analysis-label", children: t("sidebar.dataAnalysis") })
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "fh-sidebar-region", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(HistoryChat, { query }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "fh-sidebar-foot", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(AccountMenu, { onOpenSettings, onLogout }) })
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "fh-sidebar-region", children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(HistoryChat, { query }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "fh-sidebar-foot", children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(AccountMenu, { onOpenSettings, onLogout }) })
         ]
       }
     );
   }
 
   // apps/web/src/App.tsx
-  var import_jsx_runtime17 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime19 = __toESM(require_jsx_runtime(), 1);
   var STORAGE_TOKEN = "fox-harness/token";
   var STORAGE_GATEWAY = "fox-harness/gatewayUrl";
   var STORAGE_SIDEBAR_COLLAPSED = "fox-harness/sidebarCollapsed";
@@ -27826,38 +28619,40 @@
     });
   }
   function App() {
-    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(LocaleProvider, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(AppInner, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Toaster, { theme: "light", position: "top-right", closeButton: true, richColors: true })
+    return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(LocaleProvider, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(AppInner, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(Toaster, { theme: "light", position: "top-right", closeButton: true, richColors: true })
     ] });
   }
   function AppInner() {
     const { t } = useLocale();
-    const [status, setStatus] = (0, import_react17.useState)("disconnected");
-    const [authenticated, setAuthenticated] = (0, import_react17.useState)(false);
-    const [authCheckPending, setAuthCheckPending] = (0, import_react17.useState)(
+    const [status, setStatus] = (0, import_react19.useState)("disconnected");
+    const [authenticated, setAuthenticated] = (0, import_react19.useState)(false);
+    const [authCheckPending, setAuthCheckPending] = (0, import_react19.useState)(
       () => !!localStorage.getItem(STORAGE_TOKEN)
     );
-    const [sessionId, setSessionId] = (0, import_react17.useState)("");
-    const [connectError, setConnectError] = (0, import_react17.useState)(null);
-    const [gatewayUrl] = (0, import_react17.useState)(defaultGatewayUrl());
-    const [selectedModel, setSelectedModel] = (0, import_react17.useState)("");
-    const [settingsOpen, setSettingsOpen] = (0, import_react17.useState)(false);
-    const [skillsOpen, setSkillsOpen] = (0, import_react17.useState)(false);
-    const [viewportWidth, setViewportWidth] = (0, import_react17.useState)(0);
-    const [sidebarManuallyExpanded, setSidebarManuallyExpanded] = (0, import_react17.useState)(false);
-    const [sidebarPinnedCollapsed, setSidebarPinnedCollapsed] = (0, import_react17.useState)(
+    const [sessionId, setSessionId] = (0, import_react19.useState)("");
+    const [connectError, setConnectError] = (0, import_react19.useState)(null);
+    const [gatewayUrl] = (0, import_react19.useState)(defaultGatewayUrl());
+    const [selectedModel, setSelectedModel] = (0, import_react19.useState)("");
+    const [settingsOpen, setSettingsOpen] = (0, import_react19.useState)(false);
+    const [skillsOpen, setSkillsOpen] = (0, import_react19.useState)(false);
+    const [projectView, setProjectView] = (0, import_react19.useState)(null);
+    const pendingFirstMessageRef = (0, import_react19.useRef)(null);
+    const [viewportWidth, setViewportWidth] = (0, import_react19.useState)(0);
+    const [sidebarManuallyExpanded, setSidebarManuallyExpanded] = (0, import_react19.useState)(false);
+    const [sidebarPinnedCollapsed, setSidebarPinnedCollapsed] = (0, import_react19.useState)(
       () => localStorage.getItem(STORAGE_SIDEBAR_COLLAPSED) === "1"
     );
-    const [userEmail, setUserEmail] = (0, import_react17.useState)(
+    const [userEmail, setUserEmail] = (0, import_react19.useState)(
       () => localStorage.getItem(STORAGE_EMAIL) ?? ""
     );
-    const [hasChatted, setHasChatted] = (0, import_react17.useState)(() => !!sessionIdFromUrl());
-    const frameRef = (0, import_react17.useRef)(null);
-    const wsRef = (0, import_react17.useRef)(null);
-    const gatewayHttpBaseRef = (0, import_react17.useRef)("");
-    const frameHistoryRef = (0, import_react17.useRef)([]);
-    const frameListenersRef = (0, import_react17.useRef)(/* @__PURE__ */ new Set());
+    const [hasChatted, setHasChatted] = (0, import_react19.useState)(() => !!sessionIdFromUrl());
+    const frameRef = (0, import_react19.useRef)(null);
+    const wsRef = (0, import_react19.useRef)(null);
+    const gatewayHttpBaseRef = (0, import_react19.useRef)("");
+    const frameHistoryRef = (0, import_react19.useRef)([]);
+    const frameListenersRef = (0, import_react19.useRef)(/* @__PURE__ */ new Set());
     function publishFrame(frame) {
       if (frame.type === "snapshot") frameHistoryRef.current = [frame];
       else frameHistoryRef.current.push(frame);
@@ -27872,15 +28667,16 @@
       setAuthCheckPending(false);
       toast.info(t("app.sessionExpired"));
     }
-    function connect(httpBase, token, sessionPath, flow) {
+    function connect(httpBase, token, sessionPath, flow, projectId) {
       gatewayHttpBaseRef.current = httpBase;
       localStorage.setItem(STORAGE_TOKEN, token);
       localStorage.setItem(STORAGE_GATEWAY, httpBase);
       setStatus("connecting");
       const modelParam = sessionPath === "new" && selectedModel ? `&model=${encodeURIComponent(selectedModel)}` : "";
       const flowParam = sessionPath === "new" && flow ? `&flow=${encodeURIComponent(flow)}` : "";
+      const projectParam = sessionPath === "new" && projectId ? `&project=${encodeURIComponent(projectId)}` : "";
       const socket = new WebSocket(
-        `${wsBaseFor(httpBase)}/sessions/${sessionPath}?token=${encodeURIComponent(token)}${modelParam}${flowParam}`
+        `${wsBaseFor(httpBase)}/sessions/${sessionPath}?token=${encodeURIComponent(token)}${modelParam}${flowParam}${projectParam}`
       );
       wsRef.current = socket;
       let didOpen = false;
@@ -27949,6 +28745,12 @@
       switch (frame.type) {
         case "session":
           setSessionId(frame.sessionId);
+          if (pendingFirstMessageRef.current !== null && wsRef.current) {
+            wsRef.current.send(JSON.stringify({ type: "followup", text: pendingFirstMessageRef.current }));
+            pendingFirstMessageRef.current = null;
+            replaceChatUrl(frame.sessionId);
+            setHasChatted(true);
+          }
           break;
         case "error":
           if (/unknown session/i.test(frame.message)) {
@@ -27972,7 +28774,7 @@
         console.error("fox-harness-web: failed to fetch models", error);
       }
     }
-    function startNewSession(flow) {
+    function startNewSession(flow, projectId, firstMessage) {
       if (!hasChatted && flow === void 0) return;
       const httpBase = gatewayHttpBaseRef.current;
       const token = localStorage.getItem(STORAGE_TOKEN);
@@ -27980,9 +28782,11 @@
       pushHomeUrl();
       setHasChatted(false);
       wsRef.current?.close();
-      connect(httpBase, token, "new", flow);
+      pendingFirstMessageRef.current = firstMessage ?? null;
+      setProjectView(null);
+      connect(httpBase, token, "new", flow, projectId);
     }
-    const runtime = (0, import_react17.useMemo)(
+    const runtime = (0, import_react19.useMemo)(
       () => ({
         sessionId,
         userEmail,
@@ -28025,6 +28829,7 @@
           if (!token || !gatewayHttpBaseRef.current) return;
           pushChatUrl(id);
           setHasChatted(true);
+          setProjectView(null);
           wsRef.current?.close();
           connect(gatewayHttpBaseRef.current, token, id);
         },
@@ -28076,7 +28881,7 @@
       setHasChatted(false);
       if (httpBase && token) void logoutRequest(httpBase, token);
     }
-    (0, import_react17.useEffect)(() => {
+    (0, import_react19.useEffect)(() => {
       const storedToken = localStorage.getItem(STORAGE_TOKEN);
       const storedGateway = localStorage.getItem(STORAGE_GATEWAY);
       if (location.pathname.startsWith("/chat/") && !sessionIdFromUrl())
@@ -28085,7 +28890,7 @@
         connect(storedGateway, storedToken, sessionIdFromUrl() ?? "new");
       }
     }, []);
-    (0, import_react17.useEffect)(() => {
+    (0, import_react19.useEffect)(() => {
       function onPopState() {
         const token = localStorage.getItem(STORAGE_TOKEN);
         if (!token || !gatewayHttpBaseRef.current) return;
@@ -28097,10 +28902,10 @@
       window.addEventListener("popstate", onPopState);
       return () => window.removeEventListener("popstate", onPopState);
     }, []);
-    (0, import_react17.useEffect)(() => {
+    (0, import_react19.useEffect)(() => {
       void pickDefaultModel(gatewayUrl.trim().replace(/\/$/, ""));
     }, []);
-    (0, import_react17.useEffect)(() => {
+    (0, import_react19.useEffect)(() => {
       const el = frameRef.current;
       if (!el) return;
       const observer = new ResizeObserver(
@@ -28131,14 +28936,14 @@
     const gridTemplateColumns = `${cols.sidebar}px ${cols.center}px`;
     if (!authenticated) {
       if (authCheckPending) {
-        return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "fh-auth-screen", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "fh-auth-loading", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "fh-spinner" }) }) });
+        return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "fh-auth-screen", children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "fh-auth-loading", children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "fh-spinner" }) }) });
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "fh-auth-screen", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "fh-auth-screen-controls", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(LanguageSelect, {}),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(ThemeToggle, {})
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "fh-auth-screen", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "fh-auth-screen-controls", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(LanguageSelect, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(ThemeToggle, {})
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
           ConnectForm,
           {
             error: connectError,
@@ -28149,8 +28954,8 @@
         )
       ] });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(RuntimeContext.Provider, { value: runtime, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(RuntimeContext.Provider, { value: runtime, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
         "div",
         {
           id: "app",
@@ -28158,24 +28963,39 @@
           ref: frameRef,
           style: { gridTemplateColumns },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
               Sidebar,
               {
                 collapsed: sidebarCollapsed,
                 onToggleCollapse: toggleSidebarCollapse,
-                onNewSession: () => startNewSession(),
-                onNewDataAnalysisSession: () => startNewSession("data-analysis"),
-                newSessionDisabled: !hasChatted,
+                onNewSession: () => {
+                  setProjectView(null);
+                  startNewSession();
+                },
+                onOpenDataAnalysis: () => setProjectView({ projectId: null }),
+                dataAnalysisActive: projectView !== null,
+                newSessionDisabled: !hasChatted && projectView === null,
                 onOpenSettings: () => setSettingsOpen(true),
                 onOpenSkills: () => setSkillsOpen(true),
                 onLogout: handleLogout
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { id: "center-col", className: "fh-center-col", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Conversation, {}) })
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { id: "center-col", className: "fh-center-col", children: projectView ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+              ProjectHub,
+              {
+                projectId: projectView.projectId,
+                onOpenProject: (projectId) => setProjectView({ projectId }),
+                onStartChat: (projectId, message) => startNewSession("data-analysis", projectId, message)
+              },
+              projectView.projectId ?? "project-list"
+            ) : /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(ProjectChatBar, { onOpenProject: (projectId) => setProjectView({ projectId }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(Conversation, {})
+            ] }) })
           ]
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
         SettingsDialog,
         {
           open: settingsOpen,
@@ -28183,14 +29003,14 @@
           onLogout: handleLogout
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SkillsDialog, { open: skillsOpen, onClose: () => setSkillsOpen(false) })
+      /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(SkillsDialog, { open: skillsOpen, onClose: () => setSkillsOpen(false) })
     ] });
   }
 
   // apps/web/src/ErrorBoundary.tsx
-  var import_react18 = __toESM(require_react(), 1);
-  var import_jsx_runtime18 = __toESM(require_jsx_runtime(), 1);
-  var ErrorBoundary = class extends import_react18.Component {
+  var import_react20 = __toESM(require_react(), 1);
+  var import_jsx_runtime20 = __toESM(require_jsx_runtime(), 1);
+  var ErrorBoundary = class extends import_react20.Component {
     state = { error: null };
     static getDerivedStateFromError(error) {
       return { error: error instanceof Error ? error : new Error(String(error)) };
@@ -28201,11 +29021,11 @@
     render() {
       const { error } = this.state;
       if (!error) return this.props.children;
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { maxWidth: 640, margin: "4em auto", padding: "0 1.5em", fontFamily: "system-ui, sans-serif", color: "#1a1a1a" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("h1", { style: { fontSize: "1.3em" }, children: "Something went wrong" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("p", { children: error.message }),
-        error.stack && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("pre", { style: { whiteSpace: "pre-wrap", fontSize: "0.75em", opacity: 0.7, overflowX: "auto" }, children: error.stack }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { style: { maxWidth: 640, margin: "4em auto", padding: "0 1.5em", fontFamily: "system-ui, sans-serif", color: "#1a1a1a" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("h1", { style: { fontSize: "1.3em" }, children: "Something went wrong" }),
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("p", { children: error.message }),
+        error.stack && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("pre", { style: { whiteSpace: "pre-wrap", fontSize: "0.75em", opacity: 0.7, overflowX: "auto" }, children: error.stack }),
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
           "button",
           {
             type: "button",
@@ -28219,11 +29039,11 @@
   };
 
   // apps/web/src/main.tsx
-  var import_jsx_runtime19 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime21 = __toESM(require_jsx_runtime(), 1);
   var container = document.getElementById("root");
   if (!container) throw new Error("fox-harness-web: missing #root in index.html");
   (0, import_client.createRoot)(container).render(
-    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(ErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(App, {}) })
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(App, {}) })
   );
 })();
 /*! Bundled license information:
@@ -28317,6 +29137,14 @@ lucide-react/dist/esm/createLucideIcon.js:
    * See the LICENSE file in the root directory of this source tree.
    *)
 
+lucide-react/dist/esm/icons/arrow-left.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
 lucide-react/dist/esm/icons/bot.js:
   (**
    * @license lucide-react v0.469.0 - ISC
@@ -28349,6 +29177,38 @@ lucide-react/dist/esm/icons/ellipsis.js:
    * See the LICENSE file in the root directory of this source tree.
    *)
 
+lucide-react/dist/esm/icons/file-output.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/file-spreadsheet.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/file-text.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/folder.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
 lucide-react/dist/esm/icons/log-out.js:
   (**
    * @license lucide-react v0.469.0 - ISC
@@ -28358,6 +29218,14 @@ lucide-react/dist/esm/icons/log-out.js:
    *)
 
 lucide-react/dist/esm/icons/maximize-2.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/message-square.js:
   (**
    * @license lucide-react v0.469.0 - ISC
    *
@@ -28397,6 +29265,14 @@ lucide-react/dist/esm/icons/panel-left-open.js:
    * See the LICENSE file in the root directory of this source tree.
    *)
 
+lucide-react/dist/esm/icons/paperclip.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
 lucide-react/dist/esm/icons/pencil.js:
   (**
    * @license lucide-react v0.469.0 - ISC
@@ -28422,6 +29298,14 @@ lucide-react/dist/esm/icons/search.js:
    *)
 
 lucide-react/dist/esm/icons/settings.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/share-2.js:
   (**
    * @license lucide-react v0.469.0 - ISC
    *

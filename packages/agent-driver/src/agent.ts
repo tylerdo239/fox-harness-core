@@ -9,22 +9,28 @@ import {
   type AgentStatus,
   type CancelOptions,
   type PreStepDecision,
+  type RequestErrorAction,
 } from '@deepseek-ai/dsh-agent'
 import type { InboxTarget } from '@deepseek-ai/dsh-agent/types'
-import type {
-  AgentCancelCause,
-  Session,
-  SessionId,
-  TurnEndReason,
-  UserMessage,
+import {
+  canonicalHeader,
+  headerEquals,
+  type AgentCancelCause,
+  type Session,
+  type SessionId,
+  type TurnEndReason,
+  type UserMessage,
 } from '@deepseek-ai/dsh-session'
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import {
   BlockAssembler,
   createToolResultMessage,
+  LlmError,
+  markAgentLoopRequest,
   type AssistantMessage,
   type GenerateOptions,
   type LlmCallConfig,
+  type PreparedLlmCall,
 } from '@deepseek-ai/dsh-llm'
 /**
  * Real turn/step state machine, reimplemented from scratch by reading
@@ -35,11 +41,7 @@ import {
  *
  * Deliberate scope cuts for v1 (documented, not accidental):
  *  - Tool calls execute sequentially, never in parallel.
- *  - `agent/request-error` isn't dispatched — a failed model call is terminal
- *    (throws), no retry policy.
- *  - No `request/header`/`request/context` bookkeeping events (cosmetic
- *    request-diffing trail upstream keeps, not required for turn/step
- *    correctness or replay).
+ *  - No `RuntimeContextProjection` snapshot message.
  *  - `cancel()` aborts the in-flight turn but does not distinguish
  *    aborted-before-dispatch from aborted-after-dispatch tool state the way
  *    upstream's `TOOL_ABORTED` / `TOOL_ABORTED_BEFORE_DISPATCH` do.
@@ -58,6 +60,7 @@ export class FoxHarnessAgent implements Agent {
   private _status: AgentStatus = 'idle'
   private readonly dispatch: AgentEventDispatch
   private turnSeq = 0
+  private requestHeaderLogged = false
   private driving = false
   private currentAbort: AbortController | undefined
   private idleWaiters: Array<() => void> = []
@@ -213,7 +216,7 @@ export class FoxHarnessAgent implements Agent {
         closed = false // fresh steering arrived during turn-stopping — reopen
       }
     } catch (error) {
-      reason = { kind: 'error', error: { message: String(error), code: 'UNKNOWN' } }
+      reason = { kind: 'error', error: error instanceof LlmError ? error.failure : { message: String(error), code: 'UNKNOWN' } }
       this.dispatch.emit('agent/error', { turn, step, error })
     } finally {
       this.session.append('turn/end', { turn, reason })
@@ -230,32 +233,7 @@ export class FoxHarnessAgent implements Agent {
   ): Promise<{ concludesTurn: boolean; hasToolCalls: boolean }> {
     const assembly = await this.ctx.systemPrompt.assemble(assembleContextFor(this, signal))
     const system = renderPrompt(assembly)
-
-    const defaultConfig: LlmCallConfig = {
-      provider: this.options.provider ?? 'deepseek-official',
-      model: this.options.model ?? 'deepseek-v4-flash',
-      maxTokens: this.options.maxTokens,
-    }
-    const config = await this.dispatch.waterfall(
-      'agent/request',
-      { turn, step, signal },
-      async () => defaultConfig,
-    )
-
-    const prepared = await this.ctx.llm.prepareCall(config, signal)
-    const request: GenerateOptions = {
-      ...prepared.config,
-      messages: this.session.deriveMessages(),
-      system,
-      tools: assembly.tools,
-      signal,
-    }
-
-    const assembler = new BlockAssembler()
-    for await (const chunk of prepared.stream(request)) {
-      this.session.append('assistant/chunk', { turn, step, chunk })
-      assembler.push(chunk)
-    }
+    const { assembler, config } = await this.callModel(turn, step, system, assembly.tools, signal)
 
     // BlockAssembler.message() returns the generic `Message` type; the
     // 'model' source tag is what actually makes it an AssistantMessage at
@@ -341,5 +319,86 @@ export class FoxHarnessAgent implements Agent {
     }
 
     return { concludesTurn, hasToolCalls: toolCalls.length > 0 }
+  }
+
+  // A failed call is offered to `agent/request-error` listeners, as in
+  // dsh-agent-loop: dsh-llm-retry backs off and answers `retry`,
+  // compaction-basic compacts on context overflow. `retry` rebuilds the
+  // request from the current session.
+  private async callModel(
+    turn: number,
+    step: number,
+    system: string,
+    tools: GenerateOptions['tools'],
+    signal: AbortSignal,
+  ): Promise<{ assembler: BlockAssembler; config: LlmCallConfig }> {
+    const defaultConfig: LlmCallConfig = {
+      provider: this.options.provider ?? 'deepseek-official',
+      model: this.options.model ?? 'deepseek-v4-flash',
+      maxTokens: this.options.maxTokens,
+    }
+
+    for (;;) {
+      const config = await this.dispatch.waterfall(
+        'agent/request',
+        { turn, step, signal },
+        async () => defaultConfig,
+      )
+
+      const prepared = await this.ctx.llm.prepareCall(config, signal)
+      this.logRequestHeader(prepared, system, tools)
+      // The mark + sessionId are what dsh-session-title's model titler waits for.
+      const request: GenerateOptions = markAgentLoopRequest({
+        ...prepared.config,
+        messages: this.session.deriveMessages(),
+        system,
+        tools,
+        sessionId: this.session.id,
+        signal,
+      })
+
+      const assembler = new BlockAssembler()
+      for await (const chunk of prepared.stream(request)) {
+        this.session.append('assistant/chunk', { turn, step, chunk })
+        assembler.push(chunk)
+      }
+
+      const finish = assembler.finish
+      if (finish.kind !== 'error' && finish.kind !== 'aborted') return { assembler, config }
+
+      const action = await this.dispatch.waterfall(
+        'agent/request-error',
+        { turn, step, provider: prepared.config.provider, failure: finish.failure, retryPolicy: prepared.retryPolicy, signal },
+        async (): Promise<RequestErrorAction> => undefined,
+      )
+      signal.throwIfAborted()
+      if (action?.kind !== 'retry') throw new LlmError(finish.failure.message, finish.failure.code, finish.failure)
+    }
+  }
+
+  // Same bookkeeping as dsh-agent-loop's buildRequest: one header per agent
+  // instance (`initial` on a new log, `resume` after a restart), later ones
+  // only on change. dsh-session-title, dsh-token-meter and compaction read it.
+  private logRequestHeader(prepared: PreparedLlmCall, system: string, tools: GenerateOptions['tools']): void {
+    const header = canonicalHeader({
+      config: prepared.config,
+      adapterDefaults: prepared.adapterDefaults,
+      ...(system ? { system } : {}),
+      ...(tools && tools.length > 0 ? { tools } : {}),
+    })
+    const baseline = this.session.requestHeader()
+    if (!this.requestHeaderLogged) {
+      this.session.append('request/header', { header, reason: baseline === undefined ? 'initial' : 'resume' })
+      this.requestHeaderLogged = true
+    } else if (baseline === undefined || !headerEquals(baseline, header)) {
+      this.session.append('request/header', { header, reason: 'change' })
+    }
+
+    const { provider, model } = prepared.config
+    const contextWindow = prepared.context?.contextWindow
+    const previous = this.session.requestContext()
+    if (previous?.provider !== provider || previous.model !== model || previous.contextWindow !== contextWindow) {
+      this.session.append('request/context', { provider, model, ...(contextWindow !== undefined ? { contextWindow } : {}) })
+    }
   }
 }

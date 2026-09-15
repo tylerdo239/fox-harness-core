@@ -52,7 +52,8 @@ export function Sidebar({
   collapsed,
   onToggleCollapse,
   onNewSession,
-  onNewDataAnalysisSession,
+  onOpenDataAnalysis,
+  dataAnalysisActive,
   newSessionDisabled,
   onOpenSettings,
   onOpenSkills,
@@ -61,10 +62,10 @@ export function Sidebar({
   collapsed: boolean;
   onToggleCollapse: () => void;
   onNewSession: () => void;
-  // docs/data-analysis-flow-plan.md: opens a new session on the
-  // "data-analysis" flow (a different agent loop) instead of the default
-  // one — same new-session semantics/guard as `onNewSession` otherwise.
-  onNewDataAnalysisSession: () => void;
+  // docs/rlm-transfer-plan.md 9.1: shows the data-analysis project hub in the
+  // center column — data chats live inside projects, as in agent-core.
+  onOpenDataAnalysis: () => void;
+  dataAnalysisActive: boolean;
   // Real bug fixed 2026-09-10: already on a fresh, never-chatted session
   // -> clicking this used to close the socket and open ANOTHER new one
   // for nothing (see App.tsx's `startNewSession` for the actual guard;
@@ -160,8 +161,8 @@ export function Sidebar({
       <MenuItem
         variant="nav"
         className="fh-sidebar-data-analysis"
-        onClick={onNewDataAnalysisSession}
-        disabled={newSessionDisabled}
+        active={dataAnalysisActive}
+        onClick={onOpenDataAnalysis}
         title={t("sidebar.dataAnalysis")}
       >
         <DataAnalysisIcon size={16} />
