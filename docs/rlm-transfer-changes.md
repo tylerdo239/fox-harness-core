@@ -515,3 +515,162 @@ Chưa sửa ở fox (ghi vào giai đoạn 5).
 | `cases-multiturn.json` sau khi sửa | 7/10 → **9/10** kịch bản (26/30 → 29/30 lượt); tổng thời gian 324 s → **68 s**; bước nhiều nhất 8 → 4. s07 lượt 1 còn trượt vì không có `torch`, nhưng 264 s → 4.2 s |
 
 Trên Qwen thật chưa lượt nào chạm giới hạn 8 bước, nên giới hạn chỉ được kiểm bằng LLM giả.
+
+## Giai đoạn 6 — bộ nhớ cho task dài: thu gọn lượt cũ, sổ biến Python, tóm tắt kiểu RLM (2026-09-15)
+
+Kế hoạch: `rlm-transfer-plan.md` mục 12 (A + B + D; lượt cũ lưu trong session, không thêm chỗ
+lưu). Chưa commit.
+
+### Sửa code
+
+| File | Nội dung |
+|---|---|
+| `packages/flow/data-analysis/src/collapse.ts` (mới) | A: cuối mỗi lượt (`agent/turn-stopping`), mọi lượt cũ hơn 2 lượt gần nhất: vùng từ bước gọi tool đầu tiên (hoặc ghi chú plugin) tới kết quả tool cuối và các ghi chú ngay sau nó → một ghi chú `[Turn n: tool steps (python ×k) collapsed to save context. Variables assigned: … print(history(n)) …]`. Ghi `compaction/prune` rồi `user/message` `surfaceOp replace`, như `dsh-compaction-tool-result-pruner`. Lượt đếm theo thứ tự `turn/start` trong log |
+| `packages/flow/data-analysis/src/compaction.ts` (mới) | D: class con `BasicCompactionEngine`, ghi đè `summarize()` — cùng một lời gọi như `summarizeWithLlm` gốc, lời dặn theo `_compact_history` của RLM (Requests / Results / Data decisions / Next step, chép số chính xác) |
+| `packages/flow/data-analysis/src/index.ts` | Config `keepRecentTurns` (2); hook `agent/turn-stopping`; inject `tokenMeter`; prompt: dùng lại biến trong sổ, giữ dữ liệu đã làm sạch trong một biến, `history(n)` |
+| `packages/flow/data-analysis/package.json`, `cordis.patch.yml` | Export `./compaction`; chèn dòng `fox-harness-compaction-data-analysis` (`thresholdRatio` 0.7, `maxTokens` 4096); devDependencies `dsh-compaction`, `dsh-compaction-basic`, `dsh-session`, `dsh-token-meter` |
+| `packages/profile-template/data-analysis/template/cordis.patch.yml` | Dòng `compaction-basic` → `disabled: true` (profile mặc định không đổi) |
+| `packages/tool/python-repl/python/runner.py` | Sau mỗi cell trả `variables` (`[tên, mô tả, có đổi]`); cầu nối `_fox_host`: ghi `{"host"}` ra stdout, đọc trả lời từ stdin (theo `host_tool_call`/`await_host_reply` của loop-rlm) |
+| `packages/tool/python-repl/python/helpers.py` | `history(n)` |
+| `packages/tool/python-repl/src/kernel.ts` | Sổ biến (mô tả + lượt gán gần nhất, tối đa 30 dòng); dòng `host` → hàm xử lý, trả `result`/`error` |
+| `packages/tool/python-repl/src/index.ts` | B: `agent/pre-step` (sau `next()`) thêm sổ biến khi khác bản gần nhất còn trên surface — thuật toán `RuntimeContextProjection`; `history(n)` dựng lượt n từ `session.events`; mô tả tool |
+| `packages/tool/python-repl/package.json`, `README.md`, `pnpm-lock.yaml` | devDependencies `dsh-agent`, `dsh-llm`, `dsh-session`; README tả sổ biến, cầu nối, `history(n)` |
+
+### Thử — worker trên máy, LLM giả (`skilltest/mem-test.sh`)
+
+| Ca | Kết quả |
+|---|---|
+| A: 8 lượt, tắt rồi bật worker sau lượt 6 | ✅ 12/12 — lượt 1–6 thu gọn (6 cặp `compaction/prune` + ghi chú); request cuối không còn kết quả tool của lượt 3–6; mọi request từ lượt 2 có sổ biến; sau khi mở lại sổ biến báo "The Python session restarted"; `history(1)` và `history(2)` (sau khi mở lại, worker mới đọc log) trả đủ câu hỏi, code, kết quả; log worker không lỗi |
+| D: cửa sổ 16 000, kết quả 8 000 ký tự, 7 lượt, không thu gọn | ✅ 4/4 — nén 4 lần không lỗi; request tóm tắt mang lời dặn mới; checkpoint theo mục mới |
+
+Lỗi tìm ra khi thử, đã sửa: sổ biến thêm ở bước trả lời nằm **sau** kết quả tool cuối nên không bị
+thu gọn — request cuối còn 13 ghi chú và danh sách biến dài dần. Vùng thu gọn nay kéo tới các ghi chú
+ngay sau kết quả tool cuối. Lần chạy đầu ca D không nén vì kết quả 20 000 ký tự bị pruner cắt còn
+~5 000, ngữ cảnh tụt dưới ngưỡng; bài thử đổi sang kết quả 8 000 ký tự (dưới ngưỡng cắt 8 192).
+
+### Stack thật + Qwen (image `3998aae3977b`)
+
+**Chat 12 lượt `skilltest/cases-long-retail.json`** (trước: 2026-09-14, `long-results.json`):
+
+| Chỉ số | Trước | Sau |
+|---|---|---|
+| Token đầu vào lượt 12 | 19 772 | **12 183** (−38%) |
+| Token lượt 4 / 8 / 11 | 12 612 / 14 949 / 19 615 | 7 141 / 10 927 / 12 768 |
+| Lần gọi `python` đọc lại CSV | 17/18 | **1/17** (chỉ lượt 1) |
+| Dữ liệu các lượt | lượt 7–9 tính trên 619 dòng chưa lọc | mọi lượt dùng `sales_valid` 611 dòng |
+| Tổng thời gian | 64.2 s | 46.1 s |
+| Nén bằng LLM | 0 | 0 (8 lượt thu gọn, sổ biến thêm 14 lần) |
+
+Đối chiếu pandas trên 611 dòng: danh mục dẫn đầu từng vùng (West: Clothing 15 364.42), doanh thu mỗi
+đơn vị Clothing 49.47, p-value t-test theo từng dòng 0.4106 — khớp; báo cáo lượt 12 lặp đúng số các
+lượt trước. Lần đo trước lượt 5 ghi "West: Grocery" — sai với cả dữ liệu gốc lẫn đã lọc. Model không
+gọi `history()` lần nào. Lượt 1 chạm giới hạn 8 bước (lần trước cũng vậy).
+
+Sổ biến cuối có cả biến vòng lặp và biến vẽ (`i`, `d`, `row`, `fig`, `ax`), ~30 dòng.
+
+**`cases-multiturn.json`**: 9/10 kịch bản (như trước), 28/30 lượt (trước 29/30). Lượt trượt thêm
+`s07#3` trả lời đúng ý bằng tiếng Việt ("ranh giới quyết định tuyến tính"), bài chấm tìm "linear".
+Đọc lại file ở lượt 2–3: 18/19 → **2/17**. Token lượt 3 trung bình 6 631 → 7 247 (+9%: chat 3 lượt
+chưa có gì để thu gọn, sổ biến thêm vài trăm token). Tổng thời gian 68.4 → 72.3 s (`s07` lượt 2 tự
+làm bằng scikit-learn 10.8 s thay vì từ chối).
+
+**Nhớ sau khi nén và mở lại (`skilltest/bench-longmem.mjs`)**: ✅ 4/4. Lượt 5 chạm ngưỡng, engine D
+tóm tắt 4 lần — cả 4 bản giữ "KIWI-4821" và `total_revenue = 163302.73`. Hỏi lại mã và tổng sau khi
+nén đúng; xoá container, mở lại chat: mã đúng, `doubled=326605.46` (tính lại vì biến Python đã mất).
+
+**Chrome thật** (`skilltest/gd6-ui-cdp.mjs`): chat 12 lượt hiện đủ 12 câu hỏi và báo cáo; không hiện
+ghi chú thu gọn hay sổ biến.
+
+### Đo mạnh sau giai đoạn 6 (2026-09-15, Qwen thật)
+
+**Toàn bộ bộ agent-core** (`benchmarks/rlm`, 88 kịch bản): 82/88.
+
+| Bộ | Trước (2026-09-14) | Sau |
+|---|---|---|
+| `cases.json`, `cases-repl.json`, `cases-skills.json`, `cases-ds-report.json` | 9/9, 10/10, 12/12, 2/2 | như trước |
+| `cases-tools.json` | 9/10 | 9/10 |
+| `cases-production.json` | 20/25 | 21/25 |
+| `cases-ds.json` (DABench) | — | 7/7 |
+| `cases-deepanalyze-synth.json` | — | 2/3 |
+| `cases-memory.json` | — | 10/10 |
+
+6 kịch bản trượt, không cái nào do tính sai: `query_database` ×2 (fox không có tool này); `p14`, `p20`
+tự viết code lập hồ sơ thay vì gọi `profile_dataset()`; `p18` ("không tồn tại") và
+`synth_end_to_end_curriculum` trả lời đúng bằng tiếng Việt, bài chấm tìm chữ tiếng Anh.
+
+**Bộ task dài tự dựng** (`skilltest/cases-hard-run.json`, đáp án tính bằng thư viện trong image —
+`scratchpad/make_hard_cases.py`): 4/5 kịch bản, 50/52 lượt, không lần nào nén bằng LLM.
+
+| Kịch bản | Kết quả | Ghi chú |
+|---|---|---|
+| H1 retail 18 lượt: làm sạch, 90th percentile, đổi yêu cầu "bỏ East" giữa chừng, hỏi lại số lượt 1–2 và 6 | ✅ 18/18 | Token đỉnh 9 892; 15 lần thu gọn; lượt hỏi lại trả lời không gọi tool |
+| H2 mô hình tín dụng 12 lượt: split, logistic, ngưỡng F1, RF, CV; xoá container trước lượt 11 | ✅ 12/12 | Sau khi mở lại, train lại đúng cách, `p_new` khớp |
+| H3 5 bộ dữ liệu 11 lượt; xoá container trước lượt 8 | ❌ 9/11 | Xem dưới |
+| H4 quy tắc từ lượt 1 (3 chữ số, `ref: ORCA-77`) + 5 lượt in bảng lớn | ✅ 10/10 | Giữ quy tắc mọi lượt; token đỉnh 15 819 |
+| H5 một lượt phân tích marketing đầy đủ | ✅ | Chạm giới hạn 8 bước, câu nhắc ở bước 9; báo cáo 460 từ, số khớp (CPA 9.54, R² 0.487) |
+
+H3 lượt 8, ngay sau khi container bị xoá: sổ biến báo *"Reload data from the files"*; model viết code
+mới tính CPA **theo từng dòng** (`df['spend_usd'] / df['conversions']`, `idxmin()`) và lấy dòng Social
+đầu tiên (`.values[0]` → 303.02) — ra "Search 4.45" thay vì "Display 9.54" của lượt 3. Câu trả lời
+lượt 3 vẫn còn nguyên văn trong ngữ cảnh lượt 8 (đã dựng lại surface từ log), model không dùng nó
+và không gọi `history(3)`. Báo cáo lượt 11 lặp số sai. Hướng sửa (chưa làm): câu báo khởi động lại
+dặn dùng lại kết quả đã nêu và dựng lại biến bằng đúng code cũ qua `history(n)`.
+
+### Chỉnh prompt sau khi đo mạnh (2026-09-15)
+
+| File | Nội dung |
+|---|---|
+| `packages/tool/python-repl/src/kernel.ts` | Câu báo khởi động lại (sổ biến và ghi chú đầu kết quả tool): kết quả đã nêu trong hội thoại vẫn đúng, dùng lại; dựng lại biến bằng đúng code cũ (`print(history(n))`) thay vì viết cách mới |
+| `packages/flow/data-analysis/src/index.ts` | Thêm: trả lời theo ngôn ngữ tin nhắn mới nhất; không nêu tên file thì xem `list_datasets()` và dùng file đang có, chỉ hỏi khi nhiều file cùng hợp; lập hồ sơ thì gọi `profile_dataset()` trước kể cả khi đã nạp skill; nhắc tới kết quả cũ thì dùng số đã nêu, tính lại thì cùng định nghĩa và code; lưu file chỉ bằng `save_artifact()`, không `plt.savefig("x.png")` vào thư mục làm việc; báo cáo, model card viết đủ trong câu trả lời, chỉ lưu file khi người dùng yêu cầu |
+| `packages/profile-template/data-analysis/template/cordis.patch.yml` | Persona viết bằng tiếng Anh (cùng ý) |
+
+**Thí nghiệm ngôn ngữ** (worker trên máy, Qwen thật, mỗi câu một chat mới; 5 câu tiếng Anh từng bị trả
+lời tiếng Việt, 2 câu tiếng Việt đối chứng):
+
+| Persona | Câu tiếng Anh → tiếng Anh | Câu tiếng Việt → tiếng Việt |
+|---|---|---|
+| V0: tiếng Việt, "Luôn trả lời bằng ngôn ngữ mà người dùng đang sử dụng" | 0/5 | 2/2 |
+| V1: V0, riêng câu về ngôn ngữ viết tiếng Anh | 1/5 | 2/2 |
+| V2: cả persona tiếng Anh | 5/5 | 2/2 |
+
+Lần đo sau khi đổi sang V2, `tool_typo_recovery` không gọi `web_search` và `stale_answer_regression` từ
+chối ghi nhớ "zebra-77". Thử lại riêng (V2 so với V3 — persona tiếng Anh không gói gọn vào phân tích dữ
+liệu): cả hai đều gọi `web_search`, đều ghi nhớ "zebra-77", đều 4/5 câu tiếng Anh → tiếng Anh. Không
+tái hiện được nên giữ V2.
+
+H2 lượt 12 và H3 lượt 11 trượt vì báo cáo ngắn: model gọi `write` ghi `/data/workspace/model_card.md`
+(ngoài `generated/`) rồi chỉ tóm tắt 86 từ trong chat — lý do thêm luật về báo cáo.
+
+**Đo với các luật trên (image `70e3d679cbf0`)**: bộ agent-core 85/88 (lượt tiếng Anh bị trả lời tiếng
+Việt 82/108 → 8/108), bộ nhiều lượt 30/30 — nhưng bộ task dài tụt còn 42/52. Ba lỗi, đã sửa:
+
+| Lỗi | Bằng chứng | Sửa |
+|---|---|---|
+| H4 quên quy tắc (`ref: ORCA-77`, 3 chữ số) từ lượt 5, lượt 9 trả lời "không có quy tắc nào" | Lượt 4 lên 22 508 token (ngưỡng 22 400) → nén ở lượt 5; cả 4 bản tóm tắt chỉ chép `"the mean price_usd of house_prices.csv…"`, không có "ORCA-77" — lời dặn tóm tắt của D thiếu mục chỉ dẫn của người dùng mà bản gốc dsh có | `packages/flow/data-analysis/src/compaction.ts`: thêm mục `## Standing instructions` (quy tắc cho phần còn lại của hội thoại, chép nguyên văn, không bỏ) |
+| H5 và `skill_cohort` bị chặn ở giới hạn bước, trả lời 8 từ | Bước 9: `[câu nhắc giới hạn bước] [sổ biến "…reuse them"]` → model gọi tool tiếp → `turn/end blocked`. Sổ biến nối vào cuối, sau ghi chú của plugin khác | `packages/tool/python-repl/src/index.ts`: sổ biến chèn ngay sau tin nhắn của bước (chỗ `RuntimeContextProjection` của dsh-agent-loop đặt snapshot), câu nhắc giới hạn bước là tin nhắn cuối |
+| Chat 12 lượt đọc lại file 11/12 lần | Lượt 2 chạy lại `pd.read_csv` và làm sạch — theo luật "tính lại thì dùng đúng code cũ" | `packages/flow/data-analysis/src/index.ts`: dùng lại số đã nêu, chép đúng từng chữ số; chỉ tính lại khi biến đã mất |
+
+LLM giả sau khi sửa (`skilltest/mem-test.sh`): A 11/11, D 4/4, **W 3/3** — ca mới: `maxSteps` 1, sổ biến
+đổi đúng ở bước chạm giới hạn; câu nhắc giới hạn bước là tin nhắn cuối model đọc.
+
+**Lần đo cuối (image `bce125835b70`)**, Qwen thật, so với các lần trước:
+
+| Chỉ số | Sau giai đoạn 6 | Sửa prompt lần 1 | Luật + persona tiếng Anh | Cuối |
+|---|---|---|---|---|
+| Bộ agent-core (88) | 82 | 82 | 85 | 82 |
+| Lượt tiếng Anh trả lời tiếng Việt (bộ agent-core) | 82/108 | 58/108 | 8/108 | 8/108 |
+| Bộ task dài (52 lượt) | 50 | 50 | 42 | **51** |
+| – H3 (mở lại chat giữa chừng) | 9/11 | 10/11 | 11/11 | 11/11 |
+| – H4 (quy tắc qua nén) | 10/10 (không nén) | 10/10 (không nén) | 4/10 | **9/10** (nén 2 lần, giữ quy tắc) |
+| – H5 (một lượt nặng) | ✅ | ✅ | ❌ blocked | ✅ |
+| Chat 12 lượt: token lượt 12, đọc lại file | 12 183, 1/17 | 13 516, 1/11 | 12 773, 11/12 | **9 910, 1/14** |
+| Bộ nhiều lượt (30 lượt) | 28 | 29 | 30 | **30** |
+
+Còn lại, dao động giữa các lần chạy:
+- Bộ agent-core 82–85: `query_database` ×2 (fox không có tool này); `skill_cohort` chạm giới hạn 8 bước;
+  `p14`, `p20` không gọi `profile_dataset()`. Model gọi helper Python (`list_datasets`…) như một tool ở cả
+  bốn lần đo (1, 6, 2, 4 lượt — cả trước khi có luật về file). `dabench_feature_engineering_354` hỏi
+  `SibSp`/`Parch` mà `test_x.csv` không có hai cột này: lần trước model tự giả định nên trùng đáp án, lần
+  cuối nói không tính được.
+- H4 lượt 10 tính dự đoán giá bằng tay, không gọi Python → 472 272 thay vì 468 270.9.
+- Ngôn ngữ: model chọn ở lượt đầu rồi giữ — chat 12 lượt lần cuối 11/12 lượt tiếng Việt (lần trước 0/12).

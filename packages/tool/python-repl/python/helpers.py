@@ -124,3 +124,8 @@ def save_artifact(relative_path, content):
         target.unlink(missing_ok=True)
         raise
     return (Path(_OUTPUT_DIR) / relative).as_posix()
+
+
+def history(turn):
+    """Full record of turn `turn` (from 1) of this conversation — messages, code, outputs — read from the conversation log."""
+    return _fox_host({"kind": "history", "turn": int(turn)})

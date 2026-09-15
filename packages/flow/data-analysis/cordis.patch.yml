@@ -14,3 +14,11 @@
     - id: fox-harness-flow-data-analysis
       name: '@fox-harness/dsh-flow-data-analysis'
       config: {}
+
+    # docs/rlm-transfer-plan.md 12.3 D: dsh-compaction-basic with a data-analysis
+    # summary instruction; the profile disables the `compaction-basic` row it replaces.
+    - id: fox-harness-compaction-data-analysis
+      name: '@fox-harness/dsh-flow-data-analysis/compaction'
+      config:
+        thresholdRatio: 0.7
+        maxTokens: 4096

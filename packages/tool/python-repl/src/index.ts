@@ -1,12 +1,16 @@
 import type { Context } from '@deepseek-ai/cordis'
+import '@deepseek-ai/dsh-agent'
+import { createUserMessage, type ContentBlock, type UserMessage } from '@deepseek-ai/dsh-llm'
+import { isAppendSurfaceEvent, type Session } from '@deepseek-ai/dsh-session'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-import { PythonKernel } from './kernel.ts'
+import { PythonKernel, type HostRequest } from './kernel.ts'
 
 export const name = 'fox-harness-tool-python-repl'
 export const inject = ['tools']
 
 const CELL_TIMEOUT_MS = 120_000
+const VARIABLES_CLEARED = 'Python variables: none are in memory now.'
 
 // `python` tool for the data-analysis flow (docs/rlm-transfer-plan.md, giai đoạn 2):
 // one persistent IPython process per worker container, i.e. per conversation.
@@ -19,9 +23,9 @@ export function apply(ctx: Context) {
       name: 'python',
       description: [
         'Run Python code in a persistent IPython session that belongs to this conversation.',
-        'Variables, imports and loaded data stay available across calls and turns until the session restarts.',
+        'Variables, imports and loaded data stay available across calls and turns until the session restarts; a note lists the variables in memory.',
         "The working directory holds the user's data files; save outputs there too.",
-        'Preloaded helpers: list_datasets(), load_dataset(name=None) → DataFrame, profile_dataset(name=None), save_artifact(path, content) → path under generated/.',
+        'Preloaded helpers: list_datasets(), load_dataset(name=None) → DataFrame, profile_dataset(name=None), save_artifact(path, content) → path under generated/, history(n) → the full record of turn n of this conversation (messages, code, outputs).',
         'Only printed output and the value of the last expression are returned, truncated after 20000 characters — print summaries, not whole tables.',
         'Open matplotlib figures are saved as PNG files under generated/ and their paths are returned.',
         `A call running longer than ${CELL_TIMEOUT_MS / 1000} seconds stops the session.`,
@@ -38,10 +42,101 @@ export function apply(ctx: Context) {
         render: (_args, value) => [{ type: 'text', text: value.output }],
       },
       async execute(args, exec) {
-        const cwd = exec.agent?.session.header.cwd ?? process.cwd()
-        const output = await kernel.run(args.code, cwd, CELL_TIMEOUT_MS, exec.signal)
+        const session = exec.agent?.session
+        const cwd = session?.header.cwd ?? process.cwd()
+        const host = (request: HostRequest): string => {
+          if (session === undefined || request.kind !== 'history') throw new Error(`unsupported host request "${request.kind}"`)
+          return renderTurn(session, Number(request.turn))
+        }
+        const output = await kernel.run(args.code, cwd, CELL_TIMEOUT_MS, exec.signal, session ? turnCount(session) : 0, host)
         return { output }
       },
     }),
   )
+
+  // Variables note (docs/rlm-transfer-plan.md 12.3 B): RLM's SHOW_VARS() pushed to the model
+  // rather than waiting for a call, delivered the way dsh-agent-loop's RuntimeContextProjection
+  // delivers runtime context (lib/index.js:26-86) — a user-role snapshot added only when its text
+  // differs from the latest one still on the model-visible surface, so it comes back after a
+  // collapse or compaction shadows it. After `next()`, to see what a compaction in this step left.
+  ctx.on('agent/pre-step', async (payload, next) => {
+    const decision = await next()
+    if (decision.kind === 'reject') return decision
+    const session = payload.agent.session
+    const current = kernel.variablesNote(session.events.some((event) => event.type === 'tool/call' && event.data.name === 'python'))
+    const retained = retainedNote(session)
+    if (retained === undefined && current === '') return decision
+    const text = current || VARIABLES_CLEARED
+    if (retained === text) return decision
+    const note = createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: name } })
+    // Right after this step's own messages, where dsh-agent-loop puts its snapshot, so a note another
+    // listener adds (the step-limit wrap-up) stays the last thing the model reads.
+    const at = payload.messages.length
+    return { ...decision, messages: [...decision.messages.slice(0, at), note, ...decision.messages.slice(at)] }
+  })
+}
+
+/** Latest variables note still on the surface; `null` when every note is shadowed, `undefined` when none was sent. */
+function retainedNote(session: Session): string | null | undefined {
+  const surface = new Set(session.surface.nodes)
+  let retained: null | undefined
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index]!
+    if (event.type !== 'user/message' || !isOwnNote(event.data)) continue
+    if (surface.has(event.seq)) return textOf(event.data.content)
+    retained = null
+  }
+  return retained
+}
+
+function isOwnNote(message: UserMessage): boolean {
+  return message.source.kind === 'plugin' && message.source.plugin === name
+}
+
+// Turns count `turn/start` events, as the collapse in @fox-harness/dsh-flow-data-analysis does:
+// the driver restarts `data.turn` at 1 when a chat reopens.
+function turnCount(session: Session): number {
+  return session.events.filter((event) => event.type === 'turn/start').length
+}
+
+/**
+ * `history(n)`: turn n rebuilt from the original events of the session log, so a turn collapsed
+ * or compacted on the model-visible surface still reads in full.
+ */
+function renderTurn(session: Session, n: number): string {
+  const total = turnCount(session)
+  if (!Number.isInteger(n) || n < 1 || n > total) throw new Error(`no turn ${n}: this conversation has turns 1 to ${total}`)
+  const parts: string[] = []
+  let turn = 0
+  for (const event of session.events) {
+    if (event.type === 'turn/start') turn += 1
+    if (turn < n) continue
+    if (turn > n) break
+    if (event.type === 'user/message' && isAppendSurfaceEvent(event) && event.data.source.kind === 'user') {
+      parts.push(`## User\n${textOf(event.data.content)}`)
+    } else if (event.type === 'assistant/message') {
+      for (const block of event.data.message.content) {
+        if (block.type === 'text' && block.text.trim()) parts.push(`## Assistant\n${block.text}`)
+        if (block.type === 'tool-call') parts.push(`### ${block.name}\n${callText(block.name, block.arguments)}`)
+      }
+    } else if (event.type === 'tool/result' && isAppendSurfaceEvent(event)) {
+      const result = event.data.message.content[0]!
+      parts.push(`### ${result.isError ? 'Error' : 'Output'}\n\`\`\`\n${textOf(result.content)}\n\`\`\``)
+    }
+  }
+  return parts.join('\n\n')
+}
+
+function callText(tool: string, args: string): string {
+  let code: unknown
+  try {
+    code = (JSON.parse(args || '{}') as { code?: unknown }).code
+  } catch {
+    // arguments the model left malformed are shown as sent
+  }
+  return tool === 'python' && typeof code === 'string' ? `\`\`\`python\n${code}\n\`\`\`` : `\`\`\`json\n${args}\n\`\`\``
+}
+
+function textOf(blocks: readonly ContentBlock[]): string {
+  return blocks.map((block) => (block.type === 'text' ? block.text : '')).join('')
 }

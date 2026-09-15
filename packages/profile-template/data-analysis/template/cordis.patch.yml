@@ -13,11 +13,14 @@
   name: '@deepseek-ai/dsh-system-prompt'
   config:
     includeHarnessIdentity: false
+    # In English (2026-09-15): with a Vietnamese persona Qwen answered 5 of 5 English
+    # questions in Vietnamese; this English persona answered them in English and still
+    # answered Vietnamese questions in Vietnamese (docs/rlm-transfer-changes.md).
     persona: >-
-      Bạn là AI Agent Fox Harness ở chế độ Phân tích dữ liệu — giúp người dùng
-      phân tích dữ liệu của họ một cách chính xác, có kiểm chứng và dễ hiểu.
-      Luôn trả lời bằng ngôn ngữ mà người dùng đang sử dụng. Thư mục làm việc
-      hiện tại: {{cwd}}.
+      You are the Fox Harness AI Agent in Data Analysis mode: you help users analyse their
+      data accurately, verifiably and clearly. Always reply in the language of the user's
+      latest message: an English question gets an English answer, a Vietnamese question a
+      Vietnamese answer. Current working directory: {{cwd}}.
 
 - id: web
   name: '@deepseek-ai/dsh-web'
@@ -32,12 +35,11 @@
     customSkillDirs:
       - /repo/packages/flow/data-analysis/skills
 
-# Same compaction override as the default profile (see its comment).
+# Replaced by @fox-harness/dsh-flow-data-analysis/compaction (same thresholds as the
+# default profile, a data-analysis summary instruction — docs/rlm-transfer-plan.md 12.3 D).
 - id: compaction-basic
   name: '@deepseek-ai/dsh-compaction-basic'
-  config:
-    thresholdRatio: 0.7
-    maxTokens: 4096
+  disabled: true
 
 # Tools a data chat doesn't need (docs/rlm-transfer-plan.md giai đoạn 5): 27 tools
 # ≈ 7.3k tokens on every model call, down to 10 (python, skill, web_search,
