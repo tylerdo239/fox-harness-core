@@ -120,6 +120,8 @@ pnpm install
 docker compose -f infra/docker/docker-compose.dev.yml up -d      # Redis + MariaDB
 docker exec -i docker-mariadb-1 mariadb -u fox_harness -pfox_harness_dev fox_harness \
   < infra/migrations/001_init.sql
+docker exec -i docker-mariadb-1 mariadb -u fox_harness -pfox_harness_dev fox_harness \
+  < infra/migrations/002_projects_title_source.sql
 
 docker build -f infra/docker/worker/Dockerfile -t fox-harness-worker:dev .
 
@@ -143,10 +145,10 @@ the `fox-harness-redis-data`/`fox-harness-mariadb-data` named volumes (users,
 sessions, login tokens), and `data/dsh-home/` on the host (every session's
 actual chat log — bind-mounted into worker containers, never stored inside
 one). Re-running the full sequence above is always safe **except**
-`docker exec ... < infra/migrations/001_init.sql`, which is only needed again
-if a *new* migration file was added (every statement in it is `if not
-exists`, so re-running the same file is a no-op, not destructive — but there's
-no reason to re-run it for a plain code change).
+the `docker exec ... < infra/migrations/NNN_*.sql` lines: run only a *new*
+migration file (every statement is `if not exists`, so re-running a file is a
+no-op, not destructive — but there's no reason to re-run one for a plain code
+change).
 
 The minimal restart for each kind of change:
 
@@ -246,8 +248,9 @@ gets written.
 ## Operations & maintenance
 
 - **Database migrations** live in `infra/migrations/`, applied by hand
-  (`mariadb ... < NNN_*.sql`) — there is no migration runner. `001_init.sql`
-  is the current canonical schema (2 tables: `users`, `sessions`).
+  (`mariadb ... < NNN_*.sql`, in order) — there is no migration runner. A
+  schema change is a new numbered file, never an edit to an existing one
+  (`infra/migrations/README.md`).
 - **Bootstrap the first admin**: `node scripts/create-admin.mjs <email>
   <password>` — never over HTTP; `POST /auth/register` can never create an
   `admin` role.

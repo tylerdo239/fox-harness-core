@@ -370,10 +370,10 @@ User chọn làm các mục ①②④⑤ trong bản trình bày giai đoạn 5;
 | ② Xoá chat không sập | `services/orchestrator/src/docker.ts` | `removeDirContentsAsRoot()`: container tạm chạy `find -mindepth 1 -delete` trên thư mục |
 | | `services/orchestrator/src/archive.ts` | `removeTree()`: `rm`, gặp `EACCES`/`EPERM` thì xoá bằng container tạm rồi `rm` lại; `purgeSession` dùng nó |
 | | `services/orchestrator/src/index.ts` | Route `DELETE /sessions/:id` có `try/catch` → `500` thay vì sập tiến trình |
-| ④ Tên do LLM đặt | `infra/migrations/001_init.sql`, `docs/schema/*` | Cột `sessions.title_source` (`user`/`fallback`/`provider`) |
+| ④ Tên do LLM đặt | `infra/migrations/002_projects_title_source.sql`, `docs/schema/*` | Cột `sessions.title_source` (`user`/`fallback`/`provider`) |
 | | `services/gateway/src/db.ts`, `index.ts` | `renameSession(id, title, source)`: `user` luôn thắng và đẩy `updated_at`; tự động chỉ ghi khi chưa có tên hoặc thay `fallback` bằng `provider`; `PATCH` nhận `source` |
 | | `apps/web/src/components/features/sidebar/HistoryChat.tsx` | Gửi tên kèm nguồn, bỏ điều kiện "đã có tên thì bỏ qua" |
-| ⑤ Project | `infra/migrations/001_init.sql`, `docs/schema/*` | Bảng `projects`; cột `sessions.project_id` + index |
+| ⑤ Project | `infra/migrations/002_projects_title_source.sql`, `docs/schema/*` | Bảng `projects`; cột `sessions.project_id` + index |
 | | `packages/contracts/src/index.ts` | `EnsureSessionRequest.projectId` |
 | | `services/orchestrator/src/{config,redis,ensure,docker,workspace-files,index}.ts` | `projectsDir` (`data/projects`); `SessionRecord.projectId`; chat project gắn thêm bind `data/projects/<id>:/data/workspace` và `FOX_OUTPUT_DIR=generated/<sessionId>` (cả khi mở lại); `projectDirFor()` kiểm UUID; route `…/projects/:id/files` và `DELETE /projects/:id` |
 | | `packages/tool/python-repl/{python/runner.py,python/helpers.py,src/kernel.ts}` | Hình tự lưu và `save_artifact()` ghi vào `FOX_OUTPUT_DIR` (mặc định `generated`) |

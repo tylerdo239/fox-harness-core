@@ -1,22 +1,20 @@
 # infra/migrations
 
-MariaDB schema migrations. `001_init.sql` — the only file — creates the 3
-real tables this app has: `users`, `sessions`, `custom_skills`.
+MariaDB schema migrations, run by hand in order (`mariadb ... < NNN_*.sql`):
+
+- `001_init.sql` — the base schema: `users`, `sessions`, `custom_skills`.
+- `002_projects_title_source.sql` — table `projects`; columns
+  `sessions.title_source` and `sessions.project_id`.
 
 Prod's DB server is MariaDB. This repo ran Postgres from Phase 5 through
 2026-09-08; the Postgres-era migration history and the `pg` driver code
 were removed entirely on 2026-09-09 (explicit instruction — not kept for
 historical record).
 
-Convention: `001_init.sql` is the single canonical schema file, kept
-up to date in place — this project has exactly one real deployment (no
-external installs whose history a numbered-migration trail would need to
-preserve), so a schema change edits `001_init.sql` directly and is applied
-to the live DB with the matching `ALTER TABLE` by hand, rather than adding
-a new numbered file. (2026-09-09 through 2026-09-14 this repo instead used
-numbered follow-up files — `002_custom_skills.sql`, `003_add_flow_column.sql`,
-`004_password_hash_length_and_session_id_pk.sql` — folded back into
-`001_init.sql` on 2026-09-14 once it was clear that trail wasn't earning
-its cost here. If this project ever gets a second real deployment/environment
-that needs to replay schema history independently, reintroduce numbered
-migration files at that point instead of applying this convention.)
+Convention (2026-09-15): a file that has been handed over or applied
+somewhere is never edited. `001_init.sql` went to the team provisioning
+prod, so every schema change is a new numbered file that only adds to what
+the earlier files created, written with `if not exists` so running it twice
+is harmless. (2026-09-09 through 2026-09-14 this repo used numbered files,
+then folded them into `001_init.sql` and edited it in place while the dev
+database was the only deployment; prod ended that.)
