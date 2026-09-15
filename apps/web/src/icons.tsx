@@ -73,4 +73,6 @@ export {
   // convention).
   Copy as CopyIcon,
   Check as CopiedIcon,
+  // Composer's Stop button while a reply is running.
+  Square as StopIcon,
 } from 'lucide-react'

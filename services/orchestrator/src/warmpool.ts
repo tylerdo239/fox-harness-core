@@ -51,6 +51,8 @@ export async function replenishWarmPool(): Promise<void> {
 /** Claim one pre-started container for a brand-new session, or `undefined` if the pool is empty (caller falls back to a cold spawn). */
 export async function claimWarmPoolMember(): Promise<WarmPoolEntry | undefined> {
   const entry = await popWarmPool()
-  if (entry) void replenishWarmPool() // fire-and-forget — don't make the caller wait on it
+  // Also when the pool is empty: a failed replenish (e.g. the host out of inotify instances)
+  // otherwise leaves it empty until the orchestrator restarts. Fire-and-forget.
+  void replenishWarmPool()
   return entry
 }

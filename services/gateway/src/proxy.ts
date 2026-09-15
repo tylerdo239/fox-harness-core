@@ -37,7 +37,7 @@ export function proxyToWorker(
   let workerOpen = false
   // 2026-09-09: `onClientMessage` fires on the FIRST browser->worker frame,
   // still without parsing it — `apps/web/src/wire.ts`'s real
-  // `ClientToServer` type only ever carries `{type:'followup'|'steer'}`, so
+  // `ClientToServer` type only ever carries `{type:'followup'|'steer'|'cancel'}`, so
   // any frame arriving here at all already IS a real message by the wire
   // protocol's own contract, no JSON decoding needed to know that (staying
   // byte-blind, same as every other frame this function relays).

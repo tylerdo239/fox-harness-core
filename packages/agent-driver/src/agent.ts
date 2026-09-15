@@ -24,6 +24,7 @@ import {
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import {
   BlockAssembler,
+  createAssistantMessage,
   createToolResultMessage,
   LlmError,
   markAgentLoopRequest,
@@ -42,7 +43,8 @@ import {
  * Deliberate scope cuts for v1 (documented, not accidental):
  *  - Tool calls execute sequentially, never in parallel.
  *  - No `RuntimeContextProjection` snapshot message.
- *  - `cancel()` aborts the in-flight turn but does not distinguish
+ *  - `cancel()` aborts the in-flight turn (ending it as `aborted`, keeping
+ *    streamed text as an `interrupted` message) but does not distinguish
  *    aborted-before-dispatch from aborted-after-dispatch tool state the way
  *    upstream's `TOOL_ABORTED` / `TOOL_ABORTED_BEFORE_DISPATCH` do.
  *  - `runMaintenance()` does not truly exclude a concurrent turn from
@@ -181,6 +183,7 @@ export class FoxHarnessAgent implements Agent {
       // machine re-reads its inbox: fresh steering runs another step").
       for (;;) {
         while (!closed || this.inbox.nextStep.length > 0) {
+          abort.signal.throwIfAborted()
           step += 1
           const claimed =
             step === 1
@@ -216,8 +219,16 @@ export class FoxHarnessAgent implements Agent {
         closed = false // fresh steering arrived during turn-stopping — reopen
       }
     } catch (error) {
-      reason = { kind: 'error', error: error instanceof LlmError ? error.failure : { message: String(error), code: 'UNKNOWN' } }
-      this.dispatch.emit('agent/error', { turn, step, error })
+      // As in dsh-agent-loop's turn(): a cancel (Stop button, dispose) ends the
+      // turn as aborted with its cause, not as a failure.
+      if (abort.signal.aborted) {
+        // A copy of the cause: fetch (undici) adds a non-enumerable `stack` to the abort reason
+        // object when it aborts an in-flight request, and the session log refuses such an object.
+        reason = { kind: 'aborted', reason: { ...(abort.signal.reason as AgentCancelCause) } }
+      } else {
+        reason = { kind: 'error', error: error instanceof LlmError ? error.failure : { message: String(error), code: 'UNKNOWN' } }
+        this.dispatch.emit('agent/error', { turn, step, error })
+      }
     } finally {
       this.session.append('turn/end', { turn, reason })
       this.currentAbort = undefined
@@ -314,6 +325,11 @@ export class FoxHarnessAgent implements Agent {
         ...(result.meta !== undefined ? { meta: result.meta } : {}),
       }
       this.session.append('tool/result', toolResultPayload, { surfaceOp: 'append' })
+      // As in dsh-agent-loop's executeToolCalls: context a post-execute hook attached (e.g.
+      // dsh-repeat-tool-reminder) reaches the model at the next step.
+      for (const context of result.additionalContexts ?? []) {
+        this.inbox.splice('next-step', this.inbox.nextStep.length, 0, [context])
+      }
 
       if (!result.isError && result.concludesTurn === true) concludesTurn = true
     }
@@ -358,9 +374,34 @@ export class FoxHarnessAgent implements Agent {
       })
 
       const assembler = new BlockAssembler()
-      for await (const chunk of prepared.stream(request)) {
-        this.session.append('assistant/chunk', { turn, step, chunk })
-        assembler.push(chunk)
+      // As in dsh-agent-loop's step(): a cancel mid-stream keeps the text
+      // already delivered as an `interrupted` assistant message.
+      try {
+        for await (const chunk of prepared.stream(request)) {
+          signal.throwIfAborted()
+          this.session.append('assistant/chunk', { turn, step, chunk })
+          assembler.push(chunk)
+        }
+        signal.throwIfAborted()
+      } catch (error) {
+        const content = signal.aborted ? assembler.interruptedBlocks() : []
+        if (content.length > 0) {
+          this.session.append(
+            'assistant/message',
+            {
+              turn,
+              step,
+              message: createAssistantMessage({
+                content,
+                source: { provider: prepared.config.provider, model: prepared.config.model },
+              }),
+              interrupted: true,
+              ...(assembler.usage !== undefined ? { usage: assembler.usage } : {}),
+            },
+            { surfaceOp: 'append' },
+          )
+        }
+        throw error
       }
 
       const finish = assembler.finish

@@ -674,3 +674,31 @@ Còn lại, dao động giữa các lần chạy:
   cuối nói không tính được.
 - H4 lượt 10 tính dự đoán giá bằng tay, không gọi Python → 472 272 thay vì 468 270.9.
 - Ngôn ngữ: model chọn ở lượt đầu rồi giữ — chat 12 lượt lần cuối 11/12 lượt tiếng Việt (lần trước 0/12).
+
+## URL riêng cho khu phân tích dữ liệu (2026-09-15)
+
+Trước: chat dữ liệu dùng `/chat/<id>` như chat thường; trang dự án không có URL (tải lại là mất); 604 chat
+dữ liệu không thuộc dự án (gần hết do benchmark) vẫn nằm trong danh sách chat chung. Chọn phương án A;
+chat dữ liệu cũ không thuộc dự án chỉ ẩn khỏi danh sách chung, không xoá.
+
+| URL | Màn hình |
+|---|---|
+| `/`, `/chat/<id>` | chat thường (giữ nguyên) |
+| `/data` | danh sách dự án |
+| `/data/<dự án>` | trang dự án |
+| `/data/<dự án>/chat/<id>` | chat trong dự án |
+| `/data/chat/<id>` | chat dữ liệu cũ không thuộc dự án |
+
+| File | Nội dung |
+|---|---|
+| `apps/web/src/App.tsx` | `routeFromUrl()` đọc 6 dạng URL; `applyRoute()` dùng chung cho tải trang, đăng nhập, Back/Forward (trang dự án ↔ chat không mở lại kết nối); `openDataView()` ghi URL khi mở danh sách/dự án; chat mới trong dự án giữ URL trang dự án tới tin đầu rồi thay bằng URL chat; `reconcileChatPlace()` chuyển link `/chat/<id>` của chat dữ liệu (hoặc ngược lại) sang đúng URL bằng `replaceState`; mục "Phân tích dữ liệu" sáng cả khi đang trong chat dữ liệu |
+| `apps/web/src/runtime.ts`, `components/features/projects/ProjectHub.tsx` | `switchSession(id, projectId?)`; tab Chats truyền dự án; `ProjectChatBar` báo `flow` và dự án của chat đang mở |
+| `apps/web/src/components/features/sidebar/HistoryChat.tsx` | Danh sách chung bỏ mọi chat `flow = data-analysis`; bỏ biểu tượng dữ liệu trên dòng |
+
+Server web không đổi: `scripts/serve-web.mjs` đã trả `index.html` cho mọi đường dẫn dạng route.
+
+**Chrome thật** (`skilltest/routes-cdp.mjs`): 17/17 — danh sách chung chỉ có chat thường; `/data`; tạo dự
+án → `/data/<dự án>`, tải lại vẫn ở đó; tin đầu → `/data/<dự án>/chat/<id>`, mục dữ liệu sáng, chat không
+vào danh sách chung; tải lại chat; thanh quay về → trang dự án, Back → chat, Forward → trang dự án; link cũ
+`/chat/<id>` → `/data/<dự án>/chat/<id>`; link cũ của chat không thuộc dự án → `/data/chat/<id>`; "Trò
+chuyện mới" → `/`; xoá dự án → `/data`.

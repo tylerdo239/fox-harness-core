@@ -1529,6 +1529,10 @@ button:disabled {
   transform: rotate(180deg);
 }
 
+.tool-pill-rules-text {
+  white-space: pre-wrap;
+}
+
 .tool-pill-error .tool-pill-header {
   color: var(--error);
 }
@@ -1611,6 +1615,64 @@ button:disabled {
   align-self: center;
   font-size: 0.8em;
   color: var(--error);
+}
+
+.notice-muted {
+  color: var(--muted);
+}
+
+/* Conversation.tsx: shown while a reply runs, from `turn/start` to `turn/end`. */
+.fh-run-status {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.fh-run-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.fh-run-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: fh-run-dot 1.2s ease-in-out infinite;
+}
+
+.fh-run-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.fh-run-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes fh-run-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fh-run-elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+.fh-stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
 }
 
 /* Phase 14: real dsh composer convention (`InputBar.module.css`'s real
@@ -2658,6 +2720,48 @@ button:disabled {
 
 .fh-hub-promote:hover {
   background: var(--bg-hover);
+}
+
+/* Project rules tab (ProjectHub.tsx). */
+.fh-hub-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding-top: 0.75em;
+}
+
+.fh-hub-rules p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.fh-hub-rules textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 12em;
+  padding: 0.7em 0.8em;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.fh-hub-rules-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+}
+
+.fh-hub-rules-actions small {
+  color: var(--muted);
+}
+
+.fh-hub-rules-actions small.fh-hub-rules-over {
+  color: var(--error);
 }
 
 .fh-hub-empty {

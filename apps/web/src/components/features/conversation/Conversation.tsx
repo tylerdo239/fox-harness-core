@@ -78,7 +78,10 @@ import { toast } from "sonner";
 import {
   BrandIcon,
   ChevronDownIcon,
+  FileTextIcon,
   SearchIcon,
+  SkillIcon,
+  StopIcon,
   ToolIcon,
 } from "../../../icons.tsx";
 import { translateErrorCode, useLocale } from "../../../i18n/locale.tsx";
@@ -114,17 +117,13 @@ const CREATE_SKILL_TOOL = "create_skill";
 // `LogEntry`'s `"search"` variant.
 const WEB_SEARCH_TOOL = "web_search";
 
-// 2026-09-15 (user: "Đừng show UI đã dùng skill hay bash gì") — real tool
-// names confirmed against installed `.js` (not guessed): `@deepseek-ai/
-// dsh-tool-skill` registers `"skill"` (loading a skill's content into
-// context when `/tên-skill` fires or the model calls it directly),
-// `@deepseek-ai/dsh-tool-bash`/`dsh-tool-bash-persistent` both register
-// `"bash"`. Both are internal/mechanical — a "Đã dùng skill"/"Đã dùng bash"
-// pill tells the user nothing they'd act on, unlike `web_search`'s real
-// sources. `tool/call` below skips pushing an entry at all for these names;
-// their later `tool/result` naturally no-ops in `updateEntry` (nothing
-// matches `tool-${callId}`), same as any id that was never pushed.
-const HIDDEN_TOOLS = new Set(["skill", "bash"]);
+// The `skill` tool (@deepseek-ai/dsh-tool-skill) shows as "Đã đọc skill <name>"
+// so the user sees which skill the model followed (2026-09-15: no longer hidden).
+const SKILL_TOOL = "skill";
+
+// dsh-agent-instructions' model-facing framing around the project rules (AGENTS.md).
+const RULES_FRAMING =
+  /^(<\/?system-reminder>|The following workspace instructions|Instructions from:|Updated instructions from:|Additional instructions from:|This file changed after it was loaded|These instructions apply to work under|Instructions removed:|The previously loaded instructions)/;
 
 // Real shape of `tool/result`'s `event.data.meta` for a `web_search` call —
 // `dsh-tools`' own `presentationMeta()` output, confirmed against its
@@ -170,7 +169,7 @@ interface WebSource {
 }
 
 type LogEntry =
-  | { kind: "notice"; id: string; text: string }
+  | { kind: "notice"; id: string; text: string; muted?: boolean }
   | {
       kind: "tool";
       id: string;
@@ -179,7 +178,11 @@ type LogEntry =
       args: string;
       status: "running" | "done" | "error";
       resultText: string | null;
+      // Set for the `skill` tool and `/name` invocations: the skill's name.
+      skill?: string;
     }
+  // Project rules the model received (dsh-agent-instructions), shown collapsed.
+  | { kind: "rules"; id: string; action: "set" | "replace" | "remove"; text: string }
   // 2026-09-15 (user: "UI dùng tool đang ghi là dùng web_search... ghi là
   // Đang tra cứu... show chung các kết quả của mọi lần gọi tool search vào
   // 1") — every `web_search` tool call in the SAME turn merges into ONE of
@@ -193,6 +196,8 @@ type LogEntry =
       turn: number;
       pendingCalls: number;
       hasError: boolean;
+      // The user pressed Stop while this search ran.
+      stopped?: boolean;
       sources: WebSource[];
       truncated: boolean;
       answer?: string;
@@ -307,18 +312,20 @@ function ToolPill({
   onToggle: () => void;
   t: (key: TranslationKey, params?: Record<string, string>) => string;
 }) {
+  const params = { name: entry.skill ?? entry.name };
   const label =
     entry.status === "running"
-      ? t("conversation.toolRunning", { name: entry.name })
+      ? t(entry.skill ? "conversation.skillLoading" : "conversation.toolRunning", params)
       : entry.status === "error"
-        ? t("conversation.toolFailed", { name: entry.name })
-        : t("conversation.toolUsed", { name: entry.name });
+        ? t(entry.skill ? "conversation.skillFailed" : "conversation.toolFailed", params)
+        : t(entry.skill ? "conversation.skillLoaded" : "conversation.toolUsed", params);
+  const Icon = entry.skill ? SkillIcon : ToolIcon;
   return (
     <div
       className={`tool-pill${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`}
     >
       <button type="button" className="tool-pill-header" onClick={onToggle}>
-        <ToolIcon size={13} />
+        <Icon size={13} />
         <span>{label}</span>
         <ChevronDownIcon size={13} className="tool-pill-chevron" />
       </button>
@@ -332,6 +339,51 @@ function ToolPill({
       )}
     </div>
   );
+}
+
+function RulesPill({
+  entry,
+  expanded,
+  onToggle,
+  t,
+}: {
+  entry: Extract<LogEntry, { kind: "rules" }>;
+  expanded: boolean;
+  onToggle: () => void;
+  t: (key: TranslationKey, params?: Record<string, string>) => string;
+}) {
+  const label = t(
+    entry.action === "replace"
+      ? "conversation.rulesUpdated"
+      : entry.action === "remove"
+        ? "conversation.rulesRemoved"
+        : "conversation.rulesApplied",
+  );
+  return (
+    <div className={`tool-pill${expanded ? " expanded" : ""}`}>
+      <button type="button" className="tool-pill-header" onClick={onToggle}>
+        <FileTextIcon size={13} />
+        <span>{label}</span>
+        <ChevronDownIcon size={13} className="tool-pill-chevron" />
+      </button>
+      {expanded && entry.text && (
+        <div className="tool-pill-detail">
+          <div className="tool-pill-result tool-pill-rules-text">{entry.text}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Rules text without dsh-agent-instructions' framing lines; the change action from the message source.
+function buildRulesEntry(id: string, message: WireMessage & { source?: { changes?: { action?: string }[] } }): LogEntry {
+  const action = message.source?.changes?.[0]?.action;
+  const text = contentToText(message.content)
+    .split("\n")
+    .filter((line) => !RULES_FRAMING.test(line.trim()))
+    .join("\n")
+    .trim();
+  return { kind: "rules", id, action: action === "replace" || action === "remove" ? action : "set", text };
 }
 
 // `undefined` on a malformed URL — callers fall back to the raw string.
@@ -409,7 +461,9 @@ function SearchSourcesPill({
   const label =
     entry.pendingCalls > 0
       ? t("conversation.searching")
-      : isError
+      : entry.stopped
+        ? t("conversation.searchStopped")
+        : isError
         ? t("conversation.searchFailed")
         : entry.sources.length === 0
           ? t("conversation.searchEmpty")
@@ -459,6 +513,21 @@ function SearchSourcesPill({
   );
 }
 
+function formatElapsed(
+  ms: number,
+  t: (key: TranslationKey, params?: Record<string, string>) => string,
+): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return minutes === 0
+    ? t("conversation.elapsedSeconds", { s: String(seconds) })
+    : t("conversation.elapsedMinutes", {
+        m: String(minutes),
+        s: String(seconds).padStart(2, "0"),
+      });
+}
+
 function LogEntryView({
   entry,
   isExpanded,
@@ -474,10 +543,23 @@ function LogEntryView({
 }) {
   switch (entry.kind) {
     case "notice":
-      return <div className="notice">{entry.text}</div>;
+      return (
+        <div className={`notice${entry.muted ? " notice-muted" : ""}`}>
+          {entry.text}
+        </div>
+      );
     case "tool":
       return (
         <ToolPill
+          entry={entry}
+          expanded={isExpanded(entry.id)}
+          onToggle={() => onToggleExpanded(entry.id)}
+          t={t}
+        />
+      );
+    case "rules":
+      return (
+        <RulesPill
           entry={entry}
           expanded={isExpanded(entry.id)}
           onToggle={() => onToggleExpanded(entry.id)}
@@ -537,6 +619,20 @@ export function Conversation() {
     new Set(),
   );
   const [text, setText] = useState("");
+  // The reply in progress: set on send / `turn/start`, cleared on `turn/end`.
+  // `tools` counts tool calls still waiting for their result. Drives the
+  // status row under the chat and the Send ⇄ Stop button.
+  const [run, setRun] = useState<{ startedAt: number; tools: number } | null>(
+    null,
+  );
+  const [now, setNow] = useState(() => Date.now());
+  const running = run !== null;
+  useEffect(() => {
+    if (!running) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
   const logRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const skillItems = useSkillMenu(runtime);
@@ -639,7 +735,7 @@ export function Conversation() {
   // `snapshot`. Only a live create_skill result saves a skill, so reopening
   // an old chat never saves the same skill again.
   function handleEvent(
-    event: { type: string; seq: number; data: unknown },
+    event: { type: string; seq: number; time: number; data: unknown },
     live: boolean,
   ): void {
     switch (event.type) {
@@ -653,12 +749,21 @@ export function Conversation() {
         // like an agent-harness debug tool. The boundary itself is still
         // real and still tracked server-side (`data.turn` on every other
         // event this session emits) — only the UI marker is gone.
+        // It does start the status row's clock — from the recorded time when
+        // replayed, so a reload mid-reply keeps counting.
+        setRun((prev) => prev ?? { startedAt: live ? Date.now() : event.time, tools: 0 });
         break;
       case "turn/end": {
         const data = event.data as {
           turn: number;
-          reason: { kind: string; error?: { code: string; message: string } };
+          reason: {
+            kind: string;
+            error?: { code: string; message: string };
+            reason?: { kind: string };
+          };
         };
+        setRun(null);
+        const stoppedByUser = data.reason.kind === "aborted" && data.reason.reason?.kind === "user";
         if (data.reason.kind === "error" && data.reason.error) {
           pushEntry({
             kind: "notice",
@@ -667,6 +772,16 @@ export function Conversation() {
               code: data.reason.error.code,
               message: data.reason.error.message,
             }),
+          });
+        } else if (
+          data.reason.kind === "aborted" &&
+          data.reason.reason?.kind === "user"
+        ) {
+          pushEntry({
+            kind: "notice",
+            id: `evt-${event.seq}`,
+            text: tRef.current("conversation.stopped"),
+            muted: true,
           });
         } else if (data.reason.kind !== "completed") {
           pushEntry({
@@ -709,9 +824,11 @@ export function Conversation() {
             if (
               entry.kind === "search" &&
               entry.turn === data.turn &&
-              entry.pendingCalls > 0
+              (entry.pendingCalls > 0 || (stoppedByUser && entry.hasError))
             ) {
-              return { ...entry, pendingCalls: 0, hasError: true };
+              return stoppedByUser
+                ? { ...entry, pendingCalls: 0, stopped: true }
+                : { ...entry, pendingCalls: 0, hasError: true };
             }
             return entry;
           }),
@@ -719,10 +836,28 @@ export function Conversation() {
         break;
       }
       case "user/message": {
-        const message = event.data as WireMessage & { source?: { kind: string } };
-        // Only what the user typed. dsh also appends context for the model as
-        // user messages — the skill catalog (`skill-catalog`) and a `/name`
-        // skill body (`skill-invocation`) — which don't belong in the chat.
+        const message = event.data as WireMessage & {
+          source?: { kind: string; name?: string; changes?: { action?: string }[] };
+        };
+        // Context dsh appends as user messages: project rules and a `/name` skill body show as
+        // collapsed pills; the rest (skill catalog, plugin notes) isn't for the chat.
+        if (message.source?.kind === "agent-instructions") {
+          pushEntry(buildRulesEntry(`evt-${event.seq}`, message));
+          break;
+        }
+        if (message.source?.kind === "skill-invocation" && message.source.name) {
+          pushEntry({
+            kind: "tool",
+            id: `evt-${event.seq}`,
+            turn: 0,
+            name: SKILL_TOOL,
+            skill: message.source.name,
+            args: `/${message.source.name}`,
+            status: "done",
+            resultText: truncate(contentToText(message.content), 500),
+          });
+          break;
+        }
         if (message.source && message.source.kind !== "user") break;
         pushEntry(
           buildBubbleEntry(`evt-${event.seq}`, "user", message.content),
@@ -801,7 +936,7 @@ export function Conversation() {
           name: string;
           arguments: string;
         };
-        if (HIDDEN_TOOLS.has(data.name)) break;
+        setRun((prev) => prev && { ...prev, tools: prev.tools + 1 });
         if (data.name === WEB_SEARCH_TOOL) {
           searchCallIdsRef.current.add(data.callId);
           upsertSearchEntry(
@@ -820,8 +955,11 @@ export function Conversation() {
           break;
         }
         let pretty = data.arguments;
+        let skill: string | undefined;
         try {
-          pretty = JSON.stringify(JSON.parse(data.arguments), null, 2);
+          const parsed = JSON.parse(data.arguments);
+          pretty = JSON.stringify(parsed, null, 2);
+          if (data.name === SKILL_TOOL && typeof parsed?.name === "string") skill = parsed.name;
         } catch {
           // not valid JSON (or empty) — show raw
         }
@@ -833,6 +971,7 @@ export function Conversation() {
           args: pretty,
           status: "running",
           resultText: null,
+          ...(skill ? { skill } : {}),
         });
         if (data.name === CREATE_SKILL_TOOL) {
           skillCallArgsRef.current.set(data.callId, data.arguments);
@@ -846,6 +985,7 @@ export function Conversation() {
           error?: { message?: string; name: string };
           meta?: unknown;
         };
+        setRun((prev) => prev && { ...prev, tools: Math.max(0, prev.tools - 1) });
         const block = data.message.content[0];
         const callId = block?.toolCallId;
         const isError = !!(data.error || block?.isError);
@@ -920,6 +1060,7 @@ export function Conversation() {
       case "snapshot":
         setEntries([]);
         setLiveBubbles(new Map());
+        setRun(null);
         pendingDeltasRef.current.clear();
         for (const event of frame.events) handleEvent(event, false);
         break;
@@ -927,6 +1068,9 @@ export function Conversation() {
         handleEvent(frame.event, true);
         break;
       case "error":
+        // Errors answer something this tab sent (e.g. no live agent), so the
+        // reply it was waiting for isn't coming.
+        setRun(null);
         pushEntry({
           kind: "notice",
           id: `err-${crypto.randomUUID()}`,
@@ -952,7 +1096,7 @@ export function Conversation() {
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [entries, liveBubbles]);
+  }, [entries, liveBubbles, running]);
 
   // Auto-grow the composer with content (`text` dependency covers both
   // typing AND the `setText('')` reset after send, so it collapses back
@@ -1030,9 +1174,16 @@ export function Conversation() {
 
   function sendMessage(): void {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    // One reply at a time: while it runs the button is Stop and Enter waits.
+    if (!trimmed || run || !runtime.connected) return;
     runtime.send({ type: "followup", text: trimmed });
     setText("");
+    // The status row shows right away instead of waiting for `turn/start`.
+    setRun({ startedAt: Date.now(), tools: 0 });
+  }
+
+  function stopRun(): void {
+    runtime.send({ type: "cancel" });
   }
 
   function onSubmit(event: FormEvent): void {
@@ -1086,7 +1237,10 @@ export function Conversation() {
   // nothing to show yet, center a real heading + this app's REAL composer
   // (same text input/Send button — just bigger, not new fake controls)
   // instead of pinning an empty #log above it.
-  const isEmpty = entries.length === 0 && liveBubbles.size === 0;
+  const isEmpty = entries.length === 0 && liveBubbles.size === 0 && !run;
+  // Streaming text already shows the reply is alive — the status row steps
+  // aside until the text stops (next step or tool).
+  const streaming = [...liveBubbles.values()].some((bubble) => bubble.text.trim());
 
   return (
     <div
@@ -1113,6 +1267,29 @@ export function Conversation() {
               )}
             </div>
           ))}
+          {run && (!streaming || !runtime.connected) && (
+            <div className="fh-run-status" role="status">
+              {runtime.connected ? (
+                <>
+                  <span className="fh-run-dots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span>
+                    {run.tools > 0
+                      ? t("conversation.runningTool")
+                      : t("conversation.thinking")}
+                  </span>
+                  <span className="fh-run-elapsed">
+                    {formatElapsed(now - run.startedAt, t)}
+                  </span>
+                </>
+              ) : (
+                <span>{t("conversation.disconnectedWhileRunning")}</span>
+              )}
+            </div>
+          )}
         </div>
       )}
       {isEmpty && (
@@ -1144,9 +1321,21 @@ export function Conversation() {
           onKeyDown={onTextareaKeyDown}
         />
         <div className="fh-composer-actions">
-          <Button variant="primary" type="submit">
-            {t("conversation.send")}
-          </Button>
+          {run && runtime.connected ? (
+            <Button
+              key="stop"
+              variant="primary"
+              className="fh-stop-btn"
+              onClick={stopRun}
+            >
+              <StopIcon size={12} fill="currentColor" />
+              {t("conversation.stop")}
+            </Button>
+          ) : (
+            <Button key="send" variant="primary" type="submit">
+              {t("conversation.send")}
+            </Button>
+          )}
         </div>
       </form>
     </div>

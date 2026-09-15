@@ -53,7 +53,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
-import { DataAnalysisIcon, MoreIcon, PencilIcon, TrashIcon } from "../../../icons.tsx";
+import { MoreIcon, PencilIcon, TrashIcon } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
@@ -208,8 +208,8 @@ export function HistoryChat({ query }: { query: string }) {
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    // Project chats are listed on their project's page (ProjectHub), not here.
-    const own = rows.filter((row) => !row.projectId);
+    // Data-analysis chats live in the data area (ProjectHub, `/data/…` URLs), not here.
+    const own = rows.filter((row) => row.flow !== "data-analysis");
     const filtered = q
       ? own.filter((row) => rowLabel(row, t).toLowerCase().includes(q))
       : own;
@@ -389,13 +389,6 @@ export function HistoryChat({ query }: { query: string }) {
                 />
               ) : (
                 <>
-                  {row.flow === "data-analysis" && (
-                    <DataAnalysisIcon
-                      size={14}
-                      className="fh-history-chat-row-flow"
-                      aria-label={t("sidebar.dataAnalysis")}
-                    />
-                  )}
                   <span className="fh-history-chat-row-title">
                     {rowLabel(row, t)}
                   </span>

@@ -77,6 +77,11 @@ export interface WorkspaceFile {
   path: string
   sizeBytes: number
   modified: string
+  // `source` a user upload (recorded in `.fox/sources.json`), `shared` an output promoted to
+  // `outputs/`, `chat` anything a chat wrote.
+  origin: 'source' | 'shared' | 'chat'
+  // The chat whose output folder (`generated/<sessionId>/`) holds the file, when known.
+  sessionId?: string
 }
 
 export interface WorkspaceFilesResponse {

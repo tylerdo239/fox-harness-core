@@ -24,10 +24,10 @@ export function apply(ctx: Context) {
       description: [
         'Run Python code in a persistent IPython session that belongs to this conversation.',
         'Variables, imports and loaded data stay available across calls and turns until the session restarts; a note lists the variables in memory.',
-        "The working directory holds the user's data files; save outputs there too.",
+        "The working directory holds the user's data files; save outputs only with save_artifact(), never into the working directory itself — files written there are moved to the output folder after the call.",
         'Preloaded helpers: list_datasets(), load_dataset(name=None) → DataFrame, profile_dataset(name=None), save_artifact(path, content) → path under generated/, history(n) → the full record of turn n of this conversation (messages, code, outputs).',
-        'Only printed output and the value of the last expression are returned, truncated after 20000 characters — print summaries, not whole tables.',
-        'Open matplotlib figures are saved as PNG files under generated/ and their paths are returned.',
+        'Only printed output and the value of the last expression are returned; past 20000 characters only the first 14000 and the last 6000 are kept — print summaries, not whole tables.',
+        'Matplotlib figures still open after a successful call, and not saved by the code itself, are saved as PNG files in the output folder and their paths are returned.',
         `A call running longer than ${CELL_TIMEOUT_MS / 1000} seconds stops the session.`,
       ].join(' '),
       parameters: {

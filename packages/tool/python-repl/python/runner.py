@@ -50,18 +50,70 @@ builtins.input = _no_input
 OUTPUT_DIR = os.environ.get("FOX_OUTPUT_DIR", "generated")
 
 
-def save_figures():
+def mark_saved_figures():
+    """Flag figures the code saves itself (plt.savefig, fig.savefig) so they are not saved twice."""
+    try:
+        from matplotlib.figure import Figure
+    except ImportError:
+        return
+    original = Figure.savefig
+
+    def savefig(self, *args, **kwargs):
+        self._fox_saved = True
+        return original(self, *args, **kwargs)
+
+    Figure.savefig = savefig
+
+
+mark_saved_figures()
+
+
+def save_figures(cell_succeeded):
+    """Save the figures still open after a cell — not after a failed cell, nor ones already saved — and close them."""
     plt = sys.modules.get("matplotlib.pyplot")
     if plt is None or not plt.get_fignums():
         return []
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
     paths = []
     for number in plt.get_fignums():
+        if not cell_succeeded or getattr(plt.figure(number), "_fox_saved", False):
+            continue
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
         path = os.path.join(OUTPUT_DIR, f"figure-{int(time.time() * 1000)}-{number}.png")
-        plt.figure(number).savefig(path, dpi=110, bbox_inches="tight")
-        paths.append(path)
+        # A figure the cell itself could not save (e.g. a label placed far off the
+        # axes) fails here too: report it next to the cell's own error instead of
+        # ending the Python process and losing that error.
+        try:
+            plt.figure(number).savefig(path, dpi=110, bbox_inches="tight")
+            paths.append(path)
+        except Exception as error:
+            print(f"Figure {number} was not saved: {type(error).__name__}: {error}")
     plt.close("all")
     return paths
+
+
+def move_stray_files(since):
+    """Move files a cell wrote into the working directory to the output folder — not uploads
+    (.fox/sources.json), generated/, outputs/ or hidden paths — so a chat's files never sit among
+    a project's sources (docs/qa-report-2026-09-15.md N2). Returns [(old path, new path)]."""
+    try:
+        with open(os.path.join(".fox", "sources.json"), encoding="utf-8") as sources_file:
+            sources = set(json.load(sources_file))
+    except (OSError, ValueError):
+        sources = set()
+    moved = []
+    for folder, dirs, files in os.walk("."):
+        top = folder == "."
+        dirs[:] = [d for d in dirs if not d.startswith(".") and not (top and d in ("generated", "outputs"))]
+        for name in files:
+            path = os.path.normpath(os.path.join(folder, name))
+            posix = path.replace(os.sep, "/")
+            if name.startswith(".") or posix in sources or os.path.getmtime(path) < since:
+                continue
+            target = os.path.join(OUTPUT_DIR, path)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            os.replace(path, target)
+            moved.append((posix, target.replace(os.sep, "/")))
+    return moved
 
 
 # Names that exist before any model code runs (IPython's own, the helpers and their
@@ -105,9 +157,17 @@ seen = {}
 for line in iter(sys.stdin.readline, ""):
     request = json.loads(line)
     buffer = io.StringIO()
+    started = time.time()
     with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
         result = shell.run_cell(request["code"], store_history=True)
-        figures = save_figures()
+        figures = save_figures(result.success)
+        moved = move_stray_files(started)
+    if moved:
+        print(
+            "Files written into the working directory were moved to this chat's output folder — use the new paths: "
+            + ", ".join(f"{old} → {new}" for old, new in moved),
+            file=buffer,
+        )
     listed, seen = variables(seen)
     reply = {"ok": result.success, "output": buffer.getvalue(), "figures": figures, "variables": listed}
     print(json.dumps(reply), file=protocol_out, flush=True)

@@ -35,6 +35,13 @@
     customSkillDirs:
       - /repo/packages/flow/data-analysis/skills
 
+# Project rules (AGENTS.md in the project folder, the chat's working directory): dsh-base
+# allows 65536 bytes, most of a 32k-token window; cap the rendered rules at 4000 bytes.
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 4000
+
 # Replaced by @fox-harness/dsh-flow-data-analysis/compaction (same thresholds as the
 # default profile, a data-analysis summary instruction — docs/rlm-transfer-plan.md 12.3 D).
 - id: compaction-basic

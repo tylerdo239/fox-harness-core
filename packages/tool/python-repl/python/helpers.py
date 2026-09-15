@@ -1,9 +1,10 @@
 """Data helpers preloaded into the `python` tool's IPython session.
 
-Datasets are the tabular files anywhere under the working directory, except
-generated/ and hidden paths. Adapted from agent-core's
-bundles/loop-drivers/loop-rlm/python/rlm_agent/tools.py, without its upload
-index (index.json) and per-conversation draft folders.
+Datasets are the tabular files the user uploaded (listed by the orchestrator in
+.fox/sources.json), outputs shared in the project (outputs/) and this chat's own
+outputs; without that list, every tabular file outside generated/ and hidden
+paths. Adapted from agent-core's bundles/loop-drivers/loop-rlm/python/rlm_agent/tools.py,
+without its per-conversation draft folders.
 """
 
 import json
@@ -24,15 +25,30 @@ def _working_path(relative_path):
     return target
 
 
+def _sources(root):
+    """Paths of the files the user uploaded, or None when the orchestrator has not recorded them."""
+    try:
+        return set(json.loads((root / ".fox" / "sources.json").read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return None
+
+
 def list_datasets():
-    """Tabular files in the working directory, newest first."""
+    """Tabular files to analyse, newest first: uploads, shared outputs and this chat's own outputs."""
     root = Path.cwd()
+    sources = _sources(root)
+    own = Path(_OUTPUT_DIR)
     items = []
     for path in root.rglob("*"):
         relative = path.relative_to(root)
         if not path.is_file() or path.suffix.lower() not in _DATASET_SUFFIXES:
             continue
-        if relative.parts[0] == "generated" or any(part.startswith(".") for part in relative.parts):
+        if any(part.startswith(".") for part in relative.parts):
+            continue
+        if sources is None:
+            if relative.parts[0] == "generated":
+                continue
+        elif not (relative.as_posix() in sources or relative.parts[0] == "outputs" or relative.is_relative_to(own)):
             continue
         stat = path.stat()
         items.append({"name": relative.as_posix(), "size_bytes": stat.st_size, "modified": stat.st_mtime})

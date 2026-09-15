@@ -33,6 +33,7 @@ import {
   formatSize,
   listWorkspaceFiles,
   MAX_UPLOAD_BYTES,
+  RULES_FILE,
   type WorkspaceFile,
 } from "../conversation/workspaceApi.ts";
 import {
@@ -52,6 +53,8 @@ type Translate = (key: TranslationKey, params?: Record<string, string>) => strin
 
 const DATASET_RE = /\.(csv|tsv|xlsx?|parquet)$/i;
 const IMAGE_RE = /\.(png|jpe?g|gif|webp)$/i;
+// Under the data-analysis profile's 4000-byte cap on rendered instructions.
+const RULES_MAX_BYTES = 3500;
 
 function dateLabel(value: string, t: Translate): string {
   const date = new Date(value);
@@ -195,9 +198,12 @@ function ProjectPage({
   const runtime = useRuntime();
   const { t } = useLocale();
   const base = `/projects/${project.projectId}`;
-  const [tab, setTab] = useState<"chats" | "sources" | "outputs">("chats");
+  const [tab, setTab] = useState<"chats" | "sources" | "outputs" | "rules">("chats");
   const [chats, setChats] = useState<ProjectChat[]>([]);
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
+  const [rules, setRules] = useState("");
+  const [savedRules, setSavedRules] = useState("");
+  const [savingRules, setSavingRules] = useState(false);
   const [title, setTitle] = useState(project.name);
   const [prompt, setPrompt] = useState("");
   const [progress, setProgress] = useState<number | undefined>();
@@ -217,18 +223,39 @@ function ProjectPage({
 
   useEffect(() => {
     void refresh();
+    fetchWorkspaceFile(runtime, base, RULES_FILE)
+      .then((blob) => blob.text())
+      .then((text) => {
+        setRules(text);
+        setSavedRules(text);
+      })
+      .catch(() => {}); // no rules file yet
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const sources = files.filter((file) => !file.path.startsWith("generated/") && !file.path.startsWith("outputs/"));
-  const projectOutputs = files.filter((file) => file.path.startsWith("outputs/"));
-  const chatOutputs = files
-    .filter((file) => file.path.startsWith("generated/"))
-    .map((file) => {
-      const [, sessionId, ...rest] = file.path.split("/");
-      return { file, sessionId, path: rest.join("/") };
-    })
-    .filter((output) => output.path);
+  const rulesBytes = new TextEncoder().encode(rules).length;
+
+  async function saveRules(): Promise<void> {
+    setSavingRules(true);
+    try {
+      await uploadProjectFile(runtime, project.projectId, new File([rules], RULES_FILE, { type: "text/markdown" }), () => {});
+      setSavedRules(rules);
+      toast.success(t("projects.rulesSaved"));
+    } catch {
+      toast.error(t("projects.saveFailed"));
+    }
+    setSavingRules(false);
+  }
+
+  const sources = files.filter((file) => file.origin === "source" && file.path !== RULES_FILE);
+  const projectOutputs = files.filter((file) => file.origin === "shared");
+  const chatOutputs = files.flatMap((file) =>
+    file.origin === "chat" && file.sessionId
+      ? [{ file, sessionId: file.sessionId, path: file.path.slice(`generated/${file.sessionId}/`.length) }]
+      : [],
+  );
+  // Written by a model outside any chat's output folder, so the chat is unknown.
+  const otherOutputs = files.filter((file) => file.origin === "chat" && !file.sessionId);
   const chatTitle = (sessionId: string) =>
     chats.find((chat) => chat.sessionId === sessionId)?.title ?? t("historyChat.untitled", { id: sessionId.slice(0, 8) });
 
@@ -309,7 +336,8 @@ function ProjectPage({
   const tabs = [
     { key: "chats", label: t("projects.tabChats"), count: chats.length },
     { key: "sources", label: t("projects.tabSources"), count: sources.length },
-    { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length },
+    { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length + otherOutputs.length },
+    { key: "rules", label: t("projects.tabRules"), count: undefined },
   ] as const;
 
   return (
@@ -378,7 +406,7 @@ function ProjectPage({
               onClick={() => setTab(item.key)}
             >
               {item.label}
-              <span>{item.count}</span>
+              {item.count !== undefined && <span>{item.count}</span>}
             </button>
           ))}
         </div>
@@ -386,7 +414,7 @@ function ProjectPage({
         {tab === "chats" && (
           <div className="fh-hub-list">
             {chats.map((chat) => (
-              <button type="button" key={chat.sessionId} className="fh-hub-content-row" onClick={() => runtime.switchSession(chat.sessionId)}>
+              <button type="button" key={chat.sessionId} className="fh-hub-content-row" onClick={() => runtime.switchSession(chat.sessionId, project.projectId)}>
                 <MessageSquareIcon size={18} />
                 <span>
                   <strong>{chat.title ?? t("historyChat.untitled", { id: chat.sessionId.slice(0, 8) })}</strong>
@@ -494,6 +522,54 @@ function ProjectPage({
               ))}
               {chatOutputs.length === 0 && <div className="fh-hub-empty">{t("projects.noOutputs")}</div>}
             </section>
+
+            {otherOutputs.length > 0 && (
+              <section className="fh-hub-output-group">
+                <div className="fh-hub-output-heading">
+                  <div>
+                    <h2>{t("projects.outputsOther")}</h2>
+                    <p>{t("projects.outputsOtherHint")}</p>
+                  </div>
+                  <span>{otherOutputs.length}</span>
+                </div>
+                {otherOutputs.map((file) => (
+                  <div className="fh-hub-output-row" key={file.path}>
+                    <button type="button" className="fh-hub-output-file" onClick={() => void openFile(file.path)}>
+                      <FileOutputIcon size={18} />
+                      <span>
+                        <strong>{file.path}</strong>
+                        <small>{formatSize(file.sizeBytes)}</small>
+                      </span>
+                    </button>
+                  </div>
+                ))}
+              </section>
+            )}
+          </div>
+        )}
+
+        {tab === "rules" && (
+          <div className="fh-hub-rules">
+            <p>{t("projects.rulesHint")}</p>
+            <textarea
+              value={rules}
+              rows={10}
+              placeholder={t("projects.rulesPlaceholder")}
+              onChange={(event) => setRules(event.target.value)}
+            />
+            <div className="fh-hub-rules-actions">
+              <small className={rulesBytes > RULES_MAX_BYTES ? "fh-hub-rules-over" : undefined}>
+                {t("projects.rulesSize", { n: String(rulesBytes), max: String(RULES_MAX_BYTES) })}
+              </small>
+              <button
+                type="button"
+                className="fh-hub-pill fh-hub-pill-primary"
+                disabled={savingRules || rulesBytes > RULES_MAX_BYTES || rules === savedRules}
+                onClick={() => void saveRules()}
+              >
+                {t("projects.rulesSave")}
+              </button>
+            </div>
           </div>
         )}
       </section>
@@ -508,8 +584,15 @@ function ProjectPage({
 }
 
 // Above a chat that belongs to a project: a way back to that project's page
-// (project chats are listed there, not in the sidebar history).
-export function ProjectChatBar({ onOpenProject }: { onOpenProject: (projectId: string) => void }) {
+// (project chats are listed there, not in the sidebar history). Also reports
+// where the open chat lives, so App.tsx can keep its URL in the right area.
+export function ProjectChatBar({
+  onOpenProject,
+  onChatPlace,
+}: {
+  onOpenProject: (projectId: string) => void;
+  onChatPlace: (sessionId: string, flow: string, projectId: string | null) => void;
+}) {
   const runtime = useRuntime();
   const [project, setProject] = useState<{ projectId: string; name: string } | null>(null);
 
@@ -519,11 +602,12 @@ export function ProjectChatBar({ onOpenProject }: { onOpenProject: (projectId: s
     async function lookup(): Promise<void> {
       const res = await runtime.authedFetch("/sessions/mine");
       if (!res.ok || cancelled) return;
-      const rows = (await res.json()) as { sessionId: string; projectId: string | null; projectName: string | null }[];
+      const rows = (await res.json()) as { sessionId: string; flow: string; projectId: string | null; projectName: string | null }[];
       const row = rows.find((item) => item.sessionId === runtime.sessionId);
-      if (cancelled || !row?.projectId || !row.projectName) return;
+      if (cancelled || !row) return;
       found = true;
-      setProject({ projectId: row.projectId, name: row.projectName });
+      onChatPlace(row.sessionId, row.flow, row.projectId);
+      if (row.projectId && row.projectName) setProject({ projectId: row.projectId, name: row.projectName });
     }
     setProject(null);
     if (runtime.sessionId) void lookup();

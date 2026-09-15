@@ -27,9 +27,12 @@ export interface Runtime {
   // — callers keep their own `res.ok`/status handling completely unchanged,
   // they just also recover gracefully instead of failing silently forever.
   authedFetch: (path: string, init?: RequestInit) => Promise<Response>
+  // The session's socket is open — false once it drops (no auto-reconnect).
+  connected: boolean
   onFrame: (listener: (frame: ServerToClient) => void) => () => void
   send: (frame: ClientToServer) => void
-  switchSession: (sessionId: string) => void
+  // `projectId`: the chat belongs to that data-analysis project (its URL lives under /data).
+  switchSession: (sessionId: string, projectId?: string) => void
   newSession: () => void
   // 2026-09-15: shared "current session's title" state so a rename typed in
   // EITHER `SessionTitleBar.tsx` (top of the chat column) or

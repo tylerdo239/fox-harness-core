@@ -5,7 +5,9 @@ import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 
 const RUNNER = fileURLToPath(new URL('../python/runner.py', import.meta.url))
-const MAX_OUTPUT_CHARS = 20_000
+// Long output keeps its start and its end: a traceback printed last must stay visible.
+const HEAD_OUTPUT_CHARS = 14_000
+const TAIL_OUTPUT_CHARS = 6_000
 // Lives in the working directory (under /data, survives the container) so a
 // fresh process can tell the model that earlier variables are gone.
 const SESSION_MARKER = '.python-session'
@@ -71,8 +73,9 @@ export class PythonKernel {
     }
     this.noteVariables(reply.variables, turn)
 
-    let text = reply.output.length > MAX_OUTPUT_CHARS
-      ? `${reply.output.slice(0, MAX_OUTPUT_CHARS)}\n… [truncated ${reply.output.length - MAX_OUTPUT_CHARS} characters]`
+    const omitted = reply.output.length - HEAD_OUTPUT_CHARS - TAIL_OUTPUT_CHARS
+    let text = omitted > 0
+      ? `${reply.output.slice(0, HEAD_OUTPUT_CHARS)}\n… [${omitted} characters omitted] …\n${reply.output.slice(-TAIL_OUTPUT_CHARS)}`
       : reply.output
     if (reply.figures.length > 0) text += `\nSaved figures: ${reply.figures.join(', ')}`
     if (note) text = `${note}\n${text}`

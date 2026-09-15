@@ -57,3 +57,55 @@
   config:
     thresholdRatio: 0.7
     maxTokens: 4096
+
+# Workspace instructions (AGENTS.md): dsh-base allows 65536 bytes, most of a 32k-token
+# window; cap the rendered rules at 4000 bytes.
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 4000
+
+# Tools the web chat has no surface for (2026-09-15): plan review (`exit_plan_mode`),
+# goals, background jobs, workflows, ralph and subagents need UI fox doesn't have, and
+# `str_replace_editor` duplicates `edit`. 26 tools cost ~9k input tokens on every model
+# call; the remaining 10 match the data-analysis profile minus `python` plus `bash`.
+# `name` must match the dsh-base row or the patch is skipped.
+- id: tool-workflow
+  name: '@deepseek-ai/dsh-tool-workflow'
+  disabled: true
+- id: workflow-worker-thread
+  name: '@deepseek-ai/dsh-workflow-worker-thread'
+  disabled: true
+- id: tool-ralph
+  name: '@deepseek-ai/dsh-tool-ralph'
+  disabled: true
+- id: tool-subagent
+  name: '@deepseek-ai/dsh-tool-subagent'
+  disabled: true
+- id: tool-subagent-fork
+  name: '@deepseek-ai/dsh-tool-subagent'
+  disabled: true
+- id: tool-subagent-control
+  name: '@deepseek-ai/dsh-tool-subagent-control'
+  disabled: true
+- id: tool-subagent-list-agents
+  name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+  disabled: true
+- id: tool-subagent-report
+  name: '@deepseek-ai/dsh-tool-subagent-report'
+  disabled: true
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+  disabled: true
+- id: plan-mode
+  name: '@deepseek-ai/dsh-plan-mode'
+  disabled: true
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  disabled: true
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+  disabled: true
+- id: tool-str-replace-editor
+  name: '@deepseek-ai/dsh-tool-str-replace-editor'
+  disabled: true
