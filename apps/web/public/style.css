@@ -1529,10 +1529,6 @@ button:disabled {
   transform: rotate(180deg);
 }
 
-.tool-pill-rules-text {
-  white-space: pre-wrap;
-}
-
 .tool-pill-error .tool-pill-header {
   color: var(--error);
 }
@@ -2720,48 +2716,6 @@ button:disabled {
 
 .fh-hub-promote:hover {
   background: var(--bg-hover);
-}
-
-/* Project rules tab (ProjectHub.tsx). */
-.fh-hub-rules {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6em;
-  padding-top: 0.75em;
-}
-
-.fh-hub-rules p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9em;
-}
-
-.fh-hub-rules textarea {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 12em;
-  padding: 0.7em 0.8em;
-  resize: vertical;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg);
-  color: var(--fg);
-  font: inherit;
-}
-
-.fh-hub-rules-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1em;
-}
-
-.fh-hub-rules-actions small {
-  color: var(--muted);
-}
-
-.fh-hub-rules-actions small.fh-hub-rules-over {
-  color: var(--error);
 }
 
 .fh-hub-empty {

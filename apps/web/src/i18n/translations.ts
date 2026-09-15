@@ -146,13 +146,10 @@ export const vi = {
   "conversation.toolRunning": "Đang dùng {name}…",
   "conversation.toolUsed": "Đã dùng {name}",
   "conversation.toolFailed": "Lỗi khi dùng {name}",
-  // The `skill` tool / a `/name` invocation, and project rules the model received.
+  // The `skill` tool / a `/name` invocation.
   "conversation.skillLoading": "Đang đọc skill {name}…",
   "conversation.skillLoaded": "Đã đọc skill {name}",
   "conversation.skillFailed": "Không đọc được skill {name}",
-  "conversation.rulesApplied": "Đã áp dụng quy tắc dự án",
-  "conversation.rulesUpdated": "Đã cập nhật quy tắc dự án",
-  "conversation.rulesRemoved": "Đã bỏ quy tắc dự án",
   // Real bug fixed 2026-09-11 (user: "box contain tool-pill vẫn còn mà ko
   // có dữ liệu ... bị shrink") — a tool call whose turn ended without a
   // matching `tool/result` (container hibernated/crashed mid-call, a real,
@@ -232,13 +229,6 @@ export const vi = {
   "projects.noOutputs": "Chưa có output.",
   "projects.loadFailed": "Không tải được dự án",
   "projects.saveFailed": "Không lưu được dự án",
-  // Project rules tab (ProjectHub.tsx): AGENTS.md read by every new chat of the project.
-  "projects.tabRules": "Quy tắc",
-  "projects.rulesHint": "Mọi đoạn chat trong dự án sẽ làm theo các quy tắc này — ví dụ đơn vị tiền, dữ liệu cần bỏ qua, cách trình bày. Sửa quy tắc thì đoạn chat đang mở áp dụng từ câu hỏi tiếp theo.",
-  "projects.rulesPlaceholder": "- Doanh thu tính bằng triệu VND, làm tròn 1 chữ số thập phân\n- Bỏ qua các đơn đã huỷ\n- Luôn nêu rõ khoảng thời gian của số liệu",
-  "projects.rulesSize": "{n}/{max} byte",
-  "projects.rulesSave": "Lưu quy tắc",
-  "projects.rulesSaved": "Đã lưu quy tắc dự án",
   // `conversation.reasoningRunning`/`.reasoningDone` (the collapsed
   // reasoning toggle) and `conversation.newSessionCmd`/
   // `.renameSessionCmd`/`common.renameSessionPrompt` (the `/`-command
@@ -377,9 +367,6 @@ export const en: Record<TranslationKey, string> = {
   "conversation.skillLoading": "Reading skill {name}…",
   "conversation.skillLoaded": "Read skill {name}",
   "conversation.skillFailed": "Couldn't read skill {name}",
-  "conversation.rulesApplied": "Applied project rules",
-  "conversation.rulesUpdated": "Updated project rules",
-  "conversation.rulesRemoved": "Removed project rules",
   "conversation.toolInterrupted": "The turn ended before a result arrived.",
   "conversation.copyCode": "Copy",
   "conversation.codeCopied": "Copied",
@@ -438,12 +425,6 @@ export const en: Record<TranslationKey, string> = {
   "projects.noOutputs": "No outputs yet.",
   "projects.loadFailed": "Couldn't load projects",
   "projects.saveFailed": "Couldn't save the project",
-  "projects.tabRules": "Rules",
-  "projects.rulesHint": "Every chat in this project follows these rules — e.g. currency units, data to ignore, how to present results. Edited rules apply to open chats from their next question.",
-  "projects.rulesPlaceholder": "- Revenue in millions of VND, one decimal place\n- Ignore cancelled orders\n- Always state the period a figure covers",
-  "projects.rulesSize": "{n}/{max} bytes",
-  "projects.rulesSave": "Save rules",
-  "projects.rulesSaved": "Project rules saved",
 
   "settings.title": "Settings",
   "settings.generalTab": "General",

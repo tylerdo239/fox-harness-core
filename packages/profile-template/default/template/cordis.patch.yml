@@ -58,12 +58,10 @@
     thresholdRatio: 0.7
     maxTokens: 4096
 
-# Workspace instructions (AGENTS.md): dsh-base allows 65536 bytes, most of a 32k-token
-# window; cap the rendered rules at 4000 bytes.
+# Workspace instructions (AGENTS.md) are off for now: the product has no UI for them.
 - id: agent-instructions
   name: '@deepseek-ai/dsh-agent-instructions'
-  config:
-    maxBytes: 4000
+  disabled: true
 
 # Tools the web chat has no surface for (2026-09-15): plan review (`exit_plan_mode`),
 # goals, background jobs, workflows, ralph and subagents need UI fox doesn't have, and

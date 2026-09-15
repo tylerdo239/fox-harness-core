@@ -78,7 +78,6 @@ import { toast } from "sonner";
 import {
   BrandIcon,
   ChevronDownIcon,
-  FileTextIcon,
   SearchIcon,
   SkillIcon,
   StopIcon,
@@ -120,10 +119,6 @@ const WEB_SEARCH_TOOL = "web_search";
 // The `skill` tool (@deepseek-ai/dsh-tool-skill) shows as "Đã đọc skill <name>"
 // so the user sees which skill the model followed (2026-09-15: no longer hidden).
 const SKILL_TOOL = "skill";
-
-// dsh-agent-instructions' model-facing framing around the project rules (AGENTS.md).
-const RULES_FRAMING =
-  /^(<\/?system-reminder>|The following workspace instructions|Instructions from:|Updated instructions from:|Additional instructions from:|This file changed after it was loaded|These instructions apply to work under|Instructions removed:|The previously loaded instructions)/;
 
 // Real shape of `tool/result`'s `event.data.meta` for a `web_search` call —
 // `dsh-tools`' own `presentationMeta()` output, confirmed against its
@@ -180,10 +175,7 @@ type LogEntry =
       resultText: string | null;
       // Set for the `skill` tool and `/name` invocations: the skill's name.
       skill?: string;
-    }
-  // Project rules the model received (dsh-agent-instructions), shown collapsed.
-  | { kind: "rules"; id: string; action: "set" | "replace" | "remove"; text: string }
-  // 2026-09-15 (user: "UI dùng tool đang ghi là dùng web_search... ghi là
+    }  // 2026-09-15 (user: "UI dùng tool đang ghi là dùng web_search... ghi là
   // Đang tra cứu... show chung các kết quả của mọi lần gọi tool search vào
   // 1") — every `web_search` tool call in the SAME turn merges into ONE of
   // these instead of a separate `ToolPill` per call. `pendingCalls` counts
@@ -339,51 +331,6 @@ function ToolPill({
       )}
     </div>
   );
-}
-
-function RulesPill({
-  entry,
-  expanded,
-  onToggle,
-  t,
-}: {
-  entry: Extract<LogEntry, { kind: "rules" }>;
-  expanded: boolean;
-  onToggle: () => void;
-  t: (key: TranslationKey, params?: Record<string, string>) => string;
-}) {
-  const label = t(
-    entry.action === "replace"
-      ? "conversation.rulesUpdated"
-      : entry.action === "remove"
-        ? "conversation.rulesRemoved"
-        : "conversation.rulesApplied",
-  );
-  return (
-    <div className={`tool-pill${expanded ? " expanded" : ""}`}>
-      <button type="button" className="tool-pill-header" onClick={onToggle}>
-        <FileTextIcon size={13} />
-        <span>{label}</span>
-        <ChevronDownIcon size={13} className="tool-pill-chevron" />
-      </button>
-      {expanded && entry.text && (
-        <div className="tool-pill-detail">
-          <div className="tool-pill-result tool-pill-rules-text">{entry.text}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Rules text without dsh-agent-instructions' framing lines; the change action from the message source.
-function buildRulesEntry(id: string, message: WireMessage & { source?: { changes?: { action?: string }[] } }): LogEntry {
-  const action = message.source?.changes?.[0]?.action;
-  const text = contentToText(message.content)
-    .split("\n")
-    .filter((line) => !RULES_FRAMING.test(line.trim()))
-    .join("\n")
-    .trim();
-  return { kind: "rules", id, action: action === "replace" || action === "remove" ? action : "set", text };
 }
 
 // `undefined` on a malformed URL — callers fall back to the raw string.
@@ -551,15 +498,6 @@ function LogEntryView({
     case "tool":
       return (
         <ToolPill
-          entry={entry}
-          expanded={isExpanded(entry.id)}
-          onToggle={() => onToggleExpanded(entry.id)}
-          t={t}
-        />
-      );
-    case "rules":
-      return (
-        <RulesPill
           entry={entry}
           expanded={isExpanded(entry.id)}
           onToggle={() => onToggleExpanded(entry.id)}
@@ -836,15 +774,9 @@ export function Conversation() {
         break;
       }
       case "user/message": {
-        const message = event.data as WireMessage & {
-          source?: { kind: string; name?: string; changes?: { action?: string }[] };
-        };
-        // Context dsh appends as user messages: project rules and a `/name` skill body show as
-        // collapsed pills; the rest (skill catalog, plugin notes) isn't for the chat.
-        if (message.source?.kind === "agent-instructions") {
-          pushEntry(buildRulesEntry(`evt-${event.seq}`, message));
-          break;
-        }
+        const message = event.data as WireMessage & { source?: { kind: string; name?: string } };
+        // Context dsh appends as user messages: a `/name` skill body shows as a collapsed pill;
+        // the rest (skill catalog, plugin notes) isn't for the chat.
         if (message.source?.kind === "skill-invocation" && message.source.name) {
           pushEntry({
             kind: "tool",

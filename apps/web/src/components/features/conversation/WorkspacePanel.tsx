@@ -16,7 +16,6 @@ import {
   formatSize,
   listWorkspaceFiles,
   MAX_UPLOAD_BYTES,
-  RULES_FILE,
   uploadWorkspaceFile,
   type WorkspaceFile,
 } from "./workspaceApi.ts";
@@ -40,7 +39,7 @@ export function WorkspacePanel() {
       // chat — not other chats' output folders.
       setFiles(
         (await listWorkspaceFiles(runtime, base))?.filter(
-          (file) => file.path !== RULES_FILE && (!file.sessionId || file.sessionId === runtime.sessionId),
+          (file) => !file.sessionId || file.sessionId === runtime.sessionId,
         ),
       );
     } catch {

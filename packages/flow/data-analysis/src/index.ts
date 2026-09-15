@@ -38,7 +38,6 @@ const DATA_ANALYSIS = `## Data analysis workspace
 The user's data files are in the working directory ({{cwd}}).
 - Use the \`python\` tool for every computation on data, and for exact arithmetic, counting or sorting — never work numbers out by hand.
 - Answer in the language of the user's latest message: an English question gets an English answer, a Vietnamese question a Vietnamese answer.
-- Workspace instructions from AGENTS.md (in a system reminder) are the project rules the user set for this project: always follow them, and when asked what rules you follow, list these project rules first.
 - When the user does not name a file, check \`list_datasets()\` and work on the dataset that is there; ask which one only when several fit and the choice changes the answer.
 - Inside the \`python\` tool (they are Python functions, not tools): run \`list_datasets()\` to see the files and \`profile_dataset("<file>")\` once before analysing a dataset; load it with \`load_dataset("<file>")\`. To profile or explore a dataset, call \`profile_dataset("<file>")\` first — also when a skill is loaded — and build on its output instead of hand-writing the same summary.
 - Python state persists between calls and turns, and a note lists the variables in memory. Reuse them instead of reloading files or recomputing; reload only when the note says the session restarted. Keep a cleaned dataset in one variable and build on it, so every turn works on the same data.

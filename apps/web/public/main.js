@@ -27624,13 +27624,10 @@
     "conversation.toolRunning": "\u0110ang d\xF9ng {name}\u2026",
     "conversation.toolUsed": "\u0110\xE3 d\xF9ng {name}",
     "conversation.toolFailed": "L\u1ED7i khi d\xF9ng {name}",
-    // The `skill` tool / a `/name` invocation, and project rules the model received.
+    // The `skill` tool / a `/name` invocation.
     "conversation.skillLoading": "\u0110ang \u0111\u1ECDc skill {name}\u2026",
     "conversation.skillLoaded": "\u0110\xE3 \u0111\u1ECDc skill {name}",
     "conversation.skillFailed": "Kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c skill {name}",
-    "conversation.rulesApplied": "\u0110\xE3 \xE1p d\u1EE5ng quy t\u1EAFc d\u1EF1 \xE1n",
-    "conversation.rulesUpdated": "\u0110\xE3 c\u1EADp nh\u1EADt quy t\u1EAFc d\u1EF1 \xE1n",
-    "conversation.rulesRemoved": "\u0110\xE3 b\u1ECF quy t\u1EAFc d\u1EF1 \xE1n",
     // Real bug fixed 2026-09-11 (user: "box contain tool-pill vẫn còn mà ko
     // có dữ liệu ... bị shrink") — a tool call whose turn ended without a
     // matching `tool/result` (container hibernated/crashed mid-call, a real,
@@ -27708,13 +27705,6 @@
     "projects.noOutputs": "Ch\u01B0a c\xF3 output.",
     "projects.loadFailed": "Kh\xF4ng t\u1EA3i \u0111\u01B0\u1EE3c d\u1EF1 \xE1n",
     "projects.saveFailed": "Kh\xF4ng l\u01B0u \u0111\u01B0\u1EE3c d\u1EF1 \xE1n",
-    // Project rules tab (ProjectHub.tsx): AGENTS.md read by every new chat of the project.
-    "projects.tabRules": "Quy t\u1EAFc",
-    "projects.rulesHint": "M\u1ECDi \u0111o\u1EA1n chat trong d\u1EF1 \xE1n s\u1EBD l\xE0m theo c\xE1c quy t\u1EAFc n\xE0y \u2014 v\xED d\u1EE5 \u0111\u01A1n v\u1ECB ti\u1EC1n, d\u1EEF li\u1EC7u c\u1EA7n b\u1ECF qua, c\xE1ch tr\xECnh b\xE0y. S\u1EEDa quy t\u1EAFc th\xEC \u0111o\u1EA1n chat \u0111ang m\u1EDF \xE1p d\u1EE5ng t\u1EEB c\xE2u h\u1ECFi ti\u1EBFp theo.",
-    "projects.rulesPlaceholder": "- Doanh thu t\xEDnh b\u1EB1ng tri\u1EC7u VND, l\xE0m tr\xF2n 1 ch\u1EEF s\u1ED1 th\u1EADp ph\xE2n\n- B\u1ECF qua c\xE1c \u0111\u01A1n \u0111\xE3 hu\u1EF7\n- Lu\xF4n n\xEAu r\xF5 kho\u1EA3ng th\u1EDDi gian c\u1EE7a s\u1ED1 li\u1EC7u",
-    "projects.rulesSize": "{n}/{max} byte",
-    "projects.rulesSave": "L\u01B0u quy t\u1EAFc",
-    "projects.rulesSaved": "\u0110\xE3 l\u01B0u quy t\u1EAFc d\u1EF1 \xE1n",
     // `conversation.reasoningRunning`/`.reasoningDone` (the collapsed
     // reasoning toggle) and `conversation.newSessionCmd`/
     // `.renameSessionCmd`/`common.renameSessionPrompt` (the `/`-command
@@ -27840,9 +27830,6 @@
     "conversation.skillLoading": "Reading skill {name}\u2026",
     "conversation.skillLoaded": "Read skill {name}",
     "conversation.skillFailed": "Couldn't read skill {name}",
-    "conversation.rulesApplied": "Applied project rules",
-    "conversation.rulesUpdated": "Updated project rules",
-    "conversation.rulesRemoved": "Removed project rules",
     "conversation.toolInterrupted": "The turn ended before a result arrived.",
     "conversation.copyCode": "Copy",
     "conversation.codeCopied": "Copied",
@@ -27900,12 +27887,6 @@
     "projects.noOutputs": "No outputs yet.",
     "projects.loadFailed": "Couldn't load projects",
     "projects.saveFailed": "Couldn't save the project",
-    "projects.tabRules": "Rules",
-    "projects.rulesHint": "Every chat in this project follows these rules \u2014 e.g. currency units, data to ignore, how to present results. Edited rules apply to open chats from their next question.",
-    "projects.rulesPlaceholder": "- Revenue in millions of VND, one decimal place\n- Ignore cancelled orders\n- Always state the period a figure covers",
-    "projects.rulesSize": "{n}/{max} bytes",
-    "projects.rulesSave": "Save rules",
-    "projects.rulesSaved": "Project rules saved",
     "settings.title": "Settings",
     "settings.generalTab": "General",
     "settings.profileTab": "Profile",
@@ -55541,7 +55522,6 @@
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
   var MAX_UPLOAD_BYTES = 70 * 1024 * 1024;
-  var RULES_FILE = "AGENTS.md";
   async function listWorkspaceFiles(runtime, base) {
     const res = await runtime.authedFetch(`${base}/files`);
     if (res.status === 404) return void 0;
@@ -55579,7 +55559,7 @@
       try {
         setFiles(
           (await listWorkspaceFiles(runtime, base))?.filter(
-            (file) => file.path !== RULES_FILE && (!file.sessionId || file.sessionId === runtime.sessionId)
+            (file) => !file.sessionId || file.sessionId === runtime.sessionId
           )
         );
       } catch {
@@ -55676,7 +55656,6 @@
   var CREATE_SKILL_TOOL = "create_skill";
   var WEB_SEARCH_TOOL = "web_search";
   var SKILL_TOOL = "skill";
-  var RULES_FRAMING = /^(<\/?system-reminder>|The following workspace instructions|Instructions from:|Updated instructions from:|Additional instructions from:|This file changed after it was loaded|These instructions apply to work under|Instructions removed:|The previously loaded instructions)/;
   function parseWebSearchMeta(meta) {
     if (typeof meta !== "object" || meta === null) return void 0;
     const record = meta;
@@ -55768,29 +55747,6 @@
         ]
       }
     );
-  }
-  function RulesPill({
-    entry,
-    expanded,
-    onToggle,
-    t
-  }) {
-    const label = t(
-      entry.action === "replace" ? "conversation.rulesUpdated" : entry.action === "remove" ? "conversation.rulesRemoved" : "conversation.rulesApplied"
-    );
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: `tool-pill${expanded ? " expanded" : ""}`, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { type: "button", className: "tool-pill-header", onClick: onToggle, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(FileText, { size: 13 }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: label }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ChevronDown, { size: 13, className: "tool-pill-chevron" })
-      ] }),
-      expanded && entry.text && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "tool-pill-detail", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "tool-pill-result tool-pill-rules-text", children: entry.text }) })
-    ] });
-  }
-  function buildRulesEntry(id, message) {
-    const action = message.source?.changes?.[0]?.action;
-    const text7 = contentToText(message.content).split("\n").filter((line) => !RULES_FRAMING.test(line.trim())).join("\n").trim();
-    return { kind: "rules", id, action: action === "replace" || action === "remove" ? action : "set", text: text7 };
   }
   function hostnameOf2(url) {
     try {
@@ -55892,16 +55848,6 @@
       case "tool":
         return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
           ToolPill,
-          {
-            entry,
-            expanded: isExpanded(entry.id),
-            onToggle: () => onToggleExpanded(entry.id),
-            t
-          }
-        );
-      case "rules":
-        return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-          RulesPill,
           {
             entry,
             expanded: isExpanded(entry.id),
@@ -56060,10 +56006,6 @@
         }
         case "user/message": {
           const message = event.data;
-          if (message.source?.kind === "agent-instructions") {
-            pushEntry(buildRulesEntry(`evt-${event.seq}`, message));
-            break;
-          }
           if (message.source?.kind === "skill-invocation" && message.source.name) {
             pushEntry({
               kind: "tool",
@@ -56619,7 +56561,6 @@
   var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
   var DATASET_RE = /\.(csv|tsv|xlsx?|parquet)$/i;
   var IMAGE_RE2 = /\.(png|jpe?g|gif|webp)$/i;
-  var RULES_MAX_BYTES = 3500;
   function dateLabel(value, t) {
     const date = new Date(value);
     return date.toDateString() === (/* @__PURE__ */ new Date()).toDateString() ? t("projects.today") : date.toLocaleDateString(void 0, { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -56731,9 +56672,6 @@
     const [tab2, setTab] = (0, import_react16.useState)("chats");
     const [chats, setChats] = (0, import_react16.useState)([]);
     const [files, setFiles] = (0, import_react16.useState)([]);
-    const [rules, setRules] = (0, import_react16.useState)("");
-    const [savedRules, setSavedRules] = (0, import_react16.useState)("");
-    const [savingRules, setSavingRules] = (0, import_react16.useState)(false);
     const [title, setTitle] = (0, import_react16.useState)(project.name);
     const [prompt, setPrompt] = (0, import_react16.useState)("");
     const [progress, setProgress] = (0, import_react16.useState)();
@@ -56751,26 +56689,8 @@
     }
     (0, import_react16.useEffect)(() => {
       void refresh();
-      fetchWorkspaceFile(runtime, base, RULES_FILE).then((blob) => blob.text()).then((text7) => {
-        setRules(text7);
-        setSavedRules(text7);
-      }).catch(() => {
-      });
     }, []);
-    const rulesBytes = new TextEncoder().encode(rules).length;
-    async function saveRules() {
-      setSavingRules(true);
-      try {
-        await uploadProjectFile(runtime, project.projectId, new File([rules], RULES_FILE, { type: "text/markdown" }), () => {
-        });
-        setSavedRules(rules);
-        toast.success(t("projects.rulesSaved"));
-      } catch {
-        toast.error(t("projects.saveFailed"));
-      }
-      setSavingRules(false);
-    }
-    const sources = files.filter((file) => file.origin === "source" && file.path !== RULES_FILE);
+    const sources = files.filter((file) => file.origin === "source");
     const projectOutputs = files.filter((file) => file.origin === "shared");
     const chatOutputs = files.flatMap(
       (file) => file.origin === "chat" && file.sessionId ? [{ file, sessionId: file.sessionId, path: file.path.slice(`generated/${file.sessionId}/`.length) }] : []
@@ -56851,8 +56771,7 @@
     const tabs = [
       { key: "chats", label: t("projects.tabChats"), count: chats.length },
       { key: "sources", label: t("projects.tabSources"), count: sources.length },
-      { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length + otherOutputs.length },
-      { key: "rules", label: t("projects.tabRules"), count: void 0 }
+      { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length + otherOutputs.length }
     ];
     return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-scroll", children: [
       /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("section", { className: "fh-hub", "aria-label": title, children: [
@@ -56915,7 +56834,7 @@
             onClick: () => setTab(item.key),
             children: [
               item.label,
-              item.count !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: item.count })
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: item.count })
             ]
           },
           item.key
@@ -57035,31 +56954,7 @@
             ] }) }, file.path))
           ] })
         ] }),
-        tab2 === "rules" && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-rules", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("p", { children: t("projects.rulesHint") }),
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
-            "textarea",
-            {
-              value: rules,
-              rows: 10,
-              placeholder: t("projects.rulesPlaceholder"),
-              onChange: (event) => setRules(event.target.value)
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-hub-rules-actions", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("small", { className: rulesBytes > RULES_MAX_BYTES ? "fh-hub-rules-over" : void 0, children: t("projects.rulesSize", { n: String(rulesBytes), max: String(RULES_MAX_BYTES) }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "fh-hub-pill fh-hub-pill-primary",
-                disabled: savingRules || rulesBytes > RULES_MAX_BYTES || rules === savedRules,
-                onClick: () => void saveRules(),
-                children: t("projects.rulesSave")
-              }
-            )
-          ] })
-        ] })
+        "      "
       ] }),
       preview && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-workspace-preview", role: "dialog", onClick: closePreview, children: [
         /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("img", { src: preview.url, alt: preview.path }),

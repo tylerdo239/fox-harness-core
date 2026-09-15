@@ -33,7 +33,6 @@ import {
   formatSize,
   listWorkspaceFiles,
   MAX_UPLOAD_BYTES,
-  RULES_FILE,
   type WorkspaceFile,
 } from "../conversation/workspaceApi.ts";
 import {
@@ -53,8 +52,6 @@ type Translate = (key: TranslationKey, params?: Record<string, string>) => strin
 
 const DATASET_RE = /\.(csv|tsv|xlsx?|parquet)$/i;
 const IMAGE_RE = /\.(png|jpe?g|gif|webp)$/i;
-// Under the data-analysis profile's 4000-byte cap on rendered instructions.
-const RULES_MAX_BYTES = 3500;
 
 function dateLabel(value: string, t: Translate): string {
   const date = new Date(value);
@@ -198,12 +195,9 @@ function ProjectPage({
   const runtime = useRuntime();
   const { t } = useLocale();
   const base = `/projects/${project.projectId}`;
-  const [tab, setTab] = useState<"chats" | "sources" | "outputs" | "rules">("chats");
+  const [tab, setTab] = useState<"chats" | "sources" | "outputs">("chats");
   const [chats, setChats] = useState<ProjectChat[]>([]);
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
-  const [rules, setRules] = useState("");
-  const [savedRules, setSavedRules] = useState("");
-  const [savingRules, setSavingRules] = useState(false);
   const [title, setTitle] = useState(project.name);
   const [prompt, setPrompt] = useState("");
   const [progress, setProgress] = useState<number | undefined>();
@@ -223,31 +217,10 @@ function ProjectPage({
 
   useEffect(() => {
     void refresh();
-    fetchWorkspaceFile(runtime, base, RULES_FILE)
-      .then((blob) => blob.text())
-      .then((text) => {
-        setRules(text);
-        setSavedRules(text);
-      })
-      .catch(() => {}); // no rules file yet
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const rulesBytes = new TextEncoder().encode(rules).length;
-
-  async function saveRules(): Promise<void> {
-    setSavingRules(true);
-    try {
-      await uploadProjectFile(runtime, project.projectId, new File([rules], RULES_FILE, { type: "text/markdown" }), () => {});
-      setSavedRules(rules);
-      toast.success(t("projects.rulesSaved"));
-    } catch {
-      toast.error(t("projects.saveFailed"));
-    }
-    setSavingRules(false);
-  }
-
-  const sources = files.filter((file) => file.origin === "source" && file.path !== RULES_FILE);
+  const sources = files.filter((file) => file.origin === "source");
   const projectOutputs = files.filter((file) => file.origin === "shared");
   const chatOutputs = files.flatMap((file) =>
     file.origin === "chat" && file.sessionId
@@ -337,7 +310,6 @@ function ProjectPage({
     { key: "chats", label: t("projects.tabChats"), count: chats.length },
     { key: "sources", label: t("projects.tabSources"), count: sources.length },
     { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length + otherOutputs.length },
-    { key: "rules", label: t("projects.tabRules"), count: undefined },
   ] as const;
 
   return (
@@ -406,7 +378,7 @@ function ProjectPage({
               onClick={() => setTab(item.key)}
             >
               {item.label}
-              {item.count !== undefined && <span>{item.count}</span>}
+              <span>{item.count}</span>
             </button>
           ))}
         </div>
@@ -546,33 +518,7 @@ function ProjectPage({
               </section>
             )}
           </div>
-        )}
-
-        {tab === "rules" && (
-          <div className="fh-hub-rules">
-            <p>{t("projects.rulesHint")}</p>
-            <textarea
-              value={rules}
-              rows={10}
-              placeholder={t("projects.rulesPlaceholder")}
-              onChange={(event) => setRules(event.target.value)}
-            />
-            <div className="fh-hub-rules-actions">
-              <small className={rulesBytes > RULES_MAX_BYTES ? "fh-hub-rules-over" : undefined}>
-                {t("projects.rulesSize", { n: String(rulesBytes), max: String(RULES_MAX_BYTES) })}
-              </small>
-              <button
-                type="button"
-                className="fh-hub-pill fh-hub-pill-primary"
-                disabled={savingRules || rulesBytes > RULES_MAX_BYTES || rules === savedRules}
-                onClick={() => void saveRules()}
-              >
-                {t("projects.rulesSave")}
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
+        )}      </section>
       {preview && (
         <div className="fh-workspace-preview" role="dialog" onClick={closePreview}>
           <img src={preview.url} alt={preview.path} />
