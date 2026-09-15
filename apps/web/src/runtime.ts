@@ -31,6 +31,18 @@ export interface Runtime {
   send: (frame: ClientToServer) => void
   switchSession: (sessionId: string) => void
   newSession: () => void
+  // 2026-09-15: shared "current session's title" state so a rename typed in
+  // EITHER `SessionTitleBar.tsx` (top of the chat column) or
+  // `HistoryChat.tsx` (sidebar) shows up in the other without either owning
+  // the other's internal state. `sessionTitle` is the value to DISPLAY;
+  // `sessionsVersion` is a plain invalidation counter — bump it after a
+  // successful rename and `HistoryChat.tsx`'s existing `refresh()` effect
+  // (already re-fetches on session switch) also re-fetches on a bump,
+  // without exposing that effect/its `rows` state through this context.
+  sessionTitle: string | undefined
+  setSessionTitle: (title: string | undefined) => void
+  sessionsVersion: number
+  bumpSessionsVersion: () => void
 }
 
 export const RuntimeContext = createContext<Runtime | null>(null)

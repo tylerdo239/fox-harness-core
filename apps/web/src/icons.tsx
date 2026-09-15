@@ -67,4 +67,10 @@ export {
   FileText as FileTextIcon,
   MessageSquare as MessageSquareIcon,
   Share2 as ShareIcon,
+  // Markdown code-block copy button (2026-09-15) — `CopyIcon` default,
+  // swaps to `CopiedIcon` for a moment after a successful copy (same
+  // "icon swap confirms the action" pattern already used elsewhere, no new
+  // convention).
+  Copy as CopyIcon,
+  Check as CopiedIcon,
 } from 'lucide-react'

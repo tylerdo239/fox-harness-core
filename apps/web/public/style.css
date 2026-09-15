@@ -573,6 +573,69 @@ input[type="text"].fh-history-chat-row-rename-input {
   flex-direction: column;
 }
 
+/* `SessionTitleBar.tsx` (2026-09-15) — click-to-edit chat title, top-left
+ * of the chat column. Real bug fixed same day (user: "đoạn hội thoại đang
+ * có 2 margin 2 bên là cho title ko nằm sát sidebar đổi title ra ngoài"):
+ * `#center-col > *` above gives every direct child `max-width:760px;
+ * margin:0 auto` to center the CHAT BUBBLE column on wide screens — this
+ * title bar inherited that too, so on a wide viewport it sat indented,
+ * aligned with the narrow bubble column instead of starting right after
+ * the sidebar the way a real title bar should. Opts back out to the full
+ * `#center-col` width, own small side padding instead of the large
+ * auto-centering margin.
+ *
+ * Follow-up fix, same day (user: "nhưng vẫn còn max width tôi ko muốn
+ * title có max width"): a plain `.fh-session-title-bar` class selector
+ * LOSES to `#center-col > *` regardless of source order — an ID selector
+ * always outranks a class one, so `max-width:760px` kept winning even with
+ * `max-width:none` written right here. `#center-col > .fh-session-title-bar`
+ * matches that same ID's specificity and adds the class on top, which is
+ * what actually overrides it. Fixed-height row, not part of the
+ * `.fh-conversation-root` flex-fill chain above (same "everything else is
+ * a fixed-height row" convention that comment already documents). */
+#center-col > .fh-session-title-bar {
+  flex: none;
+  max-width: none;
+  margin: 0;
+  padding: 0.6em 1.25em;
+}
+
+.fh-session-title-bar-display {
+  display: block;
+  max-width: 100%;
+  padding: 0.15em 0.4em;
+  margin-left: -0.4em;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  font-size: 1em;
+  font-weight: 600;
+  text-align: left;
+  cursor: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-session-title-bar-display:hover {
+  background: var(--bg-hover);
+}
+
+/* Same specificity note as `.fh-history-chat-row-rename-input` above —
+ * `input[type="text"]`'s own base rule needs an equally-specific selector
+ * to actually override, not just a class. */
+input[type="text"].fh-session-title-bar-input {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  padding: 0.15em 0.4em;
+  margin-left: -0.4em;
+  border-radius: var(--radius-sm);
+  font-size: 1em;
+  font-weight: 600;
+}
+
 .fh-conversation-root > #log {
   flex: 1;
   min-height: 0;
@@ -1178,12 +1241,225 @@ button:disabled {
  * the point. */
 .assistant-text {
   max-width: 100%;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
 .assistant-text-body {
   color: var(--fg);
+}
+
+/* Real markdown rendering (2026-09-15, Markdown.tsx — react-markdown +
+ * remark-gfm + rehype-highlight) replaced this app's old plain-text-plus-
+ * `linkify()` assistant bubbles. `white-space: pre-wrap` dropped from
+ * `.assistant-text` above for this reason: block elements (`<p>`, `<ul>`,
+ * ...) now own line/paragraph spacing themselves — keeping `pre-wrap` on
+ * top of real block layout would double-space everything. */
+.assistant-text-body :is(h1, h2, h3, h4, h5, h6) {
+  margin: 0.9em 0 0.4em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.assistant-text-body :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+.assistant-text-body h1 {
+  font-size: 1.35em;
+}
+.assistant-text-body h2 {
+  font-size: 1.2em;
+}
+.assistant-text-body :is(h3, h4, h5, h6) {
+  font-size: 1.05em;
+}
+
+.assistant-text-body p {
+  margin: 0.5em 0;
+}
+.assistant-text-body p:first-child {
+  margin-top: 0;
+}
+.assistant-text-body p:last-child {
+  margin-bottom: 0;
+}
+
+.assistant-text-body :is(ul, ol) {
+  margin: 0.5em 0;
+  padding-inline-start: 1.4em;
+}
+.assistant-text-body li {
+  margin: 0.2em 0;
+}
+.assistant-text-body li > :is(ul, ol) {
+  margin: 0.2em 0;
+}
+
+.assistant-text-body blockquote {
+  margin: 0.6em 0;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+.assistant-text-body hr {
+  margin: 1em 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.assistant-text-body strong {
+  font-weight: 600;
+}
+
+/* Inline `` `code` `` — distinct from a fenced block (`.md-code-block`
+ * below): small, on-line, no header/copy button. */
+.assistant-text-body .md-inline-code {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* Fenced code block — header row (language label + copy button) over a
+ * `<pre><code>` body. `React.memo` in Markdown.tsx keeps a finished block
+ * from re-rendering once its content stops changing; this is purely the
+ * visual shell, matching claude.ai/ChatGPT's own "labeled card" convention
+ * rather than a bare unstyled `<pre>`. */
+.md-code-block {
+  margin: 0.6em 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.md-code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.3em 0.3em 0.3em 0.8em;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+.md-code-block-lang {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-transform: lowercase;
+}
+
+.md-code-block pre {
+  margin: 0;
+  padding: 0.8em;
+  overflow-x: auto;
+}
+
+.md-code-block code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: var(--fg);
+  background: none;
+}
+
+/* Table — `.md-table-wrap` (Markdown.tsx) scrolls horizontally instead of
+ * overflowing/breaking the chat column on a wide table. */
+.md-table-wrap {
+  margin: 0.6em 0;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.md-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.md-table-wrap :is(th, td) {
+  padding: 0.45em 0.7em;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.md-table-wrap tr:last-child td {
+  border-bottom: none;
+}
+.md-table-wrap th {
+  background: var(--surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Syntax highlight (`highlight.js`'s real `hljs-*` class names, via
+ * `rehype-highlight`) — deliberately NOT one of highlight.js's own bundled
+ * theme stylesheets: an imported theme is tuned to ITS OWN background
+ * colors, not this app's `--bg`/`--surface`/`--fg` tokens, and would look
+ * like a foreign insert in both light and dark mode. A small palette
+ * reusing this app's own tokens where a semantic match exists (`--accent`
+ * for keywords, `--status-success`/`--status-danger` for string/deletion)
+ * plus a few new `--fh-syntax-*` tokens (fallback-only, same `var(--fh-x,
+ * fallback)` pattern this whole file already uses — see the file's own
+ * header comment) for the handful of concepts nothing existing maps to. */
+:root {
+  --syntax-comment: var(--fh-syntax-comment, #6b7280);
+  --syntax-number: var(--fh-syntax-number, #0550ae);
+  --syntax-function: var(--fh-syntax-function, #8250df);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --syntax-comment: var(--fh-syntax-comment, #9198a1);
+    --syntax-number: var(--fh-syntax-number, #79c0ff);
+    --syntax-function: var(--fh-syntax-function, #d2a8ff);
+  }
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-type {
+  color: var(--accent-text);
+}
+.hljs-string,
+.hljs-addition {
+  color: var(--status-success);
+}
+.hljs-deletion {
+  color: var(--status-danger);
+}
+.hljs-number {
+  color: var(--syntax-number);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-built_in {
+  color: var(--syntax-function);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable {
+  color: var(--fg);
+}
+.hljs-tag,
+.hljs-name {
+  color: var(--accent-text);
+}
+.hljs-meta,
+.hljs-punctuation {
+  color: var(--muted);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
 }
 
 /* Real gap fixed 2026-09-11 (user: "ko có lịch sử tool search show trên UI
@@ -1284,6 +1560,51 @@ button:disabled {
 
 .tool-pill-args {
   margin-bottom: 0.5em;
+}
+
+/* `SearchSourcesPill` (2026-09-15) — reuses `.tool-pill`'s shell
+ * (background/border/radius/collapse-expand) wholesale; `.search-pill`
+ * only overrides what's genuinely different: a real list of numbered
+ * sources instead of monospace args/result text. */
+.search-pill-detail {
+  font-family: var(--fh-font, inherit);
+  white-space: normal;
+}
+
+.search-pill-list {
+  margin: 0;
+  padding-inline-start: 1.4em;
+}
+
+.search-pill-list li {
+  margin: 0 0 0.7em;
+}
+.search-pill-list li:last-child {
+  margin-bottom: 0;
+}
+
+.search-pill-source-link {
+  font-weight: 500;
+}
+
+.search-pill-snippet {
+  margin-top: 0.15em;
+  color: var(--muted);
+}
+
+.search-pill-published {
+  margin-top: 0.15em;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.search-pill-truncated {
+  margin-top: 0.6em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+  color: var(--muted);
+  font-style: italic;
 }
 
 .notice {
@@ -1485,6 +1806,22 @@ button:disabled {
   background: var(--bg-hover);
 }
 
+/* Real bug fixed 2026-09-15 (user: "dropdown đổi lang trong cài đặt chung
+ * đang ko trigger check") — `z-index: 50` put this BEHIND
+ * `.fh-settings-dialog`'s `z-index: 1000` whenever opened from Settings >
+ * General (both `position: fixed`, both portaled to `document.body` as
+ * siblings — real stacking order follows z-index across sibling stacking
+ * contexts regardless of DOM order, not just "whoever mounted last wins").
+ * The popup rendered fully hidden behind the modal, so a click on where an
+ * option visually would be actually landed on the modal underneath instead
+ * — reads exactly as "the dropdown doesn't do anything," not a rendering
+ * glitch, since nothing looked visibly wrong (the trigger button + its
+ * chevron are OUTSIDE the popup, still visible and clickable — only the
+ * popup that opens on click was affected). Only breaks inside Settings —
+ * this component's OTHER mount point (the pre-login auth screen, no modal
+ * wrapping it) was never affected, matching the user's own report scoping
+ * it to "trong cài đặt chung" specifically. `1001`, not just a large
+ * arbitrary number — one above the one real modal it needs to clear. */
 .fh-lang-select-popup {
   position: fixed;
   background: var(--bg);
@@ -1492,7 +1829,7 @@ button:disabled {
   border-radius: 12px;
   box-shadow: var(--shadow-lv2);
   padding: 4px;
-  z-index: 50;
+  z-index: 1001;
 }
 
 /* Phase 12 item 5: a real settings dialog shell — see index.html's own
@@ -1776,7 +2113,11 @@ button:disabled {
 /* Noto/DejaVu first: plain `monospace` lacks precomposed Vietnamese glyphs
  * on some Linux setups. */
 .fh-skills-textarea {
-  font: 13px/1.55 "Noto Sans Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+  font:
+    13px/1.55 "Noto Sans Mono",
+    "DejaVu Sans Mono",
+    ui-monospace,
+    monospace;
   padding: 0.6em 0.7em;
   border: 1px solid var(--border);
   border-radius: 8px;

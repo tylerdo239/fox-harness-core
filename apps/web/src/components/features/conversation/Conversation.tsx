@@ -75,9 +75,14 @@ import {
 
 import { toast } from "sonner";
 
-import { BrandIcon, ChevronDownIcon, ToolIcon } from "../../../icons.tsx";
+import {
+  BrandIcon,
+  ChevronDownIcon,
+  SearchIcon,
+  ToolIcon,
+} from "../../../icons.tsx";
 import { translateErrorCode, useLocale } from "../../../i18n/locale.tsx";
-import type { TranslationKey } from "../../../i18n/translations.ts";
+import type { Locale, TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
 import type {
   ContentBlock,
@@ -93,6 +98,7 @@ import {
   refreshSkillMenu,
   SkillApiError,
 } from "../skills/skillsApi.ts";
+import { Markdown } from "./Markdown.tsx";
 import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
 import { WorkspacePanel } from "./WorkspacePanel.tsx";
 
@@ -101,7 +107,67 @@ import { WorkspacePanel } from "./WorkspacePanel.tsx";
 // already signed in as that user, does the actual save.
 const CREATE_SKILL_TOOL = "create_skill";
 
+// Real upstream tool name (`@deepseek-ai/dsh-tool-web`, confirmed against
+// its installed `lib/index.js` — not guessed), Serper plugged in as its
+// search provider (packages/tool/serper-web-search). 2026-09-15: every call
+// merges into a `SearchSourcesPill` instead of a generic `ToolPill` — see
+// `LogEntry`'s `"search"` variant.
+const WEB_SEARCH_TOOL = "web_search";
+
+// 2026-09-15 (user: "Đừng show UI đã dùng skill hay bash gì") — real tool
+// names confirmed against installed `.js` (not guessed): `@deepseek-ai/
+// dsh-tool-skill` registers `"skill"` (loading a skill's content into
+// context when `/tên-skill` fires or the model calls it directly),
+// `@deepseek-ai/dsh-tool-bash`/`dsh-tool-bash-persistent` both register
+// `"bash"`. Both are internal/mechanical — a "Đã dùng skill"/"Đã dùng bash"
+// pill tells the user nothing they'd act on, unlike `web_search`'s real
+// sources. `tool/call` below skips pushing an entry at all for these names;
+// their later `tool/result` naturally no-ops in `updateEntry` (nothing
+// matches `tool-${callId}`), same as any id that was never pushed.
+const HIDDEN_TOOLS = new Set(["skill", "bash"]);
+
+// Real shape of `tool/result`'s `event.data.meta` for a `web_search` call —
+// `dsh-tools`' own `presentationMeta()` output, confirmed against its
+// installed source while researching this feature. Narrowed here rather
+// than trusted blindly: `meta` is `unknown` on the wire (`wire.ts`'s
+// `SessionEvent.data` is deliberately untyped), and a malformed/absent
+// shape must fall back to "0 sources found," never throw.
+function parseWebSearchMeta(
+  meta: unknown,
+): { sources: WebSource[]; truncated: boolean; answer?: string } | undefined {
+  if (typeof meta !== "object" || meta === null) return undefined;
+  const record = meta as Record<string, unknown>;
+  if (!Array.isArray(record.sources)) return undefined;
+  const sources: WebSource[] = [];
+  for (const raw of record.sources) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const source = raw as Record<string, unknown>;
+    if (typeof source.url !== "string") continue;
+    sources.push({
+      url: source.url,
+      title: typeof source.title === "string" ? source.title : undefined,
+      snippet: typeof source.snippet === "string" ? source.snippet : undefined,
+      publishedAt:
+        typeof source.publishedAt === "string" ? source.publishedAt : undefined,
+    });
+  }
+  return {
+    sources,
+    truncated: record.truncated === true,
+    answer: typeof record.answer === "string" ? record.answer : undefined,
+  };
+}
+
 // ---- Declarative log state.
+
+// docs/code-rules.md convention this file already follows: real fields,
+// confirmed against installed .d.ts, not guessed.
+interface WebSource {
+  url: string;
+  title?: string;
+  snippet?: string;
+  publishedAt?: string;
+}
 
 type LogEntry =
   | { kind: "notice"; id: string; text: string }
@@ -113,6 +179,23 @@ type LogEntry =
       args: string;
       status: "running" | "done" | "error";
       resultText: string | null;
+    }
+  // 2026-09-15 (user: "UI dùng tool đang ghi là dùng web_search... ghi là
+  // Đang tra cứu... show chung các kết quả của mọi lần gọi tool search vào
+  // 1") — every `web_search` tool call in the SAME turn merges into ONE of
+  // these instead of a separate `ToolPill` per call. `pendingCalls` counts
+  // calls made but not yet resolved (can be >1 — the model can have
+  // several `web_search` calls in flight, or make more after this turn's
+  // first one already resolved); the pill reads "running" while it's >0.
+  | {
+      kind: "search";
+      id: string;
+      turn: number;
+      pendingCalls: number;
+      hasError: boolean;
+      sources: WebSource[];
+      truncated: boolean;
+      answer?: string;
     }
   | { kind: "bubble"; id: string; role: "user" | "assistant"; text: string };
 
@@ -145,12 +228,12 @@ function truncate(text: string, max: number): string {
 // rendered tool-result text is literally `${title}\n   ${url}\n   ${snippet}`
 // per result — both only ever showed up as inert text, never a clickable
 // link, which is exactly what reads as "no search history" even though the
-// data was there the whole time. Deliberately NOT a full markdown library —
-// this repo pulls in a real dependency only when hand-rolling stops being
-// reasonable (sonner replaced a hand-rolled toast for that exact reason);
-// linkifying `[text](url)` plus bare URLs is the entire need here, one
-// regex pass, no other markdown syntax appears anywhere in this app's real
-// output today.
+// data was there the whole time.
+//
+// Real markdown rendering added 2026-09-15 (`Markdown.tsx`) for the 2 spots
+// that show actual model output (a finished assistant bubble, the live
+// streaming bubble) — this `linkify()` stays only for `tool-pill-result`
+// below, which never needed more than link detection.
 const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"')\]]+)/g;
 
 function linkify(text: string): ReactNode[] {
@@ -163,7 +246,14 @@ function linkify(text: string): ReactNode[] {
     const [full, mdLabel, mdUrl, bareUrl] = match;
     const url = mdUrl ?? bareUrl;
     nodes.push(
-      <a key={key++} className="fh-link" href={url} target="_blank" rel="noopener noreferrer">
+      <a
+        key={key++}
+        className="fh-link"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={hostnameOf(url) ?? url}
+      >
         {mdLabel ?? bareUrl}
       </a>,
     );
@@ -244,16 +334,143 @@ function ToolPill({
   );
 }
 
+// `undefined` on a malformed URL — callers fall back to the raw string.
+function hostnameOf(url: string): string | undefined {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
+// Fallback label when a source has no `title` — bare hostname reads better
+// than a raw URL in a link's visible text (matches the real dsh reference
+// UI's own `sourceLabel()`/`Dd()` behavior found while researching this).
+function sourceLabel(source: WebSource): string {
+  return source.title || hostnameOf(source.url) || source.url;
+}
+
+// 2026-09-15 (user: "đang có issue khi lang là VN mà các ngày hay time
+// trong search chưa đc parse") — Serper mirrors Google's own raw SERP date
+// string verbatim: sometimes absolute ("Jul 25, 2025"), sometimes relative
+// ("7 months ago", "1 year ago") — always English, regardless of this app's
+// own language setting. Real pasted example that surfaced the bug: a
+// results list mixing both forms across different sources in the same
+// response. Parsed and reformatted per-locale here; an unrecognized shape
+// (Serper's date field isn't a documented/stable format) falls back to the
+// raw string as-is rather than showing nothing.
+const RELATIVE_TIME_RE = /^(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago$/i;
+const VI_TIME_UNIT: Record<string, string> = {
+  second: "giây",
+  minute: "phút",
+  hour: "giờ",
+  day: "ngày",
+  week: "tuần",
+  month: "tháng",
+  year: "năm",
+};
+
+function formatPublishedAt(raw: string, locale: Locale): string {
+  const relative = RELATIVE_TIME_RE.exec(raw.trim());
+  if (relative) {
+    const [, amount, unit] = relative;
+    if (locale === "vi") return `${amount} ${VI_TIME_UNIT[unit.toLowerCase()]} trước`;
+    return raw;
+  }
+  const parsedMs = Date.parse(raw);
+  if (!Number.isNaN(parsedMs)) {
+    return new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(new Date(parsedMs));
+  }
+  return raw;
+}
+
+// 2026-09-15: replaces `ToolPill` for every `web_search` call — see
+// `LogEntry`'s `"search"` variant comment for why these merge across calls
+// instead of one pill each. Collapsed by default, same
+// `expandedDetails`/`toggleDetailExpanded` state `ToolPill` uses.
+function SearchSourcesPill({
+  entry,
+  expanded,
+  onToggle,
+  t,
+  locale,
+}: {
+  entry: Extract<LogEntry, { kind: "search" }>;
+  expanded: boolean;
+  onToggle: () => void;
+  t: (key: TranslationKey, params?: Record<string, string>) => string;
+  locale: Locale;
+}) {
+  const isError = entry.hasError && entry.sources.length === 0;
+  const label =
+    entry.pendingCalls > 0
+      ? t("conversation.searching")
+      : isError
+        ? t("conversation.searchFailed")
+        : entry.sources.length === 0
+          ? t("conversation.searchEmpty")
+          : t("conversation.searched", { n: String(entry.sources.length) });
+  return (
+    <div
+      className={`tool-pill search-pill${isError ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`}
+    >
+      <button type="button" className="tool-pill-header" onClick={onToggle}>
+        <SearchIcon size={13} />
+        <span>{label}</span>
+        <ChevronDownIcon size={13} className="tool-pill-chevron" />
+      </button>
+      {expanded && entry.sources.length > 0 && (
+        <div className="tool-pill-detail search-pill-detail">
+          <ol className="search-pill-list">
+            {entry.sources.map((source, index) => (
+              <li key={`${source.url}-${index}`}>
+                <a
+                  className="fh-link search-pill-source-link"
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={hostnameOf(source.url) ?? source.url}
+                >
+                  {sourceLabel(source)}
+                </a>
+                {source.snippet && (
+                  <div className="search-pill-snippet">{source.snippet}</div>
+                )}
+                {source.publishedAt && (
+                  <div className="search-pill-published">
+                    {formatPublishedAt(source.publishedAt, locale)}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
+          {entry.truncated && (
+            <div className="search-pill-truncated">
+              {t("conversation.searchTruncated")}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LogEntryView({
   entry,
   isExpanded,
   onToggleExpanded,
   t,
+  locale,
 }: {
   entry: LogEntry;
   isExpanded: (id: string) => boolean;
   onToggleExpanded: (id: string) => void;
   t: (key: TranslationKey, params?: Record<string, string>) => string;
+  locale: Locale;
 }) {
   switch (entry.kind) {
     case "notice":
@@ -267,6 +484,16 @@ function LogEntryView({
           t={t}
         />
       );
+    case "search":
+      return (
+        <SearchSourcesPill
+          entry={entry}
+          expanded={isExpanded(entry.id)}
+          onToggle={() => onToggleExpanded(entry.id)}
+          t={t}
+          locale={locale}
+        />
+      );
     case "bubble":
       if (entry.role === "user") {
         return (
@@ -278,7 +505,9 @@ function LogEntryView({
       return (
         <div className="assistant-text">
           {entry.text && (
-            <div className="assistant-text-body">{linkify(entry.text)}</div>
+            <div className="assistant-text-body">
+              <Markdown text={entry.text} />
+            </div>
           )}
         </div>
       );
@@ -287,11 +516,23 @@ function LogEntryView({
 
 export function Conversation() {
   const runtime = useRuntime();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [liveBubbles, setLiveBubbles] = useState<Map<string, LiveBubble>>(
     new Map(),
   );
+  // 2026-09-15: `text-delta` chunks used to call `setLiveBubbles` (and
+  // trigger a full re-render + markdown re-parse) once per network chunk —
+  // fine for plain text, but `Markdown.tsx`'s `rehype-highlight` pass makes
+  // that cost real once code blocks are involved. Deltas accumulate here
+  // between animation frames instead; `flushLiveBubbleDeltas` applies all of
+  // them in one `setLiveBubbles` call per frame, capping the expensive
+  // parse+highlight work at the screen's own refresh rate regardless of how
+  // fast the network delivers chunks (Markdown.tsx's own header comment has
+  // the full reasoning for why this, not component memoization, is where
+  // the fix belongs).
+  const pendingDeltasRef = useRef<Map<string, string>>(new Map());
+  const flushScheduledRef = useRef(false);
   const [expandedDetails, setExpandedDetails] = useState<Set<string>>(
     new Set(),
   );
@@ -303,6 +544,13 @@ export function Conversation() {
   const [menuDismissedFor, setMenuDismissedFor] = useState<string | null>(null);
   // create_skill arguments by callId, held until that call's result arrives.
   const skillCallArgsRef = useRef(new Map<string, string>());
+  // Which in-flight `callId`s are `web_search` calls (2026-09-15) — checked
+  // (and removed) at `tool/result` time to route that result into a merged
+  // `SearchSourcesPill` instead of a generic `ToolPill`. A `Set`, not a
+  // `Map` to a turn number, because the real `tool/result` event already
+  // carries `turn` itself — this only needs to answer "was this call a
+  // search."
+  const searchCallIdsRef = useRef(new Set<string>());
   // `handleEvent`/`handleFrame` below are only ever subscribed ONCE, at
   // mount (see that effect's own comment — a deliberate, load-bearing
   // design, not something i18n should break). A plain closure over `t`
@@ -317,6 +565,29 @@ export function Conversation() {
     setEntries((prev) => [...prev, entry]);
   }
 
+  // Applies every delta accumulated since the last animation frame in one
+  // `setLiveBubbles` call — see the `pendingDeltasRef` comment above for why.
+  function flushLiveBubbleDeltas(): void {
+    flushScheduledRef.current = false;
+    const pending = pendingDeltasRef.current;
+    if (pending.size === 0) return;
+    pendingDeltasRef.current = new Map();
+    setLiveBubbles((prev) => {
+      const next = new Map(prev);
+      for (const [pendingKey, delta] of pending) {
+        const existing = next.get(pendingKey) ?? { text: "" };
+        next.set(pendingKey, { ...existing, text: existing.text + delta });
+      }
+      return next;
+    });
+  }
+
+  function scheduleLiveBubbleFlush(): void {
+    if (flushScheduledRef.current) return;
+    flushScheduledRef.current = true;
+    requestAnimationFrame(flushLiveBubbleDeltas);
+  }
+
   // Updates an already-pushed entry in place (by id) — used when a later
   // event (`tool/result`) completes something an earlier event
   // (`tool/call`) already rendered, instead of pushing a 2nd separate
@@ -328,6 +599,31 @@ export function Conversation() {
     setEntries((prev) =>
       prev.map((entry) => (entry.id === id ? updater(entry) : entry)),
     );
+  }
+
+  // Create-or-merge for the per-turn `"search"` entry (2026-09-15) — reads
+  // `prev` from the functional `setEntries` form, never the outer
+  // closure's `entries`, same "handleFrame/handleEvent never read state
+  // directly" rule `updateEntry`/`pushEntry` already follow (see the
+  // mount-once WS-subscription effect's own comment below for why that
+  // rule exists). `merge` only ever runs against an entry that already
+  // exists (a fresh one is exactly `create()`, no merge needed the first
+  // time), so it's never called with anything but a `"search"` entry.
+  function upsertSearchEntry(
+    turn: number,
+    create: () => Extract<LogEntry, { kind: "search" }>,
+    merge: (
+      entry: Extract<LogEntry, { kind: "search" }>,
+    ) => Extract<LogEntry, { kind: "search" }>,
+  ): void {
+    const id = `search-${turn}`;
+    setEntries((prev) => {
+      const index = prev.findIndex((entry) => entry.id === id);
+      if (index === -1) return [...prev, create()];
+      const next = [...prev];
+      next[index] = merge(next[index] as Extract<LogEntry, { kind: "search" }>);
+      return next;
+    });
   }
 
   function toggleDetailExpanded(id: string): void {
@@ -395,17 +691,30 @@ export function Conversation() {
         // (not "every running entry") so a DIFFERENT turn's genuinely
         // in-flight tool call is never touched.
         setEntries((prev) =>
-          prev.map((entry) =>
-            entry.kind === "tool" &&
-            entry.turn === data.turn &&
-            entry.status === "running"
-              ? {
-                  ...entry,
-                  status: "error",
-                  resultText: tRef.current("conversation.toolInterrupted"),
-                }
-              : entry,
-          ),
+          prev.map((entry) => {
+            if (
+              entry.kind === "tool" &&
+              entry.turn === data.turn &&
+              entry.status === "running"
+            ) {
+              return {
+                ...entry,
+                status: "error",
+                resultText: tRef.current("conversation.toolInterrupted"),
+              };
+            }
+            // Same reclassification, applied to a `web_search` call this
+            // turn ended without ever resolving — otherwise its
+            // `SearchSourcesPill` would read "Đang tra cứu…" forever.
+            if (
+              entry.kind === "search" &&
+              entry.turn === data.turn &&
+              entry.pendingCalls > 0
+            ) {
+              return { ...entry, pendingCalls: 0, hasError: true };
+            }
+            return entry;
+          }),
         );
         break;
       }
@@ -439,12 +748,9 @@ export function Conversation() {
         // doesn't render.
         if (chunk.type === "text-delta") {
           const textDelta = chunk.text;
-          setLiveBubbles((prev) => {
-            const next = new Map(prev);
-            const existing = next.get(key) ?? { text: "" };
-            next.set(key, { ...existing, text: existing.text + textDelta });
-            return next;
-          });
+          const pending = pendingDeltasRef.current;
+          pending.set(key, (pending.get(key) ?? "") + textDelta);
+          scheduleLiveBubbleFlush();
         }
         break;
       }
@@ -455,6 +761,12 @@ export function Conversation() {
           message: WireMessage;
         };
         const key = stepKey(data.turn, data.step);
+        // A delta for this exact key can still be sitting unflushed in
+        // `pendingDeltasRef` (the next animation frame hasn't run yet) —
+        // drop it now, or the scheduled flush would resurrect this bubble
+        // with a stray trailing fragment right after it's already been
+        // pushed to `entries` as finished below.
+        pendingDeltasRef.current.delete(key);
         setLiveBubbles((prev) => {
           if (!prev.has(key)) return prev;
           const next = new Map(prev);
@@ -489,6 +801,24 @@ export function Conversation() {
           name: string;
           arguments: string;
         };
+        if (HIDDEN_TOOLS.has(data.name)) break;
+        if (data.name === WEB_SEARCH_TOOL) {
+          searchCallIdsRef.current.add(data.callId);
+          upsertSearchEntry(
+            data.turn,
+            () => ({
+              kind: "search",
+              id: `search-${data.turn}`,
+              turn: data.turn,
+              pendingCalls: 1,
+              hasError: false,
+              sources: [],
+              truncated: false,
+            }),
+            (entry) => ({ ...entry, pendingCalls: entry.pendingCalls + 1 }),
+          );
+          break;
+        }
         let pretty = data.arguments;
         try {
           pretty = JSON.stringify(JSON.parse(data.arguments), null, 2);
@@ -511,12 +841,52 @@ export function Conversation() {
       }
       case "tool/result": {
         const data = event.data as {
+          turn: number;
           message: { content: [ToolResultBlock] };
           error?: { message?: string; name: string };
+          meta?: unknown;
         };
         const block = data.message.content[0];
-        const blockText = block ? contentToText(block.content) : "";
+        const callId = block?.toolCallId;
         const isError = !!(data.error || block?.isError);
+        // `searchCallIdsRef.delete()` both checks AND consumes membership —
+        // a `web_search` result is routed here exactly once, same as any
+        // other tool's `tool/result`.
+        if (callId && searchCallIdsRef.current.delete(callId)) {
+          const parsed = isError ? undefined : parseWebSearchMeta(data.meta);
+          upsertSearchEntry(
+            data.turn,
+            () => ({
+              kind: "search",
+              id: `search-${data.turn}`,
+              turn: data.turn,
+              pendingCalls: 0,
+              hasError: isError || !parsed,
+              sources: parsed?.sources ?? [],
+              truncated: parsed?.truncated ?? false,
+              answer: parsed?.answer,
+            }),
+            (entry) => {
+              const seen = new Set(entry.sources.map((source) => source.url));
+              const merged = [...entry.sources];
+              for (const source of parsed?.sources ?? []) {
+                if (seen.has(source.url)) continue;
+                seen.add(source.url);
+                merged.push(source);
+              }
+              return {
+                ...entry,
+                pendingCalls: Math.max(0, entry.pendingCalls - 1),
+                hasError: entry.hasError || isError || !parsed,
+                sources: merged,
+                truncated: entry.truncated || (parsed?.truncated ?? false),
+                answer: entry.answer ?? parsed?.answer,
+              };
+            },
+          );
+          break;
+        }
+        const blockText = block ? contentToText(block.content) : "";
         const resultText = isError
           ? (data.error?.name ?? blockText)
           : truncate(blockText, 500);
@@ -524,12 +894,11 @@ export function Conversation() {
         // as above) is the SAME id `tool/call` above used to push this
         // entry, so this always finds and completes the right pill even
         // with several tool calls in flight in the same turn.
-        updateEntry(`tool-${block?.toolCallId}`, (entry) =>
+        updateEntry(`tool-${callId}`, (entry) =>
           entry.kind === "tool"
             ? { ...entry, status: isError ? "error" : "done", resultText }
             : entry,
         );
-        const callId = block?.toolCallId;
         const skillArgs = callId ? skillCallArgsRef.current.get(callId) : undefined;
         if (callId && skillArgs !== undefined) {
           skillCallArgsRef.current.delete(callId);
@@ -551,6 +920,7 @@ export function Conversation() {
       case "snapshot":
         setEntries([]);
         setLiveBubbles(new Map());
+        pendingDeltasRef.current.clear();
         for (const event of frame.events) handleEvent(event, false);
         break;
       case "event":
@@ -731,12 +1101,15 @@ export function Conversation() {
               isExpanded={(id) => expandedDetails.has(id)}
               onToggleExpanded={toggleDetailExpanded}
               t={t}
+              locale={locale}
             />
           ))}
           {[...liveBubbles.entries()].map(([key, bubble]) => (
             <div key={key} className="assistant-text">
               {bubble.text.trim() && (
-                <div className="assistant-text-body">{linkify(bubble.text)}</div>
+                <div className="assistant-text-body">
+                  <Markdown text={bubble.text} />
+                </div>
               )}
             </div>
           ))}
