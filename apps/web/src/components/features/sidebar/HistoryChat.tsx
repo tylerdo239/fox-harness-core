@@ -143,7 +143,15 @@ export function HistoryChat({ query }: { query: string }) {
   async function refresh(): Promise<void> {
     const res = await runtime.authedFetch("/sessions/mine");
     if (!res.ok) return;
-    setRows((await res.json()) as SessionRow[]);
+    const list = (await res.json()) as SessionRow[];
+    setRows(list);
+    // 2026-09-15 (`SessionTitleBar.tsx`) — this fetch already happens on
+    // every rename (this component's own AND the title bar's, via
+    // `runtime.sessionsVersion` in the effect below) and on session switch,
+    // so reporting the active row's title here is enough to keep the title
+    // bar in sync with all 3 sources without duplicating any fetch logic.
+    const active = list.find((row) => row.sessionId === runtime.sessionId);
+    runtime.setSessionTitle(active?.title ?? undefined);
   }
 
   // Automatic titles: the worker's dsh-session-title appends `session/title`
@@ -191,9 +199,12 @@ export function HistoryChat({ query }: { query: string }) {
     // first real WS connect commits a `sessions` insert (services/gateway's
     // WS upgrade handler) — refetch whenever the active session changes so
     // a brand-new session's row appears without a manual reload.
+    // `runtime.sessionsVersion`: also refetch whenever `SessionTitleBar.tsx`
+    // renames the active session from OUTSIDE this component — see
+    // `runtime.ts`'s own comment on that field.
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runtime.sessionId]);
+  }, [runtime.sessionId, runtime.sessionsVersion]);
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();

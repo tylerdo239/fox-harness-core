@@ -150,6 +150,20 @@ export const vi = {
   // stuck — honest about what happened rather than silently vanishing (a
   // tool call that really did happen), but no longer a dead, confusing box.
   "conversation.toolInterrupted": "Lượt trò chuyện đã kết thúc trước khi có kết quả.",
+  // Markdown code-block copy button (2026-09-15, Markdown.tsx).
+  "conversation.copyCode": "Sao chép",
+  "conversation.codeCopied": "Đã sao chép",
+  // `SearchSourcesPill` (2026-09-15, user: "ghi là Đang tra cứu... show
+  // chung các kết quả của mọi lần gọi tool search vào 1") — replaces the
+  // generic "Đang dùng web_search" tool label for every `web_search` call.
+  "conversation.searching": "Đang tra cứu…",
+  "conversation.searched": "Đã tra cứu {n} nguồn",
+  "conversation.searchEmpty": "Không tìm thấy kết quả",
+  "conversation.searchFailed": "Tra cứu thất bại",
+  "conversation.searchTruncated": "Danh sách nguồn đã được rút gọn",
+  // `SessionTitleBar.tsx` (2026-09-15) — shown before the chat has a title
+  // yet (no first message sent, so no auto-title has fired either).
+  "conversation.untitledSession": "Đoạn chat mới",
 
   // WorkspacePanel.tsx — files of a data-analysis chat.
   "workspace.upload": "Tải file lên",
@@ -329,6 +343,14 @@ export const en: Record<TranslationKey, string> = {
   "conversation.toolUsed": "Used {name}",
   "conversation.toolFailed": "Failed to use {name}",
   "conversation.toolInterrupted": "The turn ended before a result arrived.",
+  "conversation.copyCode": "Copy",
+  "conversation.codeCopied": "Copied",
+  "conversation.searching": "Searching…",
+  "conversation.searched": "Searched {n} sources",
+  "conversation.searchEmpty": "No results found",
+  "conversation.searchFailed": "Search failed",
+  "conversation.searchTruncated": "Source list truncated",
+  "conversation.untitledSession": "New chat",
   "workspace.upload": "Upload file",
   "workspace.uploading": "Uploading…",
   "workspace.files": "Files ({n})",

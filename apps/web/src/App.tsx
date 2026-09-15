@@ -20,10 +20,11 @@ import { Toaster, toast } from "sonner";
 import { ConnectForm } from "./components/features/auth/ConnectForm.tsx";
 import { ThemeToggle } from "./components/features/auth/ThemeToggle.tsx";
 import { Conversation } from "./components/features/conversation/Conversation.tsx";
+import { SessionTitleBar } from "./components/features/conversation/SessionTitleBar.tsx";
 import { LanguageSelect } from "./components/features/LanguageSelect.tsx";
+import { ProjectChatBar, ProjectHub } from "./components/features/projects/ProjectHub.tsx";
 import { SettingsDialog } from "./components/features/settings/SettingsDialog.tsx";
 import { SkillsDialog } from "./components/features/skills/SkillsDialog.tsx";
-import { ProjectChatBar, ProjectHub } from "./components/features/projects/ProjectHub.tsx";
 import { Sidebar } from "./components/features/sidebar/Sidebar.tsx";
 import {
   LocaleProvider,
@@ -282,6 +283,12 @@ function AppInner() {
     () => !!localStorage.getItem(STORAGE_TOKEN),
   );
   const [sessionId, setSessionId] = useState("");
+  // `SessionTitleBar.tsx`/`HistoryChat.tsx` sync — see `runtime.ts`'s own
+  // comment on these 2 fields for the full reasoning.
+  const [sessionTitle, setSessionTitle] = useState<string | undefined>(
+    undefined,
+  );
+  const [sessionsVersion, setSessionsVersion] = useState(0);
   const [connectError, setConnectError] = useState<string | null>(null);
   // No UI ever changes these now (2026-09-08, docs/code-rules.md §36) —
   // `gatewayUrl` is still overridable via `?gateway=` in the page URL
@@ -374,6 +381,11 @@ function AppInner() {
     gatewayHttpBaseRef.current = httpBase;
     localStorage.setItem(STORAGE_TOKEN, token);
     localStorage.setItem(STORAGE_GATEWAY, httpBase);
+    // The title belongs to whatever session was active before this call —
+    // clear it immediately so `SessionTitleBar.tsx` doesn't flash the
+    // PREVIOUS session's title for the instant before `HistoryChat.tsx`'s
+    // `refresh()` reports the new one.
+    setSessionTitle(undefined);
 
     setStatus("connecting");
     // Only meaningful for a brand-new session — services/orchestrator's
@@ -680,9 +692,13 @@ function AppInner() {
         connect(gatewayHttpBaseRef.current, token, id);
       },
       newSession: startNewSession,
+      sessionTitle,
+      setSessionTitle,
+      sessionsVersion,
+      bumpSessionsVersion: () => setSessionsVersion((v) => v + 1),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sessionId, userEmail, hasChatted],
+    [sessionId, userEmail, hasChatted, sessionTitle, sessionsVersion],
   );
 
   function handleLogin(email: string, password: string): void {
@@ -939,6 +955,14 @@ function AppInner() {
             />
           ) : (
             <>
+              {/* 2026-09-15 (user: "khi là new chat thì ko show input
+                  title đoạn hội thoại") — `hasChatted` is this app's
+                  existing "is this a real chat, not an empty new one" flag
+                  (already gates the "New chat" button's disabled state and
+                  the `/chat/<id>` URL itself, App.tsx's own `hasChatted`
+                  comments have the full history) — a session with no first
+                  message yet has no real title to show or edit. */}
+              {sessionId && hasChatted && <SessionTitleBar />}
               <ProjectChatBar onOpenProject={(projectId) => setProjectView({ projectId })} />
               <Conversation />
             </>
