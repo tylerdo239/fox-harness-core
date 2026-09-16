@@ -11,10 +11,24 @@ import json
 import os
 from pathlib import Path
 
+# Imported here, at module level, so `pd`/`np`/`plt` are BOUND IN THE MODEL'S
+# SESSION: runner.py execs this file into the IPython namespace, so a name that
+# is only imported inside a function (as pandas was until 2026-09-16) does not
+# exist for the model's own code. It got a pandas DataFrame back from
+# load_dataset() and then failed on `pd.to_datetime(...)` with "name 'pd' is not
+# defined" (docs/qa-report-2026-09-15.md V6, 2/2 runs of a six-question chain).
+# A data-analysis session that hands out DataFrames must have pandas bound.
+# Matplotlib is safe to import at start-up: kernel.ts spawns this process with
+# MPLBACKEND=Agg, so no display is ever needed.
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
 _DATASET_SUFFIXES = {".csv", ".tsv", ".xlsx", ".xls", ".parquet"}
 # generated/ for a chat of its own; generated/<chat id> in a shared project folder.
 _OUTPUT_DIR = os.environ.get("FOX_OUTPUT_DIR", "generated")
 _dataset_cache = {}
+_sheet_cache = {}
 
 
 def _working_path(relative_path):
@@ -51,14 +65,103 @@ def list_datasets():
         elif not (relative.as_posix() in sources or relative.parts[0] == "outputs" or relative.is_relative_to(own)):
             continue
         stat = path.stat()
+        for sheet in _sheets(path)[1:]:
+            items.append({"name": f"{relative.as_posix()}#{sheet}", "size_bytes": stat.st_size, "modified": stat.st_mtime})
         items.append({"name": relative.as_posix(), "size_bytes": stat.st_size, "modified": stat.st_mtime})
     return sorted(items, key=lambda item: item["modified"], reverse=True)
 
 
-def load_dataset(name=None):
-    """Load a dataset into a pandas DataFrame: exact path, part of a file name, or the newest file."""
-    import pandas as pd
+def _sheets(path):
+    """Sheet names of an Excel workbook, empty for anything else. Cached per (path, mtime)."""
+    if path.suffix.lower() not in {".xlsx", ".xls"}:
+        return []
+    key = (str(path), path.stat().st_mtime)
+    if key not in _sheet_cache:
+        try:
+            _sheet_cache[key] = pd.ExcelFile(path).sheet_names
+        except Exception:  # a corrupt or unreadable workbook must not break listing
+            _sheet_cache[key] = []
+    return _sheet_cache[key]
 
+
+def _numeric_columns(frame):
+    return sum(1 for column in frame.columns if str(frame[column].dtype).startswith(("int", "float")))
+
+
+def _read_csv(path, sep=None, **options):
+    """Read a CSV, trying the European convention when the file looks European.
+
+    A ';'-separated file usually writes numbers as "1.234,5"; with pandas' defaults those
+    columns come back as text, and the model then spends its steps converting them by hand
+    or misreads the shape entirely (docs/qa-report-2026-09-15.md V6: 7 steps, 3 errors, and
+    one run that reported "3 rows, 1 column" for a 3-column file). Both parses are tried and
+    the one that yields more real numbers wins — a decision made from the data, not a guess.
+    """
+    raw = _pandas_originals.get("read_csv", pd.read_csv)
+    frame = raw(path, sep=sep, engine="python", **options) if sep is None else raw(path, sep=sep, **options)
+    if _numeric_columns(frame) == len(frame.columns):
+        return frame
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        head = handle.readline()
+    if head.count(";") <= head.count(","):
+        return frame
+    try:
+        european = raw(path, sep=";", decimal=",", thousands=".", **options)
+    except Exception:
+        return frame
+    if _numeric_columns(european) <= _numeric_columns(frame):
+        return frame
+    print(f"Note: {Path(path).name} was read as a European CSV (';' separator, ',' decimal).")
+    return european
+
+
+_pandas_originals = {}
+
+
+def patch_pandas_readers():
+    """Give `pd.read_csv`/`pd.read_excel` what `load_dataset()` knows, for code that skips it.
+
+    Measured over 1,625 real python cells (2026-09-16): the model reads a file with pandas
+    directly in 456 of them and through `load_dataset()` in 208 — roughly two out of three
+    reads never pass the helper, so knowledge kept only in the helper reaches a minority of
+    the code that needs it. This is the same move `mark_saved_figures()` already makes for
+    `Figure.savefig`: put the behaviour where the model actually is.
+
+    Nothing is blocked and no data is changed silently: an explicit `sep`/`decimal` or
+    `sheet_name` is obeyed as-is, and each adjustment prints one line saying what it did.
+    """
+    if _pandas_originals:
+        return
+    _pandas_originals["read_csv"] = pd.read_csv
+    _pandas_originals["read_excel"] = pd.read_excel
+
+    def read_csv(filepath_or_buffer, *args, **options):
+        told = {"sep", "delimiter", "decimal", "thousands", "engine"} & set(options)
+        if args or told or not _local_file(filepath_or_buffer):
+            return _pandas_originals["read_csv"](filepath_or_buffer, *args, **options)
+        return _read_csv(Path(filepath_or_buffer), **options)
+
+    def read_excel(io, *args, **options):
+        frame = _pandas_originals["read_excel"](io, *args, **options)
+        if not args and options.get("sheet_name") is None and _local_file(io):
+            names = _sheets(Path(io))
+            if len(names) > 1:
+                print(
+                    f"Note: {Path(io).name} has sheets {', '.join(names)} and this read only {names[0]!r}. "
+                    f"Read another with sheet_name={names[1]!r}."
+                )
+        return frame
+
+    pd.read_csv = read_csv
+    pd.read_excel = read_excel
+
+
+def _local_file(target):
+    return isinstance(target, (str, os.PathLike)) and os.path.exists(target)
+
+
+def load_dataset(name=None):
+    """Load a dataset into a pandas DataFrame: exact path, part of a file name, one sheet ("book.xlsx#Q2"), or the newest file."""
     names = [item["name"] for item in list_datasets()]
     if not names:
         raise ValueError("no .csv/.tsv/.xlsx/.xls/.parquet file in the working directory")
@@ -68,23 +171,33 @@ def load_dataset(name=None):
         wanted = str(name).strip()
         match = wanted if wanted in names else next((n for n in names if wanted.casefold() in n.casefold()), None)
         if match is None:
-            raise ValueError(f"dataset {name!r} not found; call list_datasets()")
-    path = _working_path(match)
+            raise ValueError(f"dataset {name!r} not found; the datasets here are: {', '.join(names)}")
+    file_name, _, sheet = match.partition("#")
+    path = _working_path(file_name)
     key = (match, path.stat().st_mtime)
-    if key in _dataset_cache:
-        return _dataset_cache[key]
-    suffix = path.suffix.lower()
-    if suffix == ".csv":
-        frame = pd.read_csv(path, sep=None, engine="python")
-    elif suffix == ".tsv":
-        frame = pd.read_csv(path, sep="\t")
-    elif suffix in {".xlsx", ".xls"}:
-        frame = pd.read_excel(path)
-    else:
-        frame = pd.read_parquet(path)
-    _dataset_cache[key] = frame
-    print(f"Loaded {match}: {len(frame)} rows x {len(frame.columns)} columns")
-    return frame
+    if key not in _dataset_cache:
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            frame = _read_csv(path)
+        elif suffix == ".tsv":
+            frame = _read_csv(path, sep="\t")
+        elif suffix in {".xlsx", ".xls"}:
+            frame = pd.read_excel(path, sheet_name=sheet or 0)
+        else:
+            frame = pd.read_parquet(path)
+        _dataset_cache[key] = frame
+    frame = _dataset_cache[key]
+    sheets = _sheets(path)
+    where = f" sheet {sheet or sheets[0]!r}" if sheets else ""
+    others = [name for name in sheets if name != (sheet or sheets[0] if sheets else None)]
+    # Saying which sheets were NOT loaded: reading only the first one silently is how a
+    # workbook's other sheets went missing from an answer (docs/qa-report-2026-09-15.md V5).
+    extra = f" — this workbook also has {', '.join(others)}; load one with load_dataset(\"{file_name}#{others[0]}\")" if others else ""
+    print(f"Loaded {file_name}{where}: {len(frame)} rows x {len(frame.columns)} columns{extra}")
+    # A copy per call: the cached frame is the file as it was read. Handing the same object
+    # out twice meant a model that modified it got its own edits back from what reads like a
+    # fresh load of the file — wrong data, with nothing to show for it.
+    return frame.copy()
 
 
 def profile_dataset(name=None, sample_rows=5, max_columns=50):
@@ -125,8 +238,6 @@ def save_artifact(relative_path, content):
                 raise ValueError("a figure needs a file extension such as .png or .pdf")
             content.savefig(target, format=suffix.lstrip("."), bbox_inches="tight")
             # Close it so runner.py does not save the same figure again.
-            import matplotlib.pyplot as plt
-
             plt.close(content)
         elif suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif"} and callable(getattr(content, "save", None)):
             content.save(target)

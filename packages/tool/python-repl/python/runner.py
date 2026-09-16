@@ -10,6 +10,7 @@ import builtins
 import contextlib
 import io
 import json
+import numbers
 import os
 import sys
 import time
@@ -21,11 +22,6 @@ protocol_out = sys.stdout
 shell = InteractiveShell.instance()
 shell.run_line_magic("colors", "nocolor")
 
-HELPERS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers.py")
-with open(HELPERS, encoding="utf-8") as helpers_file:
-    exec(compile(helpers_file.read(), HELPERS, "exec"), shell.user_ns)
-
-
 def _fox_host(request):
     # Bridge after agent-core's loop-rlm/python/worker.py (host_tool_call, await_host_reply):
     # the worker writes its answer to stdin, which is idle while a cell runs.
@@ -36,7 +32,21 @@ def _fox_host(request):
     return answer["result"]
 
 
-shell.user_ns["_fox_host"] = _fox_host
+# helpers.py is loaded as a REAL module and then published into the session, so
+# both ways of reaching it work. The model regularly writes
+# `from helpers import list_datasets` (docs/qa-report-2026-09-15.md V6) and used
+# to get "No module named 'helper'" — a session that has these functions ready
+# should let an import of them succeed instead of failing on a technicality.
+# Registered under both spellings because the model uses both.
+HELPERS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers.py")
+helpers = types.ModuleType("helpers")
+helpers.__file__ = HELPERS
+helpers.__dict__["_fox_host"] = _fox_host
+with open(HELPERS, encoding="utf-8") as helpers_file:
+    exec(compile(helpers_file.read(), HELPERS, "exec"), helpers.__dict__)
+sys.modules["helpers"] = helpers
+sys.modules["helper"] = helpers
+shell.user_ns.update({name: value for name, value in helpers.__dict__.items() if not name.startswith("__")})
 
 
 def _no_input(*_args, **_kwargs):
@@ -66,6 +76,7 @@ def mark_saved_figures():
 
 
 mark_saved_figures()
+helpers.patch_pandas_readers()
 
 
 def save_figures(cell_succeeded):
@@ -121,15 +132,51 @@ def move_stray_files(since):
 BASE_NAMES = set(shell.user_ns)
 
 
+# How many characters of a DataFrame's column list the variables note may carry.
+COLUMN_NOTE_CHARS = 400
+
+
+def _empty_warning(value):
+    """Flag on a frame/series the model is about to draw a conclusion from.
+
+    An empty result or an all-missing column is what produced the worst answer this harness has
+    given: "every region fell 100%", stated with no doubt at all (docs/qa-report-2026-09-15.md N6).
+    The harness is describing the variable anyway — saying that it is empty costs nothing and is a
+    fact about the data, not advice. Only the two unambiguous cases are flagged.
+    """
+    rows = value.shape[0]
+    if rows == 0:
+        return "  ⚠ no rows"
+    if getattr(value, "ndim", 1) == 1:
+        return "  ⚠ every value is missing" if value.isna().all() else ""
+    # One pass over a large frame per cell is not worth it; the small ones are where analysis happens.
+    if value.size > 2_000_000:
+        return ""
+    empty = [str(column) for column in value.columns if value[column].isna().all()]
+    if not empty:
+        return ""
+    shown = ", ".join(empty[:4]) + (f", +{len(empty) - 4}" if len(empty) > 4 else "")
+    return f"  ⚠ every value is missing in {shown}"
+
+
 def describe(value):
     """One-line summary for the variables note (docs/rlm-transfer-plan.md 12.3 B, RLM's SHOW_VARS)."""
     kind = type(value).__name__
     if kind == "DataFrame":
         columns = [str(column) for column in value.columns]
-        shown = ", ".join(columns[:8]) + (f", … (+{len(columns) - 8})" if len(columns) > 8 else "")
-        return f"DataFrame {value.shape[0]}×{value.shape[1]} — {shown}"
+        warning = _empty_warning(value)
+        # Every column name the model might reference, up to a budget: a truncated
+        # list made it guess names that were not there (qa-report V6).
+        shown, budget = [], COLUMN_NOTE_CHARS
+        for column in columns:
+            if budget - len(column) < 0 and shown:
+                break
+            shown.append(column)
+            budget -= len(column) + 2
+        rest = f", … (+{len(columns) - len(shown)} cột nữa)" if len(shown) < len(columns) else ""
+        return f"DataFrame {value.shape[0]}×{value.shape[1]} — {', '.join(shown)}{rest}{warning}"
     if kind == "Series":
-        return f"Series {len(value)} ({value.dtype})"
+        return f"Series {len(value)} ({value.dtype}){_empty_warning(value)}"
     if isinstance(getattr(value, "shape", None), tuple):
         return f"{kind} {value.shape} {getattr(value, 'dtype', '')}".rstrip()
     if isinstance(value, (list, tuple, set, dict)):
@@ -153,6 +200,28 @@ def variables(previous):
     return listed, current
 
 
+def scalar_result(result, code):
+    """[label, value] when the cell ended in a single number or a short string, else None.
+
+    The ledger this feeds (kernel.ts) exists because a number computed in turn 3 disappears when
+    that turn's tool steps are collapsed or compacted, and the model then restates it from memory.
+    `print(history(n))` is offered at exactly that moment and was taken 0 times in 820 stored
+    conversations — so the values are pushed back in instead of waiting to be fetched.
+    """
+    value = getattr(result, "result", None)
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, numbers.Number):
+        text = f"{float(value):.6g}" if isinstance(value, float) or hasattr(value, "dtype") else str(value)
+    elif isinstance(value, str) and len(value) <= 80:
+        text = value
+    else:
+        return None
+    lines = [line.strip() for line in code.splitlines() if line.strip() and not line.strip().startswith("#")]
+    label = lines[-1] if lines else ""
+    return [label[:80], text.strip()]
+
+
 seen = {}
 for line in iter(sys.stdin.readline, ""):
     request = json.loads(line)
@@ -170,4 +239,8 @@ for line in iter(sys.stdin.readline, ""):
         )
     listed, seen = variables(seen)
     reply = {"ok": result.success, "output": buffer.getvalue(), "figures": figures, "variables": listed}
+    if result.success:
+        computed = scalar_result(result, request["code"])
+        if computed is not None:
+            reply["result"] = computed
     print(json.dumps(reply), file=protocol_out, flush=True)
