@@ -12,3 +12,9 @@ dist/
 # services/orchestrator's per-session $DSH_HOME directories (materialize.ts,
 # ORCHESTRATOR_DATA_DIR default) — runtime data, never committed.
 /data/
+
+# Benchmark run output and its data files (docs/bench.md): reports are generated on every
+# run, and the fixtures are third-party tables plus a generated workbook — both come back
+# with `node scripts/bench/fetch-fixtures.mjs`, so neither belongs in the repo.
+/scripts/bench/reports/
+/scripts/bench/fixtures/

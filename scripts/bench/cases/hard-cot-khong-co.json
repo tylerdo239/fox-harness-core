@@ -1,0 +1,35 @@
+{
+  "id": "hard-cot-khong-co",
+  "source": "Tự dựng cho lỗi V6 (hỏi cột không tồn tại: 3/3 lần chạy hết giới hạn bước). auto-mpg.csv không có cột Discount; đáp án đúng là trả lời Khong.",
+  "suite": "hard",
+  "fixture": "auto-mpg.csv",
+  "prompt": "File `auto-mpg.csv` có cột \"Discount\" không? Nếu có thì giá trị trung bình của nó là bao nhiêu?\n\nKết thúc câu trả lời bằng đúng một dòng: @co_cot[Co hoặc Khong] @so_cot[số cột của file].",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "co_cot",
+      "text": "Khong"
+    },
+    {
+      "kind": "answer",
+      "name": "so_cot",
+      "value": 8,
+      "tolerance": 0.5
+    },
+    {
+      "kind": "maxSteps",
+      "value": 6
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

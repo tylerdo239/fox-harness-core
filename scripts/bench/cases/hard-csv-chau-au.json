@@ -1,0 +1,30 @@
+{
+  "id": "hard-csv-chau-au",
+  "source": "Tự dựng cho lỗi V6 (CSV dấu ';' và dấu phẩy thập phân). Đáp án tính tay: (1234.50 + 2000.25 + 765.25) / 3 = 1333.33.",
+  "suite": "hard",
+  "fixture": "doanh-thu-eu.csv",
+  "prompt": "Doanh thu trung bình mỗi ngày trong file `doanh-thu-eu.csv` là bao nhiêu?\n\nRàng buộc: làm tròn 2 chữ số thập phân.\nKết thúc câu trả lời bằng đúng một dòng: @doanh_thu_trung_binh[giá trị].",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "doanh_thu_trung_binh",
+      "value": 1333.33,
+      "tolerance": 0.02
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

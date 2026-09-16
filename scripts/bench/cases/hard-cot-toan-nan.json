@@ -1,0 +1,28 @@
+{
+  "id": "hard-cot-toan-nan",
+  "source": "Tự dựng cho ý 3: cột 'Ton kho' của kho-hang.csv trống hoàn toàn. Bẫy là pandas trả về sum() = 0.0 cho cột toàn NaN, nên model dễ báo 'tổng tồn kho = 0' như một sự thật. Chấm bằng việc câu trả lời có nêu cột trống hay không, chứ không ép điền đúng ô @: hai lần chạy đầu cho thấy model nêu đúng nhưng vẫn điền 0 vào ô.",
+  "suite": "hard",
+  "fixture": "kho-hang.csv",
+  "prompt": "Tổng tồn kho trong `kho-hang.csv` là bao nhiêu?\n\nKết thúc câu trả lời bằng đúng một dòng: @tong_ton_kho[giá trị số, hoặc đúng chữ KhongCoDuLieu nếu cột tồn kho không có dữ liệu nào].",
+  "checks": [
+    {
+      "kind": "mustContain",
+      "pattern": "không có dữ liệu|không có giá trị|đều là nan|toàn nan|thiếu giá trị|trống"
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

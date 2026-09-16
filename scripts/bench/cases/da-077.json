@@ -1,0 +1,29 @@
+{
+  "id": "da-077",
+  "source": "InfiAgent-DABench da-dev #77 (hard, Comprehensive Data Preprocessing, Summary Statistics)",
+  "suite": "smoke",
+  "fixture": "microsoft.csv",
+  "prompt": "Perform comprehensive data preprocessing on the \"Date\" column to extract the month and year information. Calculate the average closing price for each month and year combination. Return the month and year combination which has the highest average closing price.\n\nRàng buộc: Set the start of each month to be the first day of the month and the end of the month to be the last day of the month.\nThe calculation of the average closing price should be done using the arithmetic mean. \nFor ties, return the most recent month and year combination.\n\nDữ liệu nằm ở file `microsoft.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @Highest_Monthly_Average_Close_Price[month, year, average_close_price]\nwhere \"month\" is an integer between 1 and 12, \"year\" is an integer, and \"average_close_price\" is a float rounded to two decimal places.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "Highest_Monthly_Average_Close_Price",
+      "text": "1, 2018, 88.32"
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "hard-nho-sau-nen",
+  "source": "Dựng cho ý 4. Khác hard-nho-so-cu: các lượt giữa cố tình in bảng đầy đủ (~20.000 ký tự mỗi lượt) để ĐẨY cho ngữ cảnh 32k bị nén thật, chứ không chỉ thu gọn — vì thu gọn vẫn giữ nguyên câu trả lời cuối của mỗi lượt, nên con số đã nói ra không hề mất. Đáp án: mpg trung bình xe 8 xi-lanh = 14.9631.",
+  "suite": "hard",
+  "fixture": "auto-mpg.csv",
+  "prompts": [
+    "Nạp auto-mpg.csv vào biến d, rồi tính mpg trung bình của các xe 8 xi-lanh, làm tròn 4 chữ số thập phân.",
+    "In ra toàn bộ bảng bằng print(d.sort_values('weight').to_string()) rồi nhận xét ngắn gọn về weight.",
+    "In ra toàn bộ bảng bằng print(d.sort_values('horsepower').to_string()) rồi nhận xét ngắn gọn về horsepower.",
+    "In ra toàn bộ bảng bằng print(d.sort_values('displacement').to_string()) rồi nhận xét ngắn gọn về displacement.",
+    "In ra toàn bộ bảng bằng print(d.sort_values('acceleration').to_string()) rồi nhận xét ngắn gọn về acceleration.",
+    "In ra toàn bộ bảng bằng print(d.sort_values('modelyear').to_string()) rồi nhận xét ngắn gọn về modelyear.",
+    "Nhắc lại chính xác con số mpg trung bình của xe 8 xi-lanh đã tính ở lượt đầu tiên. Kết thúc bằng đúng một dòng: @mpg_8xilanh[giá trị 4 chữ số thập phân]."
+  ],
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "mpg_8xilanh",
+      "value": 14.9631,
+      "tolerance": 0.0002
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 900
+    }
+  ]
+}

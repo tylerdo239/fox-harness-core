@@ -1,0 +1,29 @@
+{
+  "id": "da-019",
+  "source": "InfiAgent-DABench da-dev #19 (easy, Distribution Analysis)",
+  "suite": "smoke",
+  "fixture": "unemployement_industry.csv",
+  "prompt": "Check if the distribution of the \"Mar.2020\" column adheres to a normal distribution.\n\nRàng buộc: Assume a normal distribution if skewness is between -0.5 and 0.5. Use the Fisher-Pearson coefficient of skewness. Round results to two decimal places.\n\nDữ liệu nằm ở file `unemployement_industry.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @is_normal[answer], where \"answer\" is a string value which can either be \"Yes\" or \"No\", depending on whether the skewness lies within the specified boundaries.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "is_normal",
+      "text": "No"
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

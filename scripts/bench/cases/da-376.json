@@ -1,0 +1,42 @@
+{
+  "id": "da-376",
+  "source": "InfiAgent-DABench da-dev #376 (hard, Feature Engineering, Summary Statistics)",
+  "suite": "full",
+  "fixture": "2014_q4.csv",
+  "prompt": "3. Perform feature engineering on the dataset by creating a new column called \"Trips per Membership\". Calculate the number of trips per membership for each date and store the result in the new column. Determine the mean and median of the \"Trips per Membership\" column. Compare the values with the mean and median of the \"Trips over the past 24-hours (midnight to 11:59pm)\" column to analyze the impact of membership on trip frequency.\n\nRàng buộc: The \"Trips per Membership\" is calculated as the ratio of \"Trips over the past 24-hours (midnight to 11:59pm)\" to \"Total Annual Memberships Sold\". Be sure to handle divisions by zero appropriately by replacing the infinity values with zero. Calculate the mean and median using Python's pandas library functions with all final results must be rounded off to 2 decimal places.\n\nDữ liệu nằm ở file `2014_q4.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @trips_per_membership_mean[mean], @trips_per_membership_median[median], @trips_per_day_mean[mean], @trips_per_day_median[median] where each answer is a floating number rounded to two decimal places.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "trips_per_membership_median",
+      "value": 0.16,
+      "tolerance": 0.011
+    },
+    {
+      "kind": "answer",
+      "name": "trips_per_day_mean",
+      "value": 21144.08,
+      "tolerance": 211.44080000000002
+    },
+    {
+      "kind": "answer",
+      "name": "trips_per_membership_mean",
+      "value": 0.17,
+      "tolerance": 0.011
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}
