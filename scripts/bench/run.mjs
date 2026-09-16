@@ -195,8 +195,18 @@ function readAnswer(text, name) {
   return undefined
 }
 
+// Vietnamese answers come back with or without diacritics depending on the run ("Không" vs the
+// "Khong" the prompt asks for), and that is not what any case is measuring.
 function normalize(text) {
-  return text.toLowerCase().replace(/['"]+/g, '').replace(/\s*,\s*/g, ',').replace(/\s+/g, ' ').trim()
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/['"]+/g, '')
+    .replace(/\s*,\s*/g, ',')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function grade(testCase, transcript) {
@@ -220,6 +230,15 @@ function grade(testCase, transcript) {
       case 'mustNotContain': {
         const found = new RegExp(check.pattern, 'i').exec(transcript.answerText)
         return { check: `mustNotContain:${check.pattern}`, ok: found === null, detail: found ? `có "${found[0]}"` : '' }
+      }
+      case 'turnUsedTool': {
+        // A multi-turn case rests on an earlier turn actually happening. When the model answers
+        // "done" without calling anything (measured 2026-09-16: it did exactly that twice), every
+        // later check fails for a reason that has nothing to do with what the case measures — so
+        // name that premise as its own check instead of leaving it to be dug out of the log.
+        const turn = transcript.turns?.[check.turn - 1]
+        const used = (turn?.toolCalls ?? []).includes(check.name)
+        return { check: `turnUsedTool:${check.turn}:${check.name}`, ok: used, detail: used ? '' : 'lượt đó không chạy gì' }
       }
       case 'lastTurnToolNotUsed': {
         const last = transcript.turns?.[transcript.turns.length - 1]

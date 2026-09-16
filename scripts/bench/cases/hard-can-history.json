@@ -1,11 +1,11 @@
 {
   "id": "hard-can-history",
-  "source": "Dựng để trả lời: khi BẮT BUỘC phải tra lại lượt cũ, model gọi history() hay đi tính lại từ đầu? Lần dựng đầu vô hiệu vì lượt 2 nói kết quả ra trong câu trả lời, mà collapse.ts giữ nguyên văn câu trả lời của mọi lượt — nên chẳng cần tra lại gì. Bản này cấm lượt 2 nhắc tới kết quả, nên tới lượt 8 mã MA7391 chỉ còn nằm trong tool output đã bị thu gọn. Nguồn duy nhất: print(history(2)). Đọc trường turns để biết lượt cuối nó gọi gì. Đáp án: MA7391 và 29.284. Chấm bằng mustContain (mã + con số) chứ không ép định dạng @: model 35B này hay viết hỏng dòng nhiều ô, và bài này đo trí nhớ chứ không đo khả năng điền form.",
+  "source": "Dựng để trả lời: khi BẮT BUỘC phải tra lại lượt cũ, model gọi history() hay đi tính lại từ đầu? Lần dựng đầu vô hiệu vì lượt 2 nói kết quả ra trong câu trả lời, mà collapse.ts giữ nguyên văn câu trả lời của mọi lượt — nên chẳng cần tra lại gì. Bản này cấm lượt 2 nhắc tới kết quả, nên tới lượt 8 mã MA7391 chỉ còn nằm trong tool output đã bị thu gọn. Nguồn duy nhất: print(history(2)). Đọc trường turns để biết lượt cuối nó gọi gì. Đáp án: MA7391 và 29.284. Chấm bằng mustContain (mã + con số) chứ không ép định dạng @: model 35B này hay viết hỏng dòng nhiều ô, và bài này đo trí nhớ chứ không đo khả năng điền form. Kiểm tra turnUsedTool ở lượt 2 vì model có lần trả lời 'Đã chạy.' mà không gọi công cụ nào — khi đó con số chưa từng tồn tại và bài rớt vì lý do khác hẳn. Cách diễn đạt của lượt 2 phải cẩn thận: bản cũ ('câu trả lời chỉ được viết đúng hai chữ: Đã chạy') làm model BỎ LUÔN việc gọi công cụ, 6/6 lần — ràng buộc lên câu trả lời khiến nó đi thẳng tới output rẻ nhất. Bản này chạy 3/3 mà vẫn không chép kết quả ra.",
   "suite": "hard",
   "fixture": "auto-mpg.csv",
   "prompts": [
     "Nạp auto-mpg.csv vào biến d rồi cho tôi biết nó có bao nhiêu dòng.",
-    "Chạy đúng đoạn code này trong công cụ python, không sửa gì:\nprint('MA7391', round(d[d['cylinders']==4]['mpg'].mean(), 3))\nSau khi chạy xong, câu trả lời của bạn chỉ được viết đúng hai chữ: Đã chạy. Tuyệt đối không nhắc lại mã hay con số vừa in ra.",
+    "Chạy đúng đoạn code này trong công cụ python, không sửa gì:\nprint('MA7391', round(d[d['cylinders']==4]['mpg'].mean(), 3))\nChạy xong thì xác nhận đã chạy; không cần chép kết quả vào câu trả lời.",
     "Trọng lượng trung bình theo số xi-lanh là bao nhiêu?",
     "Có bao nhiêu xe mỗi loại origin?",
     "Xe nào nặng nhất, nhẹ nhất?",
@@ -14,6 +14,11 @@
     "Ở lượt thứ hai tôi bảo bạn chạy một đoạn code in ra một mã kèm một con số, và bạn đã không nói nó ra. Mã đó là gì và con số là bao nhiêu?"
   ],
   "checks": [
+    {
+      "kind": "turnUsedTool",
+      "turn": 2,
+      "name": "python"
+    },
     {
       "kind": "mustContain",
       "pattern": "MA7391"
