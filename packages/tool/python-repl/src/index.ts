@@ -44,7 +44,12 @@ function pythonLiteral(value: unknown): string {
   return JSON.stringify(String(value))
 }
 
-const CELL_TIMEOUT_MS = 120_000
+// 300s, not the old 120s: measured on a real chat (session 485b291d, 2026-09-16) where the task
+// was a 62,467 x 98 table and the cell that blew the limit was model training — slow because the
+// work is slow, not because anything was wasted (reading that 25 MB file takes 0.2s). Affordable
+// now that a cell over the limit is interrupted and the session survives it (kernel.ts), so the
+// cost of reaching the limit is one cell's work instead of every variable in the conversation.
+const CELL_TIMEOUT_MS = 300_000
 const VARIABLES_CLEARED = 'Python variables: none are in memory now.'
 
 // `python` tool for the data-analysis flow (docs/rlm-transfer-plan.md, giai đoạn 2):
@@ -63,7 +68,7 @@ export function apply(ctx: Context) {
         'pandas as pd, numpy as np and matplotlib.pyplot as plt are already imported, and so are these helpers: list_datasets(), load_dataset(name=None) → DataFrame, profile_dataset(name=None), save_artifact(path, content) → path under generated/, history(n) → the full record of turn n of this conversation (messages, code, outputs).',
         'Only printed output and the value of the last expression are returned; past 20000 characters only the first 14000 and the last 6000 are kept — print summaries, not whole tables.',
         'Matplotlib figures still open after a successful call, and not saved by the code itself, are saved as PNG files in the output folder and their paths are returned.',
-        `A call running longer than ${CELL_TIMEOUT_MS / 1000} seconds stops the session.`,
+        `A call running longer than ${CELL_TIMEOUT_MS / 1000} seconds is interrupted; variables from earlier calls stay in memory.`,
       ].join(' '),
       parameters: {
         code: { type: 'string', required: true, description: 'Python code to run.' },

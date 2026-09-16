@@ -22,6 +22,8 @@ const RESTARTED_NOTE = 'Note: the Python session was restarted, so variables fro
 const RESULTS_HEADER = 'Values already computed in this conversation — reuse these digits instead of recomputing or recalling them:'
 /** Ledger length: enough to carry a conversation's real numbers, short enough to stay cheap. */
 const MAX_NOTED_RESULTS = 10
+/** How long a cell gets to end itself after the interrupt before the session is killed instead. */
+const INTERRUPT_GRACE_MS = 5_000
 const VARIABLES_HEADER = 'Python variables in memory from earlier calls — reuse them instead of reloading files or recomputing:'
 const VARIABLES_GONE = 'The Python session restarted: variables from earlier turns are gone; files are still there. Results already stated in the conversation still hold — reuse them. To rebuild a variable, rerun the same code as before (print(history(n)) shows turn n) instead of writing a new method.'
 const MAX_NOTED_VARIABLES = 30
@@ -69,14 +71,28 @@ export class PythonKernel {
       }
       process.stdin.write(JSON.stringify({ code }) + '\n')
     })
-    this.reply = undefined
     this.host = undefined
+
+    // A cell that runs too long is that cell's problem, not the session's. Interrupt it the way
+    // Ctrl-C would and keep everything else alive; SIGKILL stays as the fallback for a cell that
+    // ignores the interrupt. Measured on a real chat (2026-09-16, session 485b291d): one cell over
+    // the 120-second limit killed the session, and the variables it took with it produced three
+    // more failures across the following turns (NameError on perm_v2, KeyError on residual_v2, a
+    // missing file) — one slow cell cost four errors.
+    const late = reply === 'timeout' ? await this.interrupt() : undefined
+    this.reply = undefined
+    if (late !== undefined) {
+      this.noteVariables(late.variables, turn)
+      throw new Error(
+        `The code was stopped after ${timeoutMs / 1000} seconds. Variables from earlier calls are still in memory; only this call's own work is lost.\n${late.output}`.trim(),
+      )
+    }
 
     if (reply === 'timeout' || reply === 'aborted') {
       this.stop()
       throw new Error(
         reply === 'timeout'
-          ? `The code ran longer than ${timeoutMs / 1000} seconds, so the Python session was stopped. Variables are gone; files in the working directory are still there.`
+          ? `The code ran longer than ${timeoutMs / 1000} seconds and did not stop, so the Python session was stopped. Variables are gone; files in the working directory are still there.`
           : 'Cancelled; the Python session was stopped.',
       )
     }
@@ -122,6 +138,23 @@ export class PythonKernel {
       sections.push([RESULTS_HEADER, ...earlier.map((result) => `- ${result.value} (turn ${result.turn}) <- ${result.label}`)].join('\n'))
     }
     return sections.join('\n')
+  }
+
+  /**
+   * Ctrl-C the running cell and wait briefly for the process to report the interrupted cell.
+   * `undefined` when it does not answer in time — the caller then falls back to killing it.
+   */
+  private interrupt(): Promise<CellReply | undefined> {
+    const child = this.process
+    if (child === undefined) return Promise.resolve(undefined)
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(undefined), INTERRUPT_GRACE_MS)
+      this.reply = (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      }
+      child.kill('SIGINT')
+    })
   }
 
   stop(): void {

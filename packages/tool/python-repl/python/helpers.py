@@ -136,10 +136,14 @@ def patch_pandas_readers():
     _pandas_originals["read_excel"] = pd.read_excel
 
     def read_csv(filepath_or_buffer, *args, **options):
-        told = {"sep", "delimiter", "decimal", "thousands", "engine"} & set(options)
-        if args or told or not _local_file(filepath_or_buffer):
+        # Only a bare pd.read_csv(path) is sniffed. Anything else goes straight to pandas:
+        # _read_csv() reads with engine="python" to sniff the separator, and that engine rejects
+        # options the C parser takes — low_memory=False raised ValueError on a real 25 MB file,
+        # and low_memory is 20 of the 21 keyword uses across 1,625 stored cells. Sniffing 441
+        # bare calls and touching none of the other 21 is the whole benefit with none of the risk.
+        if args or options or not _local_file(filepath_or_buffer):
             return _pandas_originals["read_csv"](filepath_or_buffer, *args, **options)
-        return _read_csv(Path(filepath_or_buffer), **options)
+        return _read_csv(Path(filepath_or_buffer))
 
     def read_excel(io, *args, **options):
         frame = _pandas_originals["read_excel"](io, *args, **options)
