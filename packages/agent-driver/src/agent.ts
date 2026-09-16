@@ -33,6 +33,22 @@ import {
   type LlmCallConfig,
   type PreparedLlmCall,
 } from '@deepseek-ai/dsh-llm'
+
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * A tool call the model made that a plugin can run even when no tool of that name is
+     * registered — see `runStep()` below for why. A listener answers with the call to make
+     * instead, or returns nothing to leave the call alone. The one listener today is
+     * @fox-harness/dsh-tool-python-repl, which repeats this declaration rather than depend
+     * on this package; keep the two signatures identical.
+     */
+    'fox/resolve-tool-call'(call: { name: string; arguments: Record<string, unknown> }):
+      | { name: string; arguments: Record<string, unknown> }
+      | undefined
+  }
+}
+
 /**
  * Real turn/step state machine, reimplemented from scratch by reading
  * @deepseek-ai/dsh-agent-loop's actual source (not guessed) — see
@@ -274,18 +290,29 @@ export class FoxHarnessAgent implements Agent {
 
     // Sequential-only — deliberate v1 scope cut, see class doc comment.
     for (const call of toolCalls) {
+      // The model sometimes names something that is NOT a registered tool but that this
+      // harness can still run — in the data-analysis flow, a function preloaded in the
+      // Python session (docs/qa-report-2026-09-15.md V6: `unknown tool "profile_dataset"`,
+      // 2/2 runs, and the prompt already said those are Python functions). A plugin that
+      // owns such a name answers `fox/resolve-tool-call` with the real call to make
+      // instead (declared and answered in packages/tool/python-repl/src/index.ts); with no
+      // answer the call goes through untouched and dsh reports the unknown tool as before.
+      // What gets logged and executed is the resolved call — the call that actually ran.
+      const requested = { name: call.name, arguments: JSON.parse(call.arguments || '{}') as Record<string, unknown> }
+      const resolved = (this.ctx.bail('fox/resolve-tool-call', requested) as typeof requested | undefined) ?? requested
+
       this.session.append('tool/call', {
         turn,
         step,
         callId: call.id,
-        name: call.name,
-        arguments: call.arguments,
+        name: resolved.name,
+        arguments: JSON.stringify(resolved.arguments),
       })
 
       const result = await this.ctx.tools.execute({
         callId: call.id,
-        name: call.name,
-        arguments: JSON.parse(call.arguments || '{}'),
+        name: resolved.name,
+        arguments: resolved.arguments,
         agent: this,
         signal,
       })

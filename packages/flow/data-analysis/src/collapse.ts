@@ -7,6 +7,24 @@ import type { TokenMeter } from '@deepseek-ai/dsh-token-meter'
 // Python variables note (@fox-harness/dsh-tool-python-repl).
 const STEP_NOTE_PLUGINS = new Set(['fox-harness-flow-data-analysis', 'fox-harness-tool-python-repl'])
 const ASSIGNMENT = /^([A-Za-z_]\w*)\s*=(?!=)/gm
+/**
+ * How much of a collapsed turn's tool output the note carries along.
+ *
+ * It used to carry none, and offered `print(history(n))` instead. Measured 2026-09-16: across 820
+ * stored conversations that offer was made 271 times and taken 0 times, and in a chat built so that
+ * a printed value existed ONLY inside a collapsed turn, the model neither fetched it nor recomputed
+ * it — it stated a confident wrong number, the same one in both runs. A pointer the model never
+ * follows is not a way of keeping information.
+ *
+ * Tail, not head, and this wide: measured over 70 tool outputs from 20 benchmark runs, 7 long
+ * outputs contained the run's final answer — 6 of them within the last 300 characters, and the
+ * seventh (a cell that printed three numbers and then a sample table) 550 from the end. Splitting
+ * the same budget between head and tail scored WORSE (5 of 7): four of the six tail hits sit
+ * 155-262 characters from the end, so halving the tail loses them. Widening the tail to 600 keeps
+ * all seven. Collapsing is skipped entirely when the note is not smaller than what it replaces
+ * (see collapseTurn), so a wider note costs context nowhere.
+ */
+const KEPT_OUTPUT_CHARS = 600
 
 /**
  * Giai đoạn 6 A (docs/rlm-transfer-plan.md 12.3). Run at the end of a turn: every turn older than
@@ -95,11 +113,30 @@ function collapsedNote(events: readonly SessionEvent[], turnOf: readonly number[
   })
   const calls = [...counts].map(([tool, count]) => `${tool} ×${count}`).join(', ')
   const names = [...assigned].slice(0, 8)
+  const tail = outputTail(events, turnOf, n)
   return (
     `[Turn ${n}: tool steps (${calls}${failed > 0 ? `, ${failed} failed` : ''}) collapsed to save context.` +
     (names.length > 0 ? ` Variables assigned: ${names.join(', ')}.` : '') +
+    (tail ? ` Last output of the turn: ${tail}` : '') +
     ` Full code and output: print(history(${n})) in the python tool.]`
   )
+}
+
+/** End of what this turn's tools printed, so a value that was only printed survives the collapse. */
+function outputTail(events: readonly SessionEvent[], turnOf: readonly number[], n: number): string {
+  let text = ''
+  events.forEach((event, seq) => {
+    if (turnOf[seq] !== n || event.type !== 'tool/result' || !isAppendSurfaceEvent(event)) return
+    const block = event.data.message.content[0]!
+    if (block.isError) return
+    text += block.content
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join(' ')
+  })
+  const collapsed = text.replace(/\s+/g, ' ').trim()
+  if (collapsed === '') return ''
+  return collapsed.length > KEPT_OUTPUT_CHARS ? `…${collapsed.slice(-KEPT_OUTPUT_CHARS)}` : collapsed
 }
 
 function codeOf(args: string): string {

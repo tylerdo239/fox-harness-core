@@ -9,6 +9,41 @@ import { PythonKernel, type HostRequest } from './kernel.ts'
 export const name = 'fox-harness-tool-python-repl'
 export const inject = ['tools']
 
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * A tool call the model made that a plugin can run even when no tool by that name is
+     * registered. Answer with the call to make instead, or nothing to leave it alone.
+     * Dispatched by @fox-harness/dsh-agent-driver's `runStep` (packages/agent-driver/src/agent.ts).
+     */
+    'fox/resolve-tool-call'(call: ResolvedToolCall): ResolvedToolCall | undefined
+  }
+}
+
+export interface ResolvedToolCall {
+  name: string
+  arguments: Record<string, unknown>
+}
+
+// Preloaded in every Python session (python/helpers.py). The model calls these as if they
+// were tools — `unknown tool "profile_dataset"` in 2 of 2 runs, `list_datasets` over three
+// steps of one chat (docs/qa-report-2026-09-15.md V6) — even though the flow prompt says in
+// so many words that they are Python functions. The request is unambiguous, and this session
+// is exactly where those functions live, so run it there instead of failing the call.
+const PYTHON_HELPERS = new Set(['list_datasets', 'load_dataset', 'profile_dataset', 'save_artifact', 'history'])
+
+/** JSON argument value as Python source, the one place JSON and Python literals differ. */
+function pythonLiteral(value: unknown): string {
+  if (value === null || value === undefined) return 'None'
+  if (typeof value === 'boolean') return value ? 'True' : 'False'
+  if (typeof value === 'number') return String(value)
+  if (Array.isArray(value)) return `[${value.map(pythonLiteral).join(', ')}]`
+  if (typeof value === 'object') {
+    return `{${Object.entries(value).map(([key, item]) => `${JSON.stringify(key)}: ${pythonLiteral(item)}`).join(', ')}}`
+  }
+  return JSON.stringify(String(value))
+}
+
 const CELL_TIMEOUT_MS = 120_000
 const VARIABLES_CLEARED = 'Python variables: none are in memory now.'
 
@@ -25,7 +60,7 @@ export function apply(ctx: Context) {
         'Run Python code in a persistent IPython session that belongs to this conversation.',
         'Variables, imports and loaded data stay available across calls and turns until the session restarts; a note lists the variables in memory.',
         "The working directory holds the user's data files; save outputs only with save_artifact(), never into the working directory itself — files written there are moved to the output folder after the call.",
-        'Preloaded helpers: list_datasets(), load_dataset(name=None) → DataFrame, profile_dataset(name=None), save_artifact(path, content) → path under generated/, history(n) → the full record of turn n of this conversation (messages, code, outputs).',
+        'pandas as pd, numpy as np and matplotlib.pyplot as plt are already imported, and so are these helpers: list_datasets(), load_dataset(name=None) → DataFrame, profile_dataset(name=None), save_artifact(path, content) → path under generated/, history(n) → the full record of turn n of this conversation (messages, code, outputs).',
         'Only printed output and the value of the last expression are returned; past 20000 characters only the first 14000 and the last 6000 are kept — print summaries, not whole tables.',
         'Matplotlib figures still open after a successful call, and not saved by the code itself, are saved as PNG files in the output folder and their paths are returned.',
         `A call running longer than ${CELL_TIMEOUT_MS / 1000} seconds stops the session.`,
@@ -54,6 +89,14 @@ export function apply(ctx: Context) {
     }),
   )
 
+  ctx.on('fox/resolve-tool-call', (call) => {
+    if (!PYTHON_HELPERS.has(call.name)) return undefined
+    const args = Object.entries(call.arguments)
+      .map(([key, value]) => `${key}=${pythonLiteral(value)}`)
+      .join(', ')
+    return { name: 'python', arguments: { code: `${call.name}(${args})` } }
+  })
+
   // Variables note (docs/rlm-transfer-plan.md 12.3 B): RLM's SHOW_VARS() pushed to the model
   // rather than waiting for a call, delivered the way dsh-agent-loop's RuntimeContextProjection
   // delivers runtime context (lib/index.js:26-86) — a user-role snapshot added only when its text
@@ -63,7 +106,8 @@ export function apply(ctx: Context) {
     const decision = await next()
     if (decision.kind === 'reject') return decision
     const session = payload.agent.session
-    const current = kernel.variablesNote(session.events.some((event) => event.type === 'tool/call' && event.data.name === 'python'))
+    const usedPythonBefore = session.events.some((event) => event.type === 'tool/call' && event.data.name === 'python')
+    const current = kernel.variablesNote(usedPythonBefore, turnCount(session))
     const retained = retainedNote(session)
     if (retained === undefined && current === '') return decision
     const text = current || VARIABLES_CLEARED
