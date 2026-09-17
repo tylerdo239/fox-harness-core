@@ -298,7 +298,37 @@ export class FoxHarnessAgent implements Agent {
       // instead (declared and answered in packages/tool/python-repl/src/index.ts); with no
       // answer the call goes through untouched and dsh reports the unknown tool as before.
       // What gets logged and executed is the resolved call — the call that actually ran.
-      const requested = { name: call.name, arguments: JSON.parse(call.arguments || '{}') as Record<string, unknown> }
+      // Malformed arguments are the model's mistake, and they used to end the turn: `JSON.parse`
+      // threw out of this loop and the turn closed with `SyntaxError: Expected ',' or '}' after
+      // property value in JSON`, losing the answer the user was waiting for (reproduced 2/2 on a
+      // long data-analysis turn, 2026-09-16). A tool call the model wrote badly belongs in the
+      // conversation as a failed tool call, which it can read and retry, like any other tool error.
+      let parsedArguments: Record<string, unknown>
+      try {
+        parsedArguments = JSON.parse(call.arguments || '{}') as Record<string, unknown>
+      } catch (error) {
+        this.session.append('tool/call', { turn, step, callId: call.id, name: call.name, arguments: call.arguments })
+        this.session.append(
+          'tool/result',
+          {
+            turn,
+            step,
+            message: createToolResultMessage({
+              callId: call.id,
+              content: [
+                {
+                  type: 'text',
+                  text: `The arguments for \`${call.name}\` were not valid JSON (${error instanceof Error ? error.message : String(error)}). Call the tool again with valid JSON arguments.`,
+                },
+              ],
+              isError: true,
+            }),
+          },
+          { surfaceOp: 'append' },
+        )
+        continue
+      }
+      const requested = { name: call.name, arguments: parsedArguments }
       const resolved = (this.ctx.bail('fox/resolve-tool-call', requested) as typeof requested | undefined) ?? requested
 
       this.session.append('tool/call', {

@@ -149,7 +149,11 @@ export class OpenAiCompatAdapter extends LlmAdapter {
 
     if (!response.ok || !response.body) {
       const text = await response.text().catch(() => '')
-      throw new LlmError(`request to ${url} failed: ${response.status} ${response.statusText}`, httpErrorCode(response.status, text), {
+      // The body, not just the status: it is the only place a server says WHY, and without it a
+      // failed turn records "400 Bad Request" and nothing else — which is exactly how far a real
+      // diagnosis got on 2026-09-16 before the body had to be fetched by hand from inside the
+      // container. Bounded so a long HTML error page cannot flood the session log.
+      throw new LlmError(`request to ${url} failed: ${response.status} ${response.statusText}${text ? ` — ${text.slice(0, 400)}` : ''}`, httpErrorCode(response.status, text), {
         status: response.status,
         cause: text || undefined,
       })

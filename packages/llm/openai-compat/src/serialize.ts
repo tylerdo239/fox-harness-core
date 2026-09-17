@@ -49,7 +49,7 @@ function serializeMessage(message: Message): WireMessage[] {
               tool_calls: toolCalls.map((call) => ({
                 id: call.id,
                 type: 'function' as const,
-                function: { name: call.name, arguments: call.arguments },
+                function: { name: call.name, arguments: sendableArguments(call.arguments) },
               })),
             }
           : {}),
@@ -93,5 +93,26 @@ export function serializeRequest(options: GenerateOptions): WireRequest {
     temperature: options.temperature,
     max_tokens: options.maxTokens,
     stop: options.stop,
+  }
+}
+
+/**
+ * A tool call's arguments as the server will accept them.
+ *
+ * The model sometimes stops mid-argument — its output is cut off and what reaches the session is
+ * a half-written `{"code": "..."` with no closing brace. Sent back on the next request, vLLM
+ * rejects the whole conversation with `400 ... Expecting ',' delimiter: line 1 column 109`, and
+ * since every later request carries that same message again, the chat can never recover: measured
+ * on a real run, 2026-09-16, where four turns in a row died on the same character position.
+ * An unparseable argument string is replaced with an empty object here, at the wire boundary, so
+ * one truncated call costs that call and not the conversation. The session log keeps the original.
+ */
+function sendableArguments(args: string): string {
+  if (args === '') return args
+  try {
+    JSON.parse(args)
+    return args
+  } catch {
+    return '{}'
   }
 }
