@@ -100,4 +100,12 @@ export const config = {
   // addressing (`http://host/bucket/key`) — they don't support the
   // virtual-hosted-style (`http://bucket.host/key`) AWS S3 defaults to.
   s3ForcePathStyle: envOr('S3_FORCE_PATH_STYLE', 'false') === 'true',
+  // docs/data-studio-admin-ui-plan.md: the SAME host directory
+  // services/orchestrator/src/config.ts's `dataStudioSharedDir` bind-mounts
+  // into every worker container — gateway reads/writes the sqlite file
+  // inside it directly for admin CRUD (data sources/entities/glossary/
+  // relationships/metrics), no Python involved for plain CRUD. Same default
+  // (relative to cwd) as orchestrator's own default so an unconfigured dev
+  // setup still points both processes at the identical file.
+  dataStudioSharedDir: envOr('DATA_STUDIO_SHARED_DIR', `${process.cwd()}/data/data-studio-shared`),
 }

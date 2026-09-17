@@ -78,6 +78,8 @@ import { toast } from "sonner";
 import {
   BrandIcon,
   ChevronDownIcon,
+  DataAnalysisIcon,
+  PinIcon,
   SearchIcon,
   ToolIcon,
 } from "../../../icons.tsx";
@@ -98,6 +100,7 @@ import {
   refreshSkillMenu,
   SkillApiError,
 } from "../skills/skillsApi.ts";
+import { ChartView, type ChartSpec } from "./ChartView.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
 import { WorkspacePanel } from "./WorkspacePanel.tsx";
@@ -125,6 +128,10 @@ const WEB_SEARCH_TOOL = "web_search";
 // their later `tool/result` naturally no-ops in `updateEntry` (nothing
 // matches `tool-${callId}`), same as any id that was never pushed.
 const HIDDEN_TOOLS = new Set(["skill", "bash"]);
+
+// docs/data-studio-agent-transfer-plan.md — real name registered by
+// packages/tool/data-studio-agent/src/index.ts's `defineTool`.
+const ANALYZE_DATA_TOOL = "analyze_data";
 
 // Real shape of `tool/result`'s `event.data.meta` for a `web_search` call —
 // `dsh-tools`' own `presentationMeta()` output, confirmed against its
@@ -155,6 +162,43 @@ function parseWebSearchMeta(
     sources,
     truncated: record.truncated === true,
     answer: typeof record.answer === "string" ? record.answer : undefined,
+  };
+}
+
+// Real shape of `analyze_data`'s `presentationMeta` output
+// (packages/tool/data-studio-agent/src/index.ts) — same "narrow, never
+// trust the wire" treatment as `parseWebSearchMeta` above.
+interface DataStudioMeta {
+  sql: string | null;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  rowCount: number;
+  chart: ChartSpec | null;
+  // docs/data-studio-admin-ui-plan.md phase 5 — the real charts_chat row id
+  // (bridge/runner.py's `_persist_chart`), when `chart` is present. Lets
+  // DataStudioResultPill offer "pin to dashboard".
+  chartId: number | null;
+  truncated: boolean;
+}
+
+function parseDataStudioMeta(meta: unknown): DataStudioMeta | undefined {
+  if (typeof meta !== "object" || meta === null) return undefined;
+  const record = meta as Record<string, unknown>;
+  if (!Array.isArray(record.rows) || !Array.isArray(record.columns)) return undefined;
+  const chart =
+    typeof record.chart === "object" && record.chart !== null
+      ? (record.chart as ChartSpec)
+      : null;
+  return {
+    sql: typeof record.sql === "string" ? record.sql : null,
+    columns: record.columns.filter((c): c is string => typeof c === "string"),
+    rows: record.rows.filter(
+      (r): r is Record<string, unknown> => typeof r === "object" && r !== null,
+    ),
+    rowCount: typeof record.rowCount === "number" ? record.rowCount : 0,
+    chart,
+    chartId: typeof record.chartId === "number" ? record.chartId : null,
+    truncated: record.truncated === true,
   };
 }
 
@@ -196,6 +240,30 @@ type LogEntry =
       sources: WebSource[];
       truncated: boolean;
       answer?: string;
+    }
+  // docs/data-studio-agent-transfer-plan.md: one pill per `analyze_data`
+  // call (not merged across calls like "search" above — this tool is slow
+  // and deliberately called once per distinct question, so there's no
+  // "several calls in flight" case worth collapsing).
+  | {
+      kind: "data-studio";
+      id: string;
+      turn: number;
+      status: "running" | "done" | "error";
+      // epoch ms when the tool/call fired — lets the pill tick a live elapsed
+      // timer while `status === "running"` (a real call routinely takes
+      // several minutes; without this the pill looks frozen the whole time).
+      startedAt: number;
+      question: string;
+      answer?: string;
+      errorText?: string;
+      sql: string | null;
+      columns: string[];
+      rows: Record<string, unknown>[];
+      rowCount: number;
+      chart: ChartSpec | null;
+      chartId: number | null;
+      truncated: boolean;
     }
   | { kind: "bubble"; id: string; role: "user" | "assistant"; text: string };
 
@@ -459,16 +527,198 @@ function SearchSourcesPill({
   );
 }
 
+// Builds a markdown table so the row data can reuse Markdown.tsx's existing
+// GFM table styling/scroll wrapper instead of a bespoke `<table>`.
+function rowsToMarkdownTable(columns: string[], rows: Record<string, unknown>[]): string {
+  const escape = (value: unknown): string =>
+    String(value ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+  const header = `| ${columns.map(escape).join(" | ")} |`;
+  const divider = `| ${columns.map(() => "---").join(" | ")} |`;
+  const body = rows.map((row) => `| ${columns.map((c) => escape(row[c])).join(" | ")} |`);
+  return [header, divider, ...body].join("\n");
+}
+
+// docs/data-studio-agent-transfer-plan.md — result pill for `analyze_data`.
+// Collapsed by default, same `expandedDetails`/`toggleDetailExpanded` state
+// every other pill in this file uses.
+// docs/data-studio-admin-ui-plan.md phase 5 — "pin this chart to a
+// dashboard" next to an already-persisted chart (the real row `chartId`
+// references, created by bridge/runner.py's `_persist_chart`). Fetches the
+// dashboard list lazily (only when opened) — this pill can render many times
+// per conversation and most are never opened.
+function PinToDashboardButton({
+  chartId,
+  t,
+}: {
+  chartId: number;
+  t: (key: TranslationKey, params?: Record<string, string>) => string;
+}) {
+  const runtime = useRuntime();
+  const [open, setOpen] = useState(false);
+  const [dashboards, setDashboards] = useState<{ id: number; title: string }[] | null>(null);
+  const [pinning, setPinning] = useState(false);
+
+  async function loadDashboards(): Promise<void> {
+    const res = await runtime.authedFetch("/data-studio/dashboards");
+    if (res.ok) setDashboards(await res.json());
+  }
+
+  async function pinTo(dashboardId: number): Promise<void> {
+    setPinning(true);
+    const res = await runtime.authedFetch(`/data-studio/dashboards/${dashboardId}/widgets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chart_id: chartId }),
+    });
+    setPinning(false);
+    setOpen(false);
+    if (res.ok) toast.success(t("conversation.pinnedToDashboard"));
+    else toast.error(t("conversation.pinFailed"));
+  }
+
+  async function pinToNewDashboard(): Promise<void> {
+    setPinning(true);
+    const created = await runtime.authedFetch("/data-studio/dashboards", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: t("dataStudio.untitledDashboard") }),
+    });
+    if (!created.ok) {
+      setPinning(false);
+      setOpen(false);
+      toast.error(t("conversation.pinFailed"));
+      return;
+    }
+    const dashboard = await created.json();
+    await pinTo(dashboard.id);
+  }
+
+  return (
+    <div className="data-studio-pin">
+      <Button
+        variant="outline"
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (next && dashboards === null) void loadDashboards();
+        }}
+      >
+        <PinIcon size={13} /> {t("conversation.pinToDashboard")}
+      </Button>
+      {open && (
+        <div className="data-studio-pin-popup">
+          {dashboards === null ? (
+            <div className="data-studio-pin-loading">{t("dataStudio.loading")}</div>
+          ) : (
+            <>
+              {dashboards.map((dashboard) => (
+                <button key={dashboard.id} type="button" disabled={pinning} onClick={() => pinTo(dashboard.id)}>
+                  {dashboard.title}
+                </button>
+              ))}
+              <button type="button" disabled={pinning} onClick={pinToNewDashboard}>
+                + {t("dataStudio.newDashboard")}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DataStudioResultPill({
+  entry,
+  expanded,
+  onToggle,
+  alwaysExpanded,
+  t,
+}: {
+  entry: Extract<LogEntry, { kind: "data-studio" }>;
+  expanded: boolean;
+  onToggle: () => void;
+  // docs/data-studio-agent-transfer-plan.md: the Data Studio route's own
+  // chat (Conversation `variant="data-studio"`) always shows trace/SQL/
+  // table/chart inline instead of collapsing into a click-to-open pill —
+  // same underlying markup either way, just the header loses its toggle
+  // affordance and the detail section is never hidden.
+  alwaysExpanded?: boolean;
+  t: (key: TranslationKey, params?: Record<string, string>) => string;
+}) {
+  // Real calls routinely run 1-10+ minutes (the Python pipeline's own multi-
+  // agent retrieval/SQL/chart steps) — a static label with no feedback for
+  // that whole time reads as frozen. Ticks once a second only while running;
+  // no interval/re-render cost once it settles.
+  const [elapsedMs, setElapsedMs] = useState(() => Date.now() - entry.startedAt);
+  useEffect(() => {
+    if (entry.status !== "running") return;
+    const id = setInterval(() => setElapsedMs(Date.now() - entry.startedAt), 1000);
+    return () => clearInterval(id);
+  }, [entry.status, entry.startedAt]);
+  const elapsedLabel = (() => {
+    const totalSeconds = Math.floor(elapsedMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  })();
+  const label =
+    entry.status === "running"
+      ? `${t("conversation.dataStudioRunning")} (${elapsedLabel})`
+      : entry.status === "error"
+        ? t("conversation.dataStudioFailed")
+        : t("conversation.dataStudioDone");
+  const isOpen = alwaysExpanded || expanded;
+  return (
+    <div
+      className={`tool-pill data-studio-pill${entry.status === "error" ? " tool-pill-error" : ""}${isOpen ? " expanded" : ""}${alwaysExpanded ? " data-studio-pill-static" : ""}`}
+    >
+      {alwaysExpanded ? (
+        <div className="tool-pill-header">
+          <DataAnalysisIcon size={13} />
+          <span>{label}</span>
+        </div>
+      ) : (
+        <button type="button" className="tool-pill-header" onClick={onToggle}>
+          <DataAnalysisIcon size={13} />
+          <span>{label}</span>
+          <ChevronDownIcon size={13} className="tool-pill-chevron" />
+        </button>
+      )}
+      {isOpen && (
+        <div className="tool-pill-detail data-studio-pill-detail">
+          {entry.status === "error" && entry.errorText && (
+            <div className="data-studio-error">{entry.errorText}</div>
+          )}
+          {entry.answer && <Markdown text={entry.answer} />}
+          {entry.chart && <ChartView chart={entry.chart} />}
+          {entry.chartId !== null && <PinToDashboardButton chartId={entry.chartId} t={t} />}
+          {entry.sql && <Markdown text={`\`\`\`sql\n${entry.sql}\n\`\`\``} />}
+          {entry.rows.length > 0 && (
+            <Markdown text={rowsToMarkdownTable(entry.columns, entry.rows)} />
+          )}
+          {entry.truncated && (
+            <div className="data-studio-truncated">
+              {t("conversation.dataStudioTruncated", { n: String(entry.rowCount) })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LogEntryView({
   entry,
   isExpanded,
   onToggleExpanded,
+  alwaysExpandDataStudio,
   t,
   locale,
 }: {
   entry: LogEntry;
   isExpanded: (id: string) => boolean;
   onToggleExpanded: (id: string) => void;
+  alwaysExpandDataStudio: boolean;
   t: (key: TranslationKey, params?: Record<string, string>) => string;
   locale: Locale;
 }) {
@@ -494,6 +744,16 @@ function LogEntryView({
           locale={locale}
         />
       );
+    case "data-studio":
+      return (
+        <DataStudioResultPill
+          entry={entry}
+          expanded={isExpanded(entry.id)}
+          onToggle={() => onToggleExpanded(entry.id)}
+          alwaysExpanded={alwaysExpandDataStudio}
+          t={t}
+        />
+      );
     case "bubble":
       if (entry.role === "user") {
         return (
@@ -514,7 +774,14 @@ function LogEntryView({
   }
 }
 
-export function Conversation() {
+export function Conversation({
+  variant = "default",
+}: {
+  // docs/data-studio-agent-transfer-plan.md: "data-studio" is used only by
+  // the Data Studio route (App.tsx) — same event handling/composer as
+  // "default", just renders `DataStudioResultPill` always expanded.
+  variant?: "default" | "data-studio";
+} = {}) {
   const runtime = useRuntime();
   const { t, locale } = useLocale();
   const [entries, setEntries] = useState<LogEntry[]>([]);
@@ -551,6 +818,9 @@ export function Conversation() {
   // carries `turn` itself — this only needs to answer "was this call a
   // search."
   const searchCallIdsRef = useRef(new Set<string>());
+  // Same purpose as `searchCallIdsRef`, for `analyze_data` calls (routed to
+  // `DataStudioResultPill` instead of a generic `ToolPill`).
+  const dataStudioCallIdsRef = useRef(new Set<string>());
   // `handleEvent`/`handleFrame` below are only ever subscribed ONCE, at
   // mount (see that effect's own comment — a deliberate, load-bearing
   // design, not something i18n should break). A plain closure over `t`
@@ -713,6 +983,19 @@ export function Conversation() {
             ) {
               return { ...entry, pendingCalls: 0, hasError: true };
             }
+            // Same reclassification for an `analyze_data` call this turn
+            // ended without ever resolving.
+            if (
+              entry.kind === "data-studio" &&
+              entry.turn === data.turn &&
+              entry.status === "running"
+            ) {
+              return {
+                ...entry,
+                status: "error",
+                errorText: tRef.current("conversation.toolInterrupted"),
+              };
+            }
             return entry;
           }),
         );
@@ -819,6 +1102,31 @@ export function Conversation() {
           );
           break;
         }
+        if (data.name === ANALYZE_DATA_TOOL) {
+          dataStudioCallIdsRef.current.add(data.callId);
+          let question = "";
+          try {
+            question = (JSON.parse(data.arguments) as { question?: string }).question ?? "";
+          } catch {
+            // not valid JSON (or empty) — leave blank, the pill still renders fine
+          }
+          pushEntry({
+            kind: "data-studio",
+            id: `tool-${data.callId}`,
+            turn: data.turn,
+            status: "running",
+            startedAt: Date.now(),
+            question,
+            sql: null,
+            columns: [],
+            rows: [],
+            rowCount: 0,
+            chart: null,
+            chartId: null,
+            truncated: false,
+          });
+          break;
+        }
         let pretty = data.arguments;
         try {
           pretty = JSON.stringify(JSON.parse(data.arguments), null, 2);
@@ -852,6 +1160,30 @@ export function Conversation() {
         // `searchCallIdsRef.delete()` both checks AND consumes membership —
         // a `web_search` result is routed here exactly once, same as any
         // other tool's `tool/result`.
+        if (callId && dataStudioCallIdsRef.current.delete(callId)) {
+          const parsed = isError ? undefined : parseDataStudioMeta(data.meta);
+          const dataStudioResultText = block ? contentToText(block.content) : "";
+          updateEntry(`tool-${callId}`, (entry) =>
+            entry.kind === "data-studio"
+              ? {
+                  ...entry,
+                  status: isError || !parsed ? "error" : "done",
+                  answer: isError ? undefined : dataStudioResultText,
+                  errorText: isError
+                    ? (data.error?.message ?? data.error?.name ?? dataStudioResultText)
+                    : undefined,
+                  sql: parsed?.sql ?? null,
+                  columns: parsed?.columns ?? [],
+                  rows: parsed?.rows ?? [],
+                  rowCount: parsed?.rowCount ?? 0,
+                  chart: parsed?.chart ?? null,
+                  chartId: parsed?.chartId ?? null,
+                  truncated: parsed?.truncated ?? false,
+                }
+              : entry,
+          );
+          break;
+        }
         if (callId && searchCallIdsRef.current.delete(callId)) {
           const parsed = isError ? undefined : parseWebSearchMeta(data.meta);
           upsertSearchEntry(
@@ -1100,6 +1432,7 @@ export function Conversation() {
               entry={entry}
               isExpanded={(id) => expandedDetails.has(id)}
               onToggleExpanded={toggleDetailExpanded}
+              alwaysExpandDataStudio={variant === "data-studio"}
               t={t}
               locale={locale}
             />

@@ -25,6 +25,15 @@ import { LanguageSelect } from "./components/features/LanguageSelect.tsx";
 import { ProjectChatBar, ProjectHub } from "./components/features/projects/ProjectHub.tsx";
 import { SettingsDialog } from "./components/features/settings/SettingsDialog.tsx";
 import { SkillsDialog } from "./components/features/skills/SkillsDialog.tsx";
+import { DataStudioDashboards } from "./components/features/data-studio/DataStudioDashboards.tsx";
+import { DataStudioDataSources } from "./components/features/data-studio/DataStudioDataSources.tsx";
+import { DataStudioGlossary } from "./components/features/data-studio/DataStudioGlossary.tsx";
+import { DataStudioMetrics } from "./components/features/data-studio/DataStudioMetrics.tsx";
+import { DataStudioRelationships } from "./components/features/data-studio/DataStudioRelationships.tsx";
+import {
+  DataStudioSidebar,
+  type DataStudioSection,
+} from "./components/features/data-studio/DataStudioSidebar.tsx";
 import { Sidebar } from "./components/features/sidebar/Sidebar.tsx";
 import {
   LocaleProvider,
@@ -105,6 +114,30 @@ function sessionIdFromUrl(): string | undefined {
   return match && SESSION_ID_RE.test(match[1]) ? match[1] : undefined;
 }
 
+// docs/data-studio-agent-transfer-plan.md: `/data-studio` (home) and
+// `/data-studio/chat/<id>` (a specific session of that flow) — a real,
+// separate URL space, unlike the "Phân tích dữ liệu" project hub (pure
+// client state, never in the URL).
+function isDataStudioUrl(): boolean {
+  return location.pathname === "/data-studio" || location.pathname.startsWith("/data-studio/");
+}
+function dataStudioSessionIdFromUrl(): string | undefined {
+  const match = /^\/data-studio\/chat\/([^/]+)$/.exec(location.pathname);
+  return match && SESSION_ID_RE.test(match[1]) ? match[1] : undefined;
+}
+
+// Shared by both the auto-reconnect-on-load effect and handleLogin — what to
+// connect to given whatever's currently in the address bar. `flow` is only
+// set for a brand-new `/data-studio` visit with no id yet (a normal `/chat/`
+// or bare `/` visit gets `undefined`, same as before this flow existed).
+function initialSessionTarget(): { path: string; flow?: string } {
+  const chatId = sessionIdFromUrl();
+  if (chatId) return { path: chatId };
+  const dataStudioId = dataStudioSessionIdFromUrl();
+  if (dataStudioId) return { path: dataStudioId };
+  return { path: "new", flow: isDataStudioUrl() ? "data-studio" : undefined };
+}
+
 // `replaceState` for transitions the app makes on the user's behalf (the
 // auto-transition from `/` to `/chat/<id>` on a session's first message,
 // or a stale-URL cleanup) — no new history entry, so Back skips past that
@@ -124,6 +157,15 @@ function pushHomeUrl(): void {
 }
 function replaceHomeUrl(): void {
   history.replaceState(null, "", "/");
+}
+function replaceDataStudioChatUrl(id: string): void {
+  history.replaceState(null, "", `/data-studio/chat/${id}`);
+}
+function pushDataStudioChatUrl(id: string): void {
+  history.pushState(null, "", `/data-studio/chat/${id}`);
+}
+function pushDataStudioHomeUrl(): void {
+  history.pushState(null, "", "/data-studio");
 }
 
 // i18n (2026-09-10): services/gateway's `/auth/register`+`/auth/login` now
@@ -301,6 +343,14 @@ function AppInner() {
   // docs/rlm-transfer-plan.md 9.1: the data-analysis project hub replaces the
   // chat in the center column while set (`projectId` null = the project list).
   const [projectView, setProjectView] = useState<{ projectId: string | null } | null>(null);
+  // docs/data-studio-agent-transfer-plan.md: a real separate route (see
+  // isDataStudioUrl()/pushDataStudioHomeUrl() etc. above) — swaps BOTH the
+  // sidebar and the center column, unlike `projectView` above. `dataStudioSection`
+  // is pure client state (not in the URL, same treatment `projectView` gets) —
+  // only "chat" is real; the others are placeholders for the semantic-layer
+  // admin pages (Phase 3, not built yet).
+  const [dataStudioMode, setDataStudioMode] = useState(() => isDataStudioUrl());
+  const [dataStudioSection, setDataStudioSection] = useState<DataStudioSection>("chat");
   // First message typed in a project page's composer, sent once the new chat's
   // `session` frame arrives (handleFrame).
   const pendingFirstMessageRef = useRef<string | null>(null);
@@ -337,7 +387,9 @@ function AppInner() {
   // Drives both the URL-update trigger and the visible session-id (session-bar
   // below) — lazy-initialized from whatever the URL already says on first
   // paint, so a direct `/chat/<id>` visit doesn't flash "no session" first.
-  const [hasChatted, setHasChatted] = useState(() => !!sessionIdFromUrl());
+  const [hasChatted, setHasChatted] = useState(
+    () => !!sessionIdFromUrl() || !!dataStudioSessionIdFromUrl(),
+  );
 
   const frameRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -624,8 +676,13 @@ function AppInner() {
     if (!token) return;
     // Real pushState — an explicit "New chat" click, so Back returns to
     // whatever chat was open before it, same category as switchSession
-    // below.
-    pushHomeUrl();
+    // below. docs/data-studio-agent-transfer-plan.md: a `data-studio` flow
+    // request pushes ITS OWN home URL instead of `/` — the only flow with a
+    // real separate route (data-analysis has none, see isDataStudioUrl()'s
+    // own comment).
+    setDataStudioMode(flow === "data-studio");
+    if (flow === "data-studio") pushDataStudioHomeUrl();
+    else pushHomeUrl();
     setHasChatted(false);
     wsRef.current?.close();
     pendingFirstMessageRef.current = firstMessage ?? null;
@@ -672,7 +729,8 @@ function AppInner() {
           // client->worker frame passes through). `replaceState`, not
           // `pushState` — see the helper's own comment for why.
           if (!hasChatted && sessionId) {
-            replaceChatUrl(sessionId);
+            if (dataStudioMode) replaceDataStudioChatUrl(sessionId);
+            else replaceChatUrl(sessionId);
             setHasChatted(true);
           }
           wsRef.current.send(JSON.stringify(frame));
@@ -684,8 +742,13 @@ function AppInner() {
         // Real pushState — an explicit click. Anything reachable from the
         // sidebar list already has `first_message_at` set server-side, so
         // showing its id right away is correct, not a violation of the
-        // "hide until chatted" rule.
-        pushChatUrl(id);
+        // "hide until chatted" rule. docs/data-studio-agent-transfer-plan.md:
+        // DataStudioSidebar's own filtered list only ever contains
+        // `data-studio`-flow sessions, so `dataStudioMode` (true whenever
+        // that sidebar — not the main one — is the one rendering the row
+        // that was clicked) is what decides the URL shape here.
+        if (dataStudioMode) pushDataStudioChatUrl(id);
+        else pushChatUrl(id);
         setHasChatted(true);
         setProjectView(null);
         wsRef.current?.close();
@@ -698,7 +761,7 @@ function AppInner() {
       bumpSessionsVersion: () => setSessionsVersion((v) => v + 1),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sessionId, userEmail, hasChatted, sessionTitle, sessionsVersion],
+    [sessionId, userEmail, hasChatted, sessionTitle, sessionsVersion, dataStudioMode],
   );
 
   function handleLogin(email: string, password: string): void {
@@ -709,11 +772,15 @@ function AppInner() {
         const result = await login(httpBase, email, password);
         localStorage.setItem(STORAGE_EMAIL, result.email);
         setUserEmail(result.email);
-        // Resumes whatever `/chat/<id>` is currently in the address bar —
-        // this is what makes a deep link work while logged out: the URL
-        // stays as typed/bookmarked through the login screen, no
-        // special-casing needed.
-        connect(httpBase, result.token, sessionIdFromUrl() ?? "new");
+        // Resumes whatever `/chat/<id>` (or `/data-studio[/chat/<id>]`) is
+        // currently in the address bar — this is what makes a deep link
+        // work while logged out: the URL stays as typed/bookmarked through
+        // the login screen, no special-casing needed.
+        {
+          const target = initialSessionTarget();
+          setDataStudioMode(isDataStudioUrl());
+          connect(httpBase, result.token, target.path, target.flow);
+        }
       } catch (error) {
         setConnectError(
           error instanceof AuthError
@@ -787,13 +854,16 @@ function AppInner() {
   useEffect(() => {
     const storedToken = localStorage.getItem(STORAGE_TOKEN);
     const storedGateway = localStorage.getItem(STORAGE_GATEWAY);
-    // A `/chat/` path that fails the UUID check (garbage, typo, truncated
-    // link) is a correction the app makes, not a click — replaceState,
-    // clean it up before connecting fresh rather than leaving it dangling.
-    if (location.pathname.startsWith("/chat/") && !sessionIdFromUrl())
-      replaceHomeUrl();
+    // A `/chat/` or `/data-studio/chat/` path that fails the UUID check
+    // (garbage, typo, truncated link) is a correction the app makes, not a
+    // click — replaceState, clean it up before connecting fresh rather than
+    // leaving it dangling.
+    if (location.pathname.startsWith("/chat/") && !sessionIdFromUrl()) replaceHomeUrl();
+    if (location.pathname.startsWith("/data-studio/chat/") && !dataStudioSessionIdFromUrl())
+      history.replaceState(null, "", "/data-studio");
     if (storedToken && storedGateway) {
-      connect(storedGateway, storedToken, sessionIdFromUrl() ?? "new");
+      const target = initialSessionTarget();
+      connect(storedGateway, storedToken, target.path, target.flow);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -807,10 +877,12 @@ function AppInner() {
     function onPopState(): void {
       const token = localStorage.getItem(STORAGE_TOKEN);
       if (!token || !gatewayHttpBaseRef.current) return;
-      const target = sessionIdFromUrl();
-      setHasChatted(!!target);
+      const target = initialSessionTarget();
+      setDataStudioMode(isDataStudioUrl());
+      setProjectView(null);
+      setHasChatted(target.path !== "new");
       wsRef.current?.close();
-      connect(gatewayHttpBaseRef.current, token, target ?? "new");
+      connect(gatewayHttpBaseRef.current, token, target.path, target.flow);
     }
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -931,22 +1003,59 @@ function AppInner() {
         ref={frameRef}
         style={{ gridTemplateColumns }}
       >
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={toggleSidebarCollapse}
-          onNewSession={() => {
-            setProjectView(null);
-            startNewSession();
-          }}
-          onOpenDataAnalysis={() => setProjectView({ projectId: null })}
-          dataAnalysisActive={projectView !== null}
-          newSessionDisabled={!hasChatted && projectView === null}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onOpenSkills={() => setSkillsOpen(true)}
-          onLogout={handleLogout}
-        />
+        {dataStudioMode ? (
+          <DataStudioSidebar
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={toggleSidebarCollapse}
+            activeSection={dataStudioSection}
+            onSelectSection={setDataStudioSection}
+            onNewChat={() => {
+              setDataStudioSection("chat");
+              startNewSession("data-studio");
+            }}
+            newChatDisabled={!hasChatted}
+            // Explicit non-`undefined` flow bypasses startNewSession's
+            // "already on an empty session" no-op guard — a deliberate
+            // context switch, not a redundant "New chat" click (see that
+            // function's own comment for why the guard exists at all).
+            onBackToMain={() => startNewSession("default")}
+          />
+        ) : (
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={toggleSidebarCollapse}
+            onNewSession={() => {
+              setProjectView(null);
+              startNewSession();
+            }}
+            onOpenDataAnalysis={() => setProjectView({ projectId: null })}
+            dataAnalysisActive={projectView !== null}
+            onOpenDataStudio={() => startNewSession("data-studio")}
+            newSessionDisabled={!hasChatted && projectView === null}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSkills={() => setSkillsOpen(true)}
+            onLogout={handleLogout}
+          />
+        )}
         <div id="center-col" className="fh-center-col">
-          {projectView ? (
+          {dataStudioMode ? (
+            dataStudioSection === "chat" ? (
+              <>
+                {sessionId && hasChatted && <SessionTitleBar />}
+                <Conversation variant="data-studio" />
+              </>
+            ) : dataStudioSection === "data-sources" ? (
+              <DataStudioDataSources />
+            ) : dataStudioSection === "glossary" ? (
+              <DataStudioGlossary />
+            ) : dataStudioSection === "relationships" ? (
+              <DataStudioRelationships />
+            ) : dataStudioSection === "metrics" ? (
+              <DataStudioMetrics />
+            ) : (
+              <DataStudioDashboards />
+            )
+          ) : projectView ? (
             <ProjectHub
               key={projectView.projectId ?? "project-list"}
               projectId={projectView.projectId}

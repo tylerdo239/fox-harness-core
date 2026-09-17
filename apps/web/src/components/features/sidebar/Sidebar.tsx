@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import {
   BrandIcon,
   DataAnalysisIcon,
+  DataStudioIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PlusIcon,
@@ -54,6 +55,7 @@ export function Sidebar({
   onNewSession,
   onOpenDataAnalysis,
   dataAnalysisActive,
+  onOpenDataStudio,
   newSessionDisabled,
   onOpenSettings,
   onOpenSkills,
@@ -66,6 +68,12 @@ export function Sidebar({
   // center column — data chats live inside projects, as in agent-core.
   onOpenDataAnalysis: () => void;
   dataAnalysisActive: boolean;
+  // docs/data-studio-agent-transfer-plan.md: `analyze_data` is a plain tool
+  // in every session's default profile already — no flow/hub to open, so
+  // this just starts a fresh chat (same action as "New chat"). A separate,
+  // discoverable entry point rather than reusing onNewSession's button
+  // directly, so the sidebar names the capability explicitly.
+  onOpenDataStudio: () => void;
   // Real bug fixed 2026-09-10: already on a fresh, never-chatted session
   // -> clicking this used to close the socket and open ANOTHER new one
   // for nothing (see App.tsx's `startNewSession` for the actual guard;
@@ -168,6 +176,18 @@ export function Sidebar({
         <DataAnalysisIcon size={16} />
         <span className="fh-sidebar-data-analysis-label">
           {t("sidebar.dataAnalysis")}
+        </span>
+      </MenuItem>
+
+      <MenuItem
+        variant="nav"
+        className="fh-sidebar-data-studio"
+        onClick={onOpenDataStudio}
+        title={t("sidebar.dataStudio")}
+      >
+        <DataStudioIcon size={16} />
+        <span className="fh-sidebar-data-studio-label">
+          {t("sidebar.dataStudio")}
         </span>
       </MenuItem>
 

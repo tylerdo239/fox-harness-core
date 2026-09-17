@@ -1,0 +1,22 @@
+[project]
+name = "data-studio-agents"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "agno>=2.9.0",
+    # Not used at runtime (services/data-studio-agent/bridge/runner.py never
+    # instantiates it — Meilisearch/MeiliStore is the real vector store) but
+    # still a real import-time dependency: pipeline_v3/orchestrator.py's
+    # `vs: VectorStore` type annotation imports src/services/vector_store.py,
+    # which imports chromadb at module level. Left in rather than editing
+    # that vendored pipeline file just to drop a type annotation.
+    "chromadb>=1.5.9",
+    "httpx>=0.28.1",
+    "openai>=3.3.1",
+    "pandas>=3.0.5",
+    "pydantic-settings>=2.15.0",
+    "sqlglot>=30.17.0",
+    "sqlmodel>=0.0.39",
+]

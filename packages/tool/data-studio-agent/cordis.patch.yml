@@ -1,0 +1,5 @@
+# Pure ADD (id doesn't exist upstream) — plain `insert:` is correct here.
+- insert:
+    - id: fox-harness-tool-data-studio-agent
+      name: '@fox-harness/dsh-tool-data-studio-agent'
+      config: {}

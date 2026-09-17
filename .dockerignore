@@ -7,6 +7,12 @@ node_modules/
 **/lib/
 **/dist/
 *.tsbuildinfo
+# packages/tool/data-studio-agent/python's venv — a host-built one would be
+# linked to the HOST's python interpreter (e.g. macOS), useless (and
+# discarded/rebuilt anyway) inside the Linux image; excluding it just avoids
+# uploading it into the build context.
+**/.venv/
+**/__pycache__/
 .git/
 .env
 .env.*

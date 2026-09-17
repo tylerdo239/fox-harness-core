@@ -69,10 +69,25 @@ async function waitUntilReachable(host: string, port: number, timeoutMs = 15000)
  * what actually exercises the "state comes only from the log" invariant
  * instead of quietly relying on in-container memory surviving.
  */
+// Real bug caught the hard way testing `analyze_data` end-to-end: `DREMIO_URL`/
+// `MEILISEARCH_URL` in the shared root `.env` correctly say `127.0.0.1` for
+// every HOST process that reads them (gateway's own admin bridge, this very
+// orchestrator process) — but forwarded VERBATIM into a worker container's
+// env, `127.0.0.1` there means the CONTAINER itself, not the host, so the
+// Dremio/Meilisearch containers (which publish ports on the HOST) become
+// unreachable ("Connection refused", confirmed against a real running
+// session). `host.docker.internal` is Docker Desktop's real, built-in DNS
+// name for exactly this (macOS/Windows out of the box; real Linux Docker
+// Engine deployments need `--add-host=host.docker.internal:host-gateway` on
+// `docker run`, not added here since dev on this host doesn't need it).
+function rewriteLoopbackForContainer(value: string): string {
+  return value.replace(/(127\.0\.0\.1|localhost)(?=[:/]|$)/g, 'host.docker.internal')
+}
+
 export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelOverride?: string, profileName: string = 'fox-harness', sessionCwd?: string, projectDir?: string): Promise<SpawnedWorker> {
   const env = config.workerEnvPassthrough
     .filter((name) => name !== 'OPENAI_MODEL_ID' && process.env[name] !== undefined)
-    .map((name) => `${name}=${process.env[name]}`)
+    .map((name) => `${name}=${rewriteLoopbackForContainer(process.env[name]!)}`)
   // Phase 12 item 4: a per-session model choice (or a rehydrate carrying the
   // one already chosen) always wins over orchestrator's own OPENAI_MODEL_ID
   // env value — filtered out of the passthrough above specifically so it's
@@ -84,10 +99,17 @@ export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelO
   // entrypoint.sh should boot with — defaults to the original single-profile
   // name so an image run without this set still behaves exactly as before.
   env.push(`DSH_PROFILE_NAME=${profileName}`)
+  // docs/data-studio-agent-transfer-plan.md: unconditional (every session,
+  // every worker) — the semantic-layer sqlite config is shared across ALL
+  // sessions, unlike the per-session /data mount below. Created here for the
+  // same reason dshHomeDir's subdirectory is: so the host process (not the
+  // container's root user) owns it.
+  await mkdir(config.dataStudioSharedDir, { recursive: true })
+  env.push(`DATABASE_URL=sqlite:////data-studio-shared/semantic_layer.db`)
   // The flow's working directory (config.flows[...].cwd, under /data). Created
   // here on the host so host-side writers (file uploads) own it, not the
   // container's root user.
-  const binds = [`${dshHomeDir}:/data`]
+  const binds = [`${dshHomeDir}:/data`, `${config.dataStudioSharedDir}:/data-studio-shared`]
   if (sessionCwd !== undefined) {
     await mkdir(join(dshHomeDir, relative('/data', sessionCwd)), { recursive: true })
     env.push(`FOX_SESSION_CWD=${sessionCwd}`)

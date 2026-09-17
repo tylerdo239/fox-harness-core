@@ -47,9 +47,17 @@ function requireEnv(name: string): string {
 // `cwd` (docs/rlm-transfer-plan.md giai đoạn 2): the container path a session
 // of that flow works in. Must be under /data (the bind mount) so files survive
 // hibernation; `undefined` keeps the image's WORKDIR (/repo).
+// `data-studio` (docs/data-studio-agent-transfer-plan.md): a SEPARATE ROUTE
+// in the FE (its own sidebar/chat surface) but the exact same profile as
+// `default` — `analyze_data` already ships in the default bundle list, so
+// there's no different agent loop to boot. This entry exists purely so
+// sessions created from that route carry `flow: 'data-studio'` (the FE
+// filters its own session list by this), not because materialize.ts needs
+// to do anything different for it.
 const flows = {
   default: { profileName: 'fox-harness', templatePackage: '@fox-harness/profile-template', cwd: undefined },
   'data-analysis': { profileName: 'fox-harness-data-analysis', templatePackage: '@fox-harness/profile-template-data-analysis', cwd: '/data/workspace' },
+  'data-studio': { profileName: 'fox-harness', templatePackage: '@fox-harness/profile-template', cwd: undefined },
 } as const
 
 export const config = {
@@ -68,6 +76,12 @@ export const config = {
   // docs/rlm-transfer-plan.md 9.1: one shared working directory per project,
   // bind-mounted over a project chat's own. Absolute, same as dataDir.
   projectsDir: envOr('ORCHESTRATOR_PROJECTS_DIR', `${process.cwd()}/data/projects`),
+  // docs/data-studio-agent-transfer-plan.md: `packages/tool/data-studio-agent`'s
+  // semantic-layer sqlite config (data sources/entities/metrics/glossary) is
+  // NOT per-session like `dataDir` above — every worker container across every
+  // session must see the SAME file, so this one host directory is bind-mounted
+  // at a fixed path (docker.ts) into every container unconditionally.
+  dataStudioSharedDir: envOr('DATA_STUDIO_SHARED_DIR', `${process.cwd()}/data/data-studio-shared`),
   // Fixed container-internal port — packages/transport's own default
   // (packages/transport/README.md). Only the HOST side varies per container
   // (random, so many can run concurrently); no reason to make this configurable.
@@ -120,7 +134,23 @@ export const config = {
   // `OPENAI_CONTEXT_WINDOW` (2026-09-14): the model's context size, read by
   // the openai-compat adapter so compaction-basic can compact before overflow.
   // `OPENAI_EXTRA_BODY` (2026-09-14): extra request fields for that adapter.
-  workerEnvPassthrough: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL_ID', 'OPENAI_CONTEXT_WINDOW', 'OPENAI_EXTRA_BODY', 'SESSION_TOKEN_BUDGET', 'LLM_IDLE_TIMEOUT_MS', 'SERPER_API_KEY'] as const,
+  // `EMBEDDING_*`/`DREMIO_*`/`MEILISEARCH_*` (docs/data-studio-agent-transfer-plan.md):
+  // read by `packages/tool/data-studio-agent`'s subprocess bridge, which needs
+  // real credentials (it calls those services itself — unlike python-repl's
+  // deliberately-bare env for model-written code). The LLM reuses OPENAI_* above.
+  // `DATA_STUDIO_V3_DEBUG` — the vendored pipeline's own debug-dump switch
+  // (orchestrator.py's `_debug_dump`, default "on" upstream); forwarded so it
+  // can be set to "0" in prod without touching vendored code. Writes land in
+  // the worker container's own ephemeral layer (packages/tool/data-studio-agent/python/debug/),
+  // never the persisted /data mount — gone when the container is removed.
+  workerEnvPassthrough: [
+    'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL_ID', 'OPENAI_CONTEXT_WINDOW', 'OPENAI_EXTRA_BODY',
+    'SESSION_TOKEN_BUDGET', 'LLM_IDLE_TIMEOUT_MS', 'SERPER_API_KEY',
+    'EMBEDDING_API_KEY', 'EMBEDDING_BASE_URL', 'EMBEDDING_MODEL_ID',
+    'DREMIO_URL', 'DREMIO_USERNAME', 'DREMIO_PASSWORD',
+    'MEILISEARCH_URL', 'MEILISEARCH_MASTER_KEY', 'MEILISEARCH_SEMANTIC_RATIO',
+    'DATA_STUDIO_V3_DEBUG',
+  ] as const,
   // Phase 12 item 4: model chosen PER SESSION at creation time (not
   // mid-session — see ensure.ts). A comma-separated allow-list; falls back
   // to a single-item list built from OPENAI_MODEL_ID (the pre-Phase-12

@@ -72,6 +72,20 @@ WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile && pnpm run build
 
+# Python for the `analyze_data` tool, which spawns
+# packages/tool/data-studio-agent/python/bridge/runner.py as a subprocess —
+# same pattern as /opt/fox-py above, but a SEPARATE venv (Agno/SQLGlot/chromadb
+# vs. the data-analysis flow's pandas/sklearn stack) and a different
+# interpreter: that vendored code's pyproject.toml pins Python >=3.12, which
+# bookworm's own apt repo doesn't ship (only 3.11 — confirmed via
+# `apt-cache madison python3.12` returning nothing on this exact base image).
+# `uv` downloads its own portable CPython builds instead of relying on apt, so
+# `uv sync` picks the right interpreter regardless of the image's system python3.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN cd packages/tool/data-studio-agent/python && uv sync --locked
+ENV FOX_PYTHON_DATA_STUDIO=/repo/packages/tool/data-studio-agent/python/.venv/bin/python
+ENV DATA_STUDIO_AGENT_DIR=/repo/packages/tool/data-studio-agent/python
+
 # services/orchestrator sets this too (belt-and-suspenders default) — real
 # value comes from the bind mount, this is just what an image run without
 # orchestrator (e.g. manual `docker run` for debugging) falls back to.

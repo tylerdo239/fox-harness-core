@@ -73,4 +73,15 @@ export {
   // convention).
   Copy as CopyIcon,
   Check as CopiedIcon,
+  // Sidebar entry for the `analyze_data` tool (docs/data-studio-agent-transfer-plan.md)
+  // — distinct from `DataAnalysisIcon` (the older "Phân tích dữ liệu" flow).
+  Database as DataStudioIcon,
+  // DataStudioSidebar.tsx's own section nav.
+  Server as DataSourcesIcon,
+  BookOpen as GlossaryIcon,
+  Waypoints as RelationshipsIcon,
+  Gauge as MetricsIcon,
+  LayoutDashboard as DashboardsIcon,
+  // Conversation.tsx's "pin chart to dashboard" button (docs/data-studio-admin-ui-plan.md phase 5).
+  Pin as PinIcon,
 } from 'lucide-react'

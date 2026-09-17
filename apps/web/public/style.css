@@ -633,7 +633,7 @@ input[type="text"].fh-session-title-bar-input {
   margin-left: -0.4em;
   border-radius: var(--radius-sm);
   font-size: 1em;
-  font-weight: 600;
+  font-weight: 60;
 }
 
 .fh-conversation-root > #log {
@@ -1607,6 +1607,40 @@ button:disabled {
   font-style: italic;
 }
 
+/* `DataStudioResultPill` (docs/data-studio-agent-transfer-plan.md) — same
+ * `.tool-pill` shell; `.data-studio-pill-detail` stacks answer/chart/SQL/
+ * table sections, each already styled by Markdown.tsx/ChartView.tsx. */
+.data-studio-pill-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+  font-family: var(--fh-font, inherit);
+  white-space: normal;
+}
+
+.data-studio-error {
+  color: var(--error);
+}
+
+.data-studio-truncated {
+  padding-top: 0.5em;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.chart-view {
+  width: 100%;
+}
+
+.chart-view-title {
+  margin-bottom: 0.4em;
+  font-weight: 500;
+  font-size: 0.9em;
+  color: var(--muted);
+}
+
 .notice {
   align-self: center;
   font-size: 0.8em;
@@ -2042,6 +2076,24 @@ button:disabled {
 }
 
 #sidebar-col.fh-sidebar-rail .fh-sidebar-data-analysis-label {
+  display: none;
+}
+
+/* Data Studio entry (docs/data-studio-agent-transfer-plan.md) — same rail-mode
+ * collapse behavior as the data-analysis entry above. */
+.fh-sidebar-data-studio {
+  flex: none;
+  margin: 0 2px 8px;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-data-studio {
+  width: 36px;
+  justify-content: center;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-data-studio-label {
   display: none;
 }
 
@@ -2711,4 +2763,237 @@ button:disabled {
     align-items: stretch;
     padding: 0 10px 12px;
   }
+}
+
+/* ---- Data Studio route (docs/data-studio-agent-transfer-plan.md) ---- */
+
+.fh-data-studio-coming-soon {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.fh-data-studio-coming-soon h2 {
+  margin: 0 0 8px;
+  font-size: 1.1em;
+  color: var(--fg);
+}
+
+.fh-data-studio-coming-soon p {
+  margin: 0;
+}
+
+/* Always-expanded DataStudioResultPill (Conversation `variant="data-studio"`)
+ * — the header is a plain status line (no button/chevron), body never
+ * collapses; `.tool-pill-header`'s own base rule already resets button-only
+ * chrome, which a plain `<div>` here simply doesn't have to begin with. */
+.data-studio-pill-static .tool-pill-header {
+  cursor: default;
+}
+
+/* Data Sources admin (docs/data-studio-admin-ui-plan.md) — a plain data
+ * table; wide enough to need its own horizontal scroll. `#center-col > *`
+ * (an ID selector) beats a plain class regardless of source order — matched
+ * here with `#center-col > .fh-data-studio-admin`, same fix already applied
+ * to `.fh-session-title-bar`/`.fh-hub-scroll` for the same reason. */
+#center-col > .fh-data-studio-admin {
+  max-width: none;
+  width: 100%;
+  padding: 24px 32px;
+  overflow-x: auto;
+}
+
+.fh-data-studio-admin-header {
+  margin-bottom: 16px;
+}
+
+.fh-data-studio-admin-header h2 {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.fh-data-studio-crumb-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font-size: 1.05em;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.fh-data-studio-crumb-back:hover {
+  color: var(--accent);
+}
+
+.fh-data-studio-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.fh-data-studio-table th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.fh-data-studio-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.fh-data-studio-table input[type="text"],
+.fh-data-studio-table input:not([type]),
+.fh-data-studio-table select {
+  width: 100%;
+  min-width: 120px;
+}
+
+.fh-data-studio-mono {
+  font-family: monospace;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.fh-data-studio-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px !important;
+}
+
+.fh-data-studio-loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.fh-data-studio-add-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.fh-data-studio-add-form input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.fh-data-studio-relationship-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.fh-data-studio-relationship-arrow {
+  color: var(--muted);
+}
+
+.fh-data-studio-admin-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fh-data-studio-dremio-browse {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.fh-data-studio-dremio-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.fh-data-studio-dremio-list li {
+  padding: 4px 0;
+}
+
+.fh-data-studio-dremio-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fh-data-studio-sync-summary {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.fh-data-studio-widget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fh-data-studio-widget {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.fh-data-studio-widget-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+/* Conversation.tsx's PinToDashboardButton */
+.data-studio-pin {
+  position: relative;
+  display: inline-block;
+}
+
+.data-studio-pin-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.data-studio-pin-popup button {
+  text-align: left;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.data-studio-pin-popup button:hover {
+  background: var(--surface-hover, rgba(127, 127, 127, 0.1));
+}
+
+.data-studio-pin-loading {
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: 0.9em;
 }

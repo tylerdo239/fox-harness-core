@@ -125,7 +125,17 @@ function dayBucket(updatedAt: string, now: Date): GroupKey {
   return "older";
 }
 
-export function HistoryChat({ query }: { query: string }) {
+export function HistoryChat({
+  query,
+  flowFilter,
+}: {
+  query: string;
+  // docs/data-studio-agent-transfer-plan.md: DataStudioSidebar.tsx passes
+  // "data-studio" to show only that flow's sessions, separate from the main
+  // sidebar's list (which passes nothing, keeping its existing behavior —
+  // every non-project session regardless of flow).
+  flowFilter?: string;
+}) {
   const runtime = useRuntime();
   const { t } = useLocale();
   const [rows, setRows] = useState<SessionRow[]>([]);
@@ -208,8 +218,15 @@ export function HistoryChat({ query }: { query: string }) {
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    // Project chats are listed on their project's page (ProjectHub), not here.
-    const own = rows.filter((row) => !row.projectId);
+    // Project chats are listed on their project's page (ProjectHub), not
+    // here. `data-studio` sessions are listed on DataStudioSidebar.tsx's own
+    // list (passes flowFilter="data-studio") instead of the main sidebar's —
+    // excluded here by default the same way project chats are.
+    const own = rows.filter(
+      (row) =>
+        !row.projectId &&
+        (flowFilter ? row.flow === flowFilter : row.flow !== "data-studio"),
+    );
     const filtered = q
       ? own.filter((row) => rowLabel(row, t).toLowerCase().includes(q))
       : own;
@@ -226,7 +243,7 @@ export function HistoryChat({ query }: { query: string }) {
       label: t(GROUP_LABEL_KEY[key]),
       rows: byGroup.get(key) ?? [],
     })).filter((g) => g.rows.length > 0);
-  }, [rows, query, t]);
+  }, [rows, query, t, flowFilter]);
 
   // Dismiss on an outside click or Escape — same pattern as
   // `AccountMenu.tsx`'s own popup.

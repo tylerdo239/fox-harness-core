@@ -49,3 +49,8 @@ allowBuilds:
   # scripts/build-client-plugins.mjs. Its postinstall fetches a real
   # platform-specific binary; needs to run for real.
   esbuild: true
+  # services/gateway/src/data-studio-db.ts (docs/data-studio-admin-ui-plan.md)
+  # — needs its real native binary (compiled or prebuilt) to open sqlite
+  # files at all, same "needs to actually compile/fetch" reasoning as
+  # node-pty/esbuild above.
+  better-sqlite3: true

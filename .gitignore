@@ -8,6 +8,12 @@ dist/
 .env.*
 !.env.example
 .claude/
+example-data-studio-agent/
+
+# services/data-studio-agent (vendored Python, uv-managed)
+.venv/
+__pycache__/
+*.pyc
 
 # services/orchestrator's per-session $DSH_HOME directories (materialize.ts,
 # ORCHESTRATOR_DATA_DIR default) — runtime data, never committed.

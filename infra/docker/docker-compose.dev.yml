@@ -54,8 +54,36 @@ services:
       - '9001:9001' # web console (login with the credentials above)
     volumes:
       - fox-harness-minio-data:/data
+  dremio:
+    # docs/data-studio-agent-transfer-plan.md — data plane thật cho tool
+    # `analyze_data` (packages/tool/data-studio-agent, gọi vào pipeline Python
+    # vendor từ example-data-studio-agent qua subprocess, không phải service
+    # HTTP riêng). CHỈ dùng cho dev/test: prod trỏ vào Dremio doanh nghiệp đã
+    # có sẵn (`DREMIO_URL` trong `.env`, không tự host).
+    # Web UI + REST API cùng cổng 9047 (login lần đầu qua UI để tạo tài
+    # khoản admin trước khi pipeline gọi được).
+    image: dremio/dremio-oss
+    ports:
+      - '9047:9047' # Web UI + REST API — DREMIO_URL trỏ vào đây
+      - '31010:31010' # JDBC/ODBC (không dùng tới trong flow này, mở sẵn phòng khi cần)
+    volumes:
+      - fox-harness-dremio-data:/opt/dremio/data
+  meilisearch:
+    # docs/data-studio-agent-transfer-plan.md — retrieval hybrid cho
+    # semantic layer của `packages/tool/data-studio-agent/python`. Không có
+    # MEILI_MASTER_KEY ở dev (`.env`'s MEILISEARCH_MASTER_KEY để trống) —
+    # image tự chạy chế độ không khoá kèm cảnh báo, chấp nhận được cho dev.
+    image: getmeili/meilisearch:v1.11
+    environment:
+      MEILI_NO_ANALYTICS: 'true'
+    ports:
+      - '7700:7700'
+    volumes:
+      - fox-harness-meilisearch-data:/meili_data
 
 volumes:
   fox-harness-redis-data:
   fox-harness-mariadb-data:
   fox-harness-minio-data:
+  fox-harness-dremio-data:
+  fox-harness-meilisearch-data:
