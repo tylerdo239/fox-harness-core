@@ -89,7 +89,12 @@ async function runCase(token, testCase, run) {
     // workspace-files.ts marks those `origin: 'chat'`).
     const listed = await (await api(token, `/projects/${projectId}/files`)).json()
     const filesWritten = (listed.files ?? []).filter((file) => file.origin === 'chat').map((file) => file.path)
-    return { ...transcript, filesWritten, seconds: transcript.seconds ?? (Date.now() - started) / 1000 }
+    // A chat's file with no chat attached to it: the UI cannot tell whose it is, so it shows it in
+    // every chat of the project. This must always be empty.
+    const filesUnowned = (listed.files ?? [])
+      .filter((file) => file.origin === 'chat' && !file.sessionId)
+      .map((file) => file.path)
+    return { ...transcript, filesWritten, filesUnowned, seconds: transcript.seconds ?? (Date.now() - started) / 1000 }
   } finally {
     if (!process.env.FOX_BENCH_KEEP) await api(token, `/projects/${projectId}`, { method: 'DELETE' }).catch(() => {})
   }
@@ -187,6 +192,11 @@ function errorText(data, limit = 200) {
 // then a bare value. Leniency about the punctuation only, never about the value.
 // One rule this puts on a case: no answer name may be a prefix of another in the same case.
 function readAnswer(text, name) {
+  // Diacritics are stripped from BOTH sides first: the model writes the field name back in
+  // Vietnamese spelling often enough (`@thay_doi_phan_trăm` for `thay_doi_phan_tram`) to decide a
+  // case whose answer was right in the same sentence.
+  text = stripDiacritics(text)
+  name = stripDiacritics(name)
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   for (const pattern of [`@${escaped}\\s*\\[([^\\]]*)\\]`, `@${escaped}\\s*:\\s*([^\\s,;\\]]+)`, `@${escaped}\\s*([^\\s,;\\]]*)`]) {
     const match = new RegExp(pattern).exec(text)
@@ -197,11 +207,16 @@ function readAnswer(text, name) {
 
 // Vietnamese answers come back with or without diacritics depending on the run ("Không" vs the
 // "Khong" the prompt asks for), and that is not what any case is measuring.
-function normalize(text) {
+function stripDiacritics(text) {
   return text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/gi, 'd')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+}
+
+function normalize(text) {
+  return stripDiacritics(text)
     .toLowerCase()
     .replace(/['"]+/g, '')
     .replace(/\s*,\s*/g, ',')
@@ -248,6 +263,10 @@ function grade(testCase, transcript) {
       case 'toolNotUsed': {
         const used = transcript.toolCalls.filter((name) => name === check.name)
         return { check: `toolNotUsed:${check.name}`, ok: used.length === 0, detail: `gọi ${used.length} lần` }
+      }
+      case 'noUnownedFiles': {
+        const unowned = transcript.filesUnowned ?? []
+        return { check: 'noUnownedFiles', ok: unowned.length === 0, detail: unowned.join(', ') }
       }
       case 'filesWrittenAtMost': {
         const written = transcript.filesWritten ?? []
@@ -332,6 +351,7 @@ async function main() {
         toolErrors: transcript.toolErrors,
         unknownTools: transcript.unknownTools,
         filesWritten: transcript.filesWritten,
+        filesUnowned: transcript.filesUnowned,
         turns: transcript.turns,
         endReason: transcript.endReason,
         answerText: transcript.answerText.slice(-600),
