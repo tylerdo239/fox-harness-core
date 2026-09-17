@@ -6,6 +6,7 @@ import '@deepseek-ai/dsh-token-meter'
 import z from '@deepseek-ai/schemastery'
 
 import { collapseOldTurns } from './collapse.ts'
+import { reconcileWorkspace } from './reconcile.ts'
 
 export const name = 'fox-harness-flow-data-analysis'
 export const inject = ['systemPrompt', 'tokenMeter']
@@ -80,7 +81,12 @@ export function apply(ctx: Context, config: Config) {
     return { kind: 'enter', messages: [...decision.messages, note] }
   })
 
-  ctx.on('agent/turn-stopping', ({ agent }) => {
+  ctx.on('agent/turn-stopping', async ({ agent }) => {
     collapseOldTurns(agent.session, ctx.tokenMeter, config.keepRecentTurns, name)
+    // `@mode serial`: this finishes before the turn closes, so the file list the UI fetches on
+    // turn/end already sees every file in the chat folder it belongs to. `cwd` is undefined for a
+    // chat without a working directory, which has no files to sort.
+    const cwd = agent.session.header.cwd
+    if (cwd !== undefined) await reconcileWorkspace(cwd, agent.session.id)
   })
 }

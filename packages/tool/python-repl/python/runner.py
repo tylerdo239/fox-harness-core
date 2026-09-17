@@ -102,10 +102,13 @@ def save_figures(cell_succeeded):
     return paths
 
 
-def move_stray_files(since):
-    """Move files a cell wrote into the working directory to the output folder — not uploads
-    (.fox/sources.json), generated/, outputs/ or hidden paths — so a chat's files never sit among
-    a project's sources (docs/qa-report-2026-09-15.md N2). Returns [(old path, new path)]."""
+def move_stray_files():
+    """Move files a cell wrote into the working directory to this chat's output folder — not
+    uploads (.fox/sources.json), another chat's generated/<id>/ folder, outputs/ or hidden paths —
+    so a chat's files never sit among a project's sources (docs/qa-report-2026-09-15.md N2).
+    Returns [(old path, new path)]. The end-of-turn reconciliation in
+    @fox-harness/dsh-flow-data-analysis covers what this cannot see: other tools, and files left
+    by a cell that was killed. This one exists for the path it reports back inside the same cell."""
     try:
         with open(os.path.join(".fox", "sources.json"), encoding="utf-8") as sources_file:
             sources = set(json.load(sources_file))
@@ -113,14 +116,28 @@ def move_stray_files(since):
         sources = set()
     moved = []
     for folder, dirs, files in os.walk("."):
-        top = folder == "."
-        dirs[:] = [d for d in dirs if not d.startswith(".") and not (top and d in ("generated", "outputs"))]
+        if folder == ".":
+            # generated/ IS walked, unlike outputs/: a file written straight into it (the folder
+            # name the model is taught by save_artifact's description) belongs to no chat, and the
+            # UI then shows it in every chat of the project. Only the per-chat folders inside it
+            # are left alone.
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "outputs"]
+        elif folder == os.path.join(".", "generated"):
+            dirs[:] = []
+        else:
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
         for name in files:
             path = os.path.normpath(os.path.join(folder, name))
             posix = path.replace(os.sep, "/")
-            if name.startswith(".") or posix in sources or os.path.getmtime(path) < since:
+            # No "written since this cell started" test: a file's mtime comes from the kernel's
+            # coarse clock and measured a millisecond EARLIER than the time.time() taken just
+            # before writing it, so that test dropped files written in a cell's first few
+            # milliseconds. Ownership decides instead, the same rule the end-of-turn
+            # reconciliation uses: not an upload, not shared, not another chat's — so it is ours.
+            if name.startswith(".") or posix in sources:
                 continue
-            target = os.path.join(OUTPUT_DIR, path)
+            inside = posix[len("generated/"):] if posix.startswith("generated/") else path
+            target = os.path.join(OUTPUT_DIR, inside)
             os.makedirs(os.path.dirname(target), exist_ok=True)
             os.replace(path, target)
             moved.append((posix, target.replace(os.sep, "/")))
@@ -226,11 +243,10 @@ seen = {}
 for line in iter(sys.stdin.readline, ""):
     request = json.loads(line)
     buffer = io.StringIO()
-    started = time.time()
     with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
         result = shell.run_cell(request["code"], store_history=True)
         figures = save_figures(result.success)
-        moved = move_stray_files(started)
+        moved = move_stray_files()
     if moved:
         print(
             "Files written into the working directory were moved to this chat's output folder — use the new paths: "
