@@ -188,6 +188,8 @@ importers:
 
   packages/profile-template/data-analysis: {}
 
+  packages/profile-template/data-studio: {}
+
   packages/profile-template/default: {}
 
   packages/skills: {}
@@ -340,6 +342,9 @@ importers:
       '@fox-harness/profile-template-data-analysis':
         specifier: workspace:*
         version: link:../../packages/profile-template/data-analysis
+      '@fox-harness/profile-template-data-studio':
+        specifier: workspace:*
+        version: link:../../packages/profile-template/data-studio
       dockerode:
         specifier: ^4.0.2
         version: 4.0.12

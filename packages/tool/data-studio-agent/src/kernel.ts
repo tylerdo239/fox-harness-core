@@ -106,8 +106,24 @@ export class DataStudioKernel {
 
     const child = spawn(PYTHON, ['-u', RUNNER], { cwd: SERVICE_DIR, env })
     this.stderrTail = ''
-    child.stderr.on('data', (chunk: Buffer) => {
-      this.stderrTail = (this.stderrTail + chunk.toString()).slice(-2000)
+    // runner.py's on_event prints one JSON progress line per pipeline milestone
+    // (agent_started/done, tool_started/done, sub_started/done, result, ...) —
+    // forward each straight to this worker container's own stdout so `docker logs
+    // -f` shows live progress while analyze_data is running, not just the final
+    // reply minutes later. stderrTail keeps buffering for the "process exited
+    // unexpectedly" error message above.
+    createInterface({ input: child.stderr }).on('line', (line) => {
+      this.stderrTail = (this.stderrTail + line + '\n').slice(-2000)
+      // Most lines are runner.py's on_event JSON (flatten into the log record);
+      // anything else (e.g. a stray Python traceback/logging line) is passed
+      // through as-is under `line` rather than dropped.
+      let fields: Record<string, unknown>
+      try {
+        fields = { ...(JSON.parse(line) as Record<string, unknown>) }
+      } catch {
+        fields = { line }
+      }
+      console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'data-studio-agent', ...fields }))
     })
     createInterface({ input: child.stdout }).on('line', (line) => {
       this.reply?.(JSON.parse(line) as AnalyzeReply)

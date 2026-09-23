@@ -119,6 +119,22 @@ async def _emit(event_type: str, payload: dict) -> None:
         await sink(event_type, payload)
 
 
+# 2026-09-18 (user report: "log hết" — retries/warnings/errors folded into `trace`/`trace_md` only
+# surfaced in the FINAL reply, not live; e.g. a sub-question retry or a chart-review rejection was
+# invisible in `docker logs` while the run was still in progress). Every `trace.append()` in this
+# file now goes through this instead: same list mutation, PLUS an immediate 'trace' event when a
+# sink is attached — runner.py's on_event prints it straight to stderr, which kernel.ts (TS side)
+# forwards live to the worker container's own stdout. `create_task` (fire-and-forget, not awaited):
+# called from both async step functions AND plain `def` helpers (_ensure_grain_dimension,
+# _force_grain_only_dims, _fail) that have no `await` of their own to hang this on — safe here
+# because every caller in this module only ever runs on the one thread already driving asyncio.run()
+# in bridge/runner.py's main(), so a running loop always exists to schedule onto.
+def _trace(trace: list[str], text: str) -> None:
+    trace.append(text)
+    if _SINK.get() is not None:
+        asyncio.create_task(_emit("trace", {"text": text}))
+
+
 # Human-readable step labels for the UI ("AI is running: Deciding the grain").
 _STEP_LABELS = {
     "decompose": "Splitting the question",
@@ -272,14 +288,14 @@ async def run_pipeline_v3(
         f"Combined rows ({result.row_count}): {result.rows[:10]}\n"
         f"{subs_block}"
     )
-    trace.append(rev_run.markdown)
+    _trace(trace, rev_run.markdown)
     if not rev_run.ok or rev_run.result.satisfied:
         result.trace_md = "\n\n---\n\n".join(trace)
         return await _finalize(result)
 
     # not satisfied → one re-plan carrying the feedback + old result as context
     fb = rev_run.result.feedback or ", ".join(rev_run.result.missing)
-    trace.append(f"## Review\n- ⚠️ not satisfied: {fb} → re-planning once with feedback")
+    _trace(trace, f"## Review\n- ⚠️ not satisfied: {fb} → re-planning once with feedback")
     feedback_ctx = (
         f"A previous attempt was judged incomplete. Feedback: {fb}. "
         f"Missing: {rev_run.result.missing}. Previous result columns: "
@@ -346,7 +362,7 @@ async def _build_answer(
     decompose_agent = build_decompose_agent(model)
     dec_prompt = question if not feedback else f"{question}\n\n[Re-plan context: {feedback}]"
     dec_run = await _run_agent(decompose_agent, dec_prompt)
-    trace.append(dec_run.markdown)
+    _trace(trace, dec_run.markdown)
     decomposed = dec_run.ok and dec_run.result.is_multi and len(dec_run.result.sub_questions) > 1
 
     if not decomposed:
@@ -447,14 +463,14 @@ async def _run_sub(
                                                feedback="", skip_insight=True, skip_charts=True)
             if res.success or res.needs_clarification:
                 break
-            sub_trace.append(f"## Sub retry\n- ⚠️ sub failed ({res.error}) → retrying this sub (attempt {attempt + 2})")
+            _trace(sub_trace, f"## Sub retry\n- ⚠️ sub failed ({res.error}) → retrying this sub (attempt {attempt + 2})")
     res.question = sub.question
     # data is ready (no charts yet) — tell the FE the sub's rows so it can show the sub's table
     await _emit("sub_data_ready", {
         "sub_id": sub.id, "ok": bool(res.success), "row_count": res.row_count,
         "sql": res.sql, "rows": res.rows,
     })
-    trace.append("\n\n".join(sub_trace))  # fold this sub's trace into the run trace for the debug dump
+    _trace(trace, "\n\n".join(sub_trace))  # fold this sub's trace into the run trace for the debug dump
     return sub.id, res, state
 
 
@@ -473,7 +489,7 @@ async def _run_with_retry(
                                             skip_insight, skip_charts)
     if res.success or res.needs_clarification:
         return res, state
-    trace.append(f"## Re-plan\n- ⚠️ first attempt failed ({res.error}) → re-planning once")
+    _trace(trace, f"## Re-plan\n- ⚠️ first attempt failed ({res.error}) → re-planning once")
     res2, state2 = await _run_single_question(session, llm, emb, vs, dremio, question, trace, feedback,
                                               skip_insight, skip_charts)
     return (res2, state2) if (res2.success or res2.needs_clarification) else (res, state)
@@ -498,7 +514,7 @@ async def _run_single_question(
     # ── 1. Intake ─────────────────────────────────────────────────────────────
     intake_agent = build_intake_agent(model)
     intake_run = await _run_agent(intake_agent, question + fb_suffix)
-    trace.append(intake_run.markdown)
+    _trace(trace, intake_run.markdown)
     if not intake_run.ok:
         return _fail(trace, "intake parse failed: " + (intake_run.error or "")), state
     intake: IntakeOut = intake_run.result
@@ -534,7 +550,7 @@ async def _run_single_question(
     retrieval = await retrieve_candidates(
         session, emb, vs, question, terms=intake.detected_terms or None
     )
-    trace.append(_retrieval_md(retrieval))
+    _trace(trace, _retrieval_md(retrieval))
     if not retrieval.entities:
         return _fail(trace, "no candidate entities retrieved"), state
     candidates_md = render_candidates_block(retrieval, session)
@@ -544,7 +560,7 @@ async def _run_single_question(
     # ── 2.5 Clarify — ask if ambiguous, else pick display columns ─────────────
     clarify_agent = build_clarify_agent(model)
     clarify_run = await _run_agent(clarify_agent, f"{candidates_md}\n\nQuestion: {question}")
-    trace.append(clarify_run.markdown)
+    _trace(trace, clarify_run.markdown)
     display_column_ids: list[int] = []
     if clarify_run.ok:
         c = clarify_run.result
@@ -568,7 +584,7 @@ async def _run_single_question(
     # ── 3. Grain ──────────────────────────────────────────────────────────────
     grain_agent = build_grain_agent(model)
     grain_run = await _run_agent(grain_agent, f"{candidates_md}\n\nQuestion: {question}")
-    trace.append(grain_run.markdown)
+    _trace(trace, grain_run.markdown)
     if not grain_run.ok:
         return _fail(trace, "grain parse failed: " + (grain_run.error or "")), state
     grain: GrainOut = grain_run.result
@@ -590,7 +606,7 @@ async def _run_single_question(
     # ── 4. Metric ─────────────────────────────────────────────────────────────
     metric_agent = build_metric_agent(model)
     metric_run = await _run_agent(metric_agent, f"{candidates_md}\n\nQuestion: {question}")
-    trace.append(metric_run.markdown)
+    _trace(trace, metric_run.markdown)
     if not metric_run.ok:
         return _fail(trace, "metric parse failed: " + (metric_run.error or "")), state
     if not _apply_metrics(session, state, metric_run.result, resolver):
@@ -617,9 +633,9 @@ async def _run_single_question(
         if state.dimensions:
             _apply_display_columns(session, state, display_column_ids)
         else:
-            trace.append("## Display\n- skipped display columns (Slice chose 0 dimensions — scalar total)")
+            _trace(trace, "## Display\n- skipped display columns (Slice chose 0 dimensions — scalar total)")
     else:
-        trace.append("## Slice\n- skipped (plain total — no breakdown, no dimensions)")
+        _trace(trace, "## Slice\n- skipped (plain total — no breakdown, no dimensions)")
 
     # SHARE-OF-CATEGORY ('what % of rows are VALUE'): group by the value's category column (get counts
     # for ALL values incl. the target), so the Transform can compute target/total*100. The VALUE must
@@ -639,7 +655,7 @@ async def _run_single_question(
             state.group_by_column_ids = [share_cat_col_id]
             state.select_column_ids = [share_cat_col_id]
             state.target_entity_ids.add(cat_entity)
-            trace.append(f"## Share-of-category\n- group by the value's category column ONLY instead of "
+            _trace(trace, f"## Share-of-category\n- group by the value's category column ONLY instead of "
                          f"filtering '{intake.share_of_value}' (keeps the denominator)")
 
     # ── 6. Filter (WHERE + time) ──────────────────────────────────────────────
@@ -764,7 +780,7 @@ async def _run_slice(session, model, state, candidates_md, question, trace, reso
     slice_run = await _run_agent(slice_agent,
         f"{candidates_md}\n\nGrain table: {grain_table}\nQuestion: {question}{hint}"
     )
-    trace.append(slice_run.markdown)
+    _trace(trace, slice_run.markdown)
     if not slice_run.ok:
         return False
     _apply_dimensions(session, state, slice_run.result, resolver)
@@ -775,7 +791,7 @@ async def _run_filter(session, model, state, candidates_md, question, trace, res
     """Filter agent: WHERE + time. Reuses v2's grounding guardrail (drop ungrounded id filters)."""
     filter_agent = build_filter_agent(model)
     filter_run = await _run_agent(filter_agent, f"{candidates_md}\n\nQuestion: {question}")
-    trace.append(filter_run.markdown)
+    _trace(trace, filter_run.markdown)
     if not filter_run.ok:
         return  # filters are optional; a parse miss just means no filters
     out: FilterOut = filter_run.result
@@ -854,7 +870,7 @@ def _apply_glossary_terms(session, state, phrases: list[str], question: str, tra
             state.target_entity_ids.add(eid)
         applied.append(match.term)
     if applied:
-        trace.append(f"## Glossary\n- applied: {applied} (predicates AND-injected into WHERE)")
+        _trace(trace, f"## Glossary\n- applied: {applied} (predicates AND-injected into WHERE)")
 
 
 async def _run_transform(model, result: V3Result, question: str, trace: list[str],
@@ -869,24 +885,24 @@ async def _run_transform(model, result: V3Result, question: str, trace: list[str
         f"df columns: {cols}\nfirst rows: {result.rows[:5]}\nrow count: {result.row_count}{hint}"
     )
     t_run = await _run_agent(transform_agent, prompt)
-    trace.append(t_run.markdown)
+    _trace(trace, t_run.markdown)
     got_code = t_run.ok and t_run.result.needs_code and t_run.result.code.strip()
     if not got_code and force:
         # ranking is mandatory — push once more, harder.
         t_run = await _run_agent(transform_agent,
             prompt + "\n\nYou MUST return needs_code=true with the ranking code. It is required.")
-        trace.append(t_run.markdown)
+        _trace(trace, t_run.markdown)
         got_code = t_run.ok and t_run.result.needs_code and t_run.result.code.strip()
     if not got_code:
         return
     new_rows, err = run_pandas_code(t_run.result.code, {"df": pd.DataFrame(result.rows)})
     if err:
-        trace.append(f"## Transform\n- ❌ {err}\n```python\n{t_run.result.code}\n```")
+        _trace(trace, f"## Transform\n- ❌ {err}\n```python\n{t_run.result.code}\n```")
         return
     result.rows = new_rows
     result.row_count = len(new_rows)
     result.transform_ops.append(t_run.result.explanation or "pandas transform")
-    trace.append(
+    _trace(trace, 
         f"## Transform\n- ✅ {t_run.result.explanation}\n```python\n{t_run.result.code}\n```"
     )
 
@@ -902,7 +918,7 @@ async def _run_followups(session, model, state, result: V3Result, question: str,
     if fu_run.ok and fu_run.result.questions:
         result.follow_up_questions = fu_run.result.questions[:3]
         await _emit("follow_ups", {"follow_up_questions": result.follow_up_questions})
-        trace.append(f"## Follow-ups\n- {result.follow_up_questions}")
+        _trace(trace, f"## Follow-ups\n- {result.follow_up_questions}")
 
 
 def _render_unused_schema(session, state, question: str) -> str:
@@ -997,7 +1013,7 @@ async def _run_insight(model, result: V3Result, question: str, trace: list[str],
     await _emit("agent_started", {"agent": "insight", "label": _STEP_LABELS["insight"]})
     i_run = await insight_agent.run(prompt, on_event=answer_sink)
     await _emit("agent_done", {"agent": "insight", "ok": i_run.ok})
-    trace.append(i_run.markdown)
+    _trace(trace, i_run.markdown)
     if not i_run.ok:
         result.answer_markdown = "(insight unavailable)"
         return
@@ -1014,7 +1030,7 @@ async def _run_insight(model, result: V3Result, question: str, trace: list[str],
     # the parser only if the Worker produced nothing.
     result.answer_markdown = _strip_md_fence(i_run.markdown) or out.answer_markdown
     note = "" if not hallucinated else f"  ⚠️ uncited numbers flagged: {hallucinated}"
-    trace.append(f"## Insight\n- answer written{note}")
+    _trace(trace, f"## Insight\n- answer written{note}")
 
 
 async def _build_one_chart(model, item, sql_rows: list[dict], question: str, trace: list[str]) -> dict | None:
@@ -1030,7 +1046,7 @@ async def _build_one_chart(model, item, sql_rows: list[dict], question: str, tra
             return base
         rows, err = run_pandas_code(code, {"df": pd.DataFrame(base)})
         if err:
-            trace.append(f"## Chart transform\n- ❌ {err}\n```python\n{code}\n```")
+            _trace(trace, f"## Chart transform\n- ❌ {err}\n```python\n{code}\n```")
             return base
         return rows
 
@@ -1044,7 +1060,7 @@ async def _build_one_chart(model, item, sql_rows: list[dict], question: str, tra
 
     for attempt in range(3):  # initial proposal + 2 chart-agent revisions
         if ctype == "stat":  # unsupported — the chart agent shouldn't propose it, but guard anyway
-            trace.append("## Chart field\n- ⚠️ dropped stat (unsupported chart type)")
+            _trace(trace, "## Chart field\n- ⚠️ dropped stat (unsupported chart type)")
             return None
         chart_rows = run_transform(transform_code, sql_rows)
         cols = list(chart_rows[0].keys()) if chart_rows else []
@@ -1066,7 +1082,7 @@ async def _build_one_chart(model, item, sql_rows: list[dict], question: str, tra
             break
         feedback = (f_run.result.feedback if (f_run.ok and f_run.result.feedback)
                     else f"x={x} / y={ys} are not valid columns of {cols}")
-        trace.append(f"## Chart review\n- ⚠️ ({ctype}) {feedback} → chart agent revising")
+        _trace(trace, f"## Chart review\n- ⚠️ ({ctype}) {feedback} → chart agent revising")
         # loop back to the CHART AGENT to revise — the ONLY thing allowed to change the chart.
         fix_run = await _run_agent(fix_agent,
             f"Question: {question}\n\nCurrent chart: type={ctype}, x={x}, y={ys}, "
@@ -1094,7 +1110,7 @@ async def _build_one_chart(model, item, sql_rows: list[dict], question: str, tra
             "title": item.title or question, "recommended": bool(item.recommended),
             "rows": chart_rows, "transform_code": transform_code,
         }
-    trace.append(f"## Chart review\n- ⚠️ dropped {ctype} after 3 failed reviews (x={x}, y={ys})")
+    _trace(trace, f"## Chart review\n- ⚠️ dropped {ctype} after 3 failed reviews (x={x}, y={ys})")
     return None
 
 
@@ -1142,7 +1158,7 @@ async def _run_chart(model, result: V3Result, question: str, trace: list[str]) -
         "recommended": False, "rows": result.rows,
     })
     result.charts = reviewed
-    trace.append("## Charts\n" + "\n".join(f"- {c['type']}" for c in reviewed))
+    _trace(trace, "## Charts\n" + "\n".join(f"- {c['type']}" for c in reviewed))
 
 
 async def _vision_review_chart(model, chart: dict, columns, question, trace) -> dict:
@@ -1229,7 +1245,7 @@ async def _compose(model, sub_results: list[V3Result], question: str, trace: lis
     )
     compose_agent = build_compose_agent(model)
     c_run = await _run_agent(compose_agent, f"Original question: {question}\n\n{schema_desc}")
-    trace.append(c_run.markdown)
+    _trace(trace, c_run.markdown)
 
     decision = c_run.result if c_run.ok else None
     colsets = [set(r.rows[0].keys()) for r in ok]
@@ -1244,16 +1260,16 @@ async def _compose(model, sub_results: list[V3Result], question: str, trace: lis
                 merged_df = merged_df.merge(pd.DataFrame(r.rows), on=key, how=how, suffixes=("", "_dup"))
             merged_df = merged_df.loc[:, ~merged_df.columns.str.endswith("_dup")]
             merged = merged_df.to_dict("records")
-            trace.append(f"## Compose\n- ✅ merged {len(ok)} subs on '{key}' ({how}) → {len(merged)} rows"
+            _trace(trace, f"## Compose\n- ✅ merged {len(ok)} subs on '{key}' ({how}) → {len(merged)} rows"
                          f" — {decision.reason}")
             return V3Result(success=True, rows=merged, row_count=len(merged))
         except Exception as e:  # noqa: BLE001 — a merge failure must not lose the answer
-            trace.append(f"## Compose\n- ⚠️ merge on '{key}' failed ({e}); using richest sub")
+            _trace(trace, f"## Compose\n- ⚠️ merge on '{key}' failed ({e}); using richest sub")
             return _richest_sub(ok)
 
     why = (decision.reason if decision else "no decision") if not (decision and decision.should_merge) \
         else f"key '{key}' not in all subs"
-    trace.append(f"## Compose\n- ⏭️ not merging ({why}); using richest sub as combined table")
+    _trace(trace, f"## Compose\n- ⏭️ not merging ({why}); using richest sub as combined table")
     return _richest_sub(ok)
 
 
@@ -1266,13 +1282,13 @@ async def _compile_execute_with_grain_check(
         run_step6(session, state)
         gen = run_step8(session, dremio, state)
         if not gen.success:
-            trace.append(f"## Compile/Execute\n- ❌ {gen.error}")
+            _trace(trace, f"## Compile/Execute\n- ❌ {gen.error}")
             return V3Result(success=False, error=gen.error), backedge_fired
 
         rows = gen.execution.rows if gen.execution else []
         row_count = gen.execution.row_count if gen.execution else 0
         flag = None if skip_backedge else _grain_check(state, rows, row_count)
-        trace.append(_execute_md(gen.sql, rows, row_count, flag))
+        _trace(trace, _execute_md(gen.sql, rows, row_count, flag))
 
         if flag is None or attempt == 1:
             return (
@@ -1289,7 +1305,7 @@ async def _compile_execute_with_grain_check(
         state.group_by_column_ids = []
         state.select_column_ids = []
         state.join_plan = None
-        trace.append(f"## Grain back-edge\n- ⚠️ {flag} → re-planning dimensions (grain-only enforced)")
+        _trace(trace, f"## Grain back-edge\n- ⚠️ {flag} → re-planning dimensions (grain-only enforced)")
         await _run_slice(session, model, state, candidates_md, question, trace, resolver, flag=flag)
         _force_grain_only_dims(session, state, trace)
 
@@ -1303,7 +1319,7 @@ def _ensure_grain_dimension(session: Session, state: PipelineState, trace: list[
     grain = state.grain_entity_id
     gid = _grain_id_column(session, grain)
     if gid is None:
-        trace.append("## Slice\n- ⚠️ ranking with no dimension and no grain id column — cannot group")
+        _trace(trace, "## Slice\n- ⚠️ ranking with no dimension and no grain id column — cannot group")
         return
     label = _best_label_column(session, grain)
     state.dimensions = [DimensionSpec(entity_id=grain, id_column_id=gid, label_column_id=label)]
@@ -1313,7 +1329,7 @@ def _ensure_grain_dimension(session: Session, state: PipelineState, trace: list[
         session.get(EntityColumn, m.expr_column_id).entity_id
         for m in state.metrics if m.expr_column_id is not None
     }
-    trace.append("## Slice\n- ⚠️ ranking had 0 dimensions → forced grain id as GROUP BY (per-grain count)")
+    _trace(trace, "## Slice\n- ⚠️ ranking had 0 dimensions → forced grain id as GROUP BY (per-grain count)")
 
 
 def _force_grain_only_dims(session: Session, state: PipelineState, trace: list[str]) -> None:
@@ -1344,7 +1360,7 @@ def _force_grain_only_dims(session: Session, state: PipelineState, trace: list[s
             if mc is not None:
                 state.target_entity_ids.add(mc.entity_id)
     if dropped:
-        trace.append(
+        _trace(trace, 
             f"- forced-dropped {len(dropped)} non-grain dimension(s): "
             + ", ".join(f"entity {d.entity_id} col {d.id_column_id}" for d in dropped)
         )
@@ -1546,5 +1562,5 @@ def _question_uses_glossary(session, question: str) -> bool:
 def _fail(trace: list[str], msg: str) -> V3Result:
     # record the failure reason IN the trace so debug dumps show why a (sub-)question failed —
     # otherwise a failed sub silently vanishes and the answer looks incomplete for no visible reason.
-    trace.append(f"## FAILED\n- ❌ {msg}")
+    _trace(trace, f"## FAILED\n- ❌ {msg}")
     return V3Result(success=False, error=msg, trace_md="\n\n---\n\n".join(trace))

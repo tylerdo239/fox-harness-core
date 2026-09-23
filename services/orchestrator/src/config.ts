@@ -47,17 +47,18 @@ function requireEnv(name: string): string {
 // `cwd` (docs/rlm-transfer-plan.md giai đoạn 2): the container path a session
 // of that flow works in. Must be under /data (the bind mount) so files survive
 // hibernation; `undefined` keeps the image's WORKDIR (/repo).
-// `data-studio` (docs/data-studio-agent-transfer-plan.md): a SEPARATE ROUTE
-// in the FE (its own sidebar/chat surface) but the exact same profile as
-// `default` — `analyze_data` already ships in the default bundle list, so
-// there's no different agent loop to boot. This entry exists purely so
-// sessions created from that route carry `flow: 'data-studio'` (the FE
-// filters its own session list by this), not because materialize.ts needs
-// to do anything different for it.
+// `data-studio` (docs/data-studio-agent-transfer-plan.md): a SEPARATE ROUTE in the FE
+// (its own sidebar/chat surface) AND its own profile (packages/profile-template/data-studio)
+// — originally shared the exact `default` profile (comment used to say so here), but a real
+// 2026-09-18 report showed the model reaching for `glob`/`bash` on a business-data question
+// instead of `analyze_data`, because every general-purpose tool from the shared profile was
+// still on its tool list. This profile's own cordis.patch.yml disables everything except
+// `analyze_data` (+ core chat), so this flow now genuinely boots a different agent loop
+// config, not just a different `flow` label for FE session filtering.
 const flows = {
   default: { profileName: 'fox-harness', templatePackage: '@fox-harness/profile-template', cwd: undefined },
   'data-analysis': { profileName: 'fox-harness-data-analysis', templatePackage: '@fox-harness/profile-template-data-analysis', cwd: '/data/workspace' },
-  'data-studio': { profileName: 'fox-harness', templatePackage: '@fox-harness/profile-template', cwd: undefined },
+  'data-studio': { profileName: 'fox-harness-data-studio', templatePackage: '@fox-harness/profile-template-data-studio', cwd: undefined },
 } as const
 
 export const config = {

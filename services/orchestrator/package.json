@@ -12,6 +12,7 @@
     "@fox-harness/contracts": "workspace:*",
     "@fox-harness/profile-template": "workspace:*",
     "@fox-harness/profile-template-data-analysis": "workspace:*",
+    "@fox-harness/profile-template-data-studio": "workspace:*",
     "dockerode": "^4.0.2",
     "ioredis": "^5.4.1",
     "ws": "8.21.3"

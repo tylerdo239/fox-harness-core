@@ -105,10 +105,20 @@ def _persist_chart(session: Session, question: str, result, chart: dict | None) 
 
 
 async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliStore, dremio: DremioClient) -> dict:
-    events: list[tuple[str, dict]] = []
-
+    # Milestone progress (which agent/step/tool is running right now) AND every retry/
+    # warning/error (orchestrator.py's `_trace()`, 2026-09-18 — "log hết"), one JSON line
+    # per event on stderr — kernel.ts forwards each line straight to the worker
+    # container's own stdout/stderr, so `docker logs -f` shows live pipeline
+    # progress instead of nothing until the final reply. `agent_delta` is excluded:
+    # it's a token-by-token content stream (SSE UI use case), far too noisy for a log.
     async def on_event(event_type: str, payload: dict) -> None:
-        events.append((event_type, payload))
+        if event_type == "agent_delta":
+            return
+        print(
+            json.dumps({"event": event_type, **payload}, ensure_ascii=False, default=str),
+            file=sys.stderr,
+            flush=True,
+        )
 
     with Session(engine) as session:
         result = await run_pipeline_v3(session, llm, emb, vs, dremio, question, on_event=on_event)
@@ -163,7 +173,15 @@ async def main() -> None:
             # deepest frames do. Goes to the model (then the user), same as
             # `str(e)` did before; a bit more tokens on the rare error path
             # is worth being able to actually diagnose it.
-            reply = {"ok": False, "error": f"{e}\n{traceback.format_exc()[-2000:]}"}
+            #
+            # 2026-09-18: this used to be invisible until the reply printed below —
+            # a hard crash produced ZERO output on stderr, so `docker logs` stayed
+            # silent for the tool's entire remaining (killed) run. Print immediately
+            # so the crash shows up live, same as every `_trace()` milestone/warning.
+            tb = traceback.format_exc()
+            print(json.dumps({"event": "crash", "error": str(e), "traceback": tb[-2000:]},
+                              ensure_ascii=False), file=sys.stderr, flush=True)
+            reply = {"ok": False, "error": f"{e}\n{tb[-2000:]}"}
         print(json.dumps(reply, ensure_ascii=False), flush=True)
 
 

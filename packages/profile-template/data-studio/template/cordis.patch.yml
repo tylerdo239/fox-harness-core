@@ -1,0 +1,92 @@
+# Profile-level overlay for the "data-studio" flow (docs/data-studio-agent-transfer-plan.md).
+# Copied from packages/profile-template/default/template/cordis.patch.yml's shape — see that
+# file's own comments for the override rules this follows. This profile uses the SAME
+# @fox-harness/dsh-agent-driver loop as the default profile; its only extra bundle is
+# @fox-harness/dsh-tool-data-studio-agent (see profile.package.json's `bundles`).
+#
+# 2026-09-18 (user report: asking analyze_data-shaped questions like "workflows nào có
+# nhiều node" made the model reach for `glob`/`bash` instead of `analyze_data` — real
+# session log confirmed it: tool/call `glob` with pattern `**/*.workflow.js`, then a
+# `bash find`, neither of which has anything to do with the business data this flow
+# exists for). Root cause: `data-studio` previously shared the exact `default` profile,
+# so every general-purpose tool (bash, fs read/write/edit, glob/grep, subagent, workflow,
+# ...) was on the model's tool list right alongside `analyze_data`, free for it to pick
+# instead. This profile now exists so the FE's Data Studio route boots a session where
+# `analyze_data` is the ONLY real capability — nothing else to reach for by mistake.
+- id: system-prompt
+  name: '@deepseek-ai/dsh-system-prompt'
+  config:
+    includeHarnessIdentity: false
+    persona: >-
+      Bạn là AI Agent Fox Harness ở chế độ Data Studio — chỉ trả lời các câu hỏi về dữ
+      liệu kinh doanh thật của công ty bằng công cụ `analyze_data`. Đây không phải chế độ
+      lập trình/duyệt file: không có quyền truy cập mã nguồn, hệ thống tệp hay dòng lệnh.
+      Với BẤT KỲ câu hỏi nào liên quan đến dữ liệu kinh doanh (doanh thu, khách hàng, đơn
+      hàng, workflow, agent nghiệp vụ, v.v.), luôn gọi `analyze_data` — không tự suy diễn,
+      không tìm kiếm file, không chạy lệnh. Luôn trả lời bằng ngôn ngữ người dùng đang
+      dùng.
+
+- id: compaction-basic
+  name: '@deepseek-ai/dsh-compaction-basic'
+  config:
+    thresholdRatio: 0.7
+    maxTokens: 4096
+
+# Tools this flow has no use for — same reasoning as
+# packages/profile-template/data-analysis's own cordis.patch.yml, but pruned further:
+# data-analysis still needs the filesystem (glob/grep/read/write/edit) and bash for its
+# python-driven workspace; data-studio is a pure business-data Q&A surface with no
+# workspace/files at all, so those go too, on top of the trace above (`tool-fs`,
+# `tool-fs-search`, `tool-web` are the 3 EXTRA rows beyond data-analysis's list).
+# `name` must match the dsh-base row or the patch is skipped.
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: true
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+  disabled: true
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  disabled: true
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+  disabled: true
+- id: tool-workflow
+  name: '@deepseek-ai/dsh-tool-workflow'
+  disabled: true
+- id: workflow-worker-thread
+  name: '@deepseek-ai/dsh-workflow-worker-thread'
+  disabled: true
+- id: tool-ralph
+  name: '@deepseek-ai/dsh-tool-ralph'
+  disabled: true
+- id: tool-subagent
+  name: '@deepseek-ai/dsh-tool-subagent'
+  disabled: true
+- id: tool-subagent-fork
+  name: '@deepseek-ai/dsh-tool-subagent'
+  disabled: true
+- id: tool-subagent-control
+  name: '@deepseek-ai/dsh-tool-subagent-control'
+  disabled: true
+- id: tool-subagent-list-agents
+  name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+  disabled: true
+- id: tool-subagent-report
+  name: '@deepseek-ai/dsh-tool-subagent-report'
+  disabled: true
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+  disabled: true
+- id: plan-mode
+  name: '@deepseek-ai/dsh-plan-mode'
+  disabled: true
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  disabled: true
+- id: tool-str-replace-editor
+  name: '@deepseek-ai/dsh-tool-str-replace-editor'
+  disabled: true
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  disabled: true
