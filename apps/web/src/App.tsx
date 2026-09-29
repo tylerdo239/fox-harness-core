@@ -109,21 +109,60 @@ function wsBaseFor(httpBase: string): string {
 const SESSION_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function sessionIdFromUrl(): string | undefined {
-  const match = /^\/chat\/([^/]+)$/.exec(location.pathname);
-  return match && SESSION_ID_RE.test(match[1]) ? match[1] : undefined;
+// The data-analysis area has its own URLs (2026-09-15) and its chats stay out
+// of the general chat history:
+//   /                          new general chat   /chat/<id>        general chat
+//   /data                      project list       /data/<project>   project page
+//   /data/<project>/chat/<id>  chat in a project  /data/chat/<id>   older data chat without a project
+//   /data-studio               Data Studio home   /data-studio/chat/<id>  chat in Data Studio
+type Route =
+  | { view: "chat"; sessionId?: string }
+  | { view: "hub"; projectId: string | null }
+  | { view: "dataChat"; projectId: string | null; sessionId: string }
+  | { view: "dataStudio"; sessionId?: string };
+
+function routeFromUrl(): Route | undefined {
+  const parts = location.pathname.split("/").filter(Boolean);
+  const isId = (part: string | undefined) => part !== undefined && SESSION_ID_RE.test(part);
+  if (parts.length === 0) return { view: "chat" };
+  if (parts[0] === "chat" && parts.length === 2 && isId(parts[1])) return { view: "chat", sessionId: parts[1] };
+  // docs/data-studio-agent-transfer-plan.md: Data Studio has its own URL space.
+  if (parts[0] === "data-studio") {
+    if (parts.length === 1) return { view: "dataStudio" };
+    if (parts.length === 3 && parts[1] === "chat" && isId(parts[2])) return { view: "dataStudio", sessionId: parts[2] };
+    return undefined;
+  }
+  if (parts[0] !== "data") return undefined;
+  if (parts.length === 1) return { view: "hub", projectId: null };
+  if (parts.length === 2 && isId(parts[1])) return { view: "hub", projectId: parts[1] };
+  if (parts.length === 3 && parts[1] === "chat" && isId(parts[2])) return { view: "dataChat", projectId: null, sessionId: parts[2] };
+  if (parts.length === 4 && isId(parts[1]) && parts[2] === "chat" && isId(parts[3])) {
+    return { view: "dataChat", projectId: parts[1], sessionId: parts[3] };
+  }
+  return undefined;
 }
 
-// docs/data-studio-agent-transfer-plan.md: `/data-studio` (home) and
-// `/data-studio/chat/<id>` (a specific session of that flow) — a real,
-// separate URL space, unlike the "Phân tích dữ liệu" project hub (pure
-// client state, never in the URL).
+function sessionIdFromUrl(): string | undefined {
+  const route = routeFromUrl();
+  return route && route.view !== "hub" ? route.sessionId : undefined;
+}
+
+// Where a chat lives: the general chat area, the data area (in a project, or none), or Data Studio.
+type ChatPlace = { area: "chat" } | { area: "data"; projectId: string | null } | { area: "data-studio" };
+
+function chatPath(id: string, place: ChatPlace): string {
+  if (place.area === "chat") return `/chat/${id}`;
+  if (place.area === "data-studio") return `/data-studio/chat/${id}`;
+  return place.projectId ? `/data/${place.projectId}/chat/${id}` : `/data/chat/${id}`;
+}
+
+function hubPath(projectId: string | null): string {
+  return projectId ? `/data/${projectId}` : "/data";
+}
+
+// True on any `/data-studio…` address (used for the initial Data Studio mode and for a fresh visit's flow).
 function isDataStudioUrl(): boolean {
   return location.pathname === "/data-studio" || location.pathname.startsWith("/data-studio/");
-}
-function dataStudioSessionIdFromUrl(): string | undefined {
-  const match = /^\/data-studio\/chat\/([^/]+)$/.exec(location.pathname);
-  return match && SESSION_ID_RE.test(match[1]) ? match[1] : undefined;
 }
 
 // Shared by both the auto-reconnect-on-load effect and handleLogin — what to
@@ -131,10 +170,8 @@ function dataStudioSessionIdFromUrl(): string | undefined {
 // set for a brand-new `/data-studio` visit with no id yet (a normal `/chat/`
 // or bare `/` visit gets `undefined`, same as before this flow existed).
 function initialSessionTarget(): { path: string; flow?: string } {
-  const chatId = sessionIdFromUrl();
-  if (chatId) return { path: chatId };
-  const dataStudioId = dataStudioSessionIdFromUrl();
-  if (dataStudioId) return { path: dataStudioId };
+  const sessionId = sessionIdFromUrl();
+  if (sessionId) return { path: sessionId };
   return { path: "new", flow: isDataStudioUrl() ? "data-studio" : undefined };
 }
 
@@ -146,28 +183,12 @@ function initialSessionTarget(): { path: string; flow?: string } {
 // should move between conversations someone deliberately opened. Matches
 // how Back behaves on real chat platforms after sending a first message:
 // it does NOT return to a blank compose screen.
-function replaceChatUrl(id: string): void {
-  history.replaceState(null, "", `/chat/${id}`);
+function replaceUrl(path: string): void {
+  history.replaceState(null, "", path);
 }
-function pushChatUrl(id: string): void {
-  history.pushState(null, "", `/chat/${id}`);
+function pushUrl(path: string): void {
+  history.pushState(null, "", path);
 }
-function pushHomeUrl(): void {
-  history.pushState(null, "", "/");
-}
-function replaceHomeUrl(): void {
-  history.replaceState(null, "", "/");
-}
-function replaceDataStudioChatUrl(id: string): void {
-  history.replaceState(null, "", `/data-studio/chat/${id}`);
-}
-function pushDataStudioChatUrl(id: string): void {
-  history.pushState(null, "", `/data-studio/chat/${id}`);
-}
-function pushDataStudioHomeUrl(): void {
-  history.pushState(null, "", "/data-studio");
-}
-
 // i18n (2026-09-10): services/gateway's `/auth/register`+`/auth/login` now
 // also send a stable `code` alongside the existing `error` string
 // (services/gateway/src/index.ts) — carrying both through lets the catch
@@ -351,6 +372,14 @@ function AppInner() {
   // admin pages (Phase 3, not built yet).
   const [dataStudioMode, setDataStudioMode] = useState(() => isDataStudioUrl());
   const [dataStudioSection, setDataStudioSection] = useState<DataStudioSection>("chat");
+  // Where the open chat lives, for its URL (a ref, read by callbacks) and the
+  // sidebar's data-analysis highlight (state).
+  const chatPlaceRef = useRef<ChatPlace>({ area: "chat" });
+  const [chatInDataArea, setChatInDataArea] = useState(false);
+  function setChatPlace(place: ChatPlace): void {
+    chatPlaceRef.current = place;
+    setChatInDataArea(place.area === "data");
+  }
   // First message typed in a project page's composer, sent once the new chat's
   // `session` frame arrives (handleFrame).
   const pendingFirstMessageRef = useRef<string | null>(null);
@@ -388,7 +417,7 @@ function AppInner() {
   // below) — lazy-initialized from whatever the URL already says on first
   // paint, so a direct `/chat/<id>` visit doesn't flash "no session" first.
   const [hasChatted, setHasChatted] = useState(
-    () => !!sessionIdFromUrl() || !!dataStudioSessionIdFromUrl(),
+    () => !!sessionIdFromUrl(),
   );
 
   const frameRef = useRef<HTMLDivElement>(null);
@@ -544,7 +573,8 @@ function AppInner() {
       // 'new', so a second failure just falls through to
       // 'disconnected' below.
       if (sessionPath !== "new") {
-        replaceHomeUrl();
+        replaceUrl("/");
+        setChatPlace({ area: "chat" });
         setHasChatted(false);
         toast.info(t("app.sessionGoneStartedNew"));
         connect(httpBase, token, "new");
@@ -621,13 +651,14 @@ function AppInner() {
         if (pendingFirstMessageRef.current !== null && wsRef.current) {
           wsRef.current.send(JSON.stringify({ type: "followup", text: pendingFirstMessageRef.current }));
           pendingFirstMessageRef.current = null;
-          replaceChatUrl(frame.sessionId);
+          replaceUrl(chatPath(frame.sessionId, chatPlaceRef.current));
           setHasChatted(true);
         }
         break;
       case "error":
         if (/unknown session/i.test(frame.message)) {
-          replaceHomeUrl();
+          replaceUrl("/");
+          setChatPlace({ area: "chat" });
           setHasChatted(false);
         }
         break;
@@ -676,13 +707,17 @@ function AppInner() {
     if (!token) return;
     // Real pushState — an explicit "New chat" click, so Back returns to
     // whatever chat was open before it, same category as switchSession
-    // below. docs/data-studio-agent-transfer-plan.md: a `data-studio` flow
-    // request pushes ITS OWN home URL instead of `/` — the only flow with a
-    // real separate route (data-analysis has none, see isDataStudioUrl()'s
-    // own comment).
-    setDataStudioMode(flow === "data-studio");
-    if (flow === "data-studio") pushDataStudioHomeUrl();
-    else pushHomeUrl();
+    // below. A data chat keeps its project page's URL until its first message replaces it with the chat's
+    // own; a `data-studio` chat lives in Data Studio's own URL space (docs/data-studio-agent-transfer-plan.md).
+    const place: ChatPlace =
+      flow === "data-studio"
+        ? { area: "data-studio" }
+        : flow === "data-analysis"
+          ? { area: "data", projectId: projectId ?? null }
+          : { area: "chat" };
+    pushUrl(place.area === "data" ? hubPath(place.projectId) : place.area === "data-studio" ? "/data-studio" : "/");
+    setChatPlace(place);
+    setDataStudioMode(place.area === "data-studio");
     setHasChatted(false);
     wsRef.current?.close();
     pendingFirstMessageRef.current = firstMessage ?? null;
@@ -690,10 +725,48 @@ function AppInner() {
     connect(httpBase, token, "new", flow, projectId);
   }
 
+  // Shows what a URL points at — the project hub, or which area the chat
+  // belongs to — without touching the chat connection. A path that is no
+  // route becomes "/".
+  function applyRoute(route: Route | undefined): Route {
+    const current = route ?? { view: "chat" };
+    if (!route) replaceUrl("/");
+    if (current.view === "hub") {
+      setProjectView({ projectId: current.projectId });
+      setDataStudioMode(false);
+      return current;
+    }
+    setProjectView(null);
+    setDataStudioMode(current.view === "dataStudio");
+    setChatPlace(
+      current.view === "dataChat"
+        ? { area: "data", projectId: current.projectId }
+        : current.view === "dataStudio"
+          ? { area: "data-studio" }
+          : { area: "chat" },
+    );
+    return current;
+  }
+
+  function openDataView(projectId: string | null): void {
+    pushUrl(hubPath(projectId));
+    setProjectView({ projectId });
+  }
+
+  // The chat's real place once `GET /sessions/mine` lists it (ProjectChatBar):
+  // an old `/chat/<id>` link to a data chat, or the reverse, moves to the right
+  // URL without a new history entry.
+  function reconcileChatPlace(id: string, flow: string, projectId: string | null): void {
+    const place: ChatPlace = flow === "data-analysis" ? { area: "data", projectId } : { area: "chat" };
+    setChatPlace(place);
+    if (sessionIdFromUrl() === id && location.pathname !== chatPath(id, place)) replaceUrl(chatPath(id, place));
+  }
+
   const runtime: Runtime = useMemo(
     () => ({
       sessionId,
       userEmail,
+      connected: status === "connected",
       apiUrl: (path) => `${gatewayHttpBaseRef.current}${path}`,
       authHeaders: () => {
         const token = localStorage.getItem(STORAGE_TOKEN);
@@ -729,26 +802,27 @@ function AppInner() {
           // client->worker frame passes through). `replaceState`, not
           // `pushState` — see the helper's own comment for why.
           if (!hasChatted && sessionId) {
-            if (dataStudioMode) replaceDataStudioChatUrl(sessionId);
-            else replaceChatUrl(sessionId);
+            replaceUrl(chatPath(sessionId, chatPlaceRef.current));
             setHasChatted(true);
           }
           wsRef.current.send(JSON.stringify(frame));
         }
       },
-      switchSession: (id) => {
+      switchSession: (id, projectId) => {
         const token = localStorage.getItem(STORAGE_TOKEN);
         if (!token || !gatewayHttpBaseRef.current) return;
         // Real pushState — an explicit click. Anything reachable from the
         // sidebar list already has `first_message_at` set server-side, so
         // showing its id right away is correct, not a violation of the
-        // "hide until chatted" rule. docs/data-studio-agent-transfer-plan.md:
-        // DataStudioSidebar's own filtered list only ever contains
-        // `data-studio`-flow sessions, so `dataStudioMode` (true whenever
-        // that sidebar — not the main one — is the one rendering the row
-        // that was clicked) is what decides the URL shape here.
-        if (dataStudioMode) pushDataStudioChatUrl(id);
-        else pushChatUrl(id);
+        // "hide until chatted" rule. `dataStudioMode` is true when Data Studio's own sidebar (whose list only
+        // holds `data-studio`-flow sessions) rendered the row that was clicked.
+        const place: ChatPlace = dataStudioMode
+          ? { area: "data-studio" }
+          : projectId
+            ? { area: "data", projectId }
+            : { area: "chat" };
+        setChatPlace(place);
+        pushUrl(chatPath(id, place));
         setHasChatted(true);
         setProjectView(null);
         wsRef.current?.close();
@@ -761,7 +835,7 @@ function AppInner() {
       bumpSessionsVersion: () => setSessionsVersion((v) => v + 1),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sessionId, userEmail, hasChatted, sessionTitle, sessionsVersion, dataStudioMode],
+    [sessionId, userEmail, status, hasChatted, sessionTitle, sessionsVersion, dataStudioMode],
   );
 
   function handleLogin(email: string, password: string): void {
@@ -772,13 +846,12 @@ function AppInner() {
         const result = await login(httpBase, email, password);
         localStorage.setItem(STORAGE_EMAIL, result.email);
         setUserEmail(result.email);
-        // Resumes whatever `/chat/<id>` (or `/data-studio[/chat/<id>]`) is
-        // currently in the address bar — this is what makes a deep link
-        // work while logged out: the URL stays as typed/bookmarked through
-        // the login screen, no special-casing needed.
+        // Resumes whatever `/chat/<id>`, `/data/…` or `/data-studio[/chat/<id>]` is currently in the address
+        // bar — this is what makes a deep link work while logged out: the URL stays as typed/bookmarked
+        // through the login screen, no special-casing needed.
+        applyRoute(routeFromUrl());
         {
           const target = initialSessionTarget();
-          setDataStudioMode(isDataStudioUrl());
           connect(httpBase, result.token, target.path, target.flow);
         }
       } catch (error) {
@@ -841,7 +914,9 @@ function AppInner() {
     localStorage.removeItem(STORAGE_EMAIL);
     setUserEmail("");
     setAuthenticated(false);
-    replaceHomeUrl();
+    replaceUrl("/");
+    setProjectView(null);
+    setChatPlace({ area: "chat" });
     setHasChatted(false);
     if (httpBase && token) void logoutRequest(httpBase, token);
   }
@@ -854,13 +929,9 @@ function AppInner() {
   useEffect(() => {
     const storedToken = localStorage.getItem(STORAGE_TOKEN);
     const storedGateway = localStorage.getItem(STORAGE_GATEWAY);
-    // A `/chat/` or `/data-studio/chat/` path that fails the UUID check
-    // (garbage, typo, truncated link) is a correction the app makes, not a
-    // click — replaceState, clean it up before connecting fresh rather than
-    // leaving it dangling.
-    if (location.pathname.startsWith("/chat/") && !sessionIdFromUrl()) replaceHomeUrl();
-    if (location.pathname.startsWith("/data-studio/chat/") && !dataStudioSessionIdFromUrl())
-      history.replaceState(null, "", "/data-studio");
+    // A path that is no route (garbage, typo, truncated link) is a correction the app makes, not a click —
+    // applyRoute replaces it with "/" before connecting fresh rather than leaving it dangling.
+    applyRoute(routeFromUrl());
     if (storedToken && storedGateway) {
       const target = initialSessionTarget();
       connect(storedGateway, storedToken, target.path, target.flow);
@@ -877,9 +948,10 @@ function AppInner() {
     function onPopState(): void {
       const token = localStorage.getItem(STORAGE_TOKEN);
       if (!token || !gatewayHttpBaseRef.current) return;
+      const route = applyRoute(routeFromUrl());
+      // A project page opened from a chat leaves that chat connected underneath.
+      if (route.view === "hub") return;
       const target = initialSessionTarget();
-      setDataStudioMode(isDataStudioUrl());
-      setProjectView(null);
       setHasChatted(target.path !== "new");
       wsRef.current?.close();
       connect(gatewayHttpBaseRef.current, token, target.path, target.flow);
@@ -1014,10 +1086,8 @@ function AppInner() {
               startNewSession("data-studio");
             }}
             newChatDisabled={!hasChatted}
-            // Explicit non-`undefined` flow bypasses startNewSession's
-            // "already on an empty session" no-op guard — a deliberate
-            // context switch, not a redundant "New chat" click (see that
-            // function's own comment for why the guard exists at all).
+            // Explicit non-`undefined` flow bypasses startNewSession's "already on an empty session" no-op
+            // guard — a deliberate context switch, not a redundant "New chat" click.
             onBackToMain={() => startNewSession("default")}
           />
         ) : (
@@ -1026,10 +1096,15 @@ function AppInner() {
             onToggleCollapse={toggleSidebarCollapse}
             onNewSession={() => {
               setProjectView(null);
+              // Still on an empty chat: startNewSession() keeps it, so only the URL leaves the data area.
+              if (!hasChatted) {
+                pushUrl("/");
+                setChatPlace({ area: "chat" });
+              }
               startNewSession();
             }}
-            onOpenDataAnalysis={() => setProjectView({ projectId: null })}
-            dataAnalysisActive={projectView !== null}
+            onOpenDataAnalysis={() => openDataView(null)}
+            dataAnalysisActive={projectView !== null || chatInDataArea}
             onOpenDataStudio={() => startNewSession("data-studio")}
             newSessionDisabled={!hasChatted && projectView === null}
             onOpenSettings={() => setSettingsOpen(true)}
@@ -1059,7 +1134,7 @@ function AppInner() {
             <ProjectHub
               key={projectView.projectId ?? "project-list"}
               projectId={projectView.projectId}
-              onOpenProject={(projectId) => setProjectView({ projectId })}
+              onOpenProject={openDataView}
               onStartChat={(projectId, message) => startNewSession("data-analysis", projectId, message)}
             />
           ) : (
@@ -1072,7 +1147,7 @@ function AppInner() {
                   comments have the full history) — a session with no first
                   message yet has no real title to show or edit. */}
               {sessionId && hasChatted && <SessionTitleBar />}
-              <ProjectChatBar onOpenProject={(projectId) => setProjectView({ projectId })} />
+              <ProjectChatBar onOpenProject={openDataView} onChatPlace={reconcileChatPlace} />
               <Conversation />
             </>
           )}

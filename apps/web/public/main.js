@@ -2439,7 +2439,7 @@
           var HostPortal = 4;
           var HostComponent = 5;
           var HostText = 6;
-          var Fragment24 = 7;
+          var Fragment25 = 7;
           var Mode = 8;
           var ContextConsumer = 9;
           var ContextProvider = 10;
@@ -3596,7 +3596,7 @@
                 return "DehydratedFragment";
               case ForwardRef2:
                 return getWrappedName$1(type, type.render, "ForwardRef");
-              case Fragment24:
+              case Fragment25:
                 return "Fragment";
               case HostComponent:
                 return type;
@@ -12025,7 +12025,7 @@
               }
             }
             function updateFragment2(returnFiber, current4, fragment, lanes, key) {
-              if (current4 === null || current4.tag !== Fragment24) {
+              if (current4 === null || current4.tag !== Fragment25) {
                 var created = createFiberFromFragment(fragment, returnFiber.mode, lanes, key);
                 created.return = returnFiber;
                 return created;
@@ -12428,7 +12428,7 @@
                 if (child.key === key) {
                   var elementType = element4.type;
                   if (elementType === REACT_FRAGMENT_TYPE) {
-                    if (child.tag === Fragment24) {
+                    if (child.tag === Fragment25) {
                       deleteRemainingChildren(returnFiber, child.sibling);
                       var existing = useFiber(child, element4.props.children);
                       existing.return = returnFiber;
@@ -17904,7 +17904,7 @@
                 var _resolvedProps2 = workInProgress2.elementType === type ? _unresolvedProps2 : resolveDefaultProps2(type, _unresolvedProps2);
                 return updateForwardRef(current4, workInProgress2, type, _resolvedProps2, renderLanes2);
               }
-              case Fragment24:
+              case Fragment25:
                 return updateFragment(current4, workInProgress2, renderLanes2);
               case Mode:
                 return updateMode(current4, workInProgress2, renderLanes2);
@@ -18176,7 +18176,7 @@
               case SimpleMemoComponent:
               case FunctionComponent:
               case ForwardRef2:
-              case Fragment24:
+              case Fragment25:
               case Mode:
               case Profiler:
               case ContextConsumer:
@@ -22437,7 +22437,7 @@
             return fiber;
           }
           function createFiberFromFragment(elements, mode, lanes, key) {
-            var fiber = createFiber(Fragment24, elements, key, mode);
+            var fiber = createFiber(Fragment25, elements, key, mode);
             fiber.lanes = lanes;
             return fiber;
           }
@@ -25958,7 +25958,7 @@
           var ContextProvider = REACT_PROVIDER_TYPE;
           var Element = REACT_ELEMENT_TYPE;
           var ForwardRef2 = REACT_FORWARD_REF_TYPE2;
-          var Fragment24 = REACT_FRAGMENT_TYPE;
+          var Fragment25 = REACT_FRAGMENT_TYPE;
           var Lazy = REACT_LAZY_TYPE;
           var Memo2 = REACT_MEMO_TYPE2;
           var Portal = REACT_PORTAL_TYPE;
@@ -26026,7 +26026,7 @@
           exports.ContextProvider = ContextProvider;
           exports.Element = Element;
           exports.ForwardRef = ForwardRef2;
-          exports.Fragment = Fragment24;
+          exports.Fragment = Fragment25;
           exports.Lazy = Lazy;
           exports.Memo = Memo2;
           exports.Portal = Portal;
@@ -29682,6 +29682,14 @@
     "conversation.emptyHeading": "B\u1EAFt \u0111\u1EA7u cu\u1ED9c tr\xF2 chuy\u1EC7n",
     "conversation.placeholder": "Nh\u1EAFn cho agent\u2026",
     "conversation.send": "G\u1EEDi",
+    // Status row and Stop button while a reply runs (Conversation.tsx).
+    "conversation.stop": "D\u1EEBng",
+    "conversation.thinking": "\u0110ang suy ngh\u0129\u2026",
+    "conversation.runningTool": "\u0110ang ch\u1EA1y c\xF4ng c\u1EE5\u2026",
+    "conversation.elapsedSeconds": "{s} gi\xE2y",
+    "conversation.elapsedMinutes": "{m} ph\xFAt {s} gi\xE2y",
+    "conversation.disconnectedWhileRunning": "M\u1EA5t k\u1EBFt n\u1ED1i v\u1EDBi agent. T\u1EA3i l\u1EA1i trang \u0111\u1EC3 xem ti\u1EBFp.",
+    "conversation.stopped": "\u0110\xE3 d\u1EEBng.",
     // Technical event-log lines — only the English SCAFFOLDING words are
     // translated (`ended:`); turn numbers and reason codes stay exactly as
     // the wire sends them — they're identifiers/data, not English prose,
@@ -29700,6 +29708,10 @@
     "conversation.toolRunning": "\u0110ang d\xF9ng {name}\u2026",
     "conversation.toolUsed": "\u0110\xE3 d\xF9ng {name}",
     "conversation.toolFailed": "L\u1ED7i khi d\xF9ng {name}",
+    // The `skill` tool / a `/name` invocation.
+    "conversation.skillLoading": "\u0110ang \u0111\u1ECDc skill {name}\u2026",
+    "conversation.skillLoaded": "\u0110\xE3 \u0111\u1ECDc skill {name}",
+    "conversation.skillFailed": "Kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c skill {name}",
     // Real bug fixed 2026-09-11 (user: "box contain tool-pill vẫn còn mà ko
     // có dữ liệu ... bị shrink") — a tool call whose turn ended without a
     // matching `tool/result` (container hibernated/crashed mid-call, a real,
@@ -29722,6 +29734,7 @@
     "conversation.searched": "\u0110\xE3 tra c\u1EE9u {n} ngu\u1ED3n",
     "conversation.searchEmpty": "Kh\xF4ng t\xECm th\u1EA5y k\u1EBFt qu\u1EA3",
     "conversation.searchFailed": "Tra c\u1EE9u th\u1EA5t b\u1EA1i",
+    "conversation.searchStopped": "\u0110\xE3 d\u1EEBng tra c\u1EE9u",
     "conversation.searchTruncated": "Danh s\xE1ch ngu\u1ED3n \u0111\xE3 \u0111\u01B0\u1EE3c r\xFAt g\u1ECDn",
     // `DataStudioResultPill` (docs/data-studio-agent-transfer-plan.md) — label
     // for the `analyze_data` tool's pill.
@@ -29864,6 +29877,8 @@
     "projects.outputsProjectHint": "K\u1EBFt qu\u1EA3 \u0111\xE3 \u0111\u01B0\u1EE3c ch\u1ECDn \u0111\u1EC3 m\u1ECDi \u0111o\u1EA1n chat trong d\u1EF1 \xE1n s\u1EED d\u1EE5ng.",
     "projects.outputsChats": "K\u1EBFt qu\u1EA3 t\u1EEB c\xE1c \u0111o\u1EA1n chat",
     "projects.outputsChatsHint": "K\u1EBFt qu\u1EA3 n\u1EB1m ri\xEAng theo t\u1EEBng \u0111o\u1EA1n chat; \u0111\u01B0a v\xE0o d\u1EF1 \xE1n khi mu\u1ED1n d\xF9ng chung.",
+    "projects.outputsOther": "T\u1EC7p kh\xE1c do model t\u1EA1o",
+    "projects.outputsOtherHint": "Model ghi th\u1EB3ng v\xE0o th\u01B0 m\u1EE5c d\u1EF1 \xE1n thay v\xEC ng\u0103n ri\xEAng c\u1EE7a \u0111o\u1EA1n chat, n\xEAn kh\xF4ng r\xF5 c\u1EE7a \u0111o\u1EA1n chat n\xE0o.",
     "projects.sharedInProject": "D\xF9ng chung trong d\u1EF1 \xE1n",
     "projects.promote": "\u0110\u01B0a v\xE0o d\u1EF1 \xE1n",
     "projects.promoted": "\u0110\xE3 \u0111\u01B0a {name} v\xE0o d\u1EF1 \xE1n",
@@ -30052,11 +30067,21 @@
     "conversation.emptyHeading": "Start a conversation",
     "conversation.placeholder": "Message the agent\u2026",
     "conversation.send": "Send",
+    "conversation.stop": "Stop",
+    "conversation.thinking": "Thinking\u2026",
+    "conversation.runningTool": "Running a tool\u2026",
+    "conversation.elapsedSeconds": "{s}s",
+    "conversation.elapsedMinutes": "{m}m {s}s",
+    "conversation.disconnectedWhileRunning": "Lost connection to the agent. Reload the page to continue.",
+    "conversation.stopped": "Stopped.",
     "conversation.turnEnded": "turn {n} ended: {reason}",
     "conversation.modelError": "Model call failed ({code}): {message}",
     "conversation.toolRunning": "Using {name}\u2026",
     "conversation.toolUsed": "Used {name}",
     "conversation.toolFailed": "Failed to use {name}",
+    "conversation.skillLoading": "Reading skill {name}\u2026",
+    "conversation.skillLoaded": "Read skill {name}",
+    "conversation.skillFailed": "Couldn't read skill {name}",
     "conversation.toolInterrupted": "The turn ended before a result arrived.",
     "conversation.copyCode": "Copy",
     "conversation.codeCopied": "Copied",
@@ -30064,6 +30089,7 @@
     "conversation.searched": "Searched {n} sources",
     "conversation.searchEmpty": "No results found",
     "conversation.searchFailed": "Search failed",
+    "conversation.searchStopped": "Search stopped",
     "conversation.searchTruncated": "Source list truncated",
     "conversation.dataStudioRunning": "Analyzing data\u2026",
     "conversation.dataStudioDone": "Analyzed data",
@@ -30199,6 +30225,8 @@
     "projects.outputsProjectHint": "Results chosen for every chat in the project to use.",
     "projects.outputsChats": "Results from chats",
     "projects.outputsChatsHint": "Each chat keeps its own results; add one to the project to share it.",
+    "projects.outputsOther": "Other files written by the model",
+    "projects.outputsOtherHint": "The model wrote these straight into the project folder instead of a chat's own output folder, so the chat is unknown.",
     "projects.sharedInProject": "Shared in the project",
     "projects.promote": "Add to project",
     "projects.promoted": "Added {name} to the project",
@@ -30811,6 +30839,11 @@
     ["path", { d: "M22 5h-4", key: "1gvqau" }],
     ["path", { d: "M4 17v2", key: "vumght" }],
     ["path", { d: "M5 18H3", key: "zchphs" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/square.js
+  var Square = createLucideIcon("Square", [
+    ["rect", { width: "18", height: "18", x: "3", y: "3", rx: "2", key: "afitv7" }]
   ]);
 
   // node_modules/lucide-react/dist/esm/icons/sun.js
@@ -107528,7 +107561,11 @@ ${sql3}
     async function refresh() {
       if (!base) return;
       try {
-        setFiles(await listWorkspaceFiles(runtime, base));
+        setFiles(
+          (await listWorkspaceFiles(runtime, base))?.filter(
+            (file) => !file.sessionId || file.sessionId === runtime.sessionId
+          )
+        );
       } catch {
       }
     }
@@ -107608,7 +107645,7 @@ ${sql3}
         )
       ] }),
       open && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("ul", { className: "fh-workspace-list", children: files.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("li", { className: "fh-workspace-empty", children: t("workspace.empty") }) : files.map((file) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { type: "button", className: "fh-workspace-file", onClick: () => void openFile(file), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-workspace-file-path", children: file.path }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-workspace-file-path", children: file.sessionId ? file.path.slice(`generated/${file.sessionId}/`.length) : file.path }),
         /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "fh-workspace-file-size", children: formatSize(file.sizeBytes) })
       ] }) }, file.path)) }),
       preview && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "fh-workspace-preview", role: "dialog", onClick: closePreview, children: [
@@ -107622,7 +107659,7 @@ ${sql3}
   var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
   var CREATE_SKILL_TOOL = "create_skill";
   var WEB_SEARCH_TOOL = "web_search";
-  var HIDDEN_TOOLS = /* @__PURE__ */ new Set(["skill", "bash"]);
+  var SKILL_TOOL = "skill";
   var ANALYZE_DATA_TOOL = "analyze_data";
   function parseWebSearchMeta(meta) {
     if (typeof meta !== "object" || meta === null) return void 0;
@@ -107718,14 +107755,16 @@ ${sql3}
     onToggle,
     t
   }) {
-    const label = entry.status === "running" ? t("conversation.toolRunning", { name: entry.name }) : entry.status === "error" ? t("conversation.toolFailed", { name: entry.name }) : t("conversation.toolUsed", { name: entry.name });
+    const params = { name: entry.skill ?? entry.name };
+    const label = entry.status === "running" ? t(entry.skill ? "conversation.skillLoading" : "conversation.toolRunning", params) : entry.status === "error" ? t(entry.skill ? "conversation.skillFailed" : "conversation.toolFailed", params) : t(entry.skill ? "conversation.skillLoaded" : "conversation.toolUsed", params);
+    const Icon3 = entry.skill ? Sparkles : Wrench;
     return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
       "div",
       {
         className: `tool-pill${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`,
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { type: "button", className: "tool-pill-header", onClick: onToggle, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Wrench, { size: 13 }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Icon3, { size: 13 }),
             /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: label }),
             /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ChevronDown, { size: 13, className: "tool-pill-chevron" })
           ] }),
@@ -107782,7 +107821,7 @@ ${sql3}
     locale: locale3
   }) {
     const isError2 = entry.hasError && entry.sources.length === 0;
-    const label = entry.pendingCalls > 0 ? t("conversation.searching") : isError2 ? t("conversation.searchFailed") : entry.sources.length === 0 ? t("conversation.searchEmpty") : t("conversation.searched", { n: String(entry.sources.length) });
+    const label = entry.pendingCalls > 0 ? t("conversation.searching") : entry.stopped ? t("conversation.searchStopped") : isError2 ? t("conversation.searchFailed") : entry.sources.length === 0 ? t("conversation.searchEmpty") : t("conversation.searched", { n: String(entry.sources.length) });
     return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
       "div",
       {
@@ -107871,6 +107910,15 @@ ${entry.sql}
       }
     );
   }
+  function formatElapsed(ms, t) {
+    const total = Math.max(0, Math.floor(ms / 1e3));
+    const minutes = Math.floor(total / 60);
+    const seconds2 = total % 60;
+    return minutes === 0 ? t("conversation.elapsedSeconds", { s: String(seconds2) }) : t("conversation.elapsedMinutes", {
+      m: String(minutes),
+      s: String(seconds2).padStart(2, "0")
+    });
+  }
   function LogEntryView({
     entry,
     isExpanded,
@@ -107882,7 +107930,7 @@ ${entry.sql}
   }) {
     switch (entry.kind) {
       case "notice":
-        return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "notice", children: entry.text });
+        return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: `notice${entry.muted ? " notice-muted" : ""}`, children: entry.text });
       case "tool":
         return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           ToolPill,
@@ -107938,6 +107986,17 @@ ${entry.sql}
       /* @__PURE__ */ new Set()
     );
     const [text7, setText] = (0, import_react83.useState)("");
+    const [run, setRun] = (0, import_react83.useState)(
+      null
+    );
+    const [now, setNow] = (0, import_react83.useState)(() => Date.now());
+    const running = run !== null;
+    (0, import_react83.useEffect)(() => {
+      if (!running) return;
+      setNow(Date.now());
+      const timer = setInterval(() => setNow(Date.now()), 1e3);
+      return () => clearInterval(timer);
+    }, [running]);
     const logRef = (0, import_react83.useRef)(null);
     const textareaRef = (0, import_react83.useRef)(null);
     const skillItems = useSkillMenu(runtime);
@@ -107997,9 +108056,12 @@ ${entry.sql}
     function handleEvent(event, live) {
       switch (event.type) {
         case "turn/start":
+          setRun((prev) => prev ?? { startedAt: live ? Date.now() : event.time, tools: 0 });
           break;
         case "turn/end": {
           const data = event.data;
+          setRun(null);
+          const stoppedByUser = data.reason.kind === "aborted" && data.reason.reason?.kind === "user";
           if (data.reason.kind === "error" && data.reason.error) {
             pushEntry({
               kind: "notice",
@@ -108008,6 +108070,13 @@ ${entry.sql}
                 code: data.reason.error.code,
                 message: data.reason.error.message
               })
+            });
+          } else if (data.reason.kind === "aborted" && data.reason.reason?.kind === "user") {
+            pushEntry({
+              kind: "notice",
+              id: `evt-${event.seq}`,
+              text: tRef.current("conversation.stopped"),
+              muted: true
             });
           } else if (data.reason.kind !== "completed") {
             pushEntry({
@@ -108028,8 +108097,8 @@ ${entry.sql}
                   resultText: tRef.current("conversation.toolInterrupted")
                 };
               }
-              if (entry.kind === "search" && entry.turn === data.turn && entry.pendingCalls > 0) {
-                return { ...entry, pendingCalls: 0, hasError: true };
+              if (entry.kind === "search" && entry.turn === data.turn && (entry.pendingCalls > 0 || stoppedByUser && entry.hasError)) {
+                return stoppedByUser ? { ...entry, pendingCalls: 0, stopped: true } : { ...entry, pendingCalls: 0, hasError: true };
               }
               if (entry.kind === "data-studio" && entry.turn === data.turn && entry.status === "running") {
                 return {
@@ -108045,6 +108114,19 @@ ${entry.sql}
         }
         case "user/message": {
           const message = event.data;
+          if (message.source?.kind === "skill-invocation" && message.source.name) {
+            pushEntry({
+              kind: "tool",
+              id: `evt-${event.seq}`,
+              turn: 0,
+              name: SKILL_TOOL,
+              skill: message.source.name,
+              args: `/${message.source.name}`,
+              status: "done",
+              resultText: truncate(contentToText(message.content), 500)
+            });
+            break;
+          }
           if (message.source && message.source.kind !== "user") break;
           pushEntry(
             buildBubbleEntry(`evt-${event.seq}`, "user", message.content)
@@ -108081,7 +108163,7 @@ ${entry.sql}
         }
         case "tool/call": {
           const data = event.data;
-          if (HIDDEN_TOOLS.has(data.name)) break;
+          setRun((prev) => prev && { ...prev, tools: prev.tools + 1 });
           if (data.name === WEB_SEARCH_TOOL) {
             searchCallIdsRef.current.add(data.callId);
             upsertSearchEntry(
@@ -108127,8 +108209,11 @@ ${entry.sql}
             break;
           }
           let pretty = data.arguments;
+          let skill;
           try {
-            pretty = JSON.stringify(JSON.parse(data.arguments), null, 2);
+            const parsed = JSON.parse(data.arguments);
+            pretty = JSON.stringify(parsed, null, 2);
+            if (data.name === SKILL_TOOL && typeof parsed?.name === "string") skill = parsed.name;
           } catch {
           }
           pushEntry({
@@ -108138,7 +108223,8 @@ ${entry.sql}
             name: data.name,
             args: pretty,
             status: "running",
-            resultText: null
+            resultText: null,
+            ...skill ? { skill } : {}
           });
           if (data.name === CREATE_SKILL_TOOL) {
             skillCallArgsRef.current.set(data.callId, data.arguments);
@@ -108147,6 +108233,7 @@ ${entry.sql}
         }
         case "tool/result": {
           const data = event.data;
+          setRun((prev) => prev && { ...prev, tools: Math.max(0, prev.tools - 1) });
           const block = data.message.content[0];
           const callId = block?.toolCallId;
           const isError2 = !!(data.error || block?.isError);
@@ -108230,6 +108317,7 @@ ${entry.sql}
         case "snapshot":
           setEntries([]);
           setLiveBubbles(/* @__PURE__ */ new Map());
+          setRun(null);
           pendingDeltasRef.current.clear();
           for (const event of frame.events) handleEvent(event, false);
           break;
@@ -108237,6 +108325,7 @@ ${entry.sql}
           handleEvent(frame.event, true);
           break;
         case "error":
+          setRun(null);
           pushEntry({
             kind: "notice",
             id: `err-${crypto.randomUUID()}`,
@@ -108254,7 +108343,7 @@ ${entry.sql}
     (0, import_react83.useEffect)(() => {
       const el = logRef.current;
       if (el) el.scrollTop = el.scrollHeight;
-    }, [entries, liveBubbles]);
+    }, [entries, liveBubbles, running]);
     (0, import_react83.useEffect)(() => {
       const el = textareaRef.current;
       if (!el) return;
@@ -108298,9 +108387,13 @@ ${entry.sql}
     }
     function sendMessage() {
       const trimmed = text7.trim();
-      if (!trimmed) return;
+      if (!trimmed || run || !runtime.connected) return;
       runtime.send({ type: "followup", text: trimmed });
       setText("");
+      setRun({ startedAt: Date.now(), tools: 0 });
+    }
+    function stopRun() {
+      runtime.send({ type: "cancel" });
     }
     function onSubmit(event) {
       event.preventDefault();
@@ -108330,7 +108423,8 @@ ${entry.sql}
       event.preventDefault();
       sendMessage();
     }
-    const isEmpty = entries.length === 0 && liveBubbles.size === 0;
+    const isEmpty = entries.length === 0 && liveBubbles.size === 0 && !run;
+    const streaming = [...liveBubbles.values()].some((bubble) => bubble.text.trim());
     return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
       "div",
       {
@@ -108350,7 +108444,16 @@ ${entry.sql}
               },
               entry.id
             )),
-            [...liveBubbles.entries()].map(([key, bubble]) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "assistant-text", children: bubble.text.trim() && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "assistant-text-body", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Markdown2, { text: bubble.text }) }) }, key))
+            [...liveBubbles.entries()].map(([key, bubble]) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "assistant-text", children: bubble.text.trim() && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "assistant-text-body", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Markdown2, { text: bubble.text }) }) }, key)),
+            run && (!streaming || !runtime.connected) && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-run-status", role: "status", children: runtime.connected ? /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { className: "fh-run-dots", "aria-hidden": "true", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("i", {}),
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("i", {}),
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("i", {})
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: run.tools > 0 ? t("conversation.runningTool") : t("conversation.thinking") }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "fh-run-elapsed", children: formatElapsed(now - run.startedAt, t) })
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: t("conversation.disconnectedWhileRunning") }) })
           ] }),
           isEmpty && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "fh-conversation-empty-heading", children: [
             /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Bot, { size: 48 }),
@@ -108382,7 +108485,19 @@ ${entry.sql}
                 onKeyDown: onTextareaKeyDown
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-composer-actions", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Button, { variant: "primary", type: "submit", children: t("conversation.send") }) })
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "fh-composer-actions", children: run && runtime.connected ? /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+              Button,
+              {
+                variant: "primary",
+                className: "fh-stop-btn",
+                onClick: stopRun,
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Square, { size: 12, fill: "currentColor" }),
+                  t("conversation.stop")
+                ]
+              },
+              "stop"
+            ) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Button, { variant: "primary", type: "submit", children: t("conversation.send") }, "send") })
           ] })
         ]
       }
@@ -108736,12 +108851,12 @@ ${entry.sql}
     (0, import_react86.useEffect)(() => {
       void refresh();
     }, []);
-    const sources = files.filter((file) => !file.path.startsWith("generated/") && !file.path.startsWith("outputs/"));
-    const projectOutputs = files.filter((file) => file.path.startsWith("outputs/"));
-    const chatOutputs = files.filter((file) => file.path.startsWith("generated/")).map((file) => {
-      const [, sessionId, ...rest] = file.path.split("/");
-      return { file, sessionId, path: rest.join("/") };
-    }).filter((output) => output.path);
+    const sources = files.filter((file) => file.origin === "source");
+    const projectOutputs = files.filter((file) => file.origin === "shared");
+    const chatOutputs = files.flatMap(
+      (file) => file.origin === "chat" && file.sessionId ? [{ file, sessionId: file.sessionId, path: file.path.slice(`generated/${file.sessionId}/`.length) }] : []
+    );
+    const otherOutputs = files.filter((file) => file.origin === "chat" && !file.sessionId);
     const chatTitle = (sessionId) => chats.find((chat) => chat.sessionId === sessionId)?.title ?? t("historyChat.untitled", { id: sessionId.slice(0, 8) });
     async function upload(list4) {
       const picked = Array.from(list4 ?? []);
@@ -108817,7 +108932,7 @@ ${entry.sql}
     const tabs = [
       { key: "chats", label: t("projects.tabChats"), count: chats.length },
       { key: "sources", label: t("projects.tabSources"), count: sources.length },
-      { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length }
+      { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length + otherOutputs.length }
     ];
     return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "fh-hub-scroll", children: [
       /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("section", { className: "fh-hub", "aria-label": title, children: [
@@ -108886,7 +109001,7 @@ ${entry.sql}
           item.key
         )) }),
         tab2 === "chats" && /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "fh-hub-list", children: [
-          chats.map((chat) => /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("button", { type: "button", className: "fh-hub-content-row", onClick: () => runtime.switchSession(chat.sessionId), children: [
+          chats.map((chat) => /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("button", { type: "button", className: "fh-hub-content-row", onClick: () => runtime.switchSession(chat.sessionId, project.projectId), children: [
             /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(MessageSquare, { size: 18 }),
             /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { children: [
               /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("strong", { children: chat.title ?? t("historyChat.untitled", { id: chat.sessionId.slice(0, 8) }) }),
@@ -108982,8 +109097,25 @@ ${entry.sql}
               ] })
             ] }, output.file.path)),
             chatOutputs.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "fh-hub-empty", children: t("projects.noOutputs") })
+          ] }),
+          otherOutputs.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("section", { className: "fh-hub-output-group", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "fh-hub-output-heading", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("h2", { children: t("projects.outputsOther") }),
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("p", { children: t("projects.outputsOtherHint") })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { children: otherOutputs.length })
+            ] }),
+            otherOutputs.map((file) => /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "fh-hub-output-row", children: /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("button", { type: "button", className: "fh-hub-output-file", onClick: () => void openFile(file.path), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(FileOutput, { size: 18 }),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("strong", { children: file.path }),
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("small", { children: formatSize(file.sizeBytes) })
+              ] })
+            ] }) }, file.path))
           ] })
-        ] })
+        ] }),
+        "      "
       ] }),
       preview && /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "fh-workspace-preview", role: "dialog", onClick: closePreview, children: [
         /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("img", { src: preview.url, alt: preview.path }),
@@ -108991,7 +109123,10 @@ ${entry.sql}
       ] })
     ] });
   }
-  function ProjectChatBar({ onOpenProject }) {
+  function ProjectChatBar({
+    onOpenProject,
+    onChatPlace
+  }) {
     const runtime = useRuntime();
     const [project, setProject] = (0, import_react86.useState)(null);
     (0, import_react86.useEffect)(() => {
@@ -109002,9 +109137,10 @@ ${entry.sql}
         if (!res.ok || cancelled2) return;
         const rows = await res.json();
         const row2 = rows.find((item) => item.sessionId === runtime.sessionId);
-        if (cancelled2 || !row2?.projectId || !row2.projectName) return;
+        if (cancelled2 || !row2) return;
         found = true;
-        setProject({ projectId: row2.projectId, name: row2.projectName });
+        onChatPlace(row2.sessionId, row2.flow, row2.projectId);
+        if (row2.projectId && row2.projectName) setProject({ projectId: row2.projectId, name: row2.projectName });
       }
       setProject(null);
       if (runtime.sessionId) void lookup();
@@ -110682,7 +110818,7 @@ ${entry.sql}
     const groups = (0, import_react94.useMemo)(() => {
       const q = query.trim().toLowerCase();
       const own5 = rows.filter(
-        (row2) => !row2.projectId && (flowFilter ? row2.flow === flowFilter : row2.flow !== "data-studio")
+        (row2) => row2.flow !== "data-analysis" && !row2.projectId && (flowFilter ? row2.flow === flowFilter : row2.flow !== "data-studio")
       );
       const filtered = q ? own5.filter((row2) => rowLabel(row2, t).toLowerCase().includes(q)) : own5;
       const now = /* @__PURE__ */ new Date();
@@ -110792,17 +110928,7 @@ ${entry.sql}
                   },
                   onBlur: () => setRenamingRow(null)
                 }
-              ) : /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)(import_jsx_runtime29.Fragment, { children: [
-                row2.flow === "data-analysis" && /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
-                  ChartColumn,
-                  {
-                    size: 14,
-                    className: "fh-history-chat-row-flow",
-                    "aria-label": t("sidebar.dataAnalysis")
-                  }
-                ),
-                /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("span", { className: "fh-history-chat-row-title", children: rowLabel(row2, t) })
-              ] }),
+              ) : /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(import_jsx_runtime29.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("span", { className: "fh-history-chat-row-title", children: rowLabel(row2, t) }) }),
               renamingRow?.sessionId !== row2.sessionId && /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
                 IconButton,
                 {
@@ -111200,44 +111326,50 @@ ${entry.sql}
     return httpBase.replace(/^http/, "ws").replace(/\/$/, "");
   }
   var SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function routeFromUrl() {
+    const parts = location.pathname.split("/").filter(Boolean);
+    const isId = (part) => part !== void 0 && SESSION_ID_RE.test(part);
+    if (parts.length === 0) return { view: "chat" };
+    if (parts[0] === "chat" && parts.length === 2 && isId(parts[1])) return { view: "chat", sessionId: parts[1] };
+    if (parts[0] === "data-studio") {
+      if (parts.length === 1) return { view: "dataStudio" };
+      if (parts.length === 3 && parts[1] === "chat" && isId(parts[2])) return { view: "dataStudio", sessionId: parts[2] };
+      return void 0;
+    }
+    if (parts[0] !== "data") return void 0;
+    if (parts.length === 1) return { view: "hub", projectId: null };
+    if (parts.length === 2 && isId(parts[1])) return { view: "hub", projectId: parts[1] };
+    if (parts.length === 3 && parts[1] === "chat" && isId(parts[2])) return { view: "dataChat", projectId: null, sessionId: parts[2] };
+    if (parts.length === 4 && isId(parts[1]) && parts[2] === "chat" && isId(parts[3])) {
+      return { view: "dataChat", projectId: parts[1], sessionId: parts[3] };
+    }
+    return void 0;
+  }
   function sessionIdFromUrl() {
-    const match = /^\/chat\/([^/]+)$/.exec(location.pathname);
-    return match && SESSION_ID_RE.test(match[1]) ? match[1] : void 0;
+    const route = routeFromUrl();
+    return route && route.view !== "hub" ? route.sessionId : void 0;
+  }
+  function chatPath(id2, place) {
+    if (place.area === "chat") return `/chat/${id2}`;
+    if (place.area === "data-studio") return `/data-studio/chat/${id2}`;
+    return place.projectId ? `/data/${place.projectId}/chat/${id2}` : `/data/chat/${id2}`;
+  }
+  function hubPath(projectId) {
+    return projectId ? `/data/${projectId}` : "/data";
   }
   function isDataStudioUrl() {
     return location.pathname === "/data-studio" || location.pathname.startsWith("/data-studio/");
   }
-  function dataStudioSessionIdFromUrl() {
-    const match = /^\/data-studio\/chat\/([^/]+)$/.exec(location.pathname);
-    return match && SESSION_ID_RE.test(match[1]) ? match[1] : void 0;
-  }
   function initialSessionTarget() {
-    const chatId = sessionIdFromUrl();
-    if (chatId) return { path: chatId };
-    const dataStudioId = dataStudioSessionIdFromUrl();
-    if (dataStudioId) return { path: dataStudioId };
+    const sessionId = sessionIdFromUrl();
+    if (sessionId) return { path: sessionId };
     return { path: "new", flow: isDataStudioUrl() ? "data-studio" : void 0 };
   }
-  function replaceChatUrl(id2) {
-    history.replaceState(null, "", `/chat/${id2}`);
+  function replaceUrl(path3) {
+    history.replaceState(null, "", path3);
   }
-  function pushChatUrl(id2) {
-    history.pushState(null, "", `/chat/${id2}`);
-  }
-  function pushHomeUrl() {
-    history.pushState(null, "", "/");
-  }
-  function replaceHomeUrl() {
-    history.replaceState(null, "", "/");
-  }
-  function replaceDataStudioChatUrl(id2) {
-    history.replaceState(null, "", `/data-studio/chat/${id2}`);
-  }
-  function pushDataStudioChatUrl(id2) {
-    history.pushState(null, "", `/data-studio/chat/${id2}`);
-  }
-  function pushDataStudioHomeUrl() {
-    history.pushState(null, "", "/data-studio");
+  function pushUrl(path3) {
+    history.pushState(null, "", path3);
   }
   var AuthError = class extends Error {
     code;
@@ -111310,6 +111442,12 @@ ${entry.sql}
     const [projectView, setProjectView] = (0, import_react97.useState)(null);
     const [dataStudioMode, setDataStudioMode] = (0, import_react97.useState)(() => isDataStudioUrl());
     const [dataStudioSection, setDataStudioSection] = (0, import_react97.useState)("chat");
+    const chatPlaceRef = (0, import_react97.useRef)({ area: "chat" });
+    const [chatInDataArea, setChatInDataArea] = (0, import_react97.useState)(false);
+    function setChatPlace(place) {
+      chatPlaceRef.current = place;
+      setChatInDataArea(place.area === "data");
+    }
     const pendingFirstMessageRef = (0, import_react97.useRef)(null);
     const [viewportWidth, setViewportWidth] = (0, import_react97.useState)(0);
     const [sidebarManuallyExpanded, setSidebarManuallyExpanded] = (0, import_react97.useState)(false);
@@ -111320,7 +111458,7 @@ ${entry.sql}
       () => localStorage.getItem(STORAGE_EMAIL) ?? ""
     );
     const [hasChatted, setHasChatted] = (0, import_react97.useState)(
-      () => !!sessionIdFromUrl() || !!dataStudioSessionIdFromUrl()
+      () => !!sessionIdFromUrl()
     );
     const frameRef = (0, import_react97.useRef)(null);
     const wsRef = (0, import_react97.useRef)(null);
@@ -111381,7 +111519,8 @@ ${entry.sql}
           return;
         }
         if (sessionPath !== "new") {
-          replaceHomeUrl();
+          replaceUrl("/");
+          setChatPlace({ area: "chat" });
           setHasChatted(false);
           toast.info(t("app.sessionGoneStartedNew"));
           connect(httpBase, token, "new");
@@ -111423,13 +111562,14 @@ ${entry.sql}
           if (pendingFirstMessageRef.current !== null && wsRef.current) {
             wsRef.current.send(JSON.stringify({ type: "followup", text: pendingFirstMessageRef.current }));
             pendingFirstMessageRef.current = null;
-            replaceChatUrl(frame.sessionId);
+            replaceUrl(chatPath(frame.sessionId, chatPlaceRef.current));
             setHasChatted(true);
           }
           break;
         case "error":
           if (/unknown session/i.test(frame.message)) {
-            replaceHomeUrl();
+            replaceUrl("/");
+            setChatPlace({ area: "chat" });
             setHasChatted(false);
           }
           break;
@@ -111454,19 +111594,45 @@ ${entry.sql}
       const httpBase = gatewayHttpBaseRef.current;
       const token = localStorage.getItem(STORAGE_TOKEN);
       if (!token) return;
-      setDataStudioMode(flow3 === "data-studio");
-      if (flow3 === "data-studio") pushDataStudioHomeUrl();
-      else pushHomeUrl();
+      const place = flow3 === "data-studio" ? { area: "data-studio" } : flow3 === "data-analysis" ? { area: "data", projectId: projectId ?? null } : { area: "chat" };
+      pushUrl(place.area === "data" ? hubPath(place.projectId) : place.area === "data-studio" ? "/data-studio" : "/");
+      setChatPlace(place);
+      setDataStudioMode(place.area === "data-studio");
       setHasChatted(false);
       wsRef.current?.close();
       pendingFirstMessageRef.current = firstMessage ?? null;
       setProjectView(null);
       connect(httpBase, token, "new", flow3, projectId);
     }
+    function applyRoute(route) {
+      const current3 = route ?? { view: "chat" };
+      if (!route) replaceUrl("/");
+      if (current3.view === "hub") {
+        setProjectView({ projectId: current3.projectId });
+        setDataStudioMode(false);
+        return current3;
+      }
+      setProjectView(null);
+      setDataStudioMode(current3.view === "dataStudio");
+      setChatPlace(
+        current3.view === "dataChat" ? { area: "data", projectId: current3.projectId } : current3.view === "dataStudio" ? { area: "data-studio" } : { area: "chat" }
+      );
+      return current3;
+    }
+    function openDataView(projectId) {
+      pushUrl(hubPath(projectId));
+      setProjectView({ projectId });
+    }
+    function reconcileChatPlace(id2, flow3, projectId) {
+      const place = flow3 === "data-analysis" ? { area: "data", projectId } : { area: "chat" };
+      setChatPlace(place);
+      if (sessionIdFromUrl() === id2 && location.pathname !== chatPath(id2, place)) replaceUrl(chatPath(id2, place));
+    }
     const runtime = (0, import_react97.useMemo)(
       () => ({
         sessionId,
         userEmail,
+        connected: status === "connected",
         apiUrl: (path3) => `${gatewayHttpBaseRef.current}${path3}`,
         authHeaders: () => {
           const token = localStorage.getItem(STORAGE_TOKEN);
@@ -111495,18 +111661,18 @@ ${entry.sql}
         send: (frame) => {
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             if (!hasChatted && sessionId) {
-              if (dataStudioMode) replaceDataStudioChatUrl(sessionId);
-              else replaceChatUrl(sessionId);
+              replaceUrl(chatPath(sessionId, chatPlaceRef.current));
               setHasChatted(true);
             }
             wsRef.current.send(JSON.stringify(frame));
           }
         },
-        switchSession: (id2) => {
+        switchSession: (id2, projectId) => {
           const token = localStorage.getItem(STORAGE_TOKEN);
           if (!token || !gatewayHttpBaseRef.current) return;
-          if (dataStudioMode) pushDataStudioChatUrl(id2);
-          else pushChatUrl(id2);
+          const place = dataStudioMode ? { area: "data-studio" } : projectId ? { area: "data", projectId } : { area: "chat" };
+          setChatPlace(place);
+          pushUrl(chatPath(id2, place));
           setHasChatted(true);
           setProjectView(null);
           wsRef.current?.close();
@@ -111519,7 +111685,7 @@ ${entry.sql}
         bumpSessionsVersion: () => setSessionsVersion((v) => v + 1)
       }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [sessionId, userEmail, hasChatted, sessionTitle, sessionsVersion, dataStudioMode]
+      [sessionId, userEmail, status, hasChatted, sessionTitle, sessionsVersion, dataStudioMode]
     );
     function handleLogin(email, password) {
       setConnectError(null);
@@ -111529,9 +111695,9 @@ ${entry.sql}
           const result = await login(httpBase, email, password);
           localStorage.setItem(STORAGE_EMAIL, result.email);
           setUserEmail(result.email);
+          applyRoute(routeFromUrl());
           {
             const target = initialSessionTarget();
-            setDataStudioMode(isDataStudioUrl());
             connect(httpBase, result.token, target.path, target.flow);
           }
         } catch (error) {
@@ -111564,16 +111730,16 @@ ${entry.sql}
       localStorage.removeItem(STORAGE_EMAIL);
       setUserEmail("");
       setAuthenticated(false);
-      replaceHomeUrl();
+      replaceUrl("/");
+      setProjectView(null);
+      setChatPlace({ area: "chat" });
       setHasChatted(false);
       if (httpBase && token) void logoutRequest(httpBase, token);
     }
     (0, import_react97.useEffect)(() => {
       const storedToken = localStorage.getItem(STORAGE_TOKEN);
       const storedGateway = localStorage.getItem(STORAGE_GATEWAY);
-      if (location.pathname.startsWith("/chat/") && !sessionIdFromUrl()) replaceHomeUrl();
-      if (location.pathname.startsWith("/data-studio/chat/") && !dataStudioSessionIdFromUrl())
-        history.replaceState(null, "", "/data-studio");
+      applyRoute(routeFromUrl());
       if (storedToken && storedGateway) {
         const target = initialSessionTarget();
         connect(storedGateway, storedToken, target.path, target.flow);
@@ -111583,9 +111749,9 @@ ${entry.sql}
       function onPopState() {
         const token = localStorage.getItem(STORAGE_TOKEN);
         if (!token || !gatewayHttpBaseRef.current) return;
+        const route = applyRoute(routeFromUrl());
+        if (route.view === "hub") return;
         const target = initialSessionTarget();
-        setDataStudioMode(isDataStudioUrl());
-        setProjectView(null);
         setHasChatted(target.path !== "new");
         wsRef.current?.close();
         connect(gatewayHttpBaseRef.current, token, target.path, target.flow);
@@ -111675,10 +111841,14 @@ ${entry.sql}
                 onToggleCollapse: toggleSidebarCollapse,
                 onNewSession: () => {
                   setProjectView(null);
+                  if (!hasChatted) {
+                    pushUrl("/");
+                    setChatPlace({ area: "chat" });
+                  }
                   startNewSession();
                 },
-                onOpenDataAnalysis: () => setProjectView({ projectId: null }),
-                dataAnalysisActive: projectView !== null,
+                onOpenDataAnalysis: () => openDataView(null),
+                dataAnalysisActive: projectView !== null || chatInDataArea,
                 onOpenDataStudio: () => startNewSession("data-studio"),
                 newSessionDisabled: !hasChatted && projectView === null,
                 onOpenSettings: () => setSettingsOpen(true),
@@ -111693,13 +111863,13 @@ ${entry.sql}
               ProjectHub,
               {
                 projectId: projectView.projectId,
-                onOpenProject: (projectId) => setProjectView({ projectId }),
+                onOpenProject: openDataView,
                 onStartChat: (projectId, message) => startNewSession("data-analysis", projectId, message)
               },
               projectView.projectId ?? "project-list"
             ) : /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
               sessionId && hasChatted && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(SessionTitleBar, {}),
-              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(ProjectChatBar, { onOpenProject: (projectId) => setProjectView({ projectId }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(ProjectChatBar, { onOpenProject: openDataView, onChatPlace: reconcileChatPlace }),
               /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Conversation, {})
             ] }) })
           ]
@@ -112191,6 +112361,14 @@ lucide-react/dist/esm/icons/share-2.js:
    *)
 
 lucide-react/dist/esm/icons/sparkles.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/square.js:
   (**
    * @license lucide-react v0.469.0 - ISC
    *

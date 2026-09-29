@@ -1,0 +1,35 @@
+{
+  "id": "hard-bang-rong",
+  "source": "Tự dựng cho ý 3 (lỗi N6): lọc ra bảng rỗng thì phải nói là không có, không được bịa số. auto-mpg.csv không có xe nào mpg > 100 (kiểm bằng (d['mpg']>100).sum() = 0).",
+  "suite": "hard",
+  "fixture": "auto-mpg.csv",
+  "prompt": "Trong `auto-mpg.csv`, những xe có mpg trên 100 thì trọng lượng (weight) trung bình là bao nhiêu?\n\nKết thúc câu trả lời bằng đúng một dòng: @so_xe[số xe thoả điều kiện] @trung_binh_weight[giá trị, hoặc chữ KhongXacDinh nếu không tính được].",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "so_xe",
+      "value": 0,
+      "tolerance": 0.5
+    },
+    {
+      "kind": "answer",
+      "name": "trung_binh_weight",
+      "text": "KhongXacDinh"
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

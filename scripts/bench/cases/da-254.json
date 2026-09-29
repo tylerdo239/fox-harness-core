@@ -1,0 +1,29 @@
+{
+  "id": "da-254",
+  "source": "InfiAgent-DABench da-dev #254 (medium, Outlier Detection)",
+  "suite": "smoke",
+  "fixture": "gapminder_gdp_asia.csv",
+  "prompt": "Identify any outliers in the gross domestic product per capita data for the year 1982 for all countries. Define an outlier as any data point that falls more than 1.5 times the interquartile range (IQR) below the first quartile or above the third quartile. Report the country or countries which their gdpPercap_1982 values are identified as outliers.\n\nRàng buộc: Use the interquartile range (IQR) rule for outlier detection: a data point is considered an outlier if it falls more than 1.5*IQR below the first quartile (Q1) or above the third quartile (Q3). Don't use any other outlier detection methods or parameters.\n\nDữ liệu nằm ở file `gapminder_gdp_asia.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @outlier_countries[list_of_strings] where each string in list_of_strings is the name of a country that is an outlier according to the IQR rule.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "outlier_countries",
+      "text": "Kuwait, Saudi Arabia"
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

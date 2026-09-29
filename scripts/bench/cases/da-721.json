@@ -1,0 +1,30 @@
+{
+  "id": "da-721",
+  "source": "InfiAgent-DABench da-dev #721 (medium, Correlation Analysis)",
+  "suite": "smoke",
+  "fixture": "auto-mpg.csv",
+  "prompt": "3. Find the correlation coefficient between the 'mpg' and 'weight' columns.\n\nRàng buộc: Calculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between mpg and weight. Round r to two decimal places.\n\nDữ liệu nằm ở file `auto-mpg.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @correlation_coefficient[r_value] where 'r_value' is a number between -1 and 1, rounded to two decimal places.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "correlation_coefficient",
+      "value": -0.83,
+      "tolerance": 0.011
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

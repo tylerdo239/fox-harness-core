@@ -24,6 +24,7 @@ import {
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import {
   BlockAssembler,
+  createAssistantMessage,
   createToolResultMessage,
   LlmError,
   markAgentLoopRequest,
@@ -32,6 +33,22 @@ import {
   type LlmCallConfig,
   type PreparedLlmCall,
 } from '@deepseek-ai/dsh-llm'
+
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * A tool call the model made that a plugin can run even when no tool of that name is
+     * registered — see `runStep()` below for why. A listener answers with the call to make
+     * instead, or returns nothing to leave the call alone. The one listener today is
+     * @fox-harness/dsh-tool-python-repl, which repeats this declaration rather than depend
+     * on this package; keep the two signatures identical.
+     */
+    'fox/resolve-tool-call'(call: { name: string; arguments: Record<string, unknown> }):
+      | { name: string; arguments: Record<string, unknown> }
+      | undefined
+  }
+}
+
 /**
  * Real turn/step state machine, reimplemented from scratch by reading
  * @deepseek-ai/dsh-agent-loop's actual source (not guessed) — see
@@ -42,7 +59,8 @@ import {
  * Deliberate scope cuts for v1 (documented, not accidental):
  *  - Tool calls execute sequentially, never in parallel.
  *  - No `RuntimeContextProjection` snapshot message.
- *  - `cancel()` aborts the in-flight turn but does not distinguish
+ *  - `cancel()` aborts the in-flight turn (ending it as `aborted`, keeping
+ *    streamed text as an `interrupted` message) but does not distinguish
  *    aborted-before-dispatch from aborted-after-dispatch tool state the way
  *    upstream's `TOOL_ABORTED` / `TOOL_ABORTED_BEFORE_DISPATCH` do.
  *  - `runMaintenance()` does not truly exclude a concurrent turn from
@@ -181,6 +199,7 @@ export class FoxHarnessAgent implements Agent {
       // machine re-reads its inbox: fresh steering runs another step").
       for (;;) {
         while (!closed || this.inbox.nextStep.length > 0) {
+          abort.signal.throwIfAborted()
           step += 1
           const claimed =
             step === 1
@@ -216,8 +235,16 @@ export class FoxHarnessAgent implements Agent {
         closed = false // fresh steering arrived during turn-stopping — reopen
       }
     } catch (error) {
-      reason = { kind: 'error', error: error instanceof LlmError ? error.failure : { message: String(error), code: 'UNKNOWN' } }
-      this.dispatch.emit('agent/error', { turn, step, error })
+      // As in dsh-agent-loop's turn(): a cancel (Stop button, dispose) ends the
+      // turn as aborted with its cause, not as a failure.
+      if (abort.signal.aborted) {
+        // A copy of the cause: fetch (undici) adds a non-enumerable `stack` to the abort reason
+        // object when it aborts an in-flight request, and the session log refuses such an object.
+        reason = { kind: 'aborted', reason: { ...(abort.signal.reason as AgentCancelCause) } }
+      } else {
+        reason = { kind: 'error', error: error instanceof LlmError ? error.failure : { message: String(error), code: 'UNKNOWN' } }
+        this.dispatch.emit('agent/error', { turn, step, error })
+      }
     } finally {
       this.session.append('turn/end', { turn, reason })
       this.currentAbort = undefined
@@ -263,18 +290,59 @@ export class FoxHarnessAgent implements Agent {
 
     // Sequential-only — deliberate v1 scope cut, see class doc comment.
     for (const call of toolCalls) {
+      // The model sometimes names something that is NOT a registered tool but that this
+      // harness can still run — in the data-analysis flow, a function preloaded in the
+      // Python session (docs/qa-report-2026-09-15.md V6: `unknown tool "profile_dataset"`,
+      // 2/2 runs, and the prompt already said those are Python functions). A plugin that
+      // owns such a name answers `fox/resolve-tool-call` with the real call to make
+      // instead (declared and answered in packages/tool/python-repl/src/index.ts); with no
+      // answer the call goes through untouched and dsh reports the unknown tool as before.
+      // What gets logged and executed is the resolved call — the call that actually ran.
+      // Malformed arguments are the model's mistake, and they used to end the turn: `JSON.parse`
+      // threw out of this loop and the turn closed with `SyntaxError: Expected ',' or '}' after
+      // property value in JSON`, losing the answer the user was waiting for (reproduced 2/2 on a
+      // long data-analysis turn, 2026-09-16). A tool call the model wrote badly belongs in the
+      // conversation as a failed tool call, which it can read and retry, like any other tool error.
+      let parsedArguments: Record<string, unknown>
+      try {
+        parsedArguments = JSON.parse(call.arguments || '{}') as Record<string, unknown>
+      } catch (error) {
+        this.session.append('tool/call', { turn, step, callId: call.id, name: call.name, arguments: call.arguments })
+        this.session.append(
+          'tool/result',
+          {
+            turn,
+            step,
+            message: createToolResultMessage({
+              callId: call.id,
+              content: [
+                {
+                  type: 'text',
+                  text: `The arguments for \`${call.name}\` were not valid JSON (${error instanceof Error ? error.message : String(error)}). Call the tool again with valid JSON arguments.`,
+                },
+              ],
+              isError: true,
+            }),
+          },
+          { surfaceOp: 'append' },
+        )
+        continue
+      }
+      const requested = { name: call.name, arguments: parsedArguments }
+      const resolved = (this.ctx.bail('fox/resolve-tool-call', requested) as typeof requested | undefined) ?? requested
+
       this.session.append('tool/call', {
         turn,
         step,
         callId: call.id,
-        name: call.name,
-        arguments: call.arguments,
+        name: resolved.name,
+        arguments: JSON.stringify(resolved.arguments),
       })
 
       const result = await this.ctx.tools.execute({
         callId: call.id,
-        name: call.name,
-        arguments: JSON.parse(call.arguments || '{}'),
+        name: resolved.name,
+        arguments: resolved.arguments,
         agent: this,
         signal,
       })
@@ -314,6 +382,11 @@ export class FoxHarnessAgent implements Agent {
         ...(result.meta !== undefined ? { meta: result.meta } : {}),
       }
       this.session.append('tool/result', toolResultPayload, { surfaceOp: 'append' })
+      // As in dsh-agent-loop's executeToolCalls: context a post-execute hook attached (e.g.
+      // dsh-repeat-tool-reminder) reaches the model at the next step.
+      for (const context of result.additionalContexts ?? []) {
+        this.inbox.splice('next-step', this.inbox.nextStep.length, 0, [context])
+      }
 
       if (!result.isError && result.concludesTurn === true) concludesTurn = true
     }
@@ -358,9 +431,34 @@ export class FoxHarnessAgent implements Agent {
       })
 
       const assembler = new BlockAssembler()
-      for await (const chunk of prepared.stream(request)) {
-        this.session.append('assistant/chunk', { turn, step, chunk })
-        assembler.push(chunk)
+      // As in dsh-agent-loop's step(): a cancel mid-stream keeps the text
+      // already delivered as an `interrupted` assistant message.
+      try {
+        for await (const chunk of prepared.stream(request)) {
+          signal.throwIfAborted()
+          this.session.append('assistant/chunk', { turn, step, chunk })
+          assembler.push(chunk)
+        }
+        signal.throwIfAborted()
+      } catch (error) {
+        const content = signal.aborted ? assembler.interruptedBlocks() : []
+        if (content.length > 0) {
+          this.session.append(
+            'assistant/message',
+            {
+              turn,
+              step,
+              message: createAssistantMessage({
+                content,
+                source: { provider: prepared.config.provider, model: prepared.config.model },
+              }),
+              interrupted: true,
+              ...(assembler.usage !== undefined ? { usage: assembler.usage } : {}),
+            },
+            { surfaceOp: 'append' },
+          )
+        }
+        throw error
       }
 
       const finish = assembler.finish

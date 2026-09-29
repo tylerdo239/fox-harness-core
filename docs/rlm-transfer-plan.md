@@ -12,6 +12,10 @@ Nhánh làm việc: `feat/data-analysis` (tách từ `dev`). Nhật ký thực t
 Giai đoạn 5: đã làm nén ngữ cảnh, tắt thinking, lỗi xoá chat, tên do LLM đặt,
 workspace theo project (bước 6.1–6.3); các mục còn lại chưa làm. Chưa commit.
 
+**2026-09-15:** đã commit và đẩy `feat/data-analysis`. Giai đoạn 6 (mục 12 — bộ nhớ
+cho task dài: thu gọn lượt cũ, sổ biến Python, tóm tắt kiểu RLM) **đã triển khai và thử cùng ngày** (LLM giả + Qwen thật,
+kết quả ở 12.7 và `rlm-transfer-changes.md`), chưa commit.
+
 ---
 
 ## 1. Quyết định đã chốt
@@ -277,7 +281,7 @@ dữ liệu ngoài project và chat thường y như cũ.
 |---|---|---|
 | Cách hành động | Khối ```` ```repl ````, `answer["content"]`/`ready` | Tool `python`, trả lời bằng chữ thường |
 | Giới hạn vòng | `max_iterations` 8, `max_errors` 5 | Chưa có (giai đoạn 5) |
-| Nhớ lượt trước | `context_N`, `history`, tóm tắt sau mỗi lượt | Lịch sử chat + nén khi đầy |
+| Nhớ lượt trước | `context_N`, `history`, tóm tắt sau mỗi lượt | Lịch sử chat + nén khi đầy (giai đoạn 6, mục 12: thu gọn lượt cũ, sổ biến, `history(n)`) |
 | Chọn skill | LLM chọn trước mỗi lượt | Model tự gọi `skill` |
 | Hiển thị | Bước "🧠 Think", từng vòng | Ô tool |
 | Gọi model con trong code, duyệt lời gọi model con, workspace theo project, job nền trong kernel | Có | Chưa (giai đoạn 5) |
@@ -293,3 +297,250 @@ dữ liệu ngoài project và chat thường y như cũ.
 | Biểu đồ | File PNG trong `/data/workspace/generated/` |
 | Giới hạn tải lên | 70 MB |
 | Mở chat dữ liệu | Chấp nhận dựng container mới (chậm hơn chat thường) |
+
+---
+
+## 12. Giai đoạn 6 — Bộ nhớ cho task dài (A + B + D)
+
+Lập 2026-09-15, **đã triển khai cùng ngày** (kết quả 12.7). Chọn A + B + D sau khi so với bê nguyên
+bộ nhớ cuộn của RLM (12.1). Không gồm `max_errors` và "lưu biến xuống đĩa" (12.4).
+
+**Sửa lần 2 cùng ngày:** bỏ file `.fox-history` trong thư mục làm việc. Không thêm
+chỗ lưu nào: `history(n)` đọc lượt cũ từ log hội thoại đã có sẵn, qua một cầu nối
+Python → worker (12.3, mục `history(n)`). Log sau này sẽ chuyển sang database;
+thiết kế này không phải sửa khi đó.
+
+### 12.0 — Vấn đề (đo thật 2026-09-15)
+
+Một chat 12 lượt nối tiếp trên `retail_sales.csv`, stack thật + Qwen
+(`cases-long-retail.json`, kết quả trong `rlm-transfer-changes.md`).
+
+**Ngữ cảnh phình theo lượt, chưa lần nào được nén** (ngưỡng 22 400 = 0.7 × 32 000):
+
+| Lượt | 1 | 3 | 6 | 9 | 11 | 12 |
+|---|---|---|---|---|---|---|
+| Token đầu vào (đỉnh) | 11 260 | 12 235 | 13 643 | 15 647 | 19 615 | 19 772 |
+
+**Thành phần lịch sử gửi lại ở lượt 12** (lượt 1–11, đếm từ `session.jsonl.zstd`):
+
+| Thành phần | Ký tự | Tỷ lệ |
+|---|---|---|
+| Kết quả tool | 17 661 | 39% |
+| Code gửi cho tool `python` | 13 785 | 31% |
+| Tin nhắn người dùng (5 905 là danh sách skill ở lượt 1) | 7 450 | 17% |
+| Câu trả lời cuối của từng lượt | 5 880 | 13% |
+
+**Model không dùng biến đã có → số liệu lệch nhau.** 17/18 lần gọi `python` đọc lại
+CSV. Lượt 1 lọc 8 dòng ngày không tồn tại (`2025-02-29`, `2025-02-30`) → `sales`
+611 dòng; lượt 7, 8, 9 đọc lại mà không lọc → tính trên 619 dòng (Clothing
+59 396.36 thay vì 58 863.48); báo cáo lượt 12 ghi "611 bản ghi hợp lệ" nhưng dùng
+số của 619 dòng. Lượt 1 cũng chạm giới hạn 8 bước (câu nhắc ở bước 9).
+
+### 12.1 — Vì sao không bê nguyên bộ nhớ cuộn của RLM
+
+Cơ chế RLM: mỗi lượt dựng prompt mới (`rlm.py` `_setup_prompt`), cuối lượt gọi LLM
+tóm tắt (`bundles/providers/memory-rolling/index.ts`, tóm tắt ≤ 8 000 ký tự), các
+bước thô cất vào biến `history_N`.
+
+1. **Thêm một lời gọi LLM mỗi lượt, phải chờ xong.** Lượt 12 sinh 794 token mất
+   6.7 s; bộ tóm tắt RLM ra tới 1 200 token → chậm thêm ~5–10 s mỗi lượt, trong khi
+   lượt fox thường ~4 s.
+2. **Mất chữ nguyên văn**, còn model không tự tra biến: `harness_adapter.py` ghi
+   *"Prior turns showed the model claiming prior context was missing when the memory
+   lived only in the REPL tail"* — agent-core phải đẩy tóm tắt thẳng lên prompt.
+3. **Nhắm sai chỗ phình:** 70% là code + kết quả tool cũ, bỏ chúng không cần LLM.
+4. **Không sửa lỗi lệch số** (lệch do đọc lại file, không do ngữ cảnh dài).
+
+### 12.2 — Nguồn gốc từng phần
+
+| Phần | Lấy từ | Đổi gì cho fox |
+|---|---|---|
+| A. Thu gọn lượt cũ + `history(n)` | RLM `history_N` (`ipython_repl.py` `add_history`); cách thay node của `dsh-compaction-tool-result-pruner` | Theo tuổi lượt thay vì độ dài; bản thô đọc từ log hội thoại thay vì cất vào biến |
+| Cầu nối Python → worker cho `history(n)` | `host_tool_call` / `await_host_reply` (`loop-rlm/python/worker.py:118-270`) | Chỉ mở một loại yêu cầu: `history` |
+| B. Sổ biến Python | RLM `SHOW_VARS()` (`ipython_repl.py` `_show_vars`); thuật toán `RuntimeContextProjection` (`dsh-agent-loop/lib/index.js:26-86`) | Tự đẩy mỗi khi đổi thay vì chờ model gọi (điểm 2 ở 12.1) |
+| D. Tóm tắt khi vẫn đầy | RLM `_compact_history` (`rlm.py:665-705`); `summarize()` của `dsh-compaction-basic` | Lời dặn cho phân tích dữ liệu; chỉ chạy ở ngưỡng 0.7 như hiện nay |
+
+### 12.3 — Thiết kế
+
+#### A — Thu gọn lượt cũ (`packages/flow/data-analysis/src/collapse.ts`)
+
+**Khi chạy:** `agent/turn-stopping` của lượt T (payload có `agent`). Làm ở cuối
+lượt, không ở đầu lượt sau, để sổ biến B ở bước đầu lượt sau thấy surface đã gọn.
+
+**Số lượt `n`:** thứ tự sự kiện `turn/start` trong `session.events`, không dùng
+`data.turn` — driver fox đếm lại từ 1 sau khi mở lại hội thoại (giai đoạn 5, dòng
+"Đánh số lượt"). `history(n)` dùng cùng cách đếm.
+
+**Thu gọn** mọi lượt `n ≤ T − keepRecentTurns` (mặc định 2) chưa thu gọn:
+
+- **Vùng thay:** trên `session.surface.nodes`, từ node đầu tiên của lượt `n` là
+  `assistant/message` có tool-call, ghi chú sổ biến (B) hoặc ghi chú plugin
+  (câu nhắc giới hạn bước) → tới `tool/result` cuối cùng của lượt `n` và các ghi chú
+  plugin ngay sau nó (sổ biến thêm ở bước trả lời — thiếu phần này thì sổ biến cũ
+  chồng lên nhau, tìm ra khi thử).
+- **Giữ nguyên:** câu hỏi người dùng, danh sách skill, câu trả lời cuối của lượt,
+  checkpoint của D.
+- **Chỉ thay khi:** vùng cân bằng (mọi tool-call có result trong vùng) và ghi chú
+  nhỏ hơn vùng theo `ctx.tokenMeter`; không thì bỏ qua lượt đó.
+- **Ghi vào log giống pruner:** `compaction/prune` `{ shadowedRange, shadowedSeqs,
+  shadowedTokenCount }`, ngay sau đó `user/message` nguồn plugin với
+  `surfaceOp: { op: 'replace', start, end }` và `sourceEventSeqs` = các seq bị che.
+  Token meter trừ đúng phần bị che (giao thức "shadow price", `dsh-token-meter`),
+  nên nén theo ngưỡng (D) đo trên ngữ cảnh đã gọn.
+- **Nội dung ghi chú** (model đọc, tiếng Anh):
+  `[Turn 4 collapsed: python ×2 (1 error). Variables assigned: region_cat. Full code and output: print(history(4)) in python.]`
+- Sự kiện thay là bản chỉ model thấy; log gốc và giao diện không đổi (tin nhắn nguồn
+  plugin bị ẩn). Sự kiện gốc của vùng bị che vẫn nằm trong log, nên `history(n)` đọc
+  lại được.
+
+**Cấu hình** plugin `fox-harness-flow-data-analysis`: thêm `keepRecentTurns: 2`.
+
+#### B — Sổ biến Python (`packages/tool/python-repl`)
+
+- **`python/runner.py`:** sau mỗi cell trả thêm `variables` (tối đa 30) — tên và mô
+  tả ngắn: `DataFrame 611×6 — date, region, …` (≤ 8 cột), `Series 611 (float64)`,
+  `ndarray (3, 4) float64`, `dict 5`, số/chuỗi ngắn. Bỏ tên bắt đầu `_`, module,
+  hàm, class, helper có sẵn, `In`/`Out`. Kèm `assigned`: biến có `id()` đổi trong cell.
+- **`src/kernel.ts`:** giữ bảng biến gần nhất và lượt gán gần nhất của từng biến.
+- **`src/index.ts`:** listener `agent/pre-step` dựng văn bản:
+  ```
+  Python variables still in memory (reuse them; do not reload files or recompute):
+  - sales: DataFrame 611×6 — date, region, category, revenue, units, month (turn 1)
+  - monthly: DataFrame 6×2 — total_revenue, total_units (turn 2)
+  ```
+  Tiến trình Python chưa chạy nhưng đã có `.python-session` (container ngủ đông rồi
+  mở lại): `The Python session restarted: variables from earlier turns are gone; reload data (files are still there).`
+  Chưa từng chạy Python: không thêm gì.
+- **Cách đưa vào (thuật toán `RuntimeContextProjection`):** chỉ thêm tin nhắn khi
+  văn bản khác bản gần nhất **còn trên surface**; bản đó bị A/D che thì thêm lại.
+  "Bản gần nhất" tìm bằng quét `session.events` ngược lấy tin nhắn nguồn
+  `fox-harness-tool-python-repl` rồi kiểm seq trong `session.surface.nodes` — không
+  giữ trạng thái riêng, đúng cả sau khi mở lại hội thoại.
+- **Không bật `RuntimeContextProjection` trong driver:** sẽ kéo theo ngữ cảnh
+  `sandbox:policy` và `approval:policy` (`dsh-sandbox-policy`, `dsh-user-approval`)
+  vào mọi profile, gồm chat thường, trong khi fox không nối kênh duyệt.
+- **Prompt:** mô tả tool `python` và prompt flow thêm: dùng lại biến trong sổ,
+  `history(n)` để xem code/kết quả đầy đủ của lượt cũ.
+
+#### `history(n)` — đọc lượt cũ từ log hội thoại (`packages/tool/python-repl`)
+
+**Không lưu thêm gì.** Bản thô của mọi lượt đã nằm trong log hội thoại
+`session.jsonl.zstd` (`dsh-session-persistence-jsonl`, `root: dshHomePath('sessions')`
+trong `dsh-base/cordis.patch.yml:98-101`). Hiện log ở ổ đĩa máy chủ
+`data/dsh-home/<chat>/sessions/…`, còn database chỉ giữ thông tin về chat (bảng
+`sessions` không có cột nội dung). Khi worker chạy, log đã được nạp vào bộ nhớ thành
+`session.events`, kể cả sau khi mở lại chat (`ensure.ts:82` bật container mới gắn
+đúng thư mục cũ, dsh đọc lại log). A và D chỉ thay phần model thấy (surface); sự
+kiện gốc vẫn còn trong `session.events`.
+
+**Đã chốt (2026-09-15):** lượt cũ lưu trong session (log hội thoại), không thêm
+database hay file riêng. Session hiện lưu trên ổ đĩa, giữ nguyên; sau này session sẽ
+được chuyển sang database. `history(n)` đọc `session.events` chứ không đọc file, nên
+không phải sửa khi đó.
+
+**Cầu nối Python → worker**, bê từ `host_tool_call` / `await_host_reply` của
+`loop-rlm/python/worker.py`, chạy trên đường stdin/stdout JSON từng dòng mà tool
+`python` đang dùng:
+
+1. `python/runner.py` đưa vào namespace hàm `_fox_host(request)`: ghi một dòng
+   `{"host": "history", "turn": 4}` ra kênh giao thức (stdout thật, không phải stdout
+   của cell đang bị gom), rồi đọc một dòng trả lời từ stdin. Trong lúc cell chạy,
+   worker không gửi cell mới nên stdin đang rảnh.
+2. `src/kernel.ts`: dòng có `host` là yêu cầu, không phải kết quả cell (hiện
+   `kernel.ts:91-93` coi mọi dòng là kết quả) → gọi hàm xử lý mà `index.ts` truyền
+   vào `run()` → ghi `{"result": "…"}` hoặc `{"error": "…"}` vào stdin của Python.
+3. `src/index.ts`: hàm xử lý dựng lượt `n` từ `exec.agent.session.events` thành
+   Markdown: câu hỏi người dùng, từng lời gọi tool (code), kết quả, câu trả lời.
+   Không có lượt `n` → lỗi nêu số lượt đang có.
+4. `python/helpers.py`: `history(n)` gọi `_fox_host` và trả chuỗi. Chuỗi in ra vẫn
+   bị cắt ở 20 000 ký tự như mọi output; lượt dài thì in từng đoạn
+   (`print(history(4)[20000:])`).
+
+Cầu nối này là nền cho `llm_query` sau này, nhưng giai đoạn 6 chỉ mở loại yêu cầu
+`history`.
+
+#### D — Tóm tắt kiểu RLM khi vẫn đầy (`packages/flow/data-analysis/src/compaction.ts`)
+
+- **Class con `BasicCompactionEngine`**, ghi đè `summarize()` — hook duy nhất dsh cho
+  phép (*"Override this sole hook for a template or remote summarizer"*). Gọi LLM như
+  bản gốc (`summarizeWithLlm`, `dsh-compaction-basic/lib/index.js:257-330`), chỉ
+  thay lời dặn "AI coding assistant … Files and Code" bằng bản dựa trên RLM:
+  1. Các yêu cầu của người dùng theo thứ tự, cái nào đã trả lời, cái nào còn mở.
+  2. Kết quả đã tính — số, giá trị, đường dẫn file, tên dataset và tên biến Python —
+     **giữ chính xác**.
+  3. Quyết định về dữ liệu mà việc sau phải giữ nhất quán (bộ lọc, bước làm sạch,
+     dòng bị loại).
+  4. Việc tiếp theo.
+
+  Giữ luật gộp checkpoint cũ của bản gốc; nhắc model rằng biến vẫn có thể còn trong
+  Python và `history(n)` còn đủ code/kết quả.
+- **Nối dây:** `package.json` export `./compaction`; `cordis.patch.yml` của flow chèn
+  dòng `fox-harness-compaction-data-analysis` (config `thresholdRatio: 0.7`,
+  `maxTokens: 4096`); profile data-analysis đặt dòng `compaction-basic`
+  `disabled: true`. Chat thường không đổi.
+
+### 12.4 — Không làm trong giai đoạn này
+
+| Việc | Lý do |
+|---|---|
+| `max_errors` (dừng sau 5 lỗi liên tiếp) | Chưa chốt trong đợt này |
+| C — lưu DataFrame xuống đĩa để sống qua ngủ đông | Để sau; cả RLM lẫn fox đều chưa có |
+| Bộ nhớ cuộn gọi LLM mỗi lượt của RLM | Xem 12.1 |
+| `RuntimeContextProjection` trong driver | Xem B |
+
+### 12.5 — Rủi ro
+
+- **Cache của proxy:** thu gọn lượt T−2 đổi phần giữa lịch sử → phần sau phải tính
+  lại. Proxy không trả số token cache nên chưa đo được; so thời gian trước/sau.
+- **Hỏi lại chi tiết lượt cũ** ("code lượt 3 viết gì") → model phải gọi `history(3)`.
+- **Cầu nối treo:** Python chờ trả lời mà worker không ghi gì → cell treo tới hạn
+  120 s rồi tiến trình Python bị dừng. Hàm xử lý phải trả `result` hoặc `error` ở mọi
+  nhánh.
+
+### 12.6 — Kiểm thử và tiêu chí đạt
+
+**1. Worker chạy trên máy + LLM giả** (kiểu `steps-test.sh`):
+
+| Ca | Đạt khi |
+|---|---|
+| A: 5 lượt có tool | Sau lượt 5, lượt 1–3 trên surface là ghi chú; token meter không lỗi; mở lại hội thoại (replay log) không lỗi |
+| B: cell tạo `df` | Bước sau có sổ biến; không đổi → không thêm; bị A che → thêm lại; giết tiến trình Python → câu "restarted" |
+| D: ép ngưỡng thấp | Request tóm tắt mang lời dặn mới; checkpoint được ghi |
+| `history(n)` qua cầu nối | Trả đúng lượt `n`, kể cả lượt đã bị A thu gọn; sau khi mở lại hội thoại (worker mới đọc lại log) vẫn đúng; lượt không có → lỗi rõ; không tạo file nào trong thư mục làm việc |
+
+**2. Stack thật + Qwen, kịch bản 12 lượt `cases-long-retail.json`, so trước/sau:**
+
+| Chỉ số | Trước | Đạt khi |
+|---|---|---|
+| Token đầu vào lượt 12 | 19 772 | ≤ 14 000 (ước tính ~12 000) |
+| Lần gọi `python` đọc lại file | 17/18 | giảm ít nhất một nửa |
+| Mọi lượt tính trên cùng dữ liệu đã lọc (611 dòng) | lệch ở lượt 7–9 | không lệch |
+| Báo cáo lượt 12 đúng số các lượt trước | đúng | vẫn đúng |
+| Tổng thời gian | 65 s | không chậm hơn đáng kể |
+
+**3.** Bộ nhiều lượt cũ (9/10) và bộ memory không tụt. **4.** Chrome: chat dữ liệu
+không hiện ghi chú thu gọn hay sổ biến.
+
+### 12.7 — Kết quả (2026-09-15)
+
+| Thử | Kết quả |
+|---|---|
+| LLM giả, ca A (thu gọn, sổ biến, `history(n)`, mở lại chat) | ✅ 12/12 |
+| LLM giả, ca D (nén theo ngưỡng với lời dặn mới) | ✅ 4/4 |
+| Qwen, chat 12 lượt: token lượt 12 | 19 772 → **12 183** ✅ (tiêu chí ≤ 14 000) |
+| Qwen, chat 12 lượt: đọc lại file | 17/18 → **1/17** ✅ |
+| Qwen, chat 12 lượt: cùng dữ liệu đã lọc mọi lượt | ✅ (trước lệch ở lượt 7–9); số khớp pandas |
+| Qwen, chat 12 lượt: báo cáo lượt 12 đúng số | ✅ |
+| Qwen, chat 12 lượt: thời gian | 64.2 s → 46.1 s ✅ |
+| `cases-multiturn.json` | 9/10 như trước ✅; lượt 29/30 → 28/30 (thêm 1 lượt trả lời đúng bằng tiếng Việt); token lượt 3 +9% |
+| Nhớ sau nén + mở lại (`bench-longmem.mjs`) | ✅ 4/4, cả 4 bản tóm tắt giữ mã và số |
+| Chrome | ✅ không hiện ghi chú thu gọn, sổ biến |
+
+Còn để ý: chat ngắn (≤ 3 lượt) tốn thêm vài trăm token cho sổ biến mà chưa có gì để thu gọn; sổ biến
+liệt kê cả biến vòng lặp và biến vẽ (`i`, `fig`, `ax`).
+
+**Sau khi đo mạnh và chỉnh prompt (2026-09-15, chi tiết trong `rlm-transfer-changes.md`):** sửa thêm
+hai lỗi của giai đoạn này — bản tóm tắt D làm rơi quy tắc người dùng đặt (thêm mục "Standing
+instructions"), sổ biến chen sau câu nhắc giới hạn bước (nay chèn ngay sau tin nhắn của bước) — cùng
+persona tiếng Anh và vài luật prompt. Lần đo cuối: bộ task dài 51/52 lượt, chat 12 lượt 9 910 token ở
+lượt 12 và đọc lại file 1/14, bộ nhiều lượt 30/30, bộ agent-core 82/88.

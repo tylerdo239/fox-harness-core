@@ -214,3 +214,16 @@ Model: (lượt 2) gọi create_skill → "Đã lưu skill bao-cao-tuan"
   ```bash
   export PATH=$HOME/.local/share/node-v22.23.2-linux-x64/bin:$PATH
   ```
+
+## 11. Việc chờ làm (chưa code)
+
+- **Model mò file không có trong thư mục skill.** Chat `42f94073` (2026-09-15): sau
+  `/web-search-analyzer`, model gọi `read /data/skills/web-search-analyzer/template.md`
+  (`FS_NOT_FOUND`), `read` chính thư mục (`FS_NOT_REGULAR_FILE`), rồi `glob` với đường dẫn
+  tuyệt đối trong `pattern` mà không truyền `path` nên chỉ tìm trong `/repo` ("No files
+  found"). Skill tạo từ chat chỉ có một file `SKILL.md` và nội dung không nhắc tới template
+  nào; sandbox không chặn gì. Kết quả không sai, nhưng tốn 3 bước và hiện nhãn đỏ "Lỗi khi
+  dùng read".
+  - Đề xuất: khi nạp skill riêng, thêm một câu vào nội dung skill (hoặc mô tả tool `skill`):
+    *"Skill này chỉ có một file SKILL.md; đừng tìm file khác trong thư mục skill."*
+  - Cùng nhóm với V6 trong `docs/qa-report-2026-09-15.md` (model lặp lỗi dùng công cụ).

@@ -1,0 +1,30 @@
+{
+  "id": "da-589",
+  "source": "InfiAgent-DABench da-dev #589 (medium, Feature Engineering)",
+  "suite": "full",
+  "fixture": "20170413_000000_group_statistics.csv",
+  "prompt": "Can we generate a new feature representing the call abandonment rate? If so, what is the call abandonment rate for the timestamp \"20170413_080000\"?\n\nRàng buộc: Calculate the call abandonment rate for a specific timestamp as the total number of calls abandoned divided by the total number of calls made during that time. Express the result as a percentage.\n\nDữ liệu nằm ở file `20170413_000000_group_statistics.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @abandonment_rate[abandonment_rate_%] where \"abandonment_rate_%\" is a positive real value between 0 and 100, rounded to two decimal places, representing the abandonment rate at the specified timestamp.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "abandonment_rate",
+      "value": 6.25,
+      "tolerance": 0.0625
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

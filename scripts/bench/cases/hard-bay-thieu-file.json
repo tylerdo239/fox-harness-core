@@ -1,0 +1,37 @@
+{
+  "id": "hard-bay-thieu-file",
+  "source": "Tự dựng cho lỗi N6 (docs/qa-report-2026-09-15.md): model bỏ qua file 2024 có sẵn rồi kết luận \"giảm 100%\". Đáp án tính tay: 2023 = 250×4 = 1000, 2024 = 300+300+325+325 = 1250, tăng 25%.",
+  "suite": "hard",
+  "fixtures": [
+    "ban-2023.csv",
+    "ban-2024.csv"
+  ],
+  "prompt": "Doanh thu năm 2024 thay đổi bao nhiêu phần trăm so với năm 2023?\n\nRàng buộc: dùng toàn bộ dữ liệu có trong thư mục làm việc; làm tròn 1 chữ số thập phân; số dương là tăng, số âm là giảm.\nKết thúc câu trả lời bằng đúng một dòng: @thay_doi_phan_tram[giá trị].",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "thay_doi_phan_tram",
+      "value": 25.0,
+      "tolerance": 0.3
+    },
+    {
+      "kind": "mustNotContain",
+      "pattern": "-?\\s*100(\\.0+)?\\s*%"
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

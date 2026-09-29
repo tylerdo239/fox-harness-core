@@ -1647,6 +1647,64 @@ button:disabled {
   color: var(--error);
 }
 
+.notice-muted {
+  color: var(--muted);
+}
+
+/* Conversation.tsx: shown while a reply runs, from `turn/start` to `turn/end`. */
+.fh-run-status {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.fh-run-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.fh-run-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: fh-run-dot 1.2s ease-in-out infinite;
+}
+
+.fh-run-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.fh-run-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes fh-run-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fh-run-elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+.fh-stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
 /* Phase 14: real dsh composer convention (`InputBar.module.css`'s real
  * `.card`) — a floating rounded card, NOT a full-width bar with a top
  * border. 22px radius matches `.bubble` above exactly, on purpose (real

@@ -9,6 +9,10 @@ export interface WorkspaceFile {
   path: string;
   sizeBytes: number;
   modified: string;
+  // `source` a user upload, `shared` a promoted output (outputs/), `chat` anything a chat wrote.
+  origin: "source" | "shared" | "chat";
+  // The chat whose output folder (generated/<sessionId>/) holds the file, when known.
+  sessionId?: string;
 }
 
 export function formatSize(bytes: number): string {
@@ -19,7 +23,6 @@ export function formatSize(bytes: number): string {
 
 // Same cap as services/orchestrator's config.maxUploadBytes.
 export const MAX_UPLOAD_BYTES = 70 * 1024 * 1024;
-
 // `undefined` when there is no working directory (not a data-analysis chat).
 export async function listWorkspaceFiles(
   runtime: Runtime,

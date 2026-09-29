@@ -1,0 +1,36 @@
+{
+  "id": "hard-khong-luu-file",
+  "source": "Tự dựng cho lỗi V6 (model dùng công cụ write lưu báo cáo khi bị dặn không lưu, 3 lần). auto-mpg.csv có 392 dòng. Kiểm tra bằng mustContain 392 chứ không ép định dạng @, vì bài này đo việc tạo file.",
+  "suite": "hard",
+  "fixture": "auto-mpg.csv",
+  "prompt": "Tóm tắt file `auto-mpg.csv` trong ba câu. ĐỪNG lưu bất kỳ file nào, chỉ trả lời trong khung chat.\n\nKết thúc câu trả lời bằng đúng một dòng: @so_dong[số dòng của file].",
+  "checks": [
+    {
+      "kind": "mustContain",
+      "pattern": "392"
+    },
+    {
+      "kind": "filesWrittenAtMost",
+      "value": 0
+    },
+    {
+      "kind": "toolNotUsed",
+      "name": "write"
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "hard-file-dung-ngan",
+  "source": "Bất biến: mọi file trong thư mục dự án phải thuộc đúng một trong ba loại — file tải lên, file đã chia sẻ (outputs/), hoặc file của một đoạn chat (generated/<mã chat>/). File thiếu mã chat sẽ hiện trong MỌI đoạn chat của dự án (workspace-files.ts originOf trả về origin 'chat' không kèm sessionId, và WorkspacePanel lọc bằng !file.sessionId). Bài này ép model ghi file theo ba đường khác nhau rồi kiểm bằng chính API liệt kê file.",
+  "suite": "hard",
+  "fixture": "auto-mpg.csv",
+  "prompts": [
+    "Dùng công cụ python: tính mpg trung bình theo số xi-lanh rồi lưu bảng đó ra file `generated/mpg-theo-xilanh.csv` bằng `to_csv`, đừng dùng `save_artifact`.",
+    "Dùng công cụ write tạo file `ghi-chu.md` với nội dung: xong.",
+    "Dùng công cụ bash chạy lệnh tạo file `tam.txt` chứa chữ test."
+  ],
+  "checks": [
+    {
+      "kind": "noUnownedFiles"
+    },
+    {
+      "kind": "turnUsedTool",
+      "turn": 1,
+      "name": "python"
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

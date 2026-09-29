@@ -65,6 +65,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3-venv &&
   && /opt/fox-py/bin/pip install --no-cache-dir ipython pandas numpy matplotlib scipy scikit-learn seaborn openpyxl pyarrow \
     statsmodels duckdb pillow lightgbm xgboost-cpu
 ENV FOX_PYTHON=/opt/fox-py/bin/python
+# `python`/`python3` in a cell's subprocess (a skill's scripts/*.py) must be this venv too —
+# Debian's system python3 has no numpy, and there is no `python` command at all.
+ENV PATH=/opt/fox-py/bin:$PATH
 
 RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
 

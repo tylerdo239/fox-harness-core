@@ -1,0 +1,35 @@
+{
+  "id": "da-118",
+  "source": "InfiAgent-DABench da-dev #118 (hard, Correlation Analysis, Machine Learning)",
+  "suite": "full",
+  "fixture": "2015.csv",
+  "prompt": "Is there a linear relationship between the GDP per capita and the life expectancy score in the dataset? Conduct linear regression and use the resulting coefficient of determination (R-squared) to evaluate the model's goodness of fit.\n\nRàng buộc: Calculate the coefficient of determination (R-squared) for the given relationship. If R-squared is equal to or greater than 0.7, consider the model a good fit. Else, consider it a poor fit.\n\nDữ liệu nằm ở file `2015.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @coefficient_determination[R_square], @model_fit[model_fit], where \"R_square\" is the value of the coefficient of determination rounded to two decimal places and \"model_fit\" is a string that is either \"good fit\" or \"poor fit\" based on the calculated R-squared value.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "coefficient_determination",
+      "value": 0.67,
+      "tolerance": 0.011
+    },
+    {
+      "kind": "answer",
+      "name": "model_fit",
+      "text": "poor fit"
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

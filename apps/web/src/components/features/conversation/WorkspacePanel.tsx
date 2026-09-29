@@ -35,7 +35,13 @@ export function WorkspacePanel() {
   async function refresh(): Promise<void> {
     if (!base) return;
     try {
-      setFiles(await listWorkspaceFiles(runtime, base));
+      // In a project chat: the sources, shared outputs, this chat's outputs and files of no known
+      // chat — not other chats' output folders.
+      setFiles(
+        (await listWorkspaceFiles(runtime, base))?.filter(
+          (file) => !file.sessionId || file.sessionId === runtime.sessionId,
+        ),
+      );
     } catch {
       // keep the last list; the next turn/end refreshes again
     }
@@ -130,7 +136,9 @@ export function WorkspacePanel() {
             files.map((file) => (
               <li key={file.path}>
                 <button type="button" className="fh-workspace-file" onClick={() => void openFile(file)}>
-                  <span className="fh-workspace-file-path">{file.path}</span>
+                  <span className="fh-workspace-file-path">
+                    {file.sessionId ? file.path.slice(`generated/${file.sessionId}/`.length) : file.path}
+                  </span>
                   <span className="fh-workspace-file-size">{formatSize(file.sizeBytes)}</span>
                 </button>
               </li>

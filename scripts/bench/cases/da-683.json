@@ -1,0 +1,30 @@
+{
+  "id": "da-683",
+  "source": "InfiAgent-DABench da-dev #683 (easy, Summary Statistics)",
+  "suite": "smoke",
+  "fixture": "ravenna_250715.csv",
+  "prompt": "1. What is the mean temperature recorded in the dataset?\n\nRàng buộc: Calculate the mean temperature to two decimal places. No missing values in the temperature data.\n\nDữ liệu nằm ở file `ravenna_250715.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @mean_temperature[value], where \"value\" is a number representing the mean temperature, rounded to two decimal places.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "mean_temperature",
+      "value": 29.14,
+      "tolerance": 0.2914
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

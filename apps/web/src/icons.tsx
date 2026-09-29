@@ -95,4 +95,6 @@ export {
   ChevronRight as ChevronRightIcon,
   CornerDownRight as SuggestionIcon,
   Check as CheckIcon,
+  // Composer's Stop button while a reply is running.
+  Square as StopIcon,
 } from 'lucide-react'

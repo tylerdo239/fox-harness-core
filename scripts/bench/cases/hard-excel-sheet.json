@@ -1,0 +1,30 @@
+{
+  "id": "hard-excel-sheet",
+  "source": "Tự dựng cho lỗi V5 (docs/qa-report-2026-09-15.md): workbook 2 sheet, trước đây chỉ đọc sheet đầu. Đáp án tính tay: Quy1 10+20=30, Quy2 30+40+50=60+90=150 tổng cả hai sheet.",
+  "suite": "hard",
+  "fixture": "ban-hang-2quy.xlsx",
+  "prompt": "Tổng cột \"Doanh thu\" của TOÀN BỘ file `ban-hang-2quy.xlsx` là bao nhiêu?\n\nRàng buộc: tính trên toàn bộ dữ liệu của file, không bỏ sót phần nào.\nKết thúc câu trả lời bằng đúng một dòng: @tong_doanh_thu[giá trị] với giá trị là một số nguyên.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "tong_doanh_thu",
+      "value": 150,
+      "tolerance": 0.5
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

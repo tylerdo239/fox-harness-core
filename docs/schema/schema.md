@@ -1,9 +1,10 @@
 # fox-harness-core — database schema
 
 For handing to whoever provisions the database. The actual DDL to run is
-`001_init.sql` in this same folder (canonical source:
-`infra/migrations/001_init.sql` in the app repo — copied here for
-sharing convenience, keep both in sync if the schema changes).
+the numbered files in this same folder, in order: `001_init.sql`, then
+`002_projects_title_source.sql` (canonical source: `infra/migrations/` in
+the app repo — copied here for sharing convenience, keep both in sync). A
+database already created from `001_init.sql` only needs `002`.
 
 ## Requirements
 
@@ -50,18 +51,18 @@ no application code queries by it, every query still filters on
 | `owner_id` | `int` | NOT NULL, FOREIGN KEY → `users.id` |
 | `created_at` | `datetime` | NOT NULL, DEFAULT `current_timestamp` |
 | `title` | `varchar(255)` | nullable |
-| `title_source` | `varchar(16)` | nullable — `user` / `fallback` / `provider`; an automatic title never replaces a `user` one |
+| `title_source` | `varchar(16)` | nullable — `user` / `fallback` / `provider`; an automatic title never replaces a `user` one (added by `002`) |
 | `updated_at` | `datetime` | NOT NULL, DEFAULT `current_timestamp` |
 | `first_message_at` | `datetime` | nullable |
 | `flow` | `varchar(64)` | NOT NULL, DEFAULT `'default'` |
-| `project_id` | `varchar(36)` | nullable — `projects.project_id` of a data-analysis chat inside a project (no foreign key) |
+| `project_id` | `varchar(36)` | nullable — `projects.project_id` of a data-analysis chat inside a project (no foreign key) (added by `002`) |
 
 Indexes: `(owner_id, updated_at DESC)` — supports "list a user's sessions,
-newest first"; `(project_id)` — a project's chats.
+newest first"; `(project_id)` — a project's chats (added by `002`).
 
 ### `projects`
 
-A named shared data folder for a user's data-analysis chats (files live on
+Created by `002_projects_title_source.sql`. A named shared data folder for a user's data-analysis chats (files live on
 disk under `data/projects/<project_id>`, not in the database). `project_id` is
 a UUID for the same reason as `sessions.session_id`; `id` is a surrogate
 PRIMARY KEY only.

@@ -1,0 +1,47 @@
+{
+  "id": "da-419",
+  "source": "InfiAgent-DABench da-dev #419 (hard, Summary Statistics, Distribution Analysis)",
+  "suite": "full",
+  "fixture": "bitconnect_price.csv",
+  "prompt": "1. Is there a significant difference in the mean opening prices between weekdays and weekends? Provide statistical evidence to support your answer.\n\nRàng buộc: Calculate the mean opening prices separately for weekdays (Monday to Friday) and weekends (Saturday and Sunday). Conduct a two-sample t-test to check if there is a statistically significant difference between these two means. Use a significance level (alpha) of 0.05. If the p-value is less than 0.05, conclude that there is a significant difference. If the p-value is greater than or equal to 0.05, conclude that there is no significant difference.\n\nDữ liệu nằm ở file `bitconnect_price.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @weekday_mean_price[weekday_mean_open_price] @weekend_mean_price[weekend_mean_open_price] @p_value[p_value] @significance[significant_or_not] where \"weekday_mean_open_price\" and \"weekend_mean_open_price\" are numbers rounded to two decimal places. \"p_value\" is a number between 0 and 1, rounded to four decimal places. \"significant_or_not\" is a string that can either be 'Yes' or 'No' depending on whether the p-value is less than 0.05.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "weekday_mean_price",
+      "value": 37.3,
+      "tolerance": 0.373
+    },
+    {
+      "kind": "answer",
+      "name": "weekend_mean_price",
+      "value": 38.49,
+      "tolerance": 0.3849
+    },
+    {
+      "kind": "answer",
+      "name": "p_value",
+      "value": 0.8463,
+      "tolerance": 0.011
+    },
+    {
+      "kind": "answer",
+      "name": "significance",
+      "text": "No"
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

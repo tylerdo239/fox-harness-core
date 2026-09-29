@@ -53,7 +53,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
-import { DataAnalysisIcon, MoreIcon, PencilIcon, TrashIcon } from "../../../icons.tsx";
+import { MoreIcon, PencilIcon, TrashIcon } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
@@ -218,12 +218,12 @@ export function HistoryChat({
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    // Project chats are listed on their project's page (ProjectHub), not
-    // here. `data-studio` sessions are listed on DataStudioSidebar.tsx's own
-    // list (passes flowFilter="data-studio") instead of the main sidebar's —
-    // excluded here by default the same way project chats are.
+    // Chats that live elsewhere are not listed here: data-analysis chats belong to the data area
+    // (ProjectHub, `/data/…` URLs) and project chats to their project's page; `data-studio` sessions are
+    // listed on DataStudioSidebar.tsx's own list (it passes flowFilter="data-studio") instead of the main one.
     const own = rows.filter(
       (row) =>
+        row.flow !== "data-analysis" &&
         !row.projectId &&
         (flowFilter ? row.flow === flowFilter : row.flow !== "data-studio"),
     );
@@ -406,13 +406,6 @@ export function HistoryChat({
                 />
               ) : (
                 <>
-                  {row.flow === "data-analysis" && (
-                    <DataAnalysisIcon
-                      size={14}
-                      className="fh-history-chat-row-flow"
-                      aria-label={t("sidebar.dataAnalysis")}
-                    />
-                  )}
                   <span className="fh-history-chat-row-title">
                     {rowLabel(row, t)}
                   </span>

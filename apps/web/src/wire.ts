@@ -9,7 +9,8 @@
 // and this is a single normally-built app, one shared file is simply
 // correct, not a compromise.
 
-export type ClientToServer = { type: 'followup'; text: string } | { type: 'steer'; text: string }
+// `cancel`: the composer's Stop button — aborts the running turn.
+export type ClientToServer = { type: 'followup'; text: string } | { type: 'steer'; text: string } | { type: 'cancel' }
 
 export interface SessionEvent {
   type: string

@@ -220,15 +220,15 @@ function ProjectPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const sources = files.filter((file) => !file.path.startsWith("generated/") && !file.path.startsWith("outputs/"));
-  const projectOutputs = files.filter((file) => file.path.startsWith("outputs/"));
-  const chatOutputs = files
-    .filter((file) => file.path.startsWith("generated/"))
-    .map((file) => {
-      const [, sessionId, ...rest] = file.path.split("/");
-      return { file, sessionId, path: rest.join("/") };
-    })
-    .filter((output) => output.path);
+  const sources = files.filter((file) => file.origin === "source");
+  const projectOutputs = files.filter((file) => file.origin === "shared");
+  const chatOutputs = files.flatMap((file) =>
+    file.origin === "chat" && file.sessionId
+      ? [{ file, sessionId: file.sessionId, path: file.path.slice(`generated/${file.sessionId}/`.length) }]
+      : [],
+  );
+  // Written by a model outside any chat's output folder, so the chat is unknown.
+  const otherOutputs = files.filter((file) => file.origin === "chat" && !file.sessionId);
   const chatTitle = (sessionId: string) =>
     chats.find((chat) => chat.sessionId === sessionId)?.title ?? t("historyChat.untitled", { id: sessionId.slice(0, 8) });
 
@@ -309,7 +309,7 @@ function ProjectPage({
   const tabs = [
     { key: "chats", label: t("projects.tabChats"), count: chats.length },
     { key: "sources", label: t("projects.tabSources"), count: sources.length },
-    { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length },
+    { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length + otherOutputs.length },
   ] as const;
 
   return (
@@ -386,7 +386,7 @@ function ProjectPage({
         {tab === "chats" && (
           <div className="fh-hub-list">
             {chats.map((chat) => (
-              <button type="button" key={chat.sessionId} className="fh-hub-content-row" onClick={() => runtime.switchSession(chat.sessionId)}>
+              <button type="button" key={chat.sessionId} className="fh-hub-content-row" onClick={() => runtime.switchSession(chat.sessionId, project.projectId)}>
                 <MessageSquareIcon size={18} />
                 <span>
                   <strong>{chat.title ?? t("historyChat.untitled", { id: chat.sessionId.slice(0, 8) })}</strong>
@@ -494,9 +494,31 @@ function ProjectPage({
               ))}
               {chatOutputs.length === 0 && <div className="fh-hub-empty">{t("projects.noOutputs")}</div>}
             </section>
+
+            {otherOutputs.length > 0 && (
+              <section className="fh-hub-output-group">
+                <div className="fh-hub-output-heading">
+                  <div>
+                    <h2>{t("projects.outputsOther")}</h2>
+                    <p>{t("projects.outputsOtherHint")}</p>
+                  </div>
+                  <span>{otherOutputs.length}</span>
+                </div>
+                {otherOutputs.map((file) => (
+                  <div className="fh-hub-output-row" key={file.path}>
+                    <button type="button" className="fh-hub-output-file" onClick={() => void openFile(file.path)}>
+                      <FileOutputIcon size={18} />
+                      <span>
+                        <strong>{file.path}</strong>
+                        <small>{formatSize(file.sizeBytes)}</small>
+                      </span>
+                    </button>
+                  </div>
+                ))}
+              </section>
+            )}
           </div>
-        )}
-      </section>
+        )}      </section>
       {preview && (
         <div className="fh-workspace-preview" role="dialog" onClick={closePreview}>
           <img src={preview.url} alt={preview.path} />
@@ -508,8 +530,15 @@ function ProjectPage({
 }
 
 // Above a chat that belongs to a project: a way back to that project's page
-// (project chats are listed there, not in the sidebar history).
-export function ProjectChatBar({ onOpenProject }: { onOpenProject: (projectId: string) => void }) {
+// (project chats are listed there, not in the sidebar history). Also reports
+// where the open chat lives, so App.tsx can keep its URL in the right area.
+export function ProjectChatBar({
+  onOpenProject,
+  onChatPlace,
+}: {
+  onOpenProject: (projectId: string) => void;
+  onChatPlace: (sessionId: string, flow: string, projectId: string | null) => void;
+}) {
   const runtime = useRuntime();
   const [project, setProject] = useState<{ projectId: string; name: string } | null>(null);
 
@@ -519,11 +548,12 @@ export function ProjectChatBar({ onOpenProject }: { onOpenProject: (projectId: s
     async function lookup(): Promise<void> {
       const res = await runtime.authedFetch("/sessions/mine");
       if (!res.ok || cancelled) return;
-      const rows = (await res.json()) as { sessionId: string; projectId: string | null; projectName: string | null }[];
+      const rows = (await res.json()) as { sessionId: string; flow: string; projectId: string | null; projectName: string | null }[];
       const row = rows.find((item) => item.sessionId === runtime.sessionId);
-      if (cancelled || !row?.projectId || !row.projectName) return;
+      if (cancelled || !row) return;
       found = true;
-      setProject({ projectId: row.projectId, name: row.projectName });
+      onChatPlace(row.sessionId, row.flow, row.projectId);
+      if (row.projectId && row.projectName) setProject({ projectId: row.projectId, name: row.projectName });
     }
     setProject(null);
     if (runtime.sessionId) void lookup();

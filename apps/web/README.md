@@ -338,6 +338,20 @@ it just can't be chosen from the UI.
     double-running by a `handshakeSettled` flag) — not a workaround for
     the loading screen specifically, a real fix to `connect()`'s own
     reconnect-failure detection.
+- **Data-analysis URLs** (2026-09-15): the data area has its own routes and
+  its chats stay out of the general chat history — `/data` (project list),
+  `/data/<project>` (project page), `/data/<project>/chat/<id>` (chat in a
+  project), `/data/chat/<id>` (older data chat without a project). An old
+  `/chat/<id>` link to a data chat moves to its data URL (`replaceState`)
+  once `GET /sessions/mine` lists it; Back/Forward between a project page and
+  its chat keeps the chat connected.
+- **Reply status and Stop** (2026-09-15): from sending (or `turn/start`) until
+  `turn/end`, `Conversation.tsx` shows a status row under the chat — dots,
+  "Thinking…"/"Running a tool…" and the elapsed time (hidden while text is
+  streaming; "lost connection" once the socket drops) — and the Send button
+  becomes Stop, which sends `{type:'cancel'}` (packages/transport →
+  `agent.cancel({kind:'user'})`); the turn then ends as aborted and the chat
+  shows "Stopped.". Enter doesn't send while a reply runs.
 - **The URL** (`/` or `/chat/<id>`, 2026-09-09): which session a reload
   reconnects to — replaces what used to be a `localStorage` key
   (`fox-harness/sessionId`). The URL is strictly better for this: it's

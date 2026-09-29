@@ -1,0 +1,30 @@
+{
+  "id": "da-351",
+  "source": "InfiAgent-DABench da-dev #351 (easy, Correlation Analysis)",
+  "suite": "smoke",
+  "fixture": "test_x.csv",
+  "prompt": "Determine the correlation coefficient between Age and Fare.\n\nRàng buộc: Calculate the Pearson correlation coefficient between 'Age' and 'Fare'. Use pandas.DataFrame.corr method with the 'pearson' method. Ignore NA/null values.\n\nDữ liệu nằm ở file `test_x.csv` trong thư mục làm việc.\nKết thúc câu trả lời bằng đúng một dòng theo mẫu: @correlation_coefficient[correlation_coefficient] where \"correlation_coefficient\" is a floating point number representing the calculated correlation coefficient, rounded to two decimal places.",
+  "checks": [
+    {
+      "kind": "answer",
+      "name": "correlation_coefficient",
+      "value": 0.32,
+      "tolerance": 0.011
+    },
+    {
+      "kind": "noUnknownTool"
+    },
+    {
+      "kind": "toolErrorsAtMost",
+      "value": 2
+    },
+    {
+      "kind": "maxSteps",
+      "value": 10
+    },
+    {
+      "kind": "maxSeconds",
+      "value": 420
+    }
+  ]
+}

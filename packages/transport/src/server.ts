@@ -29,7 +29,7 @@ import type { MessageId } from '@deepseek-ai/dsh-llm'
 import type { SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { WebSocketServer, type WebSocket } from 'ws'
 
-type ClientToServer = { type: 'followup'; text: string } | { type: 'steer'; text: string }
+type ClientToServer = { type: 'followup'; text: string } | { type: 'steer'; text: string } | { type: 'cancel' }
 
 // Performance fix 2026-09-09 (docs/security-performance-review-2026-09-09.md
 // finding #5): neither bound existed before — a real cost-abuse vector, a
@@ -166,6 +166,7 @@ async function handleConnection(ctx: Context, ws: WebSocket, req: IncomingMessag
     }
     if (frame.type === 'followup') agent.followup(toUserMessage(frame.text))
     else if (frame.type === 'steer') agent.steer(toUserMessage(frame.text))
+    else if (frame.type === 'cancel') agent.cancel({ kind: 'user' })
     else send(ws, { type: 'error', message: `unknown frame type` })
   })
 }

@@ -27,7 +27,12 @@ export function apply(ctx: Context) {
         // Always selectable: the key is checked per search, so a missing key
         // surfaces as the clear error above instead of a generic "unavailable".
         available: () => true,
-        search: async (request, signal) => serperSearch(await resolveApiKey(), request, signal),
+        // An aborted fetch rejects with the bare abort reason ("Error: [object Object]" in the tool result).
+        search: async (request, signal) =>
+          serperSearch(await resolveApiKey(), request, signal).catch((error: unknown) => {
+            if (signal?.aborted) throw new WebError('Search was cancelled.', 'WEB_CANCELLED')
+            throw error
+          }),
       }),
     'fox-harness-tool-serper-web-search.registerSearchProvider()',
   )

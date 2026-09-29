@@ -1,10 +1,14 @@
 // Files in a session's working directory (docs/rlm-transfer-plan.md giai đoạn 4):
 // list, upload, download. Only flows with a `cwd` (config.flows) have one.
 // Paths never leave that directory and hidden paths (.python-session, partial
-// uploads) are never listed or served. Gateway has already checked ownership.
+// uploads, .fox/) are never listed or served. Gateway has already checked ownership.
+//
+// Uploads are recorded in `.fox/sources.json`: only those files are the folder's
+// sources; everything else a chat wrote is its output, even outside generated/
+// (docs/qa-report-2026-09-15.md N2).
 
 import { createWriteStream } from 'node:fs'
-import { copyFile, mkdir, readdir, rename, rm, stat } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import { basename, extname, join, relative, resolve, sep } from 'node:path'
 import { Transform } from 'node:stream'
@@ -45,16 +49,49 @@ export function resolveInside(dir: string, relativePath: string): string | undef
   return target
 }
 
-export async function listWorkspaceFiles(dir: string): Promise<WorkspaceFile[]> {
+const SOURCES_FILE = join('.fox', 'sources.json')
+
+// Visible files, `/`-separated paths relative to `dir`.
+async function filePaths(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => [])
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(dir, join(entry.parentPath, entry.name)))
+    .filter((path) => !isHidden(path))
+    .map((path) => path.split(sep).join('/'))
+}
+
+// The recorded sources; a folder from before the record gets its current files
+// outside generated/ and outputs/ recorded as its sources.
+async function sourcesOf(dir: string): Promise<Set<string>> {
+  const raw = await readFile(join(dir, SOURCES_FILE), 'utf8').catch(() => undefined)
+  if (raw !== undefined) return new Set(JSON.parse(raw) as string[])
+  const existing = (await filePaths(dir)).filter((path) => !path.startsWith('generated/') && !path.startsWith('outputs/'))
+  const sources = new Set(existing)
+  await writeSources(dir, sources)
+  return sources
+}
+
+async function writeSources(dir: string, sources: Set<string>): Promise<void> {
+  await mkdir(join(dir, '.fox'), { recursive: true })
+  await writeFile(join(dir, SOURCES_FILE), JSON.stringify([...sources].sort()))
+}
+
+function originOf(path: string, sources: Set<string>): Pick<WorkspaceFile, 'origin' | 'sessionId'> {
+  if (sources.has(path)) return { origin: 'source' }
+  const parts = path.split('/')
+  if (parts[0] === 'outputs') return { origin: 'shared' }
+  // generated/<sessionId>/… is that chat's output folder (FOX_OUTPUT_DIR).
+  if (parts[0] === 'generated' && parts.length > 2 && PROJECT_ID_RE.test(parts[1]!)) return { origin: 'chat', sessionId: parts[1] }
+  return { origin: 'chat' }
+}
+
+export async function listWorkspaceFiles(dir: string): Promise<WorkspaceFile[]> {
+  const sources = await sourcesOf(dir)
   const files: WorkspaceFile[] = []
-  for (const entry of entries) {
-    if (!entry.isFile()) continue
-    const full = join(entry.parentPath, entry.name)
-    const path = relative(dir, full)
-    if (isHidden(path)) continue
-    const info = await stat(full)
-    files.push({ path: path.split(sep).join('/'), sizeBytes: info.size, modified: info.mtime.toISOString() })
+  for (const path of await filePaths(dir)) {
+    const info = await stat(join(dir, path))
+    files.push({ path, sizeBytes: info.size, modified: info.mtime.toISOString(), ...originOf(path, sources) })
   }
   return files.sort((a, b) => b.modified.localeCompare(a.modified))
 }
@@ -88,6 +125,8 @@ export async function saveUpload(dir: string, name: string, body: IncomingMessag
   try {
     await pipeline(body, limit, createWriteStream(partial))
     await rename(partial, target)
+    const sources = await sourcesOf(dir)
+    await writeSources(dir, sources.add(name.split(sep).join('/')))
   } catch (error) {
     await rm(partial, { force: true })
     throw error
