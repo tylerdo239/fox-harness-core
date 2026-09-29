@@ -120,7 +120,11 @@ export async function ensureSession(sessionId: string, model?: string, flow?: st
     // different model or a non-default flow skips the pool and cold-spawns
     // instead of silently ignoring what it asked for.
     if (model === undefined && flow === undefined) {
-      const claimed = await claimWarmPoolMember()
+      // A pooled container can be gone by now (Docker restarted, container killed, image rebuilt): the pool
+      // is only a list in Redis, so verify each claimed entry is still running and drop dead ones —
+      // otherwise the first chat after a restart is handed a worker that refuses connections.
+      let claimed = await claimWarmPoolMember()
+      while (claimed && !(await isRunning(claimed.containerId))) claimed = await claimWarmPoolMember()
       if (claimed) {
         const record: SessionRecord = { ...claimed, status: 'running', createdAt, model: config.allowedModels[0], flow: 'default' }
         await setSession(sessionId, record)
