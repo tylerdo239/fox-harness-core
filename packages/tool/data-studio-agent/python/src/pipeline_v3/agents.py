@@ -14,17 +14,13 @@ from __future__ import annotations
 
 from agno.models.openai.like import OpenAILike
 from agno.tools import Function
-from sqlmodel import Session, select
 
-from src.database.engine import engine
-from src.database.models import (
-    BusinessGlossaryTerm,
-    Entity,
-    EntityColumn,
-    EntityRelationship,
-    Metric,
-)
-from src.database.models.enums import ColumnRole, SemanticType
+from src.crud_mongo import business_glossary as glossary_crud
+from src.crud_mongo import entity as entity_crud
+from src.crud_mongo import entity_column as entity_column_crud
+from src.crud_mongo import metric as metric_crud
+from src.crud_mongo import relationship as relationship_crud
+from src.database.mongodb import get_mongo_db
 from src.pipeline_v3.base import WorkerParserAgent
 from src.pipeline_v3.schemas import (
     ClarifyOut,
@@ -63,10 +59,10 @@ async def validate_agg(agg: str) -> str:
     return f"invalid: '{agg}' — must be one of {sorted(_ALLOWED_AGGS)}. Use count_distinct to count rows of a joined table without fan-out."
 
 
-def _entity_by_table(s, table_name: str):
+def _entity_by_table(db, table_name: str):
     """Resolve a bare table name to its Entity (matches the last path segment or display name)."""
     key = table_name.strip().strip('"').lower()
-    for ent in s.exec(select(Entity)).all():
+    for ent in entity_crud.list_all(db):
         table = ent.physical_path.split(".")[-1] if ent.physical_path else ""
         if key in (table.lower(), (ent.display_name or "").lower()):
             return ent
@@ -82,19 +78,13 @@ async def pick_count_column(table_name: str) -> str:
     Args:
         table_name: the table whose rows you want to count, e.g. 'workflows'.
     """
-    with Session(engine) as s:
-        ent = _entity_by_table(s, table_name)
-        if ent is None:
-            return f"unknown table '{table_name}'"
-        table = ent.physical_path.split(".")[-1]
-        cols = s.exec(
-            select(EntityColumn).where(
-                EntityColumn.entity_id == ent.id,
-                EntityColumn.is_exposed == True,  # noqa: E712
-                EntityColumn.is_deprecated == False,  # noqa: E712
-            )
-        ).all()
-    keys = [c for c in cols if c.role == ColumnRole.KEY]
+    db = get_mongo_db()
+    ent = _entity_by_table(db, table_name)
+    if ent is None:
+        return f"unknown table '{table_name}'"
+    table = ent.physical_path.split(".")[-1]
+    cols = entity_column_crud.list_exposed_by_entity(db, ent.id)
+    keys = [c for c in cols if c.role == "key"]
     for c in keys:
         if c.physical_name.endswith("_id"):
             return f"count_distinct on {table}.{c.physical_name} — the key of {table}"
@@ -136,21 +126,16 @@ async def grain_subject_check(subject_table: str, counted_table: str) -> str:
         subject_table: the table the question is ABOUT / ranks / lists, e.g. 'workflows'.
         counted_table: the table whose rows are being counted, e.g. 'workflow_nodes'.
     """
-    with Session(engine) as s:
-        subj = _entity_by_table(s, subject_table)
-        child = _entity_by_table(s, counted_table)
-        if subj is None:
-            return f"unknown subject table '{subject_table}'"
-        if child is None:
-            return f"unknown counted table '{counted_table}'"
-        if subj.id == child.id:
-            return f"both are '{subject_table}' — grain is that table; you count its own rows"
-        rels = s.exec(
-            select(EntityRelationship).where(
-                ((EntityRelationship.from_entity_id == subj.id) & (EntityRelationship.to_entity_id == child.id))
-                | ((EntityRelationship.from_entity_id == child.id) & (EntityRelationship.to_entity_id == subj.id))
-            )
-        ).all()
+    db = get_mongo_db()
+    subj = _entity_by_table(db, subject_table)
+    child = _entity_by_table(db, counted_table)
+    if subj is None:
+        return f"unknown subject table '{subject_table}'"
+    if child is None:
+        return f"unknown counted table '{counted_table}'"
+    if subj.id == child.id:
+        return f"both are '{subject_table}' — grain is that table; you count its own rows"
+    rels = relationship_crud.list_by_entity_ids(db, [subj.id, child.id])
     if not rels:
         return (
             f"no direct relationship between '{subject_table}' and '{counted_table}'. If the question "
@@ -173,29 +158,24 @@ async def pick_display_columns(table_name: str) -> str:
     Args:
         table_name: the main table to show to the user, e.g. 'workflows'.
     """
-    with Session(engine) as s:
-        ent = _entity_by_table(s, table_name)
-        if ent is None:
-            return f"unknown table '{table_name}'"
-        table = ent.physical_path.split(".")[-1]
-        cols = s.exec(
-            select(EntityColumn).where(
-                EntityColumn.entity_id == ent.id,
-                EntityColumn.is_exposed == True,  # noqa: E712
-                EntityColumn.is_deprecated == False,  # noqa: E712
-            ).order_by(EntityColumn.ordinal)
-        ).all()
+    db = get_mongo_db()
+    ent = _entity_by_table(db, table_name)
+    if ent is None:
+        return f"unknown table '{table_name}'"
+    table = ent.physical_path.split(".")[-1]
+    # the original SQL ordered by ordinal; list_exposed_by_entity doesn't sort, so sort here.
+    cols = sorted(entity_column_crud.list_exposed_by_entity(db, ent.id), key=lambda c: c.ordinal)
     if not cols:
         return f"no exposed columns on {table}"
     # LABEL: a marked display column wins; else the first non-key TEXT column; else any non-key name.
     label = next((c for c in cols if getattr(c, "is_default_select", False)
-                  and c.role != ColumnRole.KEY), None)
-    label = label or next((c for c in cols if c.role != ColumnRole.KEY
-                            and c.semantic_type == SemanticType.TEXT), None)
-    label = label or next((c for c in cols if c.role != ColumnRole.KEY
+                  and c.role != "key"), None)
+    label = label or next((c for c in cols if c.role != "key"
+                            and c.semantic_type == "text"), None)
+    label = label or next((c for c in cols if c.role != "key"
                            and "id" not in c.physical_name.lower()), None)
     # KEY: the primary key (prefer a *_id), so grouped rows stay distinct even on duplicate labels.
-    keys = [c for c in cols if c.role == ColumnRole.KEY]
+    keys = [c for c in cols if c.role == "key"]
     key = next((c for c in keys if c.physical_name.endswith("_id")), keys[0] if keys else None)
     picked = []
     if label is not None:
@@ -217,22 +197,16 @@ async def list_entity_columns(table_name: str) -> str:
     Args:
         table_name: the table to inspect, e.g. 'agents'.
     """
-    with Session(engine) as s:
-        ent = _entity_by_table(s, table_name)
-        if ent is None:
-            return f"unknown table '{table_name}'"
-        table = ent.physical_path.split(".")[-1]
-        cols = s.exec(
-            select(EntityColumn).where(
-                EntityColumn.entity_id == ent.id,
-                EntityColumn.is_exposed == True,  # noqa: E712
-                EntityColumn.is_deprecated == False,  # noqa: E712
-            )
-        ).all()
+    db = get_mongo_db()
+    ent = _entity_by_table(db, table_name)
+    if ent is None:
+        return f"unknown table '{table_name}'"
+    table = ent.physical_path.split(".")[-1]
+    cols = entity_column_crud.list_exposed_by_entity(db, ent.id)
     lines = []
     for c in cols:
-        role = c.role.value if c.role else "?"
-        sem = c.semantic_type.value if c.semantic_type else "?"
+        role = c.role or "?"
+        sem = c.semantic_type or "?"
         samples = f" samples={c.sample_values[:5]}" if c.sample_values else ""
         lines.append(f"{table}.{c.physical_name} (role={role}, type={sem}){samples}")
     return "\n".join(lines)
@@ -246,23 +220,18 @@ async def count_countable_children(table_name: str) -> str:
     Args:
         table_name: the table the question ranks/filters, e.g. 'agents'.
     """
-    with Session(engine) as s:
-        ent = _entity_by_table(s, table_name)
-        if ent is None:
-            return f"unknown table '{table_name}'"
-        entity_id = ent.id
-        rels = s.exec(
-            select(EntityRelationship).where(
-                (EntityRelationship.from_entity_id == entity_id)
-                | (EntityRelationship.to_entity_id == entity_id)
-            )
-        ).all()
-        children = []
-        for r in rels:
-            other = r.to_entity_id if r.from_entity_id == entity_id else r.from_entity_id
-            ent = s.get(Entity, other)
-            if ent is not None:
-                children.append(ent.display_name)
+    db = get_mongo_db()
+    ent = _entity_by_table(db, table_name)
+    if ent is None:
+        return f"unknown table '{table_name}'"
+    entity_id = ent.id
+    rels = relationship_crud.list_touching_entity_ids(db, [entity_id])
+    children = []
+    for r in rels:
+        other = r.to_entity_id if r.from_entity_id == entity_id else r.from_entity_id
+        other_ent = entity_crud.get_by_id(db, other)
+        if other_ent is not None:
+            children.append(other_ent.display_name)
     n = len(set(children))
     signal = "AMBIGUOUS if question says 'most/nhiều' without naming which" if n > 1 else "clear"
     return f"{n} related entities: {sorted(set(children))} — {signal}"
@@ -277,10 +246,9 @@ async def disambiguate_entity(term: str) -> str:
         term: the noun to resolve, e.g. 'workflow'.
     """
     key = term.strip().lower()
-    with Session(engine) as s:
-        entities = s.exec(
-            select(Entity).where(Entity.is_exposed == True, Entity.is_deprecated == False)  # noqa: E712
-        ).all()
+    db = get_mongo_db()
+    entities = entity_crud.list_exposed_active(db)
+
     def norm(s: str) -> str:
         k = "".join(ch for ch in s.lower() if ch.isalnum())
         return k[:-1] if len(k) > 3 and k.endswith("s") else k  # singularize plural
@@ -317,19 +285,17 @@ async def search_tables(pattern: str) -> str:
     key = "".join(ch for ch in pattern.strip().lower() if ch.isalnum())
     if not key:
         return "give a non-empty pattern"
-    with Session(engine) as s:
-        entities = s.exec(
-            select(Entity).where(Entity.is_exposed == True, Entity.is_deprecated == False)  # noqa: E712
-        ).all()
-        hits = []
-        for e in entities:
-            table = e.physical_path.split(".")[-1] if e.physical_path else ""
-            desc = e.grain_description or e.description or "?"
-            # match the pattern against the physical table name, display name, and synonyms
-            haystacks = [table.lower(), (e.display_name or "").lower(), *[sn.lower() for sn in (e.synonyms or [])]]
-            norm_hay = ["".join(ch for ch in h if ch.isalnum()) for h in haystacks if h]
-            if any(key in h for h in norm_hay):
-                hits.append(f"{table} — {desc}")
+    db = get_mongo_db()
+    entities = entity_crud.list_exposed_active(db)
+    hits = []
+    for e in entities:
+        table = e.physical_path.split(".")[-1] if e.physical_path else ""
+        desc = e.grain_description or e.description or "?"
+        # match the pattern against the physical table name, display name, and synonyms
+        haystacks = [table.lower(), (e.display_name or "").lower(), *[sn.lower() for sn in (e.synonyms or [])]]
+        norm_hay = ["".join(ch for ch in h if ch.isalnum()) for h in haystacks if h]
+        if any(key in h for h in norm_hay):
+            hits.append(f"{table} — {desc}")
     if not hits:
         return f"no table name contains '{pattern}'"
     return f"{len(hits)} table(s) match '{pattern}':\n" + "\n".join(hits)
@@ -346,18 +312,17 @@ async def column_values(table_column: str) -> str:
     if len(parts) < 2:
         return "give the column as 'table.column'"
     table, col = parts[-2].lower(), parts[-1].lower()
-    with Session(engine) as s:
-        for e in s.exec(select(Entity)).all():
-            t = e.physical_path.split(".")[-1].lower() if e.physical_path else ""
-            if t != table:
-                continue
-            c = s.exec(select(EntityColumn).where(
-                EntityColumn.entity_id == e.id, EntityColumn.physical_name == col)).first()
-            if c is None:
-                return f"no column {table}.{col}"
-            samples = c.sample_values[:12] if c.sample_values else []
-            vg = f" value_glossary={c.value_glossary}" if c.value_glossary else ""
-            return f"{table}.{col} sample values: {samples}{vg}" if samples else f"{table}.{col}: no sample values recorded"
+    db = get_mongo_db()
+    for e in entity_crud.list_all(db):
+        t = e.physical_path.split(".")[-1].lower() if e.physical_path else ""
+        if t != table:
+            continue
+        c = entity_column_crud.get_by_entity_and_name(db, e.id, col)
+        if c is None:
+            return f"no column {table}.{col}"
+        samples = c.sample_values[:12] if c.sample_values else []
+        vg = f" value_glossary={c.value_glossary}" if c.value_glossary else ""
+        return f"{table}.{col} sample values: {samples}{vg}" if samples else f"{table}.{col}: no sample values recorded"
     return f"no table '{table}'"
 
 
@@ -369,14 +334,17 @@ async def find_column(name: str) -> str:
         name: the bare column name, e.g. 'agent_id'.
     """
     key = name.strip().lower()
-    with Session(engine) as s:
-        cols = s.exec(select(EntityColumn).where(EntityColumn.is_exposed == True)).all()  # noqa: E712
-        hits = []
-        for c in cols:
-            if c.physical_name.lower() == key:
-                e = s.get(Entity, c.entity_id)
-                t = e.physical_path.split(".")[-1] if (e and e.physical_path) else "?"
-                hits.append(t)
+    db = get_mongo_db()
+    # original SQL filtered only is_exposed==True (no is_deprecated filter) — preserve that exact
+    # scope via a Python filter over the unfiltered list, not entity_column_crud.list_exposed_active
+    # (which also filters is_deprecated).
+    cols = [c for c in entity_column_crud.list_all(db) if c.is_exposed]
+    hits = []
+    for c in cols:
+        if c.physical_name.lower() == key:
+            e = entity_crud.get_by_id(db, c.entity_id)
+            t = e.physical_path.split(".")[-1] if (e and e.physical_path) else "?"
+            hits.append(t)
     if not hits:
         return f"no column named '{name}'"
     if len(hits) == 1:
@@ -393,8 +361,8 @@ async def search_glossary(phrase: str) -> str:
         phrase: the domain phrase, e.g. 'intent node'.
     """
     key = phrase.strip().lower()
-    with Session(engine) as s:
-        terms = s.exec(select(BusinessGlossaryTerm)).all()
+    db = get_mongo_db()
+    terms = glossary_crud.list_all(db)
     for t in terms:
         names = [t.term.lower(), *[sn.lower() for sn in (t.synonyms or [])]]
         if any(key in n or n in key for n in names if n):
@@ -413,8 +381,8 @@ async def find_metric(phrase: str) -> str:
         phrase: the measure phrase, e.g. 'active conversations'.
     """
     key = phrase.strip().lower()
-    with Session(engine) as s:
-        metrics = s.exec(select(Metric)).all()
+    db = get_mongo_db()
+    metrics = metric_crud.list_all(db)
     for m in metrics:
         names = [m.name.lower(), *[sn.lower() for sn in (m.synonyms or [])]]
         if any(key in n or n in key for n in names if n):
@@ -983,26 +951,20 @@ def build_decompose_agent(model: OpenAILike) -> WorkerParserAgent:
 
 # ── candidate rendering (injected into every agent's prompt) ─────────────────
 
-def render_candidates_block(retrieval: RetrievalResult, session) -> str:
+def render_candidates_block(retrieval: RetrievalResult, db) -> str:
     """A compact candidate schema block: tables and their columns as 'table.column' (with role +
     type), plus join keys. This is the grounding the Worker reasons over — every NAME it may pick
     appears here, so it never has to invent an identifier. Physical names are used because the
     resolver maps those back to ids."""
     lines = ["Candidate schema (refer to columns as table.column):"]
     for e in retrieval.entities:
-        ent = session.get(Entity, e.id)
+        ent = entity_crud.get_by_id(db, e.id)
         table = ent.physical_path.split(".")[-1] if (ent and ent.physical_path) else e.display_name
         lines.append(f"\nTABLE {table} — {e.display_name} — grain: {e.grain_description or '?'}")
-        cols = session.exec(
-            select(EntityColumn).where(
-                EntityColumn.entity_id == e.id,
-                EntityColumn.is_exposed == True,  # noqa: E712
-                EntityColumn.is_deprecated == False,  # noqa: E712
-            )
-        ).all()
+        cols = entity_column_crud.list_exposed_by_entity(db, e.id)
         for c in cols:
-            role = c.role.value if c.role else "?"
-            sem = c.semantic_type.value if c.semantic_type else "?"
+            role = c.role or "?"
+            sem = c.semantic_type or "?"
             lines.append(f"  {table}.{c.physical_name} (role={role}, type={sem})")
     if retrieval.join_keys:
         lines.append("\nJoin keys (exact pairs — do not guess):")

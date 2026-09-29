@@ -14,7 +14,7 @@ import { Input } from "../../primitives/Input.tsx";
 // Real field shapes — services/gateway/src/data-studio-db.ts's row types,
 // mirrored here (JSON over the wire, so `synonyms`/etc. arrive as strings).
 interface DataSource {
-  id: number;
+  id: string;
   name: string;
   source_type: string;
   dremio_path: string;
@@ -22,8 +22,8 @@ interface DataSource {
   is_exposed_to_agent: 0 | 1;
 }
 interface Entity {
-  id: number;
-  data_source_id: number;
+  id: string;
+  data_source_id: string;
   physical_name: string;
   display_name: string;
   description: string | null;
@@ -33,8 +33,8 @@ interface Entity {
   is_pii: 0 | 1;
 }
 interface EntityColumn {
-  id: number;
-  entity_id: number;
+  id: string;
+  entity_id: string;
   physical_name: string;
   data_type: string;
   display_name: string;
@@ -66,9 +66,9 @@ export function DataStudioDataSources() {
   const { t } = useLocale();
   const [sources, setSources] = useState<DataSource[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [entities, setEntities] = useState<Entity[]>([]);
-  const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null);
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [columns, setColumns] = useState<EntityColumn[]>([]);
   const [browsing, setBrowsing] = useState(false);
   const [browseResults, setBrowseResults] = useState<{ name: string; type: string }[] | null>(null);
@@ -90,7 +90,7 @@ export function DataStudioDataSources() {
   }, [loadSources]);
 
   const loadEntities = useCallback(
-    async (sourceId: number) => {
+    async (sourceId: string) => {
       const res = await runtime.authedFetch(`/data-studio/sources/${sourceId}/entities`);
       if (res.ok) setEntities(await res.json());
     },
@@ -98,7 +98,7 @@ export function DataStudioDataSources() {
   );
 
   const loadColumns = useCallback(
-    async (entityId: number) => {
+    async (entityId: string) => {
       const res = await runtime.authedFetch(`/data-studio/entities/${entityId}/columns`);
       if (res.ok) setColumns(await res.json());
     },

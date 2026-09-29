@@ -58,10 +58,10 @@ export function runAdminBridge(request: Record<string, unknown>, timeoutMs = 60_
       const value = process.env[key]
       if (value !== undefined) env[key] = value
     }
-    // Same shared sqlite file data-studio-db.ts reads/writes directly —
-    // computed here (not forwarded) since gateway's own env has no
-    // DATABASE_URL of its own (that name is MariaDB's, config.databaseUrl).
-    env.DATABASE_URL = `sqlite:////${config.dataStudioSharedDir.replace(/^\//, '')}/semantic_layer.db`
+    // Same MongoDB data-studio-db.ts reads/writes directly (docs/data-studio-mongodb-plan.md) — passed
+    // from gateway's resolved config so a Vault-injected `MongoDBWrite` reaches Python too.
+    env.MONGODB_URL = config.mongodbUrl
+    env.MONGODB_DATABASE_NAME = config.mongodbDatabaseName
 
     const child = spawn(PYTHON, ['-u', RUNNER], { cwd: SERVICE_DIR, env })
     let stderrTail = ''

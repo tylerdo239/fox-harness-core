@@ -1,16 +1,12 @@
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
-from sqlmodel import Session, select
 
-from src.database.models import (
-    BusinessGlossaryTerm,
-    Entity,
-    EntityColumn,
-    EntityRelationship,
-    RelationshipColumnPair,
-)
-from src.database.models.enums import ColumnRole, SemanticType
+from src.crud_mongo import business_glossary as glossary_crud
+from src.crud_mongo import entity as entity_crud
+from src.crud_mongo import entity_column as entity_column_crud
+from src.crud_mongo import relationship as relationship_crud
+from src.database.mongodb import AttrDatabase
 from src.services.embedding_client import EmbeddingClient
 from src.services.llm_client import LLMClient
 from src.services.vector_store import VectorStore
@@ -37,7 +33,7 @@ _INSTRUCTIONS = [
 
 @dataclass
 class CandidateColumn:
-    id: int
+    id: str
     display_name: str
     role: str | None
     semantic_type: str | None
@@ -45,7 +41,7 @@ class CandidateColumn:
 
 @dataclass
 class CandidateEntity:
-    id: int
+    id: str
     display_name: str
     description: str | None
     grain_description: str | None
@@ -54,7 +50,7 @@ class CandidateEntity:
 
 @dataclass
 class CandidateGlossaryTerm:
-    id: int
+    id: str
     term: str
     definition_text: str
     sql_expression: str | None
@@ -62,11 +58,11 @@ class CandidateGlossaryTerm:
 
 @dataclass
 class CandidateJoinKey:
-    from_entity_id: int
-    from_column_id: int
+    from_entity_id: str
+    from_column_id: str
     from_column_name: str
-    to_entity_id: int
-    to_column_id: int
+    to_entity_id: str
+    to_column_id: str
     to_column_name: str
 
 
@@ -78,9 +74,9 @@ class RetrievalResult:
 
 
 class SchemaSelection(BaseModel):
-    entity_ids: list[int] = Field(description="IDs of entities needed to answer the question")
-    column_ids: list[int] = Field(description="IDs of the specific columns needed")
-    glossary_term_ids: list[int] = Field(
+    entity_ids: list[str] = Field(description="IDs of entities needed to answer the question")
+    column_ids: list[str] = Field(description="IDs of the specific columns needed")
+    glossary_term_ids: list[str] = Field(
         default_factory=list, description="IDs of glossary terms that apply to this question"
     )
 
@@ -89,7 +85,7 @@ PER_TERM_K = 4  # how many entity hits to keep per detected term
 
 
 async def retrieve_candidates(
-    session: Session,
+    db: AttrDatabase,
     embedding_client: EmbeddingClient,
     vector_store: VectorStore,
     question: str,
@@ -120,7 +116,7 @@ async def retrieve_candidates(
         search_terms = [keyword_text]
 
     # entity_id -> best (lowest) distance seen across all per-term searches
-    best: dict[int, float] = {}
+    best: dict[str, float] = {}
 
     if search_terms:
         term_embeddings = await embedding_client.embed_documents(search_terms)
@@ -137,7 +133,7 @@ async def retrieve_candidates(
     # must lead — BM25 otherwise ranks prefix-siblings (workflow_edges) above the exact table
     # (workflows) for the bare term 'workflow', and the weak grounding model then mistags the
     # subject. Force every exact-name match to the front, ahead of any embedding-ranked hit.
-    exact_ids = _exact_name_entity_ids(session, search_terms)
+    exact_ids = _exact_name_entity_ids(db, search_terms)
     for eid in exact_ids:
         best.setdefault(eid, 0.0)
 
@@ -153,14 +149,14 @@ async def retrieve_candidates(
     )
     glossary_ids = _extract_ids(glossary_hits, "term_id")
 
-    candidate_entities = _load_candidate_entities(session, entity_ids)
-    candidate_glossary = _load_candidate_glossary(session, glossary_ids)
-    join_keys = _load_join_keys(session, entity_ids)
+    candidate_entities = _load_candidate_entities(db, entity_ids)
+    candidate_glossary = _load_candidate_glossary(db, glossary_ids)
+    join_keys = _load_join_keys(db, entity_ids)
 
     return RetrievalResult(entities=candidate_entities, glossary_terms=candidate_glossary, join_keys=join_keys)
 
 
-def _merge_hits(best: dict[int, float], hits: dict) -> None:
+def _merge_hits(best: dict[str, float], hits: dict) -> None:
     """Fold a query()'s hits into the best-distance map (keep the closest distance per entity)."""
     metadatas = hits.get("metadatas", [[]])[0]
     distances = hits.get("distances", [[]])[0]
@@ -181,20 +177,20 @@ def _normalize_name(s: str) -> str:
     return key
 
 
-def _exact_name_entity_ids(session: Session, terms: list[str]) -> list[int]:
+def _exact_name_entity_ids(db: AttrDatabase, terms: list[str]) -> list[str]:
     """Entity ids whose table name (last physical-path segment) or display name exactly matches a
     detected term after normalization. Preserves term order so the primary subject leads."""
     if not terms:
         return []
-    entities = session.exec(select(Entity)).all()
-    by_key: dict[str, int] = {}
+    entities = entity_crud.list_all(db)
+    by_key: dict[str, str] = {}
     for e in entities:
         table = e.physical_path.split(".")[-1] if e.physical_path else ""
         for name in (table, e.display_name or ""):
             k = _normalize_name(name)
             if k:
                 by_key.setdefault(k, e.id)
-    out: list[int] = []
+    out: list[str] = []
     for t in terms:
         eid = by_key.get(_normalize_name(t))
         if eid is not None and eid not in out:
@@ -202,7 +198,7 @@ def _exact_name_entity_ids(session: Session, terms: list[str]) -> list[int]:
     return out
 
 
-def _load_join_keys(session: Session, entity_ids: list[int]) -> list[CandidateJoinKey]:
+def _load_join_keys(db: AttrDatabase, entity_ids: list[str]) -> list[CandidateJoinKey]:
     """Surfaces the exact join key column pair for every curated relationship between two
     candidate entities, so the model is told the join key instead of having to infer it from
     column naming — inference is unreliable, especially for a smaller model, when both sides
@@ -211,26 +207,18 @@ def _load_join_keys(session: Session, entity_ids: list[int]) -> list[CandidateJo
     if len(entity_ids) < 2:
         return []
 
-    entity_id_set = set(entity_ids)
-    relationships = session.exec(
-        select(EntityRelationship).where(
-            EntityRelationship.from_entity_id.in_(entity_id_set),
-            EntityRelationship.to_entity_id.in_(entity_id_set),
-        )
-    ).all()
+    relationships = relationship_crud.list_by_entity_ids(db, entity_ids)
     if not relationships:
         return []
 
     rel_ids = [r.id for r in relationships]
-    pairs = session.exec(
-        select(RelationshipColumnPair).where(RelationshipColumnPair.relationship_id.in_(rel_ids))
-    ).all()
+    pairs = relationship_crud.list_column_pairs_by_relationship_ids(db, rel_ids)
     if not pairs:
         return []
 
     rels_by_id = {r.id: r for r in relationships}
     col_ids = {p.from_column_id for p in pairs} | {p.to_column_id for p in pairs}
-    cols_by_id = {c.id: c for c in session.exec(select(EntityColumn).where(EntityColumn.id.in_(col_ids))).all()}
+    cols_by_id = {c.id: c for c in entity_column_crud.list_by_ids(db, list(col_ids))}
 
     join_keys = []
     for pair in pairs:
@@ -252,16 +240,16 @@ def _load_join_keys(session: Session, entity_ids: list[int]) -> list[CandidateJo
     return join_keys
 
 
-def _extract_ids(chroma_result: dict, metadata_key: str) -> list[int]:
+def _extract_ids(chroma_result: dict, metadata_key: str) -> list[str]:
     metadatas = chroma_result.get("metadatas", [[]])[0]
     return [m[metadata_key] for m in metadatas if metadata_key in m]
 
 
-def _load_candidate_entities(session: Session, entity_ids: list[int]) -> list[CandidateEntity]:
+def _load_candidate_entities(db: AttrDatabase, entity_ids: list[str]) -> list[CandidateEntity]:
     if not entity_ids:
         return []
 
-    entities = session.exec(select(Entity).where(Entity.id.in_(entity_ids))).all()
+    entities = entity_crud.list_by_ids(db, entity_ids)
     entities_by_id = {e.id: e for e in entities}
 
     result = []
@@ -270,13 +258,7 @@ def _load_candidate_entities(session: Session, entity_ids: list[int]) -> list[Ca
         if entity is None:
             continue
 
-        columns = session.exec(
-            select(EntityColumn).where(
-                EntityColumn.entity_id == eid,
-                EntityColumn.is_exposed == True,  # noqa: E712
-                EntityColumn.is_deprecated == False,  # noqa: E712
-            )
-        ).all()
+        columns = entity_column_crud.list_exposed_by_entity(db, eid)
 
         result.append(
             CandidateEntity(
@@ -288,8 +270,8 @@ def _load_candidate_entities(session: Session, entity_ids: list[int]) -> list[Ca
                     CandidateColumn(
                         id=c.id,
                         display_name=c.display_name,
-                        role=c.role.value if c.role else None,
-                        semantic_type=c.semantic_type.value if c.semantic_type else None,
+                        role=c.role,
+                        semantic_type=c.semantic_type,
                     )
                     for c in columns
                 ],
@@ -299,11 +281,11 @@ def _load_candidate_entities(session: Session, entity_ids: list[int]) -> list[Ca
     return result
 
 
-def _load_candidate_glossary(session: Session, term_ids: list[int]) -> list[CandidateGlossaryTerm]:
+def _load_candidate_glossary(db: AttrDatabase, term_ids: list[str]) -> list[CandidateGlossaryTerm]:
     if not term_ids:
         return []
 
-    terms = session.exec(select(BusinessGlossaryTerm).where(BusinessGlossaryTerm.id.in_(term_ids))).all()
+    terms = glossary_crud.list_by_ids(db, term_ids)
     terms_by_id = {t.id: t for t in terms}
 
     return [
@@ -371,7 +353,7 @@ async def select_schema(
     )
 
 
-def backfill_related_entities(session: Session, question: str, selection: SchemaSelection) -> SchemaSelection:
+def backfill_related_entities(db: AttrDatabase, question: str, selection: SchemaSelection) -> SchemaSelection:
     """Code-level safety net for a recurring LLM miss: the question asks 'which X' (e.g.
     'which workflow has the most...') but the model only selects the entity holding the
     measured data, forgetting the related entity needed to label/group the answer — even
@@ -385,12 +367,7 @@ def backfill_related_entities(session: Session, question: str, selection: Schema
     question_lower = question.lower()
     selected_entity_ids = set(selection.entity_ids)
 
-    relationships = session.exec(
-        select(EntityRelationship).where(
-            (EntityRelationship.from_entity_id.in_(selected_entity_ids))
-            | (EntityRelationship.to_entity_id.in_(selected_entity_ids))
-        )
-    ).all()
+    relationships = relationship_crud.list_touching_entity_ids(db, list(selected_entity_ids))
 
     candidate_entity_ids = set()
     for rel in relationships:
@@ -403,17 +380,17 @@ def backfill_related_entities(session: Session, question: str, selection: Schema
     if not candidate_entity_ids:
         return selection
 
-    candidates = session.exec(select(Entity).where(Entity.id.in_(candidate_entity_ids))).all()
+    candidates = entity_crud.list_by_ids(db, list(candidate_entity_ids))
 
-    new_entity_ids: list[int] = []
-    new_column_ids: list[int] = []
+    new_entity_ids: list[str] = []
+    new_column_ids: list[str] = []
     for entity in candidates:
         names_to_check = [entity.display_name, *entity.synonyms]
         if not any(name.lower() in question_lower for name in names_to_check if name):
             continue
 
         new_entity_ids.append(entity.id)
-        label_column = _best_label_column(session, entity.id)
+        label_column = _best_label_column(db, entity.id)
         if label_column is not None:
             new_column_ids.append(label_column)
 
@@ -428,17 +405,6 @@ def backfill_related_entities(session: Session, question: str, selection: Schema
     )
 
 
-
-def _best_label_column(session: Session, entity_id: int) -> int | None:
-    columns = session.exec(
-        select(EntityColumn)
-        .where(
-            EntityColumn.entity_id == entity_id,
-            EntityColumn.is_exposed == True,  # noqa: E712
-            EntityColumn.is_deprecated == False,  # noqa: E712
-            EntityColumn.role != ColumnRole.KEY,
-            EntityColumn.semantic_type == SemanticType.TEXT,
-        )
-        .order_by(EntityColumn.ordinal)
-    ).first()
-    return columns.id if columns else None
+def _best_label_column(db: AttrDatabase, entity_id: str) -> str | None:
+    col = entity_column_crud.best_label_column(db, entity_id)
+    return col.id if col else None

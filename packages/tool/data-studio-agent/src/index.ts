@@ -66,7 +66,10 @@ export function apply(ctx: Context) {
             rows: { type: 'array', items: { type: 'json' } },
             row_count: { type: 'integer' },
             chart: { type: 'json' },
-            chart_id: { type: 'integer' },
+            chart_id: { type: 'string' },
+            charts: { type: 'array', items: { type: 'json' } },
+            follow_up_questions: { type: 'array', items: { type: 'string' } },
+            assumptions: { type: 'array', items: { type: 'string' } },
             truncated: { type: 'boolean', required: true },
           },
         },
@@ -81,6 +84,11 @@ export function apply(ctx: Context) {
           // offer "pin to dashboard" (the real Chart row this references
           // already exists — see bridge/runner.py's `_persist_chart`).
           chartId: value.chart_id ?? null,
+          // docs/data-studio-mongodb-plan.md / Data Studio chat UI: all charts + suggestions travel to
+          // the UI (never to the model — `render` above returns the answer text only).
+          charts: value.charts ?? [],
+          followUps: value.follow_up_questions ?? [],
+          assumptions: value.assumptions ?? [],
           truncated: value.truncated,
         }),
       },
@@ -96,6 +104,9 @@ export function apply(ctx: Context) {
           ...(reply.sql ? { sql: reply.sql } : {}),
           ...(reply.chart ? { chart: reply.chart } : {}),
           ...(reply.chart_id ? { chart_id: reply.chart_id } : {}),
+          charts: reply.charts ?? [],
+          follow_up_questions: reply.follow_up_questions ?? [],
+          assumptions: reply.assumptions ?? [],
         }
       },
     }),

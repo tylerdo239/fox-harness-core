@@ -12,19 +12,19 @@ import { IconButton } from "../../primitives/IconButton.tsx";
 import { Input } from "../../primitives/Input.tsx";
 
 interface BrowseEntity {
-  id: number;
+  id: string;
   display_name: string;
-  columns: { id: number; display_name: string }[];
+  columns: { id: string; display_name: string }[];
 }
 
 interface Metric {
-  id: number;
+  id: string;
   name: string;
   description: string | null;
-  base_entity_id: number;
+  base_entity_id: string;
   base_entity_name: string;
   aggregation: string;
-  measure_column_id: number;
+  measure_column_id: string;
   measure_column_name: string;
   unit: string | null;
   is_verified: 0 | 1;
@@ -32,7 +32,7 @@ interface Metric {
 
 const AGGREGATION_OPTIONS = ["sum", "avg", "count", "count_distinct", "min", "max"];
 
-const EMPTY_DRAFT = { name: "", description: "", baseEntityId: "" as number | "", measureColumnId: "" as number | "", aggregation: AGGREGATION_OPTIONS[0] };
+const EMPTY_DRAFT = { name: "", description: "", baseEntityId: "" as string, measureColumnId: "" as string, aggregation: AGGREGATION_OPTIONS[0] };
 
 export function DataStudioMetrics() {
   const runtime = useRuntime();
@@ -112,7 +112,7 @@ export function DataStudioMetrics() {
         />
         <select
           value={draft.baseEntityId}
-          onChange={(e) => setDraft((prev) => ({ ...prev, baseEntityId: e.target.value ? Number(e.target.value) : "", measureColumnId: "" }))}
+          onChange={(e) => setDraft((prev) => ({ ...prev, baseEntityId: e.target.value, measureColumnId: "" }))}
         >
           <option value="">{t("dataStudio.fromEntity")}</option>
           {entities.map((entity) => (
@@ -123,7 +123,7 @@ export function DataStudioMetrics() {
         </select>
         <select
           value={draft.measureColumnId}
-          onChange={(e) => setDraft((prev) => ({ ...prev, measureColumnId: e.target.value ? Number(e.target.value) : "" }))}
+          onChange={(e) => setDraft((prev) => ({ ...prev, measureColumnId: e.target.value }))}
           disabled={!measureColumns.length}
         >
           <option value="">{t("dataStudio.measureColumn")}</option>

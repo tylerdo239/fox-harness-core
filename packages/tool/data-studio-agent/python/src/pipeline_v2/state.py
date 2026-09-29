@@ -5,7 +5,8 @@ manually), v2 carries a single mutable ticket. Every step reads the accumulated 
 writes its own slots. This mirrors the design doc's JSON ticket and makes each step's
 contract explicit: what it needs (already-filled slots) and what it produces (its slots).
 
-Nothing here talks to an LLM or the DB — it's a pure data container.
+Nothing here talks to an LLM or the DB — it's a pure data container. IDs are Mongo document
+ids (uuid4 strings), not the int primary keys this file used before the pymongo migration.
 """
 
 from dataclasses import dataclass, field
@@ -32,7 +33,7 @@ class SlotStatus(StrEnum):
 @dataclass
 class EntityMatch:
     term: str
-    entity_id: int
+    entity_id: str
     table_physical_path: str
     confidence: float
 
@@ -43,8 +44,8 @@ class BusinessRule:
     sql_expression, reused verbatim (see design doc: glossary dẫn dắt, metadata xác minh)."""
 
     term: str
-    glossary_id: int
-    applies_to_entity_id: int | None
+    glossary_id: str
+    applies_to_entity_id: str | None
     filter_sql: str
     verified: bool
 
@@ -54,7 +55,7 @@ class MetricSpec:
     """Something to aggregate. expr_column_id is None for a plain COUNT(*)."""
 
     agg: str                       # count | count_distinct | sum | avg | min | max
-    expr_column_id: int | None
+    expr_column_id: str | None
     alias: str
     scoped_by_term: str | None = None  # links to a BusinessRule whose filter scopes this metric
 
@@ -63,23 +64,23 @@ class MetricSpec:
 class DimensionSpec:
     """A grouping concept. id_column_id drives GROUP BY/JOIN; label_column_id drives SELECT."""
 
-    entity_id: int
-    id_column_id: int
-    label_column_id: int | None
+    entity_id: str
+    id_column_id: str
+    label_column_id: str | None
 
 
 @dataclass
 class FilterSpec:
     """A plain WHERE condition. Glossary-sourced conditions live in BusinessRule instead."""
 
-    column_id: int
+    column_id: str
     operator: str
     value: str | None
 
 
 @dataclass
 class TimeSpec:
-    column_id: int
+    column_id: str
     start: str | None
     end: str | None          # half-open: start <= t < end
     tz: str | None
@@ -88,8 +89,8 @@ class TimeSpec:
 
 @dataclass
 class JoinEdge:
-    from_entity_id: int
-    to_entity_id: int
+    from_entity_id: str
+    to_entity_id: str
     from_column_physical: str
     to_column_physical: str
     cardinality: str
@@ -103,8 +104,8 @@ class JoinPlanV2:
     edges: list[JoinEdge] = field(default_factory=list)
     fanout_note: str | None = None
     # For pre_agg/split_cte: which entities are the expanding branches to fold into subqueries.
-    expanding_branch_entity_ids: list[int] = field(default_factory=list)
-    unreachable_entity_ids: list[int] = field(default_factory=list)
+    expanding_branch_entity_ids: list[str] = field(default_factory=list)
+    unreachable_entity_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -149,13 +150,13 @@ class PipelineState:
 
     # step 3
     grain: str | None = None
-    grain_entity_id: int | None = None
+    grain_entity_id: str | None = None
 
     # step 4
     metrics: list[MetricSpec] = field(default_factory=list)
     dimensions: list[DimensionSpec] = field(default_factory=list)
-    select_column_ids: list[int] = field(default_factory=list)
-    group_by_column_ids: list[int] = field(default_factory=list)
+    select_column_ids: list[str] = field(default_factory=list)
+    group_by_column_ids: list[str] = field(default_factory=list)
 
     # step 5
     filters: list[FilterSpec] = field(default_factory=list)
@@ -172,9 +173,9 @@ class PipelineState:
     clarifications: list[ClarificationNeeded] = field(default_factory=list)
 
     # the set of tables the query must touch, grown as steps pick columns from new entities
-    target_entity_ids: set[int] = field(default_factory=set)
+    target_entity_ids: set[str] = field(default_factory=set)
 
-    def entity_ids(self) -> list[int]:
+    def entity_ids(self) -> list[str]:
         return [e.entity_id for e in self.entities]
 
     def add_assumption(self, note: str) -> None:

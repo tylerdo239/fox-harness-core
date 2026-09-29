@@ -1,21 +1,18 @@
 from typing import Any
 
-from sqlmodel import Session, select
-
-from src.database.models import (
-    BusinessGlossaryTerm,
-    Entity,
-    EntityColumn,
-    Metric,
-    VerifiedQuery,
-)
+from src.crud_mongo import business_glossary as glossary_crud
+from src.crud_mongo import entity as entity_crud
+from src.crud_mongo import entity_column as entity_column_crud
+from src.crud_mongo import metric as metric_crud
+from src.crud_mongo import verified_query as verified_query_crud
+from src.database.mongodb import AttrDatabase, AttrDict
 from src.services.embedding_client import EmbeddingClient
 from src.services.vector_store import VectorStore
 
 _BATCH_SIZE = 64
 
 
-def entity_embed_text(entity: Entity) -> str:
+def entity_embed_text(entity: AttrDict) -> str:
     parts = [entity.display_name]
     if entity.description:
         parts.append(entity.description)
@@ -26,7 +23,7 @@ def entity_embed_text(entity: Entity) -> str:
     return " | ".join(parts)
 
 
-def entity_column_embed_text(column: EntityColumn) -> str:
+def entity_column_embed_text(column: AttrDict) -> str:
     parts = [column.display_name]
     if column.description:
         parts.append(column.description)
@@ -35,7 +32,7 @@ def entity_column_embed_text(column: EntityColumn) -> str:
     return " | ".join(parts)
 
 
-def metric_embed_text(metric: Metric) -> str:
+def metric_embed_text(metric: AttrDict) -> str:
     parts = [metric.name]
     if metric.description:
         parts.append(metric.description)
@@ -46,11 +43,11 @@ def metric_embed_text(metric: Metric) -> str:
     return " | ".join(parts)
 
 
-def verified_query_embed_text(query: VerifiedQuery) -> str:
+def verified_query_embed_text(query: AttrDict) -> str:
     return query.nl_question
 
 
-def glossary_term_embed_text(term: BusinessGlossaryTerm) -> str:
+def glossary_term_embed_text(term: AttrDict) -> str:
     parts = [term.term]
     if term.synonyms:
         parts.append(" ".join(term.synonyms))
@@ -60,7 +57,7 @@ def glossary_term_embed_text(term: BusinessGlossaryTerm) -> str:
 
 
 async def reindex_all(
-    session: Session, embedding_client: EmbeddingClient, vector_store: VectorStore
+    db: AttrDatabase, embedding_client: EmbeddingClient, vector_store: VectorStore
 ) -> dict[str, int]:
     summary = {}
 
@@ -76,13 +73,9 @@ async def reindex_all(
         if hasattr(vector_store, "wait_for_tasks"):
             vector_store.wait_for_tasks()
 
-    entities = session.exec(
-        select(Entity).where(Entity.is_exposed == True, Entity.is_deprecated == False)  # noqa: E712
-    ).all()
+    entities = entity_crud.list_exposed_active(db)
     for entity in entities:
-        entity.embed_text = entity_embed_text(entity)
-        session.add(entity)
-    session.commit()
+        entity_crud.update(db, entity.id, embed_text=entity_embed_text(entity))
 
     summary["entities"] = await _index_rows(
         embedding_client,
@@ -93,11 +86,7 @@ async def reindex_all(
         metadata_fn=lambda e: {"entity_id": e.id, "data_source_id": e.data_source_id},
     )
 
-    columns = session.exec(
-        select(EntityColumn).where(
-            EntityColumn.is_exposed == True, EntityColumn.is_deprecated == False  # noqa: E712
-        )
-    ).all()
+    columns = entity_column_crud.list_exposed_active(db)
     summary["entity_columns"] = await _index_rows(
         embedding_client,
         vector_store,
@@ -107,7 +96,7 @@ async def reindex_all(
         metadata_fn=lambda c: {"column_id": c.id, "entity_id": c.entity_id},
     )
 
-    metrics = session.exec(select(Metric)).all()
+    metrics = metric_crud.list_all(db)
     summary["metrics"] = await _index_rows(
         embedding_client,
         vector_store,
@@ -117,9 +106,7 @@ async def reindex_all(
         metadata_fn=lambda m: {"metric_id": m.id, "is_verified": m.is_verified},
     )
 
-    verified_queries = session.exec(
-        select(VerifiedQuery).where(VerifiedQuery.is_verified == True)  # noqa: E712
-    ).all()
+    verified_queries = verified_query_crud.list_verified(db)
     summary["verified_queries"] = await _index_rows(
         embedding_client,
         vector_store,
@@ -129,11 +116,9 @@ async def reindex_all(
         metadata_fn=lambda q: {"query_id": q.id},
     )
     for query in verified_queries:
-        query.embed_text = verified_query_embed_text(query)
-        session.add(query)
-    session.commit()
+        verified_query_crud.update(db, query.id, embed_text=verified_query_embed_text(query))
 
-    glossary_terms = session.exec(select(BusinessGlossaryTerm)).all()
+    glossary_terms = glossary_crud.list_all(db)
     summary["business_glossary"] = await _index_rows(
         embedding_client,
         vector_store,

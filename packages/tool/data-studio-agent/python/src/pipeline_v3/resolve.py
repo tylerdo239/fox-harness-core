@@ -21,22 +21,23 @@ from src.services.schema_linking import RetrievalResult
 class NameResolver:
     """Built once per question from the retrieval candidates. Resolves entity + column names."""
 
-    entity_by_name: dict[str, int]          # normalized table/display name → entity_id
-    column_by_qualified: dict[str, int]     # "table.column" (normalized) → column_id
-    column_by_bare: dict[str, list[int]]    # "column" (normalized) → [column_id, …] (for ambiguity)
-    entity_name_by_id: dict[int, str]       # entity_id → bare table name (for rendering)
+    entity_by_name: dict[str, str]          # normalized table/display name → entity_id
+    column_by_qualified: dict[str, str]     # "table.column" (normalized) → column_id
+    column_by_bare: dict[str, list[str]]    # "column" (normalized) → [column_id, …] (for ambiguity)
+    entity_name_by_id: dict[str, str]       # entity_id → bare table name (for rendering)
 
     @classmethod
-    def from_retrieval(cls, retrieval: RetrievalResult, session) -> "NameResolver":
-        from src.database.models import Entity, EntityColumn
+    def from_retrieval(cls, retrieval: RetrievalResult, db) -> "NameResolver":
+        from src.crud_mongo import entity as entity_crud
+        from src.crud_mongo import entity_column as entity_column_crud
 
-        entity_by_name: dict[str, int] = {}
-        column_by_qualified: dict[str, int] = {}
-        column_by_bare: dict[str, list[int]] = {}
-        entity_name_by_id: dict[int, str] = {}
+        entity_by_name: dict[str, str] = {}
+        column_by_qualified: dict[str, str] = {}
+        column_by_bare: dict[str, list[str]] = {}
+        entity_name_by_id: dict[str, str] = {}
 
         for cand in retrieval.entities:
-            ent = session.get(Entity, cand.id)
+            ent = entity_crud.get_by_id(db, cand.id)
             if ent is None:
                 continue
             table = ent.physical_path.split(".")[-1] if ent.physical_path else ent.display_name
@@ -45,9 +46,7 @@ class NameResolver:
             entity_by_name[_norm(ent.display_name or "")] = cand.id
             entity_name_by_id[cand.id] = table
 
-            cols = session.exec(
-                _exposed_cols_query(EntityColumn, cand.id)
-            ).all()
+            cols = entity_column_crud.list_exposed_by_entity(db, cand.id)
             for c in cols:
                 qual = f"{table_key}.{_norm(c.physical_name)}"
                 column_by_qualified[qual] = c.id
@@ -57,10 +56,10 @@ class NameResolver:
 
         return cls(entity_by_name, column_by_qualified, column_by_bare, entity_name_by_id)
 
-    def entity(self, name: str) -> int | None:
+    def entity(self, name: str) -> str | None:
         return self.entity_by_name.get(_norm(name))
 
-    def column(self, ref: str) -> int | None:
+    def column(self, ref: str) -> str | None:
         """Resolve a column reference. Prefers `table.column`; a bare `column` resolves only when
         unambiguous across candidates. Returns None (→ caller re-plans) for unknown/ambiguous."""
         if ref is None:
@@ -70,16 +69,6 @@ class NameResolver:
             return self.column_by_qualified.get(key)
         hits = self.column_by_bare.get(key, [])
         return hits[0] if len(hits) == 1 else None
-
-
-def _exposed_cols_query(EntityColumn, entity_id: int):
-    from sqlmodel import select
-
-    return select(EntityColumn).where(
-        EntityColumn.entity_id == entity_id,
-        EntityColumn.is_exposed == True,  # noqa: E712
-        EntityColumn.is_deprecated == False,  # noqa: E712
-    )
 
 
 def _norm(s: str) -> str:

@@ -15,7 +15,8 @@
     "recharts": "^3.10.1",
     "rehype-highlight": "^7.0.1",
     "remark-gfm": "^4.0.0",
-    "sonner": "^2.0.8"
+    "sonner": "^2.0.8",
+    "sql-formatter": "^15.9.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

@@ -46,7 +46,8 @@ import {
   type TitleSource,
 } from './db.ts'
 import {
-  addChartWidget,
+  addWidget,
+  availableCharts,
   createDashboard,
   createGlossaryTerm,
   createMetric,
@@ -67,9 +68,9 @@ import {
   listGlossaryTerms,
   listMetrics,
   listRelationships,
-  listWidgets,
-  moveWidget,
-  removeWidget,
+  pinChart,
+  saveWidgets,
+  updateChart,
   updateDashboard,
   updateDataSource,
   updateEntity,
@@ -92,6 +93,7 @@ import {
   touchSession,
   workspaceFiles,
 } from './orchestrator-client.ts'
+import { checkMongoConnection, ensureIndexes } from './mongo.ts'
 import { proxyToWorker } from './proxy.ts'
 import { checkRateLimit, getLiveSessionStatuses, renewToken } from './redis.ts'
 import { loadBuiltinSkills, MAX_SKILLS_PER_USER, validateSkill } from './skills.ts'
@@ -136,25 +138,26 @@ const PROJECT_PROMOTE_PATH = /^\/projects\/([^/]+)\/promote$/
 // docs/data-studio-admin-ui-plan.md — semantic-layer admin CRUD (Data
 // Sources section). Plain numeric ids (SQLModel `Field(primary_key=True)`
 // autoincrement ints), not UUIDs like sessions/projects.
-const DATA_STUDIO_SOURCE_PATH = /^\/data-studio\/sources\/(\d+)$/
-const DATA_STUDIO_SOURCE_ENTITIES_PATH = /^\/data-studio\/sources\/(\d+)\/entities$/
-const DATA_STUDIO_ENTITY_PATH = /^\/data-studio\/entities\/(\d+)$/
-const DATA_STUDIO_ENTITY_COLUMNS_PATH = /^\/data-studio\/entities\/(\d+)\/columns$/
-const DATA_STUDIO_COLUMN_PATH = /^\/data-studio\/columns\/(\d+)$/
+const DATA_STUDIO_SOURCE_PATH = /^\/data-studio\/sources\/([^/]+)$/
+const DATA_STUDIO_SOURCE_ENTITIES_PATH = /^\/data-studio\/sources\/([^/]+)\/entities$/
+const DATA_STUDIO_ENTITY_PATH = /^\/data-studio\/entities\/([^/]+)$/
+const DATA_STUDIO_ENTITY_COLUMNS_PATH = /^\/data-studio\/entities\/([^/]+)\/columns$/
+const DATA_STUDIO_COLUMN_PATH = /^\/data-studio\/columns\/([^/]+)$/
 const DATA_STUDIO_GLOSSARY_PATH = /^\/data-studio\/glossary$/
-const DATA_STUDIO_GLOSSARY_TERM_PATH = /^\/data-studio\/glossary\/(\d+)$/
+const DATA_STUDIO_GLOSSARY_TERM_PATH = /^\/data-studio\/glossary\/([^/]+)$/
 const DATA_STUDIO_BROWSE_ENTITIES_PATH = /^\/data-studio\/browse-entities$/
 const DATA_STUDIO_RELATIONSHIPS_PATH = /^\/data-studio\/relationships$/
-const DATA_STUDIO_RELATIONSHIP_PATH = /^\/data-studio\/relationships\/(\d+)$/
+const DATA_STUDIO_RELATIONSHIP_PATH = /^\/data-studio\/relationships\/([^/]+)$/
 const DATA_STUDIO_METRICS_PATH = /^\/data-studio\/metrics$/
-const DATA_STUDIO_METRIC_PATH = /^\/data-studio\/metrics\/(\d+)$/
+const DATA_STUDIO_METRIC_PATH = /^\/data-studio\/metrics\/([^/]+)$/
 const DATA_STUDIO_DREMIO_BROWSE_PATH = /^\/data-studio\/dremio\/browse$/
 const DATA_STUDIO_DREMIO_SYNC_PATH = /^\/data-studio\/dremio\/sync$/
 const DATA_STUDIO_DASHBOARDS_PATH = /^\/data-studio\/dashboards$/
-const DATA_STUDIO_DASHBOARD_PATH = /^\/data-studio\/dashboards\/(\d+)$/
-const DATA_STUDIO_DASHBOARD_WIDGETS_PATH = /^\/data-studio\/dashboards\/(\d+)\/widgets$/
-const DATA_STUDIO_DASHBOARD_WIDGET_PATH = /^\/data-studio\/dashboards\/(\d+)\/widgets\/(\d+)$/
-const DATA_STUDIO_DASHBOARD_WIDGET_MOVE_PATH = /^\/data-studio\/dashboards\/(\d+)\/widgets\/(\d+)\/move$/
+const DATA_STUDIO_DASHBOARD_PATH = /^\/data-studio\/dashboards\/([^/]+)$/
+const DATA_STUDIO_DASHBOARD_WIDGETS_PATH = /^\/data-studio\/dashboards\/([^/]+)\/widgets$/
+const DATA_STUDIO_DASHBOARD_CHARTS_PATH = /^\/data-studio\/dashboards\/([^/]+)\/charts$/
+const DATA_STUDIO_AVAILABLE_CHARTS_PATH = /^\/data-studio\/dashboards\/meta\/available-charts$/
+const DATA_STUDIO_CHART_PATH = /^\/data-studio\/charts\/([^/]+)$/
 const PROJECT_NAME_MAX = 120
 
 const builtinSkills = loadBuiltinSkills()
@@ -183,11 +186,11 @@ async function parseRelationshipInput(req: IncomingMessage, res: ServerResponse)
     column_pairs.length > 0 &&
     column_pairs.every(
       (pair) =>
-        pair && typeof pair === 'object' && typeof pair.from_column_id === 'number' && typeof pair.to_column_id === 'number',
+        pair && typeof pair === 'object' && typeof pair.from_column_id === 'string' && typeof pair.to_column_id === 'string',
     )
   if (
-    typeof from_entity_id !== 'number' ||
-    typeof to_entity_id !== 'number' ||
+    typeof from_entity_id !== 'string' ||
+    typeof to_entity_id !== 'string' ||
     typeof cardinality !== 'string' ||
     typeof join_type_default !== 'string' ||
     !pairsValid
@@ -763,7 +766,7 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      sendJson(res, 200, listDataSources())
+      sendJson(res, 200, await listDataSources())
     })()
     return
   }
@@ -773,9 +776,9 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const sourceId = Number(sourceMatch[1])
+      const sourceId = sourceMatch[1]
       if (req.method === 'GET') {
-        const source = getDataSource(sourceId)
+        const source = await getDataSource(sourceId)
         return source ? sendJson(res, 200, source) : sendJson(res, 404, { error: 'data source not found' })
       }
       let body: Record<string, unknown>
@@ -784,7 +787,7 @@ const server = createServer((req, res) => {
       } catch {
         return sendJson(res, 400, { error: 'invalid JSON body' })
       }
-      const updated = updateDataSource(sourceId, body)
+      const updated = await updateDataSource(sourceId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'data source not found' })
     })()
     return
@@ -795,7 +798,7 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      sendJson(res, 200, listEntitiesForSource(Number(sourceEntitiesMatch[1])))
+      sendJson(res, 200, await listEntitiesForSource(sourceEntitiesMatch[1]))
     })()
     return
   }
@@ -805,7 +808,7 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      sendJson(res, 200, listColumnsForEntity(Number(entityColumnsMatch[1])))
+      sendJson(res, 200, await listColumnsForEntity(entityColumnsMatch[1]))
     })()
     return
   }
@@ -815,9 +818,9 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const entityId = Number(entityMatch[1])
+      const entityId = entityMatch[1]
       if (req.method === 'GET') {
-        const entity = getEntity(entityId)
+        const entity = await getEntity(entityId)
         return entity ? sendJson(res, 200, entity) : sendJson(res, 404, { error: 'entity not found' })
       }
       let body: Record<string, unknown>
@@ -826,7 +829,7 @@ const server = createServer((req, res) => {
       } catch {
         return sendJson(res, 400, { error: 'invalid JSON body' })
       }
-      const updated = updateEntity(entityId, body)
+      const updated = await updateEntity(entityId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'entity not found' })
     })()
     return
@@ -837,9 +840,9 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const columnId = Number(columnMatch[1])
+      const columnId = columnMatch[1]
       if (req.method === 'GET') {
-        const column = getEntityColumn(columnId)
+        const column = await getEntityColumn(columnId)
         return column ? sendJson(res, 200, column) : sendJson(res, 404, { error: 'column not found' })
       }
       let body: Record<string, unknown>
@@ -848,7 +851,7 @@ const server = createServer((req, res) => {
       } catch {
         return sendJson(res, 400, { error: 'invalid JSON body' })
       }
-      const updated = updateEntityColumn(columnId, body)
+      const updated = await updateEntityColumn(columnId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'column not found' })
     })()
     return
@@ -858,7 +861,7 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      if (req.method === 'GET') return sendJson(res, 200, listGlossaryTerms())
+      if (req.method === 'GET') return sendJson(res, 200, await listGlossaryTerms())
       let body: { term?: unknown; definition_text?: unknown; synonyms?: unknown; sql_expressions?: unknown; related_entity_ids?: unknown }
       try {
         body = JSON.parse(await readBody(req))
@@ -868,7 +871,7 @@ const server = createServer((req, res) => {
       if (typeof body.term !== 'string' || !body.term.trim() || typeof body.definition_text !== 'string' || !body.definition_text.trim()) {
         return sendJson(res, 400, { error: 'term and definition_text are required' })
       }
-      const created = createGlossaryTerm({
+      const created = await createGlossaryTerm({
         term: body.term,
         definition_text: body.definition_text,
         synonyms: Array.isArray(body.synonyms) ? body.synonyms : undefined,
@@ -886,9 +889,9 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const termId = Number(glossaryTermMatch[1])
+      const termId = glossaryTermMatch[1]
       if (req.method === 'DELETE') {
-        if (!deleteGlossaryTerm(termId)) return sendJson(res, 404, { error: 'term not found' })
+        if (!await deleteGlossaryTerm(termId)) return sendJson(res, 404, { error: 'term not found' })
         res.writeHead(204)
         return res.end()
       }
@@ -898,7 +901,7 @@ const server = createServer((req, res) => {
       } catch {
         return sendJson(res, 400, { error: 'invalid JSON body' })
       }
-      const updated = updateGlossaryTerm(termId, body)
+      const updated = await updateGlossaryTerm(termId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'term not found' })
     })()
     return
@@ -908,7 +911,7 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      sendJson(res, 200, listBrowseEntities())
+      sendJson(res, 200, await listBrowseEntities())
     })()
     return
   }
@@ -917,10 +920,10 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      if (req.method === 'GET') return sendJson(res, 200, listRelationships())
+      if (req.method === 'GET') return sendJson(res, 200, await listRelationships())
       const input = await parseRelationshipInput(req, res)
       if (!input) return
-      sendJson(res, 201, createRelationship(input))
+      sendJson(res, 201, await createRelationship(input))
     })()
     return
   }
@@ -931,15 +934,15 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const relationshipId = Number(relationshipMatch[1])
+      const relationshipId = relationshipMatch[1]
       if (req.method === 'DELETE') {
-        if (!deleteRelationship(relationshipId)) return sendJson(res, 404, { error: 'relationship not found' })
+        if (!await deleteRelationship(relationshipId)) return sendJson(res, 404, { error: 'relationship not found' })
         res.writeHead(204)
         return res.end()
       }
       const input = await parseRelationshipInput(req, res)
       if (!input) return
-      const updated = updateRelationship(relationshipId, input)
+      const updated = await updateRelationship(relationshipId, input)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'relationship not found' })
     })()
     return
@@ -949,7 +952,7 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      if (req.method === 'GET') return sendJson(res, 200, listMetrics())
+      if (req.method === 'GET') return sendJson(res, 200, await listMetrics())
       let body: Record<string, unknown>
       try {
         body = JSON.parse(await readBody(req))
@@ -959,13 +962,13 @@ const server = createServer((req, res) => {
       const { name, base_entity_id, aggregation, measure_column_id } = body
       if (
         typeof name !== 'string' || !name.trim() ||
-        typeof base_entity_id !== 'number' ||
+        typeof base_entity_id !== 'string' ||
         typeof aggregation !== 'string' ||
-        typeof measure_column_id !== 'number'
+        typeof measure_column_id !== 'string'
       ) {
         return sendJson(res, 400, { error: 'name, base_entity_id, aggregation, and measure_column_id are required' })
       }
-      sendJson(res, 201, createMetric(body as unknown as MetricInput))
+      sendJson(res, 201, await createMetric(body as unknown as MetricInput))
     })()
     return
   }
@@ -975,9 +978,9 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const metricId = Number(metricMatch[1])
+      const metricId = metricMatch[1]
       if (req.method === 'DELETE') {
-        if (!deleteMetric(metricId)) return sendJson(res, 404, { error: 'metric not found' })
+        if (!await deleteMetric(metricId)) return sendJson(res, 404, { error: 'metric not found' })
         res.writeHead(204)
         return res.end()
       }
@@ -987,7 +990,7 @@ const server = createServer((req, res) => {
       } catch {
         return sendJson(res, 400, { error: 'invalid JSON body' })
       }
-      const updated = updateMetric(metricId, body)
+      const updated = await updateMetric(metricId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'metric not found' })
     })()
     return
@@ -1038,19 +1041,65 @@ const server = createServer((req, res) => {
     return
   }
 
+  // Charts + dashboards — clone of the reference UI's flows (edit fields / colors, add to dashboard, dashboard
+  // list / report / builder). Native JSON shapes, same contracts as bot-data-studio-api's dashboard routes.
+  const readJson = async (): Promise<Record<string, unknown> | undefined> => {
+    try {
+      const parsed = JSON.parse(await readBody(req))
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : undefined
+    } catch {
+      return undefined
+    }
+  }
+  const asStringArray = (value: unknown): string[] | null | undefined =>
+    value === null ? null : Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : undefined
+  const asStringMap = (value: unknown): Record<string, string> | null | undefined =>
+    value === null
+      ? null
+      : value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).filter((e): e is [string, string] => typeof e[1] === 'string'))
+        : undefined
+
+  if (req.method === 'GET' && DATA_STUDIO_AVAILABLE_CHARTS_PATH.test(url.pathname)) {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      sendJson(res, 200, await availableCharts())
+    })()
+    return
+  }
+
+  const chartMatch = req.method === 'PATCH' ? DATA_STUDIO_CHART_PATH.exec(url.pathname) : null
+  if (chartMatch) {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const body = await readJson()
+      if (!body) return sendJson(res, 400, { error: 'invalid JSON body' })
+      const patch: Parameters<typeof updateChart>[1] = {}
+      if ('title_override' in body) patch.title_override = typeof body.title_override === 'string' ? body.title_override : null
+      if ('x_override' in body) patch.x_override = typeof body.x_override === 'string' ? body.x_override : null
+      if ('y_override' in body) patch.y_override = asStringArray(body.y_override) ?? null
+      if ('color_overrides' in body) patch.color_overrides = asStringMap(body.color_overrides) ?? {}
+      if ('label_overrides' in body) patch.label_overrides = asStringMap(body.label_overrides) ?? {}
+      const updated = await updateChart(chartMatch[1], patch)
+      return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'chart not found' })
+    })()
+    return
+  }
+
   if (DATA_STUDIO_DASHBOARDS_PATH.test(url.pathname) && (req.method === 'GET' || req.method === 'POST')) {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      if (req.method === 'GET') return sendJson(res, 200, listDashboards())
-      let body: { title?: unknown; description?: unknown }
-      try {
-        body = JSON.parse(await readBody(req))
-      } catch {
-        return sendJson(res, 400, { error: 'invalid JSON body' })
-      }
-      if (typeof body.title !== 'string' || !body.title.trim()) return sendJson(res, 400, { error: 'title is required' })
-      sendJson(res, 201, createDashboard(body.title, typeof body.description === 'string' ? body.description : ''))
+      if (req.method === 'GET') return sendJson(res, 200, await listDashboards())
+      const body = await readJson()
+      if (!body) return sendJson(res, 400, { error: 'invalid JSON body' })
+      sendJson(
+        res,
+        201,
+        await createDashboard(typeof body.title === 'string' ? body.title : undefined, typeof body.description === 'string' ? body.description : undefined),
+      )
     })()
     return
   }
@@ -1060,74 +1109,80 @@ const server = createServer((req, res) => {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const dashboardId = Number(dashboardMatch[1])
+      const dashboardId = dashboardMatch[1]
       if (req.method === 'DELETE') {
-        if (!deleteDashboard(dashboardId)) return sendJson(res, 404, { error: 'dashboard not found' })
-        res.writeHead(204)
-        return res.end()
+        if (!(await deleteDashboard(dashboardId))) return sendJson(res, 404, { error: 'dashboard not found' })
+        return sendJson(res, 200, { deleted: true })
       }
       if (req.method === 'GET') {
-        const dashboard = getDashboard(dashboardId)
-        if (!dashboard) return sendJson(res, 404, { error: 'dashboard not found' })
-        return sendJson(res, 200, { ...dashboard, widgets: listWidgets(dashboardId) })
+        const dashboard = await getDashboard(dashboardId)
+        return dashboard ? sendJson(res, 200, dashboard) : sendJson(res, 404, { error: 'dashboard not found' })
       }
-      let body: Record<string, unknown>
-      try {
-        body = JSON.parse(await readBody(req))
-      } catch {
-        return sendJson(res, 400, { error: 'invalid JSON body' })
-      }
-      const updated = updateDashboard(dashboardId, body)
+      const body = await readJson()
+      if (!body) return sendJson(res, 400, { error: 'invalid JSON body' })
+      const updated = await updateDashboard(dashboardId, {
+        title: typeof body.title === 'string' ? body.title : null,
+        description: typeof body.description === 'string' ? body.description : null,
+        appearance: body.appearance && typeof body.appearance === 'object' && !Array.isArray(body.appearance) ? (body.appearance as Record<string, unknown>) : null,
+      })
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'dashboard not found' })
     })()
     return
   }
 
-  const widgetsMatch = req.method === 'POST' ? DATA_STUDIO_DASHBOARD_WIDGETS_PATH.exec(url.pathname) : null
+  // "Thêm vào dashboard" from a chat chart.
+  const pinMatch = req.method === 'POST' ? DATA_STUDIO_DASHBOARD_CHARTS_PATH.exec(url.pathname) : null
+  if (pinMatch) {
+    void (async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const body = await readJson()
+      if (!body || typeof body.chart_id !== 'string') return sendJson(res, 400, { error: 'chart_id is required' })
+      const result = await pinChart(pinMatch[1], body.chart_id)
+      if (result === 'no-dashboard') return sendJson(res, 404, { error: 'dashboard not found' })
+      if (result === 'no-chart') return sendJson(res, 404, { error: 'chart not found' })
+      sendJson(res, 200, result)
+    })()
+    return
+  }
+
+  const widgetsMatch = req.method === 'POST' || req.method === 'PUT' ? DATA_STUDIO_DASHBOARD_WIDGETS_PATH.exec(url.pathname) : null
   if (widgetsMatch) {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const dashboardId = Number(widgetsMatch[1])
-      if (!getDashboard(dashboardId)) return sendJson(res, 404, { error: 'dashboard not found' })
-      let body: { chart_id?: unknown }
-      try {
-        body = JSON.parse(await readBody(req))
-      } catch {
-        return sendJson(res, 400, { error: 'invalid JSON body' })
+      const dashboardId = widgetsMatch[1]
+      const body = await readJson()
+      if (!body) return sendJson(res, 400, { error: 'invalid JSON body' })
+      if (req.method === 'PUT') {
+        // Builder "Xuất bản": bulk-save the layout (update kept, create new, delete missing).
+        const list = Array.isArray(body.widgets) ? body.widgets : []
+        const widgets = list
+          .filter((w): w is Record<string, unknown> => !!w && typeof w === 'object')
+          .map((w) => ({
+            id: typeof w.id === 'string' ? w.id : null,
+            kind: typeof w.kind === 'string' ? w.kind : 'chart',
+            chart_id: typeof w.chart_id === 'string' ? w.chart_id : null,
+            x: Number.isFinite(w.x) ? Number(w.x) : 0,
+            y: Number.isFinite(w.y) ? Number(w.y) : 0,
+            w: Number.isFinite(w.w) ? Number(w.w) : 6,
+            h: Number.isFinite(w.h) ? Number(w.h) : 4,
+            title_override: typeof w.title_override === 'string' ? w.title_override : null,
+            note: typeof w.note === 'string' ? w.note : null,
+            text: typeof w.text === 'string' ? w.text : null,
+          }))
+        const saved = await saveWidgets(dashboardId, widgets)
+        return saved ? sendJson(res, 200, saved) : sendJson(res, 404, { error: 'dashboard not found' })
       }
-      if (typeof body.chart_id !== 'number') return sendJson(res, 400, { error: 'chart_id is required' })
-      sendJson(res, 201, addChartWidget(dashboardId, body.chart_id))
-    })()
-    return
-  }
-
-  const widgetMoveMatch = req.method === 'POST' ? DATA_STUDIO_DASHBOARD_WIDGET_MOVE_PATH.exec(url.pathname) : null
-  if (widgetMoveMatch) {
-    void (async () => {
-      const identity = await identityFromRequest(req, url)
-      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      let body: { direction?: unknown }
-      try {
-        body = JSON.parse(await readBody(req))
-      } catch {
-        return sendJson(res, 400, { error: 'invalid JSON body' })
-      }
-      if (body.direction !== 'up' && body.direction !== 'down') return sendJson(res, 400, { error: 'direction must be "up" or "down"' })
-      const moved = moveWidget(Number(widgetMoveMatch[1]), Number(widgetMoveMatch[2]), body.direction)
-      return moved ? sendJson(res, 200, { moved: true }) : sendJson(res, 404, { error: 'widget not found or already at that end' })
-    })()
-    return
-  }
-
-  const widgetMatch = req.method === 'DELETE' ? DATA_STUDIO_DASHBOARD_WIDGET_PATH.exec(url.pathname) : null
-  if (widgetMatch) {
-    void (async () => {
-      const identity = await identityFromRequest(req, url)
-      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      if (!removeWidget(Number(widgetMatch[1]), Number(widgetMatch[2]))) return sendJson(res, 404, { error: 'widget not found' })
-      res.writeHead(204)
-      return res.end()
+      const added = await addWidget(dashboardId, {
+        kind: typeof body.kind === 'string' ? body.kind : undefined,
+        chart_id: typeof body.chart_id === 'string' ? body.chart_id : null,
+        text: typeof body.text === 'string' ? body.text : null,
+        title: typeof body.title === 'string' ? body.title : null,
+      })
+      if (added === 'no-dashboard') return sendJson(res, 404, { error: 'dashboard not found' })
+      if (added === 'no-chart') return sendJson(res, 404, { error: 'chart not found' })
+      sendJson(res, 200, added)
     })()
     return
   }
@@ -1389,6 +1444,14 @@ server.on('upgrade', (req, socket, head) => {
       )
     })
   })()
+})
+
+// Data Studio's MongoDB (docs/data-studio-mongodb-plan.md). Non-fatal on purpose: chat, auth and
+// projects don't need it, so an unreachable Mongo only breaks the /data-studio/* routes (which then
+// fail per request) instead of taking the whole gateway down.
+void checkMongoConnection().then(async (ok) => {
+  log('mongo_check', { ok })
+  if (ok) await ensureIndexes()
 })
 
 server.listen(config.port, () => {

@@ -101,6 +101,7 @@ import {
   SkillApiError,
 } from "../skills/skillsApi.ts";
 import { ChartView, type ChartSpec } from "./ChartView.tsx";
+import { DataStudioAnswer, PinToDashboardButton } from "./DataStudioAnswer.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
 import { WorkspacePanel } from "./WorkspacePanel.tsx";
@@ -174,10 +175,15 @@ interface DataStudioMeta {
   rows: Record<string, unknown>[];
   rowCount: number;
   chart: ChartSpec | null;
-  // docs/data-studio-admin-ui-plan.md phase 5 — the real charts_chat row id
-  // (bridge/runner.py's `_persist_chart`), when `chart` is present. Lets
+  // docs/data-studio-admin-ui-plan.md phase 5 — the real `charts` document id
+  // (uuid string, bridge/runner.py's `_persist_chart`), when `chart` is present. Lets
   // DataStudioResultPill offer "pin to dashboard".
-  chartId: number | null;
+  chartId: string | null;
+  // Every visual chart (recommended first), each with its own rows + persisted chart_id, plus the
+  // pipeline's follow-up suggestions and assumptions — rendered by DataStudioAnswer.
+  charts: ChartSpec[];
+  followUps: string[];
+  assumptions: string[];
   truncated: boolean;
 }
 
@@ -197,9 +203,22 @@ function parseDataStudioMeta(meta: unknown): DataStudioMeta | undefined {
     ),
     rowCount: typeof record.rowCount === "number" ? record.rowCount : 0,
     chart,
-    chartId: typeof record.chartId === "number" ? record.chartId : null,
+    chartId: typeof record.chartId === "string" ? record.chartId : null,
+    charts: Array.isArray(record.charts)
+      ? record.charts
+          .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
+          .map((c) => c as ChartSpec)
+      : chart
+        ? [chart]
+        : [],
+    followUps: strings(record.followUps),
+    assumptions: strings(record.assumptions),
     truncated: record.truncated === true,
   };
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim() !== "") : [];
 }
 
 // ---- Declarative log state.
@@ -262,7 +281,10 @@ type LogEntry =
       rows: Record<string, unknown>[];
       rowCount: number;
       chart: ChartSpec | null;
-      chartId: number | null;
+      chartId: string | null;
+      charts: ChartSpec[];
+      assumptions: string[];
+      followUps: string[];
       truncated: boolean;
     }
   | { kind: "bubble"; id: string; role: "user" | "assistant"; text: string };
@@ -538,95 +560,9 @@ function rowsToMarkdownTable(columns: string[], rows: Record<string, unknown>[])
   return [header, divider, ...body].join("\n");
 }
 
-// docs/data-studio-agent-transfer-plan.md — result pill for `analyze_data`.
-// Collapsed by default, same `expandedDetails`/`toggleDetailExpanded` state
-// every other pill in this file uses.
-// docs/data-studio-admin-ui-plan.md phase 5 — "pin this chart to a
-// dashboard" next to an already-persisted chart (the real row `chartId`
-// references, created by bridge/runner.py's `_persist_chart`). Fetches the
-// dashboard list lazily (only when opened) — this pill can render many times
-// per conversation and most are never opened.
-function PinToDashboardButton({
-  chartId,
-  t,
-}: {
-  chartId: number;
-  t: (key: TranslationKey, params?: Record<string, string>) => string;
-}) {
-  const runtime = useRuntime();
-  const [open, setOpen] = useState(false);
-  const [dashboards, setDashboards] = useState<{ id: number; title: string }[] | null>(null);
-  const [pinning, setPinning] = useState(false);
-
-  async function loadDashboards(): Promise<void> {
-    const res = await runtime.authedFetch("/data-studio/dashboards");
-    if (res.ok) setDashboards(await res.json());
-  }
-
-  async function pinTo(dashboardId: number): Promise<void> {
-    setPinning(true);
-    const res = await runtime.authedFetch(`/data-studio/dashboards/${dashboardId}/widgets`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chart_id: chartId }),
-    });
-    setPinning(false);
-    setOpen(false);
-    if (res.ok) toast.success(t("conversation.pinnedToDashboard"));
-    else toast.error(t("conversation.pinFailed"));
-  }
-
-  async function pinToNewDashboard(): Promise<void> {
-    setPinning(true);
-    const created = await runtime.authedFetch("/data-studio/dashboards", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title: t("dataStudio.untitledDashboard") }),
-    });
-    if (!created.ok) {
-      setPinning(false);
-      setOpen(false);
-      toast.error(t("conversation.pinFailed"));
-      return;
-    }
-    const dashboard = await created.json();
-    await pinTo(dashboard.id);
-  }
-
-  return (
-    <div className="data-studio-pin">
-      <Button
-        variant="outline"
-        onClick={() => {
-          const next = !open;
-          setOpen(next);
-          if (next && dashboards === null) void loadDashboards();
-        }}
-      >
-        <PinIcon size={13} /> {t("conversation.pinToDashboard")}
-      </Button>
-      {open && (
-        <div className="data-studio-pin-popup">
-          {dashboards === null ? (
-            <div className="data-studio-pin-loading">{t("dataStudio.loading")}</div>
-          ) : (
-            <>
-              {dashboards.map((dashboard) => (
-                <button key={dashboard.id} type="button" disabled={pinning} onClick={() => pinTo(dashboard.id)}>
-                  {dashboard.title}
-                </button>
-              ))}
-              <button type="button" disabled={pinning} onClick={pinToNewDashboard}>
-                + {t("dataStudio.newDashboard")}
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
+// docs/data-studio-agent-transfer-plan.md — result pill for `analyze_data` (default chat only; the Data Studio
+// route renders `DataStudioAnswer` inline instead). Collapsed by default, same `expandedDetails`/
+// `toggleDetailExpanded` state every other pill in this file uses.
 function DataStudioResultPill({
   entry,
   expanded,
@@ -712,6 +648,7 @@ function LogEntryView({
   isExpanded,
   onToggleExpanded,
   alwaysExpandDataStudio,
+  onFollowUp,
   t,
   locale,
 }: {
@@ -719,6 +656,7 @@ function LogEntryView({
   isExpanded: (id: string) => boolean;
   onToggleExpanded: (id: string) => void;
   alwaysExpandDataStudio: boolean;
+  onFollowUp: (question: string) => void;
   t: (key: TranslationKey, params?: Record<string, string>) => string;
   locale: Locale;
 }) {
@@ -745,6 +683,9 @@ function LogEntryView({
         />
       );
     case "data-studio":
+      // The Data Studio route shows the reply inline (answer, SQL toggle, chart switcher, suggestions)
+      // like a normal assistant message; the default chat keeps the collapsible pill.
+      if (alwaysExpandDataStudio) return <DataStudioAnswer entry={entry} onFollowUp={onFollowUp} t={t} />;
       return (
         <DataStudioResultPill
           entry={entry}
@@ -1123,6 +1064,9 @@ export function Conversation({
             rowCount: 0,
             chart: null,
             chartId: null,
+            charts: [],
+            assumptions: [],
+            followUps: [],
             truncated: false,
           });
           break;
@@ -1178,6 +1122,9 @@ export function Conversation({
                   rowCount: parsed?.rowCount ?? 0,
                   chart: parsed?.chart ?? null,
                   chartId: parsed?.chartId ?? null,
+                  charts: parsed?.charts ?? [],
+                  assumptions: parsed?.assumptions ?? [],
+                  followUps: parsed?.followUps ?? [],
                   truncated: parsed?.truncated ?? false,
                 }
               : entry,
@@ -1433,6 +1380,7 @@ export function Conversation({
               isExpanded={(id) => expandedDetails.has(id)}
               onToggleExpanded={toggleDetailExpanded}
               alwaysExpandDataStudio={variant === "data-studio"}
+              onFollowUp={(question) => runtime.send({ type: "followup", text: question })}
               t={t}
               locale={locale}
             />

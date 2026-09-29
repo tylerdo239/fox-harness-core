@@ -16,9 +16,9 @@ Graph traversal reuses v1's relationship/column-pair model; only the classificat
 
 from collections import deque
 
-from sqlmodel import Session, select
-
-from src.database.models import EntityColumn, EntityRelationship, RelationshipColumnPair
+from src.crud_mongo import entity_column as entity_column_crud
+from src.crud_mongo import relationship as relationship_crud
+from src.database.mongodb import AttrDatabase
 from src.database.models.enums import Cardinality
 from src.pipeline_v2.state import (
     ClarificationNeeded,
@@ -29,7 +29,7 @@ from src.pipeline_v2.state import (
 )
 
 
-def run_step6(session: Session, state: PipelineState) -> None:
+def run_step6(db: AttrDatabase, state: PipelineState) -> None:
     target_ids = list(dict.fromkeys(state.target_entity_ids))
     grain_id = state.grain_entity_id or (target_ids[0] if target_ids else None)
     if grain_id is None:
@@ -40,7 +40,7 @@ def run_step6(session: Session, state: PipelineState) -> None:
         state.join_plan = JoinPlanV2(strategy=JoinStrategy.NONE)
         return
 
-    adjacency = _build_adjacency(session)
+    adjacency = _build_adjacency(db)
     edges, unreachable, ambiguous = _connect(adjacency, grain_id, target_ids)
 
     if ambiguous:
@@ -52,8 +52,8 @@ def run_step6(session: Session, state: PipelineState) -> None:
             )
         )
 
-    join_edges = [_to_join_edge(session, e, grain_id, adjacency) for e in edges]
-    strategy, note, expanding = _classify(session, state, grain_id, join_edges)
+    join_edges = [_to_join_edge(db, e) for e in edges]
+    strategy, note, expanding = _classify(db, state, grain_id, join_edges)
 
     state.join_plan = JoinPlanV2(
         strategy=strategy,
@@ -70,16 +70,16 @@ def run_step6(session: Session, state: PipelineState) -> None:
 
 # ── graph layer (mirrors v1 join_path, kept local so v2 can evolve independently) ──
 
-def _build_adjacency(session: Session) -> dict[int, list[tuple[EntityRelationship, int, int]]]:
-    rels = session.exec(select(EntityRelationship)).all()
-    adj: dict[int, list[tuple[EntityRelationship, int, int]]] = {}
+def _build_adjacency(db: AttrDatabase) -> dict[str, list[tuple]]:
+    rels = relationship_crud.list_all(db)
+    adj: dict[str, list[tuple]] = {}
     for rel in rels:
         adj.setdefault(rel.from_entity_id, []).append((rel, rel.from_entity_id, rel.to_entity_id))
         adj.setdefault(rel.to_entity_id, []).append((rel, rel.to_entity_id, rel.from_entity_id))
     return adj
 
 
-def _bfs(adjacency, start_nodes: set[int], target: int):
+def _bfs(adjacency, start_nodes: set[str], target: str):
     if target in start_nodes:
         return []
     visited = set(start_nodes)
@@ -97,13 +97,13 @@ def _bfs(adjacency, start_nodes: set[int], target: int):
     return None
 
 
-def _connect(adjacency, grain_id: int, target_ids: list[int]):
+def _connect(adjacency, grain_id: str, target_ids: list[str]):
     """Grow a tree from the grain entity to every target. Returns (edges, unreachable,
     ambiguous_labels). Ambiguity = two shortest paths of equal length through different
     intermediate entities to the same target."""
     connected = {grain_id}
-    edges: list[tuple[EntityRelationship, int, int]] = []
-    unreachable: list[int] = []
+    edges: list[tuple] = []
+    unreachable: list[str] = []
     ambiguous: list[str] = []
 
     remaining = [t for t in target_ids if t != grain_id]
@@ -122,7 +122,7 @@ def _connect(adjacency, grain_id: int, target_ids: list[int]):
     return edges, unreachable, ambiguous
 
 
-def _has_equal_length_alternative(adjacency, start_nodes, target: int, best_len: int) -> bool:
+def _has_equal_length_alternative(adjacency, start_nodes, target: str, best_len: int) -> bool:
     """Detect a second distinct shortest path of the same length reaching target through a
     different immediate neighbor of the connected set. Cheap ambiguity signal — catches the
     common 'two equally-short ways to join' case without enumerating all paths.
@@ -130,7 +130,7 @@ def _has_equal_length_alternative(adjacency, start_nodes, target: int, best_len:
     For each neighbor of the connected set, we ask: is there a shortest path from that single
     neighbor to target whose total length (plus the one hop to reach the neighbor) equals
     best_len? If two different neighbors both qualify, the join is ambiguous."""
-    qualifying_neighbors: set[int] = set()
+    qualifying_neighbors: set[str] = set()
     for node in start_nodes:
         for _rel, _from_id, to_id in adjacency.get(node, []):
             if to_id in start_nodes:
@@ -141,25 +141,22 @@ def _has_equal_length_alternative(adjacency, start_nodes, target: int, best_len:
     return len(qualifying_neighbors) > 1
 
 
-def _load_column_pair(session: Session, rel: EntityRelationship, from_id: int, to_id: int):
-    pair = session.exec(
-        select(RelationshipColumnPair)
-        .where(RelationshipColumnPair.relationship_id == rel.id)
-        .order_by(RelationshipColumnPair.seq)
-    ).first()
-    if pair is None:
+def _load_column_pair(db: AttrDatabase, rel, from_id: str, to_id: str):
+    pairs = relationship_crud.list_column_pairs(db, rel.id)
+    if not pairs:
         return None, None
-    from_col = session.get(EntityColumn, pair.from_column_id)
-    to_col = session.get(EntityColumn, pair.to_column_id)
+    pair = pairs[0]
+    from_col = entity_column_crud.get_by_id(db, pair.from_column_id)
+    to_col = entity_column_crud.get_by_id(db, pair.to_column_id)
     reversed_dir = from_id != rel.from_entity_id
     if reversed_dir:
         from_col, to_col = to_col, from_col
     return from_col, to_col
 
 
-def _to_join_edge(session, edge, grain_id: int, adjacency) -> JoinEdge:
+def _to_join_edge(db: AttrDatabase, edge) -> JoinEdge:
     rel, from_id, to_id = edge
-    from_col, to_col = _load_column_pair(session, rel, from_id, to_id)
+    from_col, to_col = _load_column_pair(db, rel, from_id, to_id)
     # cardinality is stored on the relationship in its canonical from->to direction; if we
     # traverse it reversed, a 1:N becomes N:1 for the purpose of "does moving to to_id expand".
     expands = _edge_expands(rel, from_id)
@@ -168,12 +165,12 @@ def _to_join_edge(session, edge, grain_id: int, adjacency) -> JoinEdge:
         to_entity_id=to_id,
         from_column_physical=from_col.physical_name if from_col else "",
         to_column_physical=to_col.physical_name if to_col else "",
-        cardinality=rel.cardinality.value,
+        cardinality=rel.cardinality,
         expands_from_grain=expands,
     )
 
 
-def _edge_expands(rel: EntityRelationship, from_id: int) -> bool:
+def _edge_expands(rel, from_id: str) -> bool:
     """Does traversing this edge away from `from_id` multiply rows (land on the N side)?
     Canonical direction is rel.from_entity_id -> rel.to_entity_id."""
     if rel.cardinality == Cardinality.ONE_TO_ONE:
@@ -186,14 +183,14 @@ def _edge_expands(rel: EntityRelationship, from_id: int) -> bool:
 
 # ── classification (the new logic) ──
 
-def _classify(session, state: PipelineState, grain_id: int, edges: list[JoinEdge]):
+def _classify(db: AttrDatabase, state: PipelineState, grain_id: str, edges: list[JoinEdge]):
     if not edges:
         return JoinStrategy.NONE, None, []
 
     expanding_branches = [e.to_entity_id for e in edges if e.expands_from_grain]
 
     # measures aggregated in this query, with the entity each measure column lives on
-    measure_entity_ids = _measure_entity_ids(session, state)
+    measure_entity_ids = _measure_entity_ids(db, state)
 
     problems: list[str] = []
     # a measure on the one-side sitting under an expanding branch → duplication
@@ -216,17 +213,17 @@ def _classify(session, state: PipelineState, grain_id: int, edges: list[JoinEdge
     return JoinStrategy.NONE, None, []
 
 
-def _measure_entity_ids(session, state: PipelineState) -> set[int]:
-    ids: set[int] = set()
+def _measure_entity_ids(db: AttrDatabase, state: PipelineState) -> set[str]:
+    ids: set[str] = set()
     for m in state.metrics:
         if m.expr_column_id is not None:
-            col = session.get(EntityColumn, m.expr_column_id)
+            col = entity_column_crud.get_by_id(db, m.expr_column_id)
             if col is not None:
                 ids.add(col.entity_id)
     return ids
 
 
-def _measure_on_one_side(measure_entity_ids: set[int], edge: JoinEdge, grain_id: int) -> bool:
+def _measure_on_one_side(measure_entity_ids: set[str], edge: JoinEdge, grain_id: str) -> bool:
     """True if a measure lives on the 'one' side of an expanding edge (the grain/parent side),
     meaning the join would duplicate that measure value across the many-side child rows."""
     return edge.from_entity_id in measure_entity_ids and edge.from_entity_id == grain_id

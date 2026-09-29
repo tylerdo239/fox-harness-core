@@ -3,9 +3,9 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlmodel import Session, select
-
-from src.database.models import Entity, EntityColumn
+from src.crud_mongo import entity as entity_crud
+from src.crud_mongo import entity_column as entity_column_crud
+from src.database.mongodb import AttrDatabase
 from src.services.dremio_client import DremioClient, DremioQueryError
 
 FANOUT_RATIO_THRESHOLD = 3.0
@@ -37,10 +37,10 @@ class ExecutionResult:
 
 
 def execute_and_check(
-    session: Session,
+    db: AttrDatabase,
     client: DremioClient,
     sql: str,
-    base_entity_id: int,
+    base_entity_id: str | None,
     fetch_limit: int = 500,
     timeout_sec: float = 60,
 ) -> ExecutionResult:
@@ -57,12 +57,12 @@ def execute_and_check(
     row_count = result["row_count"]
 
     execution = ExecutionResult(success=True, rows=rows, row_count=row_count, latency_ms=latency_ms)
-    execution.sanity_flags = _run_sanity_checks(session, rows, row_count, base_entity_id)
+    execution.sanity_flags = _run_sanity_checks(db, rows, row_count, base_entity_id)
     return execution
 
 
 def _run_sanity_checks(
-    session: Session, rows: list[dict[str, Any]], row_count: int, base_entity_id: int
+    db: AttrDatabase, rows: list[dict[str, Any]], row_count: int, base_entity_id: str | None
 ) -> list[SanityFlag]:
     flags: list[SanityFlag] = []
 
@@ -70,7 +70,7 @@ def _run_sanity_checks(
         flags.append(SanityFlag(SanityFlagType.EMPTY_RESULT, "Query returned no rows"))
         return flags
 
-    base_entity = session.get(Entity, base_entity_id)
+    base_entity = entity_crud.get_by_id(db, base_entity_id)
     if base_entity is not None and base_entity.row_count_est:
         ratio = row_count / base_entity.row_count_est
         if ratio > FANOUT_RATIO_THRESHOLD:
@@ -96,25 +96,20 @@ def _run_sanity_checks(
                     )
                 )
 
-        flags.extend(_check_implausible_values(session, rows, column_names, base_entity_id))
+        flags.extend(_check_implausible_values(db, rows, column_names, base_entity_id))
 
     return flags
 
 
 def _check_implausible_values(
-    session: Session, rows: list[dict[str, Any]], column_names: list[str], base_entity_id: int
+    db: AttrDatabase, rows: list[dict[str, Any]], column_names: list[str], base_entity_id: str | None
 ) -> list[SanityFlag]:
     """Only checks columns that unambiguously belong to the base entity. Columns pulled in via
     joins aren't checked here since raw result rows don't carry per-column table provenance."""
     flags: list[SanityFlag] = []
 
     for col_name in column_names:
-        profile = session.exec(
-            select(EntityColumn).where(
-                EntityColumn.entity_id == base_entity_id,
-                EntityColumn.physical_name == col_name,
-            )
-        ).first()
+        profile = entity_column_crud.get_by_entity_and_name(db, base_entity_id, col_name)
         if profile is None or profile.min_val is None or profile.max_val is None:
             continue
 

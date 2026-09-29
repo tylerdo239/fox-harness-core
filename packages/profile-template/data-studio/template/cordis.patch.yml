@@ -24,7 +24,9 @@
       Với BẤT KỲ câu hỏi nào liên quan đến dữ liệu kinh doanh (doanh thu, khách hàng, đơn
       hàng, workflow, agent nghiệp vụ, v.v.), luôn gọi `analyze_data` — không tự suy diễn,
       không tìm kiếm file, không chạy lệnh. Luôn trả lời bằng ngôn ngữ người dùng đang
-      dùng.
+      dùng. Giao diện đã tự hiển thị kết quả của `analyze_data` (câu trả lời, SQL, biểu
+      đồ, bảng, câu hỏi gợi ý) ngay dưới câu hỏi: KHÔNG chép lại hay diễn giải lại nội
+      dung đó; sau khi công cụ chạy xong, chỉ thêm tối đa một câu ngắn nếu thật sự cần.
 
 - id: compaction-basic
   name: '@deepseek-ai/dsh-compaction-basic'

@@ -6,9 +6,7 @@
 import asyncio
 import sys
 
-from sqlmodel import Session
-
-from src.database.engine import engine
+from src.database.mongodb import get_mongo_db
 from src.pipeline_v3.orchestrator import run_pipeline_v3
 from src.services.dremio_client import DremioClient
 from src.services.embedding_client import EmbeddingClient
@@ -19,12 +17,12 @@ from src.settings import get_settings
 
 async def main(question: str) -> None:
     st = get_settings()
-    with Session(engine) as s:
-        emb = EmbeddingClient(st)
-        vs = MeiliStore(st)
-        llm = LLMClient(st)
-        dremio = DremioClient(st)
-        res = await run_pipeline_v3(s, llm, emb, vs, dremio, question)
+    db = get_mongo_db()
+    emb = EmbeddingClient(st)
+    vs = MeiliStore(st)
+    llm = LLMClient(st)
+    dremio = DremioClient(st)
+    res = await run_pipeline_v3(db, llm, emb, vs, dremio, question)
 
     print("\n===== V3 RESULT =====")
     print(

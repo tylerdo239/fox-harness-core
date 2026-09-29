@@ -31,9 +31,9 @@ const FORWARDED_ENV = [
   'EMBEDDING_API_KEY', 'EMBEDDING_BASE_URL', 'EMBEDDING_MODEL_ID',
   'DREMIO_URL', 'DREMIO_USERNAME', 'DREMIO_PASSWORD',
   'MEILISEARCH_URL', 'MEILISEARCH_MASTER_KEY', 'MEILISEARCH_SEMANTIC_RATIO',
-  // Shared semantic-layer sqlite path — set on every worker container by
-  // services/orchestrator/src/docker.ts, same file across all sessions.
-  'DATABASE_URL',
+  // MongoDB holding the shared semantic layer + chat history (docs/data-studio-mongodb-plan.md) —
+  // forwarded to every worker container by services/orchestrator (config.ts workerEnvPassthrough).
+  'MONGODB_URL', 'MongoDBWrite', 'MONGODB_DATABASE_NAME',
 ] as const
 
 export interface AnalyzeReply {
@@ -46,11 +46,16 @@ export interface AnalyzeReply {
   row_count?: number
   trace_md?: string
   chart?: Record<string, JsonValue> | null
-  // docs/data-studio-admin-ui-plan.md phase 5 — the real Chart row's id
-  // (services/data-studio-agent's `charts_chat` table), when `chart` is
+  // docs/data-studio-admin-ui-plan.md phase 5 — the real Chart document's id (uuid string,
+  // `charts` collection), when `chart` is
   // present. Lets the FE offer "pin to dashboard" without the bridge doing
   // anything HTTP-shaped — a dashboard widget just references this id.
-  chart_id?: number | null
+  chart_id?: string | null
+  // Every visual chart of the answer (recommended first), each carrying its own rows and, once
+  // persisted, its own `chart_id` — so the UI can offer a type switcher and pin any of them.
+  charts?: { type: string; x: string | null; y: string[]; title: string; recommended: boolean; rows: Record<string, JsonValue>[]; chart_id?: string | null }[]
+  follow_up_questions?: string[]
+  assumptions?: string[]
   truncated?: boolean
 }
 

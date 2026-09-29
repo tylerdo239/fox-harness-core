@@ -1,21 +1,16 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlmodel import Session, select
-
-from src.database.models import Entity, EntityColumn
+from src.crud_mongo import entity as entity_crud
+from src.crud_mongo import entity_column as entity_column_crud
+from src.database.mongodb import AttrDatabase
 from src.services.dremio_client import DremioClient, DremioQueryError
 
 SAMPLE_VALUES_LIMIT = 20
 
 
-def profile_entity(client: DremioClient, session: Session, entity: Entity) -> dict[str, Any]:
-    columns = session.exec(
-        select(EntityColumn).where(
-            EntityColumn.entity_id == entity.id,
-            EntityColumn.is_deprecated == False,  # noqa: E712
-        )
-    ).all()
+def profile_entity(client: DremioClient, db: AttrDatabase, entity) -> dict[str, Any]:
+    columns = entity_column_crud.list_by_entity_ids(db, [entity.id])
 
     if not columns:
         return {"entity": entity.physical_name, "columns_profiled": 0, "skipped": "no columns"}
@@ -32,43 +27,37 @@ def profile_entity(client: DremioClient, session: Session, entity: Entity) -> di
 
         total = col_stats["total"]
         non_null = col_stats["non_null"]
-        column.distinct_count = col_stats["distinct_count"]
-        column.null_ratio = round((total - non_null) / total, 4) if total > 0 else 0.0
-        column.min_val = _stringify(col_stats["min_val"])
-        column.max_val = _stringify(col_stats["max_val"])
-
+        update_fields = {
+            "distinct_count": col_stats["distinct_count"],
+            "null_ratio": round((total - non_null) / total, 4) if total > 0 else 0.0,
+            "min_val": _stringify(col_stats["min_val"]),
+            "max_val": _stringify(col_stats["max_val"]),
+            "last_profiled_at": now,
+        }
         if not column.is_pii:
-            column.sample_values = _sample_values(client, entity.physical_path, column.physical_name)
+            update_fields["sample_values"] = _sample_values(client, entity.physical_path, column.physical_name)
 
-        column.last_profiled_at = now
-        session.add(column)
+        entity_column_crud.update(db, column.id, **update_fields)
         columns_profiled += 1
 
     row_count = next(iter(stats.values()))["total"] if stats else None
-    entity.row_count_est = row_count
-    entity.last_profiled_at = now
-    session.add(entity)
+    entity_crud.update(db, entity.id, row_count_est=row_count, last_profiled_at=now)
 
-    session.commit()
     return {"entity": entity.physical_name, "columns_profiled": columns_profiled, "row_count": row_count}
 
 
 def profile_all_entities(
-    client: DremioClient, session: Session, entity_ids: list[int] | None = None
+    client: DremioClient, db: AttrDatabase, entity_ids: list[str] | None = None
 ) -> list[dict[str, Any]]:
-    query = select(Entity).where(
-        Entity.is_exposed == True,  # noqa: E712
-        Entity.is_deprecated == False,  # noqa: E712
-    )
+    entities = entity_crud.list_exposed_active(db)
     if entity_ids is not None:
-        query = query.where(Entity.id.in_(entity_ids))
-
-    entities = session.exec(query).all()
+        wanted = set(entity_ids)
+        entities = [e for e in entities if e.id in wanted]
 
     results = []
     for entity in entities:
         try:
-            results.append(profile_entity(client, session, entity))
+            results.append(profile_entity(client, db, entity))
         except DremioQueryError as err:
             results.append({"entity": entity.physical_name, "error": str(err)})
 
@@ -76,7 +65,7 @@ def profile_all_entities(
 
 
 def _profile_column_stats(
-    client: DremioClient, physical_path: str, columns: list[EntityColumn]
+    client: DremioClient, physical_path: str, columns: list
 ) -> dict[str, dict[str, Any]]:
     select_parts = ["COUNT(*) AS total_rows"]
     for col in columns:

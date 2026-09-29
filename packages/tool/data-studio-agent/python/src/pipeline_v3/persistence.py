@@ -1,6 +1,6 @@
-"""Persist a completed pipeline_v3 answer into the conversation history tables.
+"""Persist a completed pipeline_v3 answer into the conversation history collections.
 
-Self-contained for pipeline_v3 (v1/v2 will be removed). Given a V3Result, this writes a user
+Self-contained for pipeline_v3 (v1/v2 are gone). Given a V3Result, this writes a user
 message + an assistant message, and under the assistant message one query_result per executed SQL:
 one for a simple answer, one PER SUB-QUESTION for a decomposed answer — each snapshotting its own
 rows + chart specs, so a multi-part answer's per-sub charts survive a reload.
@@ -11,10 +11,8 @@ ids back to the client (keyed by sub-question id, or "_" for a simple answer).
 
 from typing import Any
 
-from sqlmodel import Session, func, select
-
-from src.database.models import Chart, Conversation, Message, QueryResult
-from src.database.models.enums import MessageRole
+from src.crud_mongo import conversation as conversation_crud
+from src.database.mongodb import AttrDatabase, AttrDict
 
 _TITLE_MAX = 80
 
@@ -71,112 +69,88 @@ def result_to_packaged(result: Any, question: str) -> dict[str, Any]:
 
 
 def save_answer(
-    session: Session,
+    db: AttrDatabase,
     packaged: dict[str, Any],
-    conversation_id: int | None,
-) -> tuple[int, int, dict[str, list[int]]]:
+    conversation_id: str | None,
+) -> tuple[str, str, dict[str, list[str]]]:
     question = packaged.get("question", "")
 
-    conversation = _get_or_create_conversation(session, conversation_id, question)
-    base_seq = _next_message_seq(session, conversation.id)
+    conversation = _get_or_create_conversation(db, conversation_id, question)
+    base_seq = conversation_crud.next_message_seq(db, conversation.id)
 
     # user turn
-    user_msg = Message(
-        conversation_id=conversation.id, seq=base_seq, role=MessageRole.USER,
+    conversation_crud.create_message(
+        db, conversation_id=conversation.id, seq=base_seq, role="user",
         content=question, question=question,
     )
-    session.add(user_msg)
 
     # assistant turn
-    assistant_msg = Message(
-        conversation_id=conversation.id, seq=base_seq + 1, role=MessageRole.ASSISTANT,
+    assistant_msg = conversation_crud.create_message(
+        db, conversation_id=conversation.id, seq=base_seq + 1, role="assistant",
         content=packaged.get("answer_markdown", "") or "",
         question=question,
         answer_markdown=packaged.get("answer_markdown"),
         is_decomposed=bool(packaged.get("decomposed")),
-        follow_up_questions_json=packaged.get("follow_up_questions") or [],
+        follow_up_questions=packaged.get("follow_up_questions") or [],
     )
-    session.add(assistant_msg)
-    session.flush()  # assign assistant_msg.id
 
     # query_results (+ charts) — one per executed SQL. Collect the saved chart ids keyed by
     # sub-question (or "_" for a single answer) in ORIGINAL chart order, so the caller can hand
     # them back to the client and live (just-answered) charts become editable/persistable.
-    chart_ids: dict[str, list[int]] = {}
+    chart_ids: dict[str, list[str]] = {}
     if packaged.get("decomposed"):
         for i, sub in enumerate(packaged.get("sub_results", [])):
             key = sub.get("id") or f"q{i + 1}"
-            chart_ids[key] = _add_query_result(session, assistant_msg.id, i, sub,
+            chart_ids[key] = _add_query_result(db, assistant_msg.id, i, sub,
                                                sub_id=sub.get("id"), sub_question=sub.get("question"))
     else:
-        chart_ids["_"] = _add_query_result(session, assistant_msg.id, 0, packaged)
+        chart_ids["_"] = _add_query_result(db, assistant_msg.id, 0, packaged)
 
-    conversation.updated_at = _now()
-    session.add(conversation)
-    session.commit()
+    conversation_crud.update_conversation(db, conversation.id)
     return conversation.id, assistant_msg.id, chart_ids
 
 
 def _add_query_result(
-    session: Session, message_id: int, seq: int, data: dict[str, Any],
+    db: AttrDatabase, message_id: str, seq: int, data: dict[str, Any],
     sub_id: str | None = None, sub_question: str | None = None,
-) -> list[int]:
+) -> list[str]:
     """Returns the saved chart ids in the SAME order as data['charts'] (the client's live order)."""
-    qr = QueryResult(
-        message_id=message_id, seq=seq,
+    qr = conversation_crud.create_query_result(
+        db, message_id=message_id, seq=seq,
         sub_id=sub_id, sub_question=sub_question,
         sql=data.get("sql"),
         row_count=data.get("row_count", 0) or 0,
-        rows_json=data.get("rows") or [],
-        display_columns_json=data.get("display_columns") or [],
+        rows=data.get("rows") or [],
+        display_columns=data.get("display_columns") or [],
     )
-    session.add(qr)
-    session.flush()  # qr.id
 
-    charts: list[Chart] = []
+    chart_ids: list[str] = []
     for spec in data.get("charts") or []:
-        ch = Chart(
-            query_result_id=qr.id,
+        ch = conversation_crud.create_chart(
+            db, query_result_id=qr.id,
             type=spec.get("type", "table"),
             title=spec.get("title", "") or "",
             description=spec.get("description", "") or "",
             x=spec.get("x"),
-            y_json=spec.get("y") or [],
+            y=spec.get("y") or [],
             value_field=spec.get("value_field"),
             recommended=bool(spec.get("recommended")),
             # per-chart data + its transform, so a reload renders EXACTLY what streaming showed
-            rows_json=spec.get("rows") or [],
+            rows=spec.get("rows") or [],
             transform_code=spec.get("transform_code", "") or "",
         )
-        session.add(ch)
-        charts.append(ch)
-    session.flush()  # assign chart ids
-    return [c.id for c in charts]
+        chart_ids.append(ch.id)
+    return chart_ids
 
 
-def _get_or_create_conversation(session: Session, cid: int | None, question: str) -> Conversation:
+def _get_or_create_conversation(db: AttrDatabase, cid: str | None, question: str) -> AttrDict:
     if cid is not None:
-        conv = session.get(Conversation, cid)
+        conv = conversation_crud.get_conversation(db, cid)
         if conv is not None:
             return conv
-    conv = Conversation(title=_title_from(question), created_at=_now(), updated_at=_now())
-    session.add(conv)
-    session.flush()  # conv.id
-    return conv
-
-
-def _next_message_seq(session: Session, conversation_id: int) -> int:
-    max_seq = session.exec(
-        select(func.max(Message.seq)).where(Message.conversation_id == conversation_id)
-    ).one()
-    return 0 if max_seq is None else max_seq + 1
+    return conversation_crud.create_conversation(db, title=_title_from(question))
 
 
 def _title_from(question: str) -> str:
     q = question.strip().replace("\n", " ")
     return q[:_TITLE_MAX] + ("…" if len(q) > _TITLE_MAX else "")
-
-
-def _now():
-    from datetime import UTC, datetime
-    return datetime.now(UTC)

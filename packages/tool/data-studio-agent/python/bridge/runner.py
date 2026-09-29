@@ -13,7 +13,8 @@ session log is what carries multi-turn context; each call here is independent.
 stdin:  one {"question": str} per line
 stdout: one JSON reply per line:
   {"ok": true, "answer": str, "sql": str|None, "columns": [str], "rows": [...],
-   "row_count": int, "trace_md": str, "chart": {...}|None, "chart_id": int|None,
+   "row_count": int, "trace_md": str, "charts": [{type,x,y,title,recommended,rows,chart_id}],
+   "chart": {...}|None, "chart_id": str|None, "follow_up_questions": [str], "assumptions": [str],
    "truncated": bool}
   or {"ok": false, "error": str}
 
@@ -46,11 +47,9 @@ from pathlib import Path
 # invokes this by absolute path, same as packages/tool/python-repl's runner.py.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlmodel import Session
-
-from src.database.engine import create_db_and_tables, engine
-from src.database.models import Chart, Conversation, Message, QueryResult
+from src.crud_mongo import conversation as conversation_crud
 from src.database.models.enums import MessageRole
+from src.database.mongodb import AttrDatabase, check_mongo_connection, ensure_indexes, get_mongo_db
 from src.pipeline_v3.orchestrator import run_pipeline_v3
 from src.services.dremio_client import DremioClient
 from src.services.embedding_client import EmbeddingClient
@@ -62,16 +61,17 @@ from src.settings import get_settings
 MAX_ROWS = 200
 
 
-def _persist_chart(session: Session, question: str, result, chart: dict | None) -> int | None:
-    """Minimal Conversation->Message->QueryResult->Chart chain so `chart` (already
-    computed by `handle()` below) has a real row a dashboard widget can reference.
-    Returns the new Chart's id, or None if there's no chart to persist."""
-    if chart is None:
-        return None
-    conversation = Conversation(title=question[:120])
-    session.add(conversation)
-    session.flush()
-    message = Message(
+def _persist_charts(db: AttrDatabase, question: str, result, charts: list[dict]) -> list[str]:
+    """Minimal conversation -> message -> query_result -> chart chain so every chart (already computed
+    by `handle()` below) has a real document a dashboard widget can reference. ONE chain holds all the
+    charts of an answer; returns the new chart ids in the same order as `charts` (uuid strings).
+    Sequential inserts, no transaction (docs/data-studio-mongodb-plan.md) — a failure midway leaves a
+    partial chain, same as bot-data-studio-api."""
+    if not charts:
+        return []
+    conversation = conversation_crud.create_conversation(db, title=question[:120])
+    message = conversation_crud.create_message(
+        db,
         conversation_id=conversation.id,
         seq=0,
         role=MessageRole.ASSISTANT,
@@ -79,29 +79,47 @@ def _persist_chart(session: Session, question: str, result, chart: dict | None) 
         question=question,
         answer_markdown=result.answer_markdown,
     )
-    session.add(message)
-    session.flush()
-    query_result = QueryResult(
+    query_result = conversation_crud.create_query_result(
+        db,
         message_id=message.id,
         seq=0,
         sql=result.sql,
         row_count=result.row_count,
-        rows_json=result.rows[:MAX_ROWS],
+        rows=result.rows[:MAX_ROWS],
     )
-    session.add(query_result)
-    session.flush()
-    chart_row = Chart(
-        query_result_id=query_result.id,
-        type=chart.get("type", "bar"),
-        title=chart.get("title") or "",
-        x=chart.get("x"),
-        y_json=chart.get("y") or [],
-        recommended=bool(chart.get("recommended")),
-        rows_json=chart.get("rows") or [],
-    )
-    session.add(chart_row)
-    session.commit()
-    return chart_row.id
+    return [
+        conversation_crud.create_chart(
+            db,
+            query_result_id=query_result.id,
+            type=chart.get("type", "bar"),
+            title=chart.get("title") or "",
+            description=chart.get("description") or "",
+            x=chart.get("x"),
+            y=chart.get("y") or [],
+            recommended=bool(chart.get("recommended")),
+            rows=(chart.get("rows") or [])[:MAX_ROWS],
+            transform_code=chart.get("transform_code") or "",
+        ).id
+        for chart in charts
+    ]
+
+
+def _persist_chart(db: AttrDatabase, question: str, result, chart: dict | None) -> str | None:
+    """Single-chart convenience wrapper over `_persist_charts` (returns the chart's id, or None)."""
+    ids = _persist_charts(db, question, result, [chart] if chart is not None else [])
+    return ids[0] if ids else None
+
+
+def _answer_charts(result) -> list[dict]:
+    """Every chart of the answer, INCLUDING the raw-data `table` chart (last), so a table can be pinned to a
+    dashboard and relabeled like any other chart (the reference UI does the same). A decomposed
+    (multi-part) answer keeps its charts on each sub-result, not on the combined result."""
+    charts = list(result.charts or [])
+    if not charts:
+        for sub in result.sub_results or []:
+            charts.extend(sub.get("charts") or [])
+    # visual charts first (recommended first as the pipeline ordered them), tables last
+    return [c for c in charts if c.get("type") != "table"] + [c for c in charts if c.get("type") == "table"]
 
 
 async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliStore, dremio: DremioClient) -> dict:
@@ -120,22 +138,29 @@ async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliS
             flush=True,
         )
 
-    with Session(engine) as session:
-        result = await run_pipeline_v3(session, llm, emb, vs, dremio, question, on_event=on_event)
+    db = get_mongo_db()
+    result = await run_pipeline_v3(db, llm, emb, vs, dremio, question, on_event=on_event)
 
     if result.needs_clarification:
         return {"ok": False, "error": f"Cần làm rõ câu hỏi: {result.clarifying_question}"}
     if not result.success:
         return {"ok": False, "error": result.error or "pipeline thất bại không rõ lý do"}
 
-    # First non-table chart, if any — the reviewed list always ends with a raw-data
-    # table entry (orchestrator.py's _run_charts_stage), which the caller already
-    # gets via `rows`/`columns`.
-    chart = next((c for c in result.charts if c.get("type") != "table"), None)
-    chart_id = None
-    if chart is not None:
-        with Session(engine) as persist_session:
-            chart_id = _persist_chart(persist_session, question, result, chart)
+    answer_charts = _answer_charts(result)
+    chart_ids = _persist_charts(db, question, result, answer_charts)
+    charts = [
+        {
+            "type": c.get("type", "bar"),
+            "x": c.get("x"),
+            "y": c.get("y") or [],
+            "title": c.get("title") or "",
+            "description": c.get("description") or "",
+            "recommended": bool(c.get("recommended")),
+            "rows": (c.get("rows") or [])[:MAX_ROWS],
+            "chart_id": chart_id,
+        }
+        for c, chart_id in zip(answer_charts, chart_ids)
+    ]
 
     return {
         "ok": True,
@@ -145,15 +170,22 @@ async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliS
         "rows": result.rows[:MAX_ROWS],
         "row_count": result.row_count,
         "trace_md": result.trace_md,
-        "chart": chart,
-        "chart_id": chart_id,
+        # every visual chart, recommended first as the pipeline ordered them; `chart`/`chart_id` stay
+        # as the first one for callers that only know the single-chart shape.
+        "charts": charts,
+        "chart": next((c for c in charts if c["type"] != "table"), None),
+        "chart_id": next((c["chart_id"] for c in charts if c["type"] != "table"), None),
+        "follow_up_questions": list(result.follow_up_questions or []),
+        "assumptions": list(result.assumptions or []),
         "truncated": len(result.rows) > MAX_ROWS,
     }
 
 
 async def main() -> None:
     settings = get_settings()
-    create_db_and_tables()
+    if not check_mongo_connection():
+        raise RuntimeError('MongoDB is unreachable — set MONGODB_URL (or MongoDBWrite) and MONGODB_DATABASE_NAME')
+    ensure_indexes()
     llm = LLMClient(settings)
     emb = EmbeddingClient(settings)
     vs = MeiliStore(settings)

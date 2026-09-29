@@ -8,7 +8,7 @@ dist/
 .env.*
 !.env.example
 .claude/
-example-data-studio-agent/
+examples/
 
 # services/data-studio-agent (vendored Python, uv-managed)
 .venv/

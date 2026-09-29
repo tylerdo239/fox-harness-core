@@ -84,4 +84,15 @@ export {
   LayoutDashboard as DashboardsIcon,
   // Conversation.tsx's "pin chart to dashboard" button (docs/data-studio-admin-ui-plan.md phase 5).
   Pin as PinIcon,
+  // DataStudioAnswer.tsx (Data Studio chat answer: chart-type switcher, SQL toggle, suggestions).
+  BarChart3 as ChartBarIcon,
+  PieChart as ChartPieIcon,
+  LineChart as ChartLineIcon,
+  ScatterChart as ChartScatterIcon,
+  Table as TableIcon,
+  Lightbulb as LightbulbIcon,
+  Code2 as CodeIcon,
+  ChevronRight as ChevronRightIcon,
+  CornerDownRight as SuggestionIcon,
+  Check as CheckIcon,
 } from 'lucide-react'

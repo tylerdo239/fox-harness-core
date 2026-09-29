@@ -81,9 +81,26 @@ services:
     volumes:
       - fox-harness-meilisearch-data:/meili_data
 
+  mongo:
+    # docs/data-studio-mongodb-plan.md — semantic layer (data sources / entities / columns /
+    # relationships / metrics / glossary) + chat history + dashboards of Data Studio. Staging points
+    # the same `MONGODB_URL` at the real cluster. Bound to loopback only; no auth and no replica set
+    # in dev (no multi-document transactions are used — same choice as bot-data-studio-api).
+    image: mongo:7
+    ports:
+      - '127.0.0.1:27017:27017'
+    volumes:
+      - fox-harness-mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   fox-harness-redis-data:
   fox-harness-mariadb-data:
   fox-harness-minio-data:
   fox-harness-dremio-data:
   fox-harness-meilisearch-data:
+  fox-harness-mongo-data:

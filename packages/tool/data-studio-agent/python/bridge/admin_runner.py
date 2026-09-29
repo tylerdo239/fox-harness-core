@@ -12,6 +12,8 @@ them.
 stdin:  one JSON object per line:
   {"op": "browse"}
   {"op": "sync", "source_names": ["name", ...] | null}
+  {"op": "reindex"}
+  {"op": "profile", "entity_ids": ["uuid", ...] | null}
 stdout: one JSON reply per line:
   {"ok": true, "sources": [{"name", "type"}, ...]}                 (browse)
   {"ok": true, "summary": {...}, "reindex_summary": {...}}          (sync)
@@ -39,14 +41,13 @@ from pathlib import Path
 # same fix bridge/runner.py already applies.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlmodel import Session
-
-from src.database.engine import create_db_and_tables, engine
+from src.database.mongodb import check_mongo_connection, ensure_indexes, get_mongo_db
 from src.services.dremio_client import DremioClient
 from src.services.dremio_sync import list_available_dremio_sources, sync_dremio_metadata
 from src.services.embedding_client import EmbeddingClient
 from src.services.embedding_index import reindex_all
 from src.services.meili_store import MeiliStore
+from src.services.profiling import profile_all_entities
 from src.settings import get_settings
 
 
@@ -54,21 +55,28 @@ async def handle(request: dict, client: DremioClient, emb: EmbeddingClient, vs: 
     op = request.get("op")
     if op == "browse":
         return {"ok": True, "sources": list_available_dremio_sources(client)}
+    db = get_mongo_db()
     if op == "sync":
-        with Session(engine) as session:
-            summary = sync_dremio_metadata(client, session, request.get("source_names"))
-            reindex_summary = await reindex_all(session, emb, vs)
+        summary = sync_dremio_metadata(client, db, request.get("source_names"))
+        reindex_summary = await reindex_all(db, emb, vs)
         return {"ok": True, "summary": summary, "reindex_summary": reindex_summary}
     if op == "reindex":
-        with Session(engine) as session:
-            reindex_summary = await reindex_all(session, emb, vs)
-        return {"ok": True, "summary": reindex_summary}
+        return {"ok": True, "summary": await reindex_all(db, emb, vs)}
+    if op == "profile":
+        # Column stats + sample values (docs/data-studio-mongodb-plan.md 5.2): nothing else in fox ever
+        # profiles, so entities that were just synced stay without sample_values / row_count_est.
+        # Runs SELECT COUNT/DISTINCT/MIN/MAX per table on Dremio — can be slow on large tables.
+        results = profile_all_entities(client, db, request.get("entity_ids"))
+        return {"ok": True, "summary": {"entities": len(results), "results": results}}
     return {"ok": False, "error": f"unknown op: {op!r}"}
 
 
 async def main() -> None:
     settings = get_settings()
-    create_db_and_tables()
+    if not check_mongo_connection():
+        print(json.dumps({'ok': False, 'error': 'MongoDB is unreachable — set MONGODB_URL (or MongoDBWrite)'}), flush=True)
+        return
+    ensure_indexes()
     client = DremioClient(settings)
     emb = EmbeddingClient(settings)
     vs = MeiliStore(settings)

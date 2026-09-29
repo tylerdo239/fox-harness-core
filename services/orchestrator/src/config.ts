@@ -77,12 +77,6 @@ export const config = {
   // docs/rlm-transfer-plan.md 9.1: one shared working directory per project,
   // bind-mounted over a project chat's own. Absolute, same as dataDir.
   projectsDir: envOr('ORCHESTRATOR_PROJECTS_DIR', `${process.cwd()}/data/projects`),
-  // docs/data-studio-agent-transfer-plan.md: `packages/tool/data-studio-agent`'s
-  // semantic-layer sqlite config (data sources/entities/metrics/glossary) is
-  // NOT per-session like `dataDir` above — every worker container across every
-  // session must see the SAME file, so this one host directory is bind-mounted
-  // at a fixed path (docker.ts) into every container unconditionally.
-  dataStudioSharedDir: envOr('DATA_STUDIO_SHARED_DIR', `${process.cwd()}/data/data-studio-shared`),
   // Fixed container-internal port — packages/transport's own default
   // (packages/transport/README.md). Only the HOST side varies per container
   // (random, so many can run concurrently); no reason to make this configurable.
@@ -151,6 +145,10 @@ export const config = {
     'DREMIO_URL', 'DREMIO_USERNAME', 'DREMIO_PASSWORD',
     'MEILISEARCH_URL', 'MEILISEARCH_MASTER_KEY', 'MEILISEARCH_SEMANTIC_RATIO',
     'DATA_STUDIO_V3_DEBUG',
+    // docs/data-studio-mongodb-plan.md: the Data Studio semantic layer + chat history live in MongoDB
+    // (was a sqlite file bind-mounted into every container). `MongoDBWrite` is the name Vault injects
+    // on FPT infrastructure; docker.ts rewrites a loopback host in either one for the container.
+    'MONGODB_URL', 'MongoDBWrite', 'MONGODB_DATABASE_NAME',
   ] as const,
   // Phase 12 item 4: model chosen PER SESSION at creation time (not
   // mid-session — see ensure.ts). A comma-separated allow-list; falls back

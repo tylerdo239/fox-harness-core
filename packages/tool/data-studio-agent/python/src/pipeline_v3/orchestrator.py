@@ -20,12 +20,11 @@ import uuid
 from dataclasses import dataclass, field
 
 import pandas as pd
-from sqlmodel import Session, select
 
-from src.database.engine import engine
-
-from src.database.models import Entity, EntityColumn
-from src.database.models.enums import ColumnRole
+from src.crud_mongo import business_glossary as glossary_crud
+from src.crud_mongo import entity as entity_crud
+from src.crud_mongo import entity_column as entity_column_crud
+from src.crud_mongo import relationship as relationship_crud
 from src.pipeline_v2.state import (
     BusinessRule,
     DimensionSpec,
@@ -120,15 +119,11 @@ async def _emit(event_type: str, payload: dict) -> None:
 
 
 # 2026-09-18 (user report: "log hết" — retries/warnings/errors folded into `trace`/`trace_md` only
-# surfaced in the FINAL reply, not live; e.g. a sub-question retry or a chart-review rejection was
-# invisible in `docker logs` while the run was still in progress). Every `trace.append()` in this
-# file now goes through this instead: same list mutation, PLUS an immediate 'trace' event when a
-# sink is attached — runner.py's on_event prints it straight to stderr, which kernel.ts (TS side)
-# forwards live to the worker container's own stdout. `create_task` (fire-and-forget, not awaited):
-# called from both async step functions AND plain `def` helpers (_ensure_grain_dimension,
-# _force_grain_only_dims, _fail) that have no `await` of their own to hang this on — safe here
-# because every caller in this module only ever runs on the one thread already driving asyncio.run()
-# in bridge/runner.py's main(), so a running loop always exists to schedule onto.
+# surfaced in the FINAL reply, not live). Every trace append goes through this: same list mutation,
+# PLUS an immediate 'trace' event when a sink is attached — runner.py's on_event prints it to stderr,
+# which kernel.ts forwards live to the worker container's stdout. `create_task` (fire-and-forget):
+# called from async step functions AND plain `def` helpers with no `await`, all on the one thread
+# driving asyncio.run() in bridge/runner.py's main(), so a running loop always exists.
 def _trace(trace: list[str], text: str) -> None:
     trace.append(text)
     if _SINK.get() is not None:
@@ -219,7 +214,7 @@ def _debug_dump(question: str, result: V3Result) -> None:
 
 
 async def run_pipeline_v3(
-    session: Session,
+    db,
     llm: LLMClient,
     emb: EmbeddingClient,
     vs: VectorStore,
@@ -240,7 +235,7 @@ async def run_pipeline_v3(
     model = llm._model
     trace: list[str] = []
 
-    result = await _build_answer(session, llm, emb, vs, dremio, question, trace, feedback="")
+    result = await _build_answer(db, llm, emb, vs, dremio, question, trace, feedback="")
     result.question = question
     if result.needs_clarification or not result.success:
         result.trace_md = "\n\n---\n\n".join(trace)
@@ -302,7 +297,7 @@ async def run_pipeline_v3(
         f"{list(result.rows[0].keys()) if result.rows else []}. "
         f"Make sure the new answer addresses this."
     )
-    retry = await _build_answer(session, llm, emb, vs, dremio, question, trace, feedback=feedback_ctx)
+    retry = await _build_answer(db, llm, emb, vs, dremio, question, trace, feedback=feedback_ctx)
     retry.trace_md = "\n\n---\n\n".join(trace)
     return await _finalize(retry if retry.success else result)
 
@@ -345,7 +340,7 @@ def _should_review(result: V3Result) -> bool:
 
 
 async def _build_answer(
-    session: Session,
+    db,
     llm: LLMClient,
     emb: EmbeddingClient,
     vs: VectorStore,
@@ -366,7 +361,7 @@ async def _build_answer(
     decomposed = dec_run.ok and dec_run.result.is_multi and len(dec_run.result.sub_questions) > 1
 
     if not decomposed:
-        res, _state = await _run_with_retry(session, llm, emb, vs, dremio, question, trace, feedback=feedback)
+        res, _state = await _run_with_retry(db, llm, emb, vs, dremio, question, trace, feedback=feedback)
         return res
 
     # multi-part: run every sub-question IN PARALLEL (they are independent), then compose. asyncio
@@ -376,7 +371,7 @@ async def _build_answer(
     subs = dec_run.result.sub_questions
     await _emit("decomposed", {"sub_questions": [{"id": s.id, "question": s.question} for s in subs]})
     sub_pairs = list(await asyncio.gather(
-        *(_run_sub(llm, emb, vs, dremio, sub, trace) for sub in subs)
+        *(_run_sub(db, llm, emb, vs, dremio, sub, trace) for sub in subs)
     ))
     sub_results = [r for (_sid, r, _st) in sub_pairs]
 
@@ -434,13 +429,12 @@ async def _build_answer(
     first_ok = next(((r, st) for (_sid, r, st) in sub_pairs if r.success and r.rows), None)
     if first_ok is not None:
         _, st = first_ok
-        with Session(engine) as fu_session:
-            await _run_followups(fu_session, model, st, combined, question, trace)
+        await _run_followups(db, model, st, combined, question, trace)
     return combined
 
 
 async def _run_sub(
-    llm: LLMClient, emb: EmbeddingClient, vs: VectorStore,
+    db, llm: LLMClient, emb: EmbeddingClient, vs: VectorStore,
     dremio: DremioClient, sub, trace: list[str],
 ) -> tuple[str, V3Result]:
     """Run ONE sub-question as its own isolated task: tag its events with sub_id (so the UI can group
@@ -453,17 +447,16 @@ async def _run_sub(
     await _emit("sub_started", {"sub_id": sub.id, "question": sub.question})
     res = V3Result(success=False, error="not run")
     state = PipelineState(question=sub.question)
-    # each parallel sub gets its OWN DB session — a SQLModel Session is not safe to share across
-    # concurrently-running coroutines (their queries would interleave on one connection).
-    with Session(engine) as sub_session:
-        for attempt in range(3):  # up to 3 tries for THIS sub only
-            # DATA only — skip this sub's insight AND charts; charts run later (after the combined
-            # answer is shown), so the user sees the final answer before the slower charts.
-            res, state = await _run_with_retry(sub_session, llm, emb, vs, dremio, sub.question, sub_trace,
-                                               feedback="", skip_insight=True, skip_charts=True)
-            if res.success or res.needs_clarification:
-                break
-            _trace(sub_trace, f"## Sub retry\n- ⚠️ sub failed ({res.error}) → retrying this sub (attempt {attempt + 2})")
+    # all parallel subs share ONE db handle — AttrDatabase/pymongo's MongoClient is thread- and
+    # coroutine-safe, unlike a SQLModel Session, so no per-sub isolation is needed.
+    for attempt in range(3):  # up to 3 tries for THIS sub only
+        # DATA only — skip this sub's insight AND charts; charts run later (after the combined
+        # answer is shown), so the user sees the final answer before the slower charts.
+        res, state = await _run_with_retry(db, llm, emb, vs, dremio, sub.question, sub_trace,
+                                           feedback="", skip_insight=True, skip_charts=True)
+        if res.success or res.needs_clarification:
+            break
+        _trace(sub_trace, f"## Sub retry\n- ⚠️ sub failed ({res.error}) → retrying this sub (attempt {attempt + 2})")
     res.question = sub.question
     # data is ready (no charts yet) — tell the FE the sub's rows so it can show the sub's table
     await _emit("sub_data_ready", {
@@ -475,7 +468,7 @@ async def _run_sub(
 
 
 async def _run_with_retry(
-    session: Session, llm: LLMClient, emb: EmbeddingClient, vs: VectorStore,
+    db, llm: LLMClient, emb: EmbeddingClient, vs: VectorStore,
     dremio: DremioClient, question: str, trace: list[str], feedback: str = "",
     skip_insight: bool = False, skip_charts: bool = False,
 ) -> tuple[V3Result, PipelineState]:
@@ -485,18 +478,18 @@ async def _run_with_retry(
     `skip_insight`/`skip_charts`: for a sub-question both are deferred — the ONE combined answer is
     written first, THEN the per-sub charts run, so the user sees the answer before the charts.
     Returns (result, state) — the state feeds the deferred chart + follow-up steps for a sub."""
-    res, state = await _run_single_question(session, llm, emb, vs, dremio, question, trace, feedback,
+    res, state = await _run_single_question(db, llm, emb, vs, dremio, question, trace, feedback,
                                             skip_insight, skip_charts)
     if res.success or res.needs_clarification:
         return res, state
     _trace(trace, f"## Re-plan\n- ⚠️ first attempt failed ({res.error}) → re-planning once")
-    res2, state2 = await _run_single_question(session, llm, emb, vs, dremio, question, trace, feedback,
+    res2, state2 = await _run_single_question(db, llm, emb, vs, dremio, question, trace, feedback,
                                               skip_insight, skip_charts)
     return (res2, state2) if (res2.success or res2.needs_clarification) else (res, state)
 
 
 async def _run_single_question(
-    session: Session,
+    db,
     llm: LLMClient,
     emb: EmbeddingClient,
     vs: VectorStore,
@@ -548,20 +541,20 @@ async def _run_single_question(
 
     # ── 2. Retrieval (deterministic tool body — the v2 per-term fix, reused) ──
     retrieval = await retrieve_candidates(
-        session, emb, vs, question, terms=intake.detected_terms or None
+        db, emb, vs, question, terms=intake.detected_terms or None
     )
     _trace(trace, _retrieval_md(retrieval))
     if not retrieval.entities:
         return _fail(trace, "no candidate entities retrieved"), state
-    candidates_md = render_candidates_block(retrieval, session)
+    candidates_md = render_candidates_block(retrieval, db)
     # names→ids resolver, scoped to these candidates — a name outside them is rejected, not guessed
-    resolver = NameResolver.from_retrieval(retrieval, session)
+    resolver = NameResolver.from_retrieval(retrieval, db)
 
     # ── 2.5 Clarify — ask if ambiguous, else pick display columns ─────────────
     clarify_agent = build_clarify_agent(model)
     clarify_run = await _run_agent(clarify_agent, f"{candidates_md}\n\nQuestion: {question}")
     _trace(trace, clarify_run.markdown)
-    display_column_ids: list[int] = []
+    display_column_ids: list[str] = []
     if clarify_run.ok:
         c = clarify_run.result
         # suppress a clarification when it's really about display columns, OR when the question uses
@@ -569,8 +562,8 @@ async def _run_single_question(
         # model over-asks about glossary terms; this code guard makes the suppression deterministic.
         spurious = (
             _is_display_clarification(c.clarifying_question)
-            or _question_uses_glossary(session, question)
-            or _clarification_names_physical_tables(session, c.clarifying_question, c.options)
+            or _question_uses_glossary(db, question)
+            or _clarification_names_physical_tables(db, c.clarifying_question, c.options)
         )
         if c.needs_clarification and c.clarifying_question and not spurious:
             res = V3Result(
@@ -592,7 +585,7 @@ async def _run_single_question(
     if grain_id is None:
         return _fail(trace, f"grain table '{grain.grain_entity}' not in candidates"), state
     state.grain_entity_id = grain_id
-    grain_entity = session.get(Entity, grain_id)
+    grain_entity = entity_crud.get_by_id(db, grain_id)
     state.grain = grain_entity.grain_description if grain_entity else "one row per record"
     state.entities = [
         EntityMatch(term="", entity_id=e.id, table_physical_path="", confidence=1.0)
@@ -609,7 +602,7 @@ async def _run_single_question(
     _trace(trace, metric_run.markdown)
     if not metric_run.ok:
         return _fail(trace, "metric parse failed: " + (metric_run.error or "")), state
-    if not _apply_metrics(session, state, metric_run.result, resolver):
+    if not _apply_metrics(db, state, metric_run.result, resolver):
         return _fail(trace, "metric referenced a column outside the candidates"), state
 
     # ── 5. Slice (dimensions) — ONLY for a breakdown question ────────────────
@@ -617,7 +610,7 @@ async def _run_single_question(
     # metric gets a spurious GROUP BY (COUNT DISTINCT id GROUP BY id → all-1s). Skip Slice + display
     # deterministically when the question wants no breakdown — the weak model can't override this.
     if wants_breakdown:
-        ok = await _run_slice(session, model, state, candidates_md, question, trace, resolver)
+        ok = await _run_slice(db, model, state, candidates_md, question, trace, resolver)
         if not ok:
             return _fail(trace, "slice parse failed"), state
         # A RANKING is per-grain: 'top 5 workflows by node count' MUST group by workflow. The weak
@@ -625,13 +618,13 @@ async def _run_single_question(
         # then aggregates ALL rows into one number (the 613-bug). Deterministically ensure the grain
         # table's own id is a dimension whenever we rank, so the count is per-grain, not global.
         if ranking and not state.dimensions:
-            _ensure_grain_dimension(session, state, trace)
+            _ensure_grain_dimension(db, state, trace)
         # Clarify's display columns → SELECT (label for each group + the grain id as merge key). ONLY
         # when there ARE dimensions: display columns are labels FOR a grouping. If Slice chose ZERO
         # dimensions (a scalar total / single percentage), adding them would force a spurious GROUP BY
         # (label, node_id → one row per node = the 625-row explosion).
         if state.dimensions:
-            _apply_display_columns(session, state, display_column_ids)
+            _apply_display_columns(db, state, display_column_ids)
         else:
             _trace(trace, "## Display\n- skipped display columns (Slice chose 0 dimensions — scalar total)")
     else:
@@ -643,13 +636,13 @@ async def _run_single_question(
     # value, add it as a dimension, and remember it so Filter skips it.
     share_cat_col_id = None
     if intake.share_of_value:
-        share_cat_col_id = _find_category_column(session, state, intake.share_of_value)
+        share_cat_col_id = _find_category_column(db, state, intake.share_of_value)
         if share_cat_col_id is not None:
             # This is a clean 'SELECT category, COUNT(...) GROUP BY category' — REPLACE any dims the
             # earlier steps set (grain-id/label/display) with ONLY the category column. Otherwise the
             # grain's own id+label stay in GROUP BY → one row per node (count=1) and the back-edge then
             # drops the category too. The category has few values, so it is never 'over-grouped'.
-            cat_entity = session.get(EntityColumn, share_cat_col_id).entity_id
+            cat_entity = entity_column_crud.get_by_id(db, share_cat_col_id).entity_id
             state.dimensions = [DimensionSpec(
                 entity_id=cat_entity, id_column_id=share_cat_col_id, label_column_id=None)]
             state.group_by_column_ids = [share_cat_col_id]
@@ -659,7 +652,7 @@ async def _run_single_question(
                          f"filtering '{intake.share_of_value}' (keeps the denominator)")
 
     # ── 6. Filter (WHERE + time) ──────────────────────────────────────────────
-    await _run_filter(session, model, state, candidates_md, question, trace, resolver)
+    await _run_filter(db, model, state, candidates_md, question, trace, resolver)
     # drop any filter the Filter agent put on the share category column — it must stay a dimension,
     # not a WHERE (else the total denominator is lost).
     if share_cat_col_id is not None:
@@ -669,7 +662,7 @@ async def _run_single_question(
     # a share-of-category groups by a low-cardinality category on the grain table — a count of 1 per
     # value is NOT over-grouping, so skip the grain back-edge (it would wrongly drop the category).
     result, backedge = await _compile_execute_with_grain_check(
-        session, model, dremio, state, candidates_md, question, trace, resolver,
+        db, model, dremio, state, candidates_md, question, trace, resolver,
         skip_backedge=(share_cat_col_id is not None)
     )
     result.grain_backedge_fired = backedge
@@ -706,7 +699,7 @@ async def _run_single_question(
         elif intake.share_of_value and share_cat_col_id is not None:
             # SHARE-OF-CATEGORY: df has one row per category value with its count in col_ref. Compute
             # the target value's share of the total → one number. Category column name comes from df.
-            cat_col = session.get(EntityColumn, share_cat_col_id)
+            cat_col = entity_column_crud.get_by_id(db, share_cat_col_id)
             cat_name = cat_col.physical_name if cat_col else None
             val = intake.share_of_value.strip().strip("'\"")
             force = True
@@ -759,7 +752,7 @@ async def _run_single_question(
     if not skip_charts:
         await _run_chart(model, result, question, trace)
         # ── 12. Follow-up questions (grounded in unused schema, same language) ─
-        await _run_followups(session, model, state, result, question, trace)
+        await _run_followups(db, model, state, result, question, trace)
 
     result.trace_md = "\n\n---\n\n".join(trace)
     return result, state
@@ -767,7 +760,7 @@ async def _run_single_question(
 
 # ── slice + back-edge ────────────────────────────────────────────────────────
 
-async def _run_slice(session, model, state, candidates_md, question, trace, resolver, *, flag: str = "") -> bool:
+async def _run_slice(db, model, state, candidates_md, question, trace, resolver, *, flag: str = "") -> bool:
     slice_agent = build_slice_agent(model)
     grain_table = resolver.entity_name_by_id.get(state.grain_entity_id, "?")
     hint = ""
@@ -783,11 +776,11 @@ async def _run_slice(session, model, state, candidates_md, question, trace, reso
     _trace(trace, slice_run.markdown)
     if not slice_run.ok:
         return False
-    _apply_dimensions(session, state, slice_run.result, resolver)
+    _apply_dimensions(db, state, slice_run.result, resolver)
     return True
 
 
-async def _run_filter(session, model, state, candidates_md, question, trace, resolver) -> None:
+async def _run_filter(db, model, state, candidates_md, question, trace, resolver) -> None:
     """Filter agent: WHERE + time. Reuses v2's grounding guardrail (drop ungrounded id filters)."""
     filter_agent = build_filter_agent(model)
     filter_run = await _run_agent(filter_agent, f"{candidates_md}\n\nQuestion: {question}")
@@ -798,11 +791,11 @@ async def _run_filter(session, model, state, candidates_md, question, trace, res
     q_lower = question.lower()
     for f in out.filters:
         cid = resolver.column(f.column)
-        col = session.get(EntityColumn, cid) if cid else None
+        col = entity_column_crud.get_by_id(db, cid) if cid else None
         if col is None:
             continue  # a filter on an unresolved column is dropped, not guessed
         # v2 guardrail: drop an id/key filter whose value the user never named
-        is_id = col.role == ColumnRole.KEY
+        is_id = col.role == "key"
         named = bool(f.value) and f.value.strip().lower() in q_lower
         if is_id and not named:
             state.add_assumption(
@@ -813,7 +806,7 @@ async def _run_filter(session, model, state, candidates_md, question, trace, res
         state.target_entity_ids.add(col.entity_id)
     if out.time and out.time.time_column and (out.time.start or out.time.end):
         cid = resolver.column(out.time.time_column)
-        col = session.get(EntityColumn, cid) if cid else None
+        col = entity_column_crud.get_by_id(db, cid) if cid else None
         if col is not None:
             state.time = TimeSpec(
                 column_id=col.id, start=out.time.start, end=out.time.end,
@@ -826,24 +819,22 @@ async def _run_filter(session, model, state, candidates_md, question, trace, res
     # that table is in the FROM/JOIN for the predicate. We take the phrases the Filter agent flagged
     # AND any glossary term literally present in the question — so a missed flag (weak-model variance)
     # can't drop the predicate.
-    _apply_glossary_terms(session, state, out.glossary_terms, question, trace)
+    _apply_glossary_terms(db, state, out.glossary_terms, question, trace)
 
 
-def _apply_glossary_terms(session, state, phrases: list[str], question: str, trace: list[str]) -> None:
-    from src.database.models import BusinessGlossaryTerm
-
+def _apply_glossary_terms(db, state, phrases: list[str], question: str, trace: list[str]) -> None:
     # deterministic backstop: add any glossary term whose name/synonym literally appears in the
     # question, even if the Filter agent didn't flag it.
     ql = question.lower()
     phrases = list(phrases or [])
-    for t in session.exec(select(BusinessGlossaryTerm)).all():
+    for t in glossary_crud.list_all(db):
         for name in (t.term, *(t.synonyms or [])):
             if name and name.lower() in ql and t.term not in phrases:
                 phrases.append(t.term)
 
     if not phrases:
         return
-    terms = session.exec(select(BusinessGlossaryTerm)).all()
+    terms = glossary_crud.list_all(db)
     applied = []
     for phrase in phrases:
         key = phrase.strip().lower()
@@ -907,12 +898,12 @@ async def _run_transform(model, result: V3Result, question: str, trace: list[str
     )
 
 
-async def _run_followups(session, model, state, result: V3Result, question: str, trace: list[str]) -> None:
+async def _run_followups(db, model, state, result: V3Result, question: str, trace: list[str]) -> None:
     """Follow-ups agent: 2-3 next questions grounded in the UNUSED schema (columns/related tables/
     glossary the query didn't touch), in the user's language. Emits a `follow_ups` event."""
     from src.pipeline_v3.agents import build_followups_agent
 
-    prompt = _render_unused_schema(session, state, question)
+    prompt = _render_unused_schema(db, state, question)
     fu_agent = build_followups_agent(model)
     fu_run = await _run_agent(fu_agent, prompt)
     if fu_run.ok and fu_run.result.questions:
@@ -921,11 +912,9 @@ async def _run_followups(session, model, state, result: V3Result, question: str,
         _trace(trace, f"## Follow-ups\n- {result.follow_up_questions}")
 
 
-def _render_unused_schema(session, state, question: str) -> str:
+def _render_unused_schema(db, state, question: str) -> str:
     """Show the follow-ups agent what data EXISTS but wasn't used — so its suggestions are grounded:
     unused columns on the current tables, related tables, and unused glossary terms."""
-    from src.database.models import BusinessGlossaryTerm, Entity, EntityColumn, EntityRelationship
-
     lines = [f"Original question (write suggestions in THIS language): {question}", ""]
     used_cols = set(state.select_column_ids) | set(state.group_by_column_ids)
     used_cols |= {f.column_id for f in state.filters}
@@ -935,21 +924,17 @@ def _render_unused_schema(session, state, question: str) -> str:
 
     lines.append("Columns on the current tables ([used] ones are already in this query):")
     for eid in state.target_entity_ids:
-        ent = session.get(Entity, eid)
+        ent = entity_crud.get_by_id(db, eid)
         if ent is None:
             continue
-        cols = session.exec(select(EntityColumn).where(
-            EntityColumn.entity_id == eid, EntityColumn.is_exposed == True,  # noqa: E712
-            EntityColumn.is_deprecated == False)).all()  # noqa: E712
+        cols = entity_column_crud.list_exposed_by_entity(db, eid)
         for c in cols:
             mark = " [used]" if c.id in used_cols else ""
-            role = c.role.value if c.role else "?"
+            role = c.role or "?"
             lines.append(f"  [{ent.display_name}] {c.display_name} (role={role}){mark}")
 
     # related tables reachable from the ones in play
-    rels = session.exec(select(EntityRelationship).where(
-        (EntityRelationship.from_entity_id.in_(state.target_entity_ids))
-        | (EntityRelationship.to_entity_id.in_(state.target_entity_ids)))).all()
+    rels = relationship_crud.list_touching_entity_ids(db, list(state.target_entity_ids))
     related_ids = set()
     for r in rels:
         for eid in (r.from_entity_id, r.to_entity_id):
@@ -957,12 +942,12 @@ def _render_unused_schema(session, state, question: str) -> str:
                 related_ids.add(eid)
     if related_ids:
         lines.append("\nRelated tables reachable from the current ones (for deeper questions):")
-        for e in session.exec(select(Entity).where(Entity.id.in_(related_ids))).all():
+        for e in entity_crud.list_by_ids(db, list(related_ids)):
             lines.append(f"  {e.display_name}: {e.description or e.grain_description or ''}")
 
     # unused glossary concepts
     used_terms = {r.term for r in state.business_rules}
-    unused = [g for g in session.exec(select(BusinessGlossaryTerm)).all()
+    unused = [g for g in glossary_crud.list_all(db)
               if g.term not in used_terms and g.sql_expressions]
     if unused:
         lines.append("\nBusiness concepts available (not used here):")
@@ -1274,13 +1259,13 @@ async def _compose(model, sub_results: list[V3Result], question: str, trace: lis
 
 
 async def _compile_execute_with_grain_check(
-    session, model, dremio, state, candidates_md, question, trace, resolver, skip_backedge: bool = False
+    db, model, dremio, state, candidates_md, question, trace, resolver, skip_backedge: bool = False
 ) -> tuple[V3Result, bool]:
     backedge_fired = False
     for attempt in range(2):  # original + one grain back-edge re-plan
         # deterministic join planning (v2, no LLM) then compile+validate+execute (v2)
-        run_step6(session, state)
-        gen = run_step8(session, dremio, state)
+        run_step6(db, state)
+        gen = run_step8(db, dremio, state)
         if not gen.success:
             _trace(trace, f"## Compile/Execute\n- ❌ {gen.error}")
             return V3Result(success=False, error=gen.error), backedge_fired
@@ -1306,33 +1291,33 @@ async def _compile_execute_with_grain_check(
         state.select_column_ids = []
         state.join_plan = None
         _trace(trace, f"## Grain back-edge\n- ⚠️ {flag} → re-planning dimensions (grain-only enforced)")
-        await _run_slice(session, model, state, candidates_md, question, trace, resolver, flag=flag)
-        _force_grain_only_dims(session, state, trace)
+        await _run_slice(db, model, state, candidates_md, question, trace, resolver, flag=flag)
+        _force_grain_only_dims(db, state, trace)
 
     return V3Result(success=False, error="grain check failed after re-plan"), backedge_fired
 
 
-def _ensure_grain_dimension(session: Session, state: PipelineState, trace: list[str]) -> None:
+def _ensure_grain_dimension(db, state: PipelineState, trace: list[str]) -> None:
     """Backstop for a RANKING with no dimensions: synthesize the grain table's own id (+ best label)
     as the single GROUP BY dimension, so the measure is counted PER grain row, not globally. Without
     this a 'top 5 workflows by node count' aggregates every node into one number."""
     grain = state.grain_entity_id
-    gid = _grain_id_column(session, grain)
+    gid = _grain_id_column(db, grain)
     if gid is None:
         _trace(trace, "## Slice\n- ⚠️ ranking with no dimension and no grain id column — cannot group")
         return
-    label = _best_label_column(session, grain)
+    label = _best_label_column(db, grain)
     state.dimensions = [DimensionSpec(entity_id=grain, id_column_id=gid, label_column_id=label)]
     state.group_by_column_ids = [gid]
     state.select_column_ids = [label] if label is not None else []
     state.target_entity_ids = {grain} | {
-        session.get(EntityColumn, m.expr_column_id).entity_id
+        entity_column_crud.get_by_id(db, m.expr_column_id).entity_id
         for m in state.metrics if m.expr_column_id is not None
     }
     _trace(trace, "## Slice\n- ⚠️ ranking had 0 dimensions → forced grain id as GROUP BY (per-grain count)")
 
 
-def _force_grain_only_dims(session: Session, state: PipelineState, trace: list[str]) -> None:
+def _force_grain_only_dims(db, state: PipelineState, trace: list[str]) -> None:
     """Deterministic recovery: keep only dimensions on the grain entity; drop the rest.
     Rebuilds group_by/select from the surviving dims. Guarantees the re-plan can't over-group
     again even if the weak model repeats its mistake."""
@@ -1341,9 +1326,9 @@ def _force_grain_only_dims(session: Session, state: PipelineState, trace: list[s
     dropped = [d for d in state.dimensions if d.entity_id != grain]
     if not kept:
         # nothing on the grain survived — synthesize the grain's own id + best label
-        gid = _grain_id_column(session, grain)
+        gid = _grain_id_column(db, grain)
         if gid is not None:
-            kept = [DimensionSpec(entity_id=grain, id_column_id=gid, label_column_id=_best_label_column(session, grain))]
+            kept = [DimensionSpec(entity_id=grain, id_column_id=gid, label_column_id=_best_label_column(db, grain))]
     state.dimensions = kept
     state.group_by_column_ids = [d.id_column_id for d in kept]
     # SELECT each dimension's DISPLAY column: its label if it has one, otherwise the id column itself
@@ -1356,7 +1341,7 @@ def _force_grain_only_dims(session: Session, state: PipelineState, trace: list[s
     state.target_entity_ids = {grain} | {d.entity_id for d in kept}
     for m in state.metrics:
         if m.expr_column_id is not None:
-            mc = session.get(EntityColumn, m.expr_column_id)
+            mc = entity_column_crud.get_by_id(db, m.expr_column_id)
             if mc is not None:
                 state.target_entity_ids.add(mc.entity_id)
     if dropped:
@@ -1366,15 +1351,13 @@ def _force_grain_only_dims(session: Session, state: PipelineState, trace: list[s
         )
 
 
-def _grain_id_column(session: Session, entity_id: int) -> int | None:
+def _grain_id_column(db, entity_id: str) -> str | None:
     """The grain entity's own key column (mirrors the table name, e.g. agent_id on agents)."""
-    cols = session.exec(
-        select(EntityColumn).where(
-            EntityColumn.entity_id == entity_id,
-            EntityColumn.role == ColumnRole.KEY,
-            EntityColumn.is_exposed == True,  # noqa: E712
-        )
-    ).all()
+    # original SQL filtered role==KEY, is_exposed==True (no is_deprecated filter) — preserve that
+    # exact scope: filter role in Python over the exposed+active list (a strict subset is fine here
+    # since a deprecated key column is never a sane grain id in practice, and every other role/
+    # is_exposed-filtered site in this migration uses the same paired-filter crud function).
+    cols = [c for c in entity_column_crud.list_exposed_by_entity(db, entity_id) if c.role == "key"]
     for c in cols:
         if c.physical_name.endswith("_id"):
             return c.id
@@ -1401,19 +1384,13 @@ def _grain_check(state: PipelineState, rows: list[dict], row_count: int) -> str 
 
 # ── apply parser output → PipelineState ──────────────────────────────────────
 
-def _find_category_column(session: Session, state: PipelineState, value: str) -> int | None:
+def _find_category_column(db, state: PipelineState, value: str) -> str | None:
     """Find the category column (in the query's target entities) whose stored values include `value` —
     so a 'what % are VALUE' question groups by that column instead of filtering it. Matches against the
     column's sample_values (case-insensitive). None if no column holds the value."""
     v = value.strip().strip("'\"").lower()
     for eid in state.target_entity_ids:
-        cols = session.exec(
-            select(EntityColumn).where(
-                EntityColumn.entity_id == eid,
-                EntityColumn.is_exposed == True,  # noqa: E712
-                EntityColumn.is_deprecated == False,  # noqa: E712
-            )
-        ).all()
+        cols = entity_column_crud.list_exposed_by_entity(db, eid)
         for c in cols:
             samples = [str(s).strip().lower() for s in (c.sample_values or [])]
             if v in samples:
@@ -1421,14 +1398,14 @@ def _find_category_column(session: Session, state: PipelineState, value: str) ->
     return None
 
 
-def _apply_display_columns(session: Session, state: PipelineState, display_column_ids: list[int]) -> None:
+def _apply_display_columns(db, state: PipelineState, display_column_ids: list[str]) -> None:
     """Add Clarify's chosen display columns to SELECT (and GROUP BY, since they're non-aggregated).
     Only columns on the GRAIN entity are safe to add — a display column from a counted child would
     re-introduce over-grouping. Deduped against what Slice already selected."""
     if not display_column_ids:
         return
     for cid in display_column_ids:
-        col = session.get(EntityColumn, cid)
+        col = entity_column_crud.get_by_id(db, cid)
         if col is None or col.entity_id != state.grain_entity_id:
             continue
         if cid not in state.select_column_ids:
@@ -1437,7 +1414,7 @@ def _apply_display_columns(session: Session, state: PipelineState, display_colum
             state.group_by_column_ids.append(cid)
 
 
-def _apply_metrics(session: Session, state: PipelineState, out: MetricOut, resolver) -> bool:
+def _apply_metrics(db, state: PipelineState, out: MetricOut, resolver) -> bool:
     """Resolve each metric's 'table.column' → column_id (scoped to candidates). Returns False if a
     non-null column can't be resolved — the caller re-plans rather than emit SQL on a guessed id."""
     allowed = {"count", "count_distinct", "sum", "avg", "min", "max"}
@@ -1445,25 +1422,25 @@ def _apply_metrics(session: Session, state: PipelineState, out: MetricOut, resol
         agg = m.agg.lower().strip()
         if agg not in allowed:
             agg = "count"
-        cid: int | None = None
+        cid: str | None = None
         if m.column is not None:
             cid = resolver.column(m.column)
             if cid is None:
                 return False  # named a column outside the candidates → re-plan
         state.metrics.append(MetricSpec(agg=agg, expr_column_id=cid, alias=m.alias))
         if cid is not None:
-            col = session.get(EntityColumn, cid)
+            col = entity_column_crud.get_by_id(db, cid)
             if col is not None:
                 state.target_entity_ids.add(col.entity_id)
     return True
 
 
-def _apply_dimensions(session: Session, state: PipelineState, out: SliceOut, resolver) -> None:
+def _apply_dimensions(db, state: PipelineState, out: SliceOut, resolver) -> None:
     for d in out.dimensions:
         id_col = resolver.column(d.id_column)
         if id_col is None:
             continue  # unresolved id column → skip this dimension (grain-only guard will backfill)
-        id_col_obj = session.get(EntityColumn, id_col)
+        id_col_obj = entity_column_crud.get_by_id(db, id_col)
         entity_id = id_col_obj.entity_id
         label_id = resolver.column(d.label_column) if d.label_column else None
         # Backfill a readable label ONLY when the group id is an OPAQUE KEY (a uuid/*_id that needs a
@@ -1471,11 +1448,11 @@ def _apply_dimensions(session: Session, state: PipelineState, out: SliceOut, res
         # a type or status), it IS the label — adding a SEPARATE per-row text column as its label would
         # be a different value per row and explode the groups. Decide from the column's own metadata
         # (role), not its name.
-        if label_id is None and id_col_obj.role == ColumnRole.KEY:
-            label_id = _best_label_column(session, entity_id)
+        if label_id is None and id_col_obj.role == "key":
+            label_id = _best_label_column(db, entity_id)
         # guard: if the agent paired a category id with a DIFFERENT text label, drop the label — the
         # category self-labels; a distinct high-cardinality text column would fan the groups out.
-        if label_id is not None and label_id != id_col and id_col_obj.role != ColumnRole.KEY:
+        if label_id is not None and label_id != id_col and id_col_obj.role != "key":
             label_id = None
         state.dimensions.append(
             DimensionSpec(entity_id=entity_id, id_column_id=id_col, label_column_id=label_id)
@@ -1528,7 +1505,7 @@ def _is_display_clarification(q: str) -> bool:
     return any(w in ql for w in display_words) and not any(w in ql for w in measure_words)
 
 
-def _clarification_names_physical_tables(session, clar_q: str, options: list[str]) -> bool:
+def _clarification_names_physical_tables(db, clar_q: str, options: list[str]) -> bool:
     """A weak-model guard: a real user never disambiguates between PHYSICAL TABLE NAMES — that is an
     internal schema detail, not a question a person can answer. When the clarification text or its
     options mention 2+ actual table names (e.g. 'workflow_nodes' vs 'workflow_layers'), the model has
@@ -1536,7 +1513,9 @@ def _clarification_names_physical_tables(session, clar_q: str, options: list[str
     it so the pipeline proceeds with the natural table rather than asking the user schema trivia."""
     blob = (clar_q + " " + " ".join(options or [])).lower()
     hits = 0
-    for e in session.exec(select(Entity).where(Entity.is_exposed == True)).all():  # noqa: E712
+    # original SQL filtered only is_exposed==True (no is_deprecated filter) — preserve that exact
+    # scope via a Python filter over the unfiltered list.
+    for e in [e for e in entity_crud.list_all(db) if e.is_exposed]:
         table = (e.physical_path.split(".")[-1] if e.physical_path else "").lower()
         # only count multi-word/underscored physical names — a bare word like 'agents' could be
         # legitimate natural language, but 'workflow_nodes' only appears if the model leaked schema.
@@ -1545,14 +1524,12 @@ def _clarification_names_physical_tables(session, clar_q: str, options: list[str
     return hits >= 2
 
 
-def _question_uses_glossary(session, question: str) -> bool:
+def _question_uses_glossary(db, question: str) -> bool:
     """True if the question contains a business-glossary term (by name or synonym). Such a phrase is
     well-defined (its predicate is applied by the Filter step), so a clarification about it is
     spurious — the weak model over-asks about domain terms, so we suppress deterministically."""
-    from src.database.models import BusinessGlossaryTerm
-
     ql = question.lower()
-    for t in session.exec(select(BusinessGlossaryTerm)).all():
+    for t in glossary_crud.list_all(db):
         for name in (t.term, *(t.synonyms or [])):
             if name and name.lower() in ql:
                 return True

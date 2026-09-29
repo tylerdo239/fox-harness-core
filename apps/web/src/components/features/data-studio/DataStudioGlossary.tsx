@@ -14,7 +14,7 @@ import { IconButton } from "../../primitives/IconButton.tsx";
 import { Input } from "../../primitives/Input.tsx";
 
 interface GlossaryTerm {
-  id: number;
+  id: string;
   term: string;
   synonyms: string;
   definition_text: string;

@@ -99,17 +99,10 @@ export async function spawnWorker(dshHomeDir: string, sessionId?: string, modelO
   // entrypoint.sh should boot with — defaults to the original single-profile
   // name so an image run without this set still behaves exactly as before.
   env.push(`DSH_PROFILE_NAME=${profileName}`)
-  // docs/data-studio-agent-transfer-plan.md: unconditional (every session,
-  // every worker) — the semantic-layer sqlite config is shared across ALL
-  // sessions, unlike the per-session /data mount below. Created here for the
-  // same reason dshHomeDir's subdirectory is: so the host process (not the
-  // container's root user) owns it.
-  await mkdir(config.dataStudioSharedDir, { recursive: true })
-  env.push(`DATABASE_URL=sqlite:////data-studio-shared/semantic_layer.db`)
   // The flow's working directory (config.flows[...].cwd, under /data). Created
   // here on the host so host-side writers (file uploads) own it, not the
   // container's root user.
-  const binds = [`${dshHomeDir}:/data`, `${config.dataStudioSharedDir}:/data-studio-shared`]
+  const binds = [`${dshHomeDir}:/data`]
   if (sessionCwd !== undefined) {
     await mkdir(join(dshHomeDir, relative('/data', sessionCwd)), { recursive: true })
     env.push(`FOX_SESSION_CWD=${sessionCwd}`)

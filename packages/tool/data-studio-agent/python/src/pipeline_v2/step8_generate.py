@@ -9,8 +9,7 @@ than the doc's EXPLAIN-only suggestion.
 
 from dataclasses import dataclass
 
-from sqlmodel import Session
-
+from src.database.mongodb import AttrDatabase
 from src.pipeline_v2.state import PipelineState
 from src.pipeline_v2.templates import build_sql_ast
 from src.services.dremio_client import DremioClient
@@ -27,9 +26,9 @@ class GenerateResult:
     error: str | None = None
 
 
-def run_step8(session: Session, dremio_client: DremioClient, state: PipelineState) -> GenerateResult:
+def run_step8(db: AttrDatabase, dremio_client: DremioClient, state: PipelineState) -> GenerateResult:
     try:
-        ast = build_sql_ast(session, state)
+        ast = build_sql_ast(db, state)
     except Exception as e:  # noqa: BLE001 — surface any AST build failure as a step error
         return GenerateResult(success=False, error=f"sql_build_error: {e}")
 
@@ -45,13 +44,13 @@ def run_step8(session: Session, dremio_client: DremioClient, state: PipelineStat
             entity_ids.add(edge.from_entity_id)
             entity_ids.add(edge.to_entity_id)
     entity_ids = list(entity_ids)
-    validation = validate_sql(session, ast, entity_ids)
+    validation = validate_sql(db, ast, entity_ids)
     if not validation.is_valid:
         msg = validation.errors[0].message if validation.errors else "validation failed"
         return GenerateResult(success=False, validation=validation, error=f"validation_error: {msg}")
 
-    grain_id = state.grain_entity_id or (entity_ids[0] if entity_ids else 0)
-    execution = execute_and_check(session, dremio_client, validation.sql, grain_id)
+    grain_id = state.grain_entity_id or (entity_ids[0] if entity_ids else None)
+    execution = execute_and_check(db, dremio_client, validation.sql, grain_id)
     if not execution.success:
         return GenerateResult(
             success=False, sql=validation.sql, execution=execution, error=execution.error

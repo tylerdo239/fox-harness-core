@@ -1,13 +1,22 @@
 from functools import lru_cache
 from typing import Any
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "sqlite:///./data/semantic_layer.db"
+    # MongoDB holds the semantic layer + chat history (docs/data-studio-mongodb-plan.md). Vault injects
+    # the full URI (creds + db + authSource) as "MongoDBWrite" on FPT infrastructure; MONGODB_URL is
+    # the plain-env form. A database named in the URI wins over `mongodb_database_name`
+    # (src/database/mongodb.py uses get_default_database(name)) — services/gateway/src/mongo.ts
+    # resolves it the same way, keep the two identical.
+    mongodb_url: str = Field(
+        "mongodb://localhost:27017", validation_alias=AliasChoices("MongoDBWrite", "mongodb_url")
+    )
+    mongodb_database_name: str = "bot_data_studio"
 
     dremio_url: str = "http://localhost:9047"
     dremio_username: str = "admin"

@@ -100,12 +100,11 @@ export const config = {
   // addressing (`http://host/bucket/key`) — they don't support the
   // virtual-hosted-style (`http://bucket.host/key`) AWS S3 defaults to.
   s3ForcePathStyle: envOr('S3_FORCE_PATH_STYLE', 'false') === 'true',
-  // docs/data-studio-admin-ui-plan.md: the SAME host directory
-  // services/orchestrator/src/config.ts's `dataStudioSharedDir` bind-mounts
-  // into every worker container — gateway reads/writes the sqlite file
-  // inside it directly for admin CRUD (data sources/entities/glossary/
-  // relationships/metrics), no Python involved for plain CRUD. Same default
-  // (relative to cwd) as orchestrator's own default so an unconfigured dev
-  // setup still points both processes at the identical file.
-  dataStudioSharedDir: envOr('DATA_STUDIO_SHARED_DIR', `${process.cwd()}/data/data-studio-shared`),
+  // docs/data-studio-mongodb-plan.md: Data Studio's semantic layer + chat history live in MongoDB,
+  // shared with every worker container (Python) and with bot-data-studio-api. `MongoDBWrite` is the
+  // name Vault injects on FPT infrastructure (same alias the Python settings accept); MONGODB_URL
+  // is the plain-env form for local dev. A database named in the URL path wins over
+  // `mongodbDatabaseName` — same rule on both sides (src/database/mongodb.py).
+  mongodbUrl: process.env.MONGODB_URL ?? process.env.MongoDBWrite ?? 'mongodb://127.0.0.1:27017',
+  mongodbDatabaseName: envOr('MONGODB_DATABASE_NAME', 'bot_data_studio'),
 }

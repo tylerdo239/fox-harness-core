@@ -11,21 +11,21 @@ import { Button } from "../../primitives/Button.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
 
 interface BrowseEntity {
-  id: number;
+  id: string;
   display_name: string;
   physical_name: string;
-  columns: { id: number; display_name: string; physical_name: string }[];
+  columns: { id: string; display_name: string; physical_name: string }[];
 }
 
 interface Relationship {
-  id: number;
-  from_entity_id: number;
-  to_entity_id: number;
+  id: string;
+  from_entity_id: string;
+  to_entity_id: string;
   from_entity_name: string;
   to_entity_name: string;
   cardinality: string;
   join_type_default: string;
-  column_pairs: { from_column_id: number; to_column_id: number; from_column_name: string; to_column_name: string }[];
+  column_pairs: { from_column_id: string; to_column_id: string; from_column_name: string; to_column_name: string }[];
 }
 
 const CARDINALITY_OPTIONS = ["1:1", "1:N", "N:N"];
@@ -37,10 +37,10 @@ export function DataStudioRelationships() {
   const [entities, setEntities] = useState<BrowseEntity[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fromEntityId, setFromEntityId] = useState<number | "">("");
-  const [toEntityId, setToEntityId] = useState<number | "">("");
-  const [fromColumnId, setFromColumnId] = useState<number | "">("");
-  const [toColumnId, setToColumnId] = useState<number | "">("");
+  const [fromEntityId, setFromEntityId] = useState<string>("");
+  const [toEntityId, setToEntityId] = useState<string>("");
+  const [fromColumnId, setFromColumnId] = useState<string>("");
+  const [toColumnId, setToColumnId] = useState<string>("");
   const [cardinality, setCardinality] = useState(CARDINALITY_OPTIONS[1]);
   const [joinType, setJoinType] = useState(JOIN_TYPE_OPTIONS[0]);
   const [saving, setSaving] = useState(false);
@@ -103,7 +103,7 @@ export function DataStudioRelationships() {
       </div>
 
       <div className="fh-data-studio-relationship-form">
-        <select value={fromEntityId} onChange={(e) => { setFromEntityId(e.target.value ? Number(e.target.value) : ""); setFromColumnId(""); }}>
+        <select value={fromEntityId} onChange={(e) => { setFromEntityId(e.target.value); setFromColumnId(""); }}>
           <option value="">{t("dataStudio.fromEntity")}</option>
           {entities.map((entity) => (
             <option key={entity.id} value={entity.id}>
@@ -111,7 +111,7 @@ export function DataStudioRelationships() {
             </option>
           ))}
         </select>
-        <select value={fromColumnId} onChange={(e) => setFromColumnId(e.target.value ? Number(e.target.value) : "")} disabled={!fromColumns.length}>
+        <select value={fromColumnId} onChange={(e) => setFromColumnId(e.target.value)} disabled={!fromColumns.length}>
           <option value="">{t("dataStudio.fromColumn")}</option>
           {fromColumns.map((column) => (
             <option key={column.id} value={column.id}>
@@ -120,7 +120,7 @@ export function DataStudioRelationships() {
           ))}
         </select>
         <span className="fh-data-studio-relationship-arrow">→</span>
-        <select value={toEntityId} onChange={(e) => { setToEntityId(e.target.value ? Number(e.target.value) : ""); setToColumnId(""); }}>
+        <select value={toEntityId} onChange={(e) => { setToEntityId(e.target.value); setToColumnId(""); }}>
           <option value="">{t("dataStudio.toEntity")}</option>
           {entities.map((entity) => (
             <option key={entity.id} value={entity.id}>
@@ -128,7 +128,7 @@ export function DataStudioRelationships() {
             </option>
           ))}
         </select>
-        <select value={toColumnId} onChange={(e) => setToColumnId(e.target.value ? Number(e.target.value) : "")} disabled={!toColumns.length}>
+        <select value={toColumnId} onChange={(e) => setToColumnId(e.target.value)} disabled={!toColumns.length}>
           <option value="">{t("dataStudio.toColumn")}</option>
           {toColumns.map((column) => (
             <option key={column.id} value={column.id}>
