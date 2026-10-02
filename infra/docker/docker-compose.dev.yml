@@ -1,6 +1,5 @@
-# Local dev only — not a real deployment target (infra/deploy/README.md: not
-# decided yet). No redis-server/redis-cli/mariadb installed on this machine,
-# and Docker is already required for infra/docker/worker anyway.
+# Local development dependencies only (the real deployment is infra/deploy/docker-compose.yml). No
+# redis-server/redis-cli/mariadb need to be installed on the host.
 #
 #   docker compose -f infra/docker/docker-compose.dev.yml up -d
 #   docker exec -i docker-mariadb-1 mariadb -u fox_harness -pfox_harness_dev fox_harness < infra/migrations/001_init.sql

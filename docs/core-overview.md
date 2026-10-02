@@ -1,4 +1,4 @@
-# Tổng quan bộ core — hiện trạng thật (tính đến 2026-09-11)
+# Tổng quan bộ core — hiện trạng thật (cập nhật 2026-10-02: đã bỏ orchestrator, còn FE + BE)
 
 Tài liệu này khác `docs/agent-core-architecture-roadmap.md` (kế hoạch +
 research theo từng phase, có phần chưa làm) và `docs/code-rules.md` (nhật ký
@@ -21,8 +21,8 @@ thật**, không viết lại.
 
 Toàn bộ lớp **multi-tenant** (nhiều user, nhiều session cùng lúc, cô lập
 từng session) **hoàn toàn KHÔNG có sẵn trong `dsh`** — `dsh` gốc là 1 harness
-single-process, single-user. Đây là phần tự xây 100%: `services/gateway`,
-`services/orchestrator`, `apps/web`.
+single-process, single-user. Đây là phần tự xây 100%: `services/gateway` (gồm
+supervisor của runtime), `apps/web`.
 
 ## 2. Sơ đồ luồng thật
 
@@ -30,30 +30,28 @@ single-process, single-user. Đây là phần tự xây 100%: `services/gateway`
 Browser (apps/web — 1 React SPA tĩnh, build 1 lần, dùng chung mọi user)
    │  HTTP (auth, REST) + WebSocket (chat stream)
    ▼
-services/gateway  ── auth thật (MariaDB users + Redis token trượt TTL), CORS,
-   │                  proxy — KHÔNG chạy agent logic gì cả
+web (nginx) ── phục vụ static; chuyển /auth, /sessions, /projects, ... và WebSocket tới backend cùng origin
    ▼
-services/orchestrator ── vòng đời container (spawn/hibernate/rehydrate/
-   │                      warm-pool), 1 session = 1 container Docker riêng
-   ▼
-Container worker thật (1 cái/session) — chạy `dsh` thật với:
-   packages/agent-driver   (thay agent-loop)
-   packages/core           (agent/request routing + quota)
-   packages/llm/openai-compat  (LlmAdapter thật)
-   packages/tool/serper-web-search
-   packages/transport      (WS server bên trong worker)
-   -- mọi năng lực đều là bundle CỐ ĐỊNH, giống nhau cho mọi user/session
+backend (1 container)
+   ├─ services/gateway ── auth thật (MariaDB users + Redis token trượt TTL), REST, phân quyền theo user id,
+   │                      proxy WS byte-blind, skills/file/project theo user, quota, và SUPERVISOR của runtime
+   └─ N tiến trình `dsh` (FOX_RUNTIME_COUNT) do gateway khởi động — mỗi tiến trình chạy NHIỀU session
+        packages/agent-driver   (thay agent-loop; scope riêng cho từng agent)
+        packages/core           (model theo agent + quota token dựng lại từ log)
+        packages/llm/openai-compat, packages/tool/*, packages/transport (WS server + tool guard)
+        flow = agent preset (packages/profile-template/presets/<flow>), join theo từng session
 
-Redis   — session affinity (fh:session:*), warm pool, login token store
-MariaDB — users, sessions
+Redis   — token đăng nhập + rate-limit (không còn affinity/warm pool)
+MariaDB — discovery_users, discovery_sessions, discovery_projects, discovery_custom_skills
+Đĩa     — <GATEWAY_DATA_DIR>: dsh-home (log session = nguồn sự thật), users/<userId>/<sessionId>, projects/<id>
 ```
 
-`packages/contracts` là type-only, dùng chung giữa `services/*` và
-`apps/web` — quy tắc cứng (`docs/code-rules.md` §1): `services/*` không bao
-giờ import trực tiếp từ package `dsh-*` nào, chỉ từ `contracts`. `services/*`
-cũng không bao giờ import lẫn nhau — chỉ nói chuyện qua HTTP thật. Chỉ 4
-type export thật hiện có: `EnsureSessionRequest`/`EnsureSessionResponse`
-(gateway↔orchestrator), `TouchSessionReason`, `ModelsResponse`.
+Trạng thái của một session chỉ là **log trên đĩa**: runtime không giữ trạng thái điều khiển, gateway truyền
+flow/model/cwd/owner (đọc từ hàng `discovery_sessions`) ở MỌI lần kết nối. Runtime chết → session tự resume từ log
+ở lần kết nối sau; session idle bị gỡ khỏi RAM và cũng resume như vậy.
+
+`packages/contracts` là type-only, dùng chung giữa `services/gateway` và `apps/web` — quy tắc cứng
+(`docs/code-rules.md` §1): `services/*` không bao giờ import trực tiếp từ package `dsh-*` nào, chỉ từ `contracts`.
 
 ## 3. Từng cấu phần thật
 
@@ -99,68 +97,42 @@ có sẵn của dsh (`dsh-tool-web`), package này chỉ cắm nguồn tìm `ser
 `packages/tool/duckduckgo-web-search` (gỡ 2026-09-14 — DuckDuckGo chặn IP
 máy chủ).
 
-### 3.5 `packages/transport` (`@fox-harness/dsh-transport`) — WS bên trong worker
+### 3.5 `packages/transport` (`@fox-harness/dsh-transport`) — WS bên trong mỗi runtime
 
-1 kết nối WebSocket = 1 session. `ws://.../sessions/new` mint session mới,
-`ws://.../sessions/<id>` reconnect. Giao thức snapshot-rồi-live (không phải
-resume-from-cursor) — mỗi lần connect nhận `{type:'snapshot', events}` đầy
-đủ rồi mới tiếp tục nhận `{type:'event'}` từng cái mới. Client gửi
-`{type:'followup'|'steer', text}`. Bind mặc định `127.0.0.1` — chỉ nghe
-loopback trong container.
+1 kết nối WebSocket = 1 session: `ws://.../sessions/new?id=` mint session mới, `ws://.../sessions/<id>` reconnect;
+query `flow`, `model`, `cwd`, `user`, `output` do gateway truyền. Giao thức snapshot-rồi-live. Một listener
+`session/event` duy nhất cho cả process (`Hub`, fan-out theo `Map<sessionId, Set<ws>>`), frame đến trước khi session
+sẵn sàng được xếp hàng, session idle bị dispose khỏi RAM (`FOX_IDLE_DISPOSE_MS`), tạo/resume single-flight theo id.
+`setup` của agent join preset của flow (`flows.ts`) và gắn `workspace-guard.ts` (từ chối tool có đường dẫn ra ngoài
+cwd của session). Bind loopback, mọi kết nối/HTTP phải mang secret của gateway.
 
 ### 3.6 `packages/contracts` — type-only, ranh giới cứng
 
 Package DUY NHẤT `services/*` được phép import. Không có prefix `dsh-` (vì
 không phải Cordis plugin).
 
-### 3.7 `packages/profile-template` — KHÔNG phải bundle `dsh`
+### 3.7 `packages/profile-template` — profile hợp nhất + preset theo flow
 
-Chỉ là file mẫu (`template/profile.package.json` +
-`template/cordis.patch.yml`) — `services/orchestrator` copy nó ra thành
-`$DSH_HOME/profiles/fox-harness/` thật cho từng session lúc materialize,
-không phải thứ `dsh` tự phát hiện qua `node_modules`. `bundles` liệt kê
-đúng 6 package: `dsh-base` + 5 package tự viết ở mục 3.1-3.5.
+Không phải bundle `dsh`. `runtime/template/` là profile DUY NHẤT mọi runtime khởi động (gateway copy ra
+`<dsh-home>/profiles/fox-harness/` mỗi lần start); `presets/{default,data-analysis,data-studio}/` là 3 flow dưới dạng
+agent preset (persona + tool riêng của flow). Khác biệt từng flow trước đây là `disabled: true` cấp process nay nằm ở
+`packages/transport/src/flows.ts` (mask tool theo agent) và trong preset. `profile-boot` của dsh ép `roots` của
+`agent-presets` về thư mục preset đóng gói, nên preset của ta nạp qua `$DSH_HOME/.agent-presets` (symlink do gateway tạo).
 
-### 3.8 `services/gateway` — auth + proxy, chặn giữa mọi thứ
+### 3.8 `services/gateway` — auth + REST + proxy + supervisor runtime
 
-Container-built, không import package `dsh-*` nào (chỉ `contracts`), KHÔNG
-chạy agent logic gì. Route thật hiện có (đọc trực tiếp từ `src/index.ts`):
+Container-built, không import package `dsh-*` nào (chỉ `contracts`). Route, luồng kết nối, cô lập và cấu hình: xem
+`services/gateway/README.md`. Điểm cốt lõi: gateway là nơi DUY NHẤT biết user là ai; mọi đường dẫn đĩa dựng từ id đã qua
+kiểm tra quyền (`users/<userId>/<sessionId>`); runtime nhận env allow-list, secret mỗi lần boot, và chạy trong thư mục
+không có `.env`.
 
-- `POST /auth/register` / `POST /auth/login` / `POST /auth/logout` — tài
-  khoản thật (MariaDB `users`), token random 32-byte hex lưu Redis có TTL
-  **trượt** (sliding expiration — `GETEX` gia hạn mỗi lần có hoạt động
-  thật, REST hoặc frame WS, không phải đếm ngược cứng từ lúc login), thu
-  hồi thật lúc logout. `role` chỉ có `user`/`admin`, không bao giờ tạo
-  `admin` qua `register()` (chỉ qua `scripts/create-admin.mjs`, ngoài
-  HTTP).
-- `GET /sessions` (admin), `GET /sessions/mine`, `PATCH /sessions/:id`
-  (rename), `DELETE /sessions/:id` (purge).
-- `ws://.../sessions/new?token=` / `ws://.../sessions/:id?token=` — proxy
-  trong suốt tới `packages/transport` của đúng worker.
-- `GET /sessions/:id/plugin-inventory` — đọc live Cordis Loader state thật
-  của worker đó (chẩn đoán).
-- `GET /models` — không cần auth (đọc trước khi có token).
-- `GET /users` — admin-only.
+### 3.9 Supervisor runtime (`services/gateway/src/runtime/`) — thay cho `services/orchestrator`
 
-### 3.9 `services/orchestrator` — vòng đời container
-
-Spawn/hibernate/rehydrate/TTL/warm-pool thật qua `dockerode` + Redis affinity
-(`ioredis`). KHÔNG BAO GIỜ biết nội dung session — chỉ affinity/lifecycle.
-Mọi route yêu cầu header shared-secret thật từ gateway
-(`x-fox-harness-internal-secret`, `timingSafeEqual`) — không phải per-user
-auth, chỉ xác thực đúng caller là gateway. Container spawn có giới hạn
-resource thật (`Memory`/`NanoCpus`/`PidsLimit`).
-Materialize `$DSH_HOME/profiles/fox-harness/` từ `profile-template` mỗi
-session (không phải việc `dsh` tự làm): copy thẳng `profile.package.json`
-từ template, ghi override host/port cho `packages/transport`. Cũng giữ
-quota "số session chạy đồng thời" + "tuổi tối đa 1 session" (2 trong 3
-quota thật — quota thứ 3, token/session, nằm ở `packages/core` như mục
-3.2). Rehydrate luôn spawn container MỚI, không bao giờ restart container
-cũ — buộc state phải sống lại từ log.
-
-**MariaDB schema thật (2 bảng, `infra/migrations/001_init.sql`):**
-`users`, `sessions` (có `first_message_at` — chỉ session THẬT SỰ đã chat
-mới hiện trong `GET /sessions/mine`).
+Khởi động `FOX_RUNTIME_COUNT` tiến trình `dsh`, chờ tới khi nhận được WS handshake thật, restart có backoff, chọn shard
+`hash(sessionId) % N`, dừng êm (SIGTERM → runtime flush log → SIGKILL sau `FOX_SHUTDOWN_GRACE_MS`). Ở production **từ chối
+khởi động nếu không có sandbox chặt** (`fox-confine.sh` + bubblewrap) hoặc data dir nằm trong git checkout.
+Skill theo user ghi vào `<workspace>/.dsh/skills`; purge session = runtime nhả session, xoá workspace + log dsh.
+Không còn warm pool, affinity Redis, hibernate bằng container, archive (chưa chuyển sang — xem mục 5).
 
 ### 3.10 `apps/web` (`@fox-harness/web`) — 1 React SPA tĩnh
 
@@ -197,85 +169,44 @@ Profile thật — KHÔNG còn `PluginInventory.tsx`, đã xoá hẳn khỏi app
 
 ## 4. Bộ core làm được gì — checklist năng lực thật
 
-- **Multi-user thật**: đăng ký/đăng nhập/đăng xuất thật, 2 role, token thu
-  hồi được ngay (Redis), TTL trượt theo hoạt động thật (không đăng xuất oan
-  user đang dùng), gateway là điểm enforce authorization DUY NHẤT — sai
-  password/nonexistent email không còn phân biệt được qua timing, có
-  rate-limit thật. Orchestrator vẫn không tự biết user là ai (đúng ranh
-  giới kiến trúc gốc), chỉ xác thực caller là gateway qua shared-secret.
-- **Multi-session/multi-tenant thật**: mỗi session 1 container Docker
-  riêng, không bao giờ chung process giữa 2 user. Hibernate theo TTL rảnh,
-  rehydrate lại đúng dữ liệu khi có request mới, warm pool giảm độ trễ cold
-  start.
-- **Chat turn thật**: streaming reasoning + text qua model OpenAI-compatible
-  thật, resume được giữa chừng dù reload trang hoặc container bị kill (log
-  event durable là nguồn sự thật, không phải WS connection).
-- **Tool-call thật**: `web_search` (nguồn Serper) — model gọi thật, có kết
-  quả thật.
-- **Sandbox thật cho bash/fs tool** (2026-09-11, `docs/
-  agent-core-architecture-roadmap.md` Phase 18): `dsh-sandbox`/
-  `dsh-sandbox-local` (bwrap trên Linux) đã hoạt động thật trong container
-  worker — `bubblewrap` cài trong image + `CAP_SYS_ADMIN` cấp cho tiến
-  trình `dsh` (không phải lệnh model chạy) để `bwrap` tự dựng PID
-  namespace cô lập. Xác nhận qua WS thật: lệnh bash chạy CONFINED
-  (`workspace-write`), trả stdout thật, không còn `SANDBOX_UNAVAILABLE`.
-  Đây là lớp phòng thủ THỨ 2 bên trong mỗi container — không thay thế cô
-  lập multi-tenant hiện có (1 container Docker/session).
-- **Quota thật**: giới hạn session đồng thời (global), tuổi tối đa 1
-  session, token budget/session — cả 3 đều thật, không phải placeholder.
-- **Năng lực cố định, giống nhau cho mọi user thật**: search
-  (`web_search`) và mọi capability khác đều là bundle CỐ ĐỊNH
-  trong profile — không có khái niệm "user tự chọn/bật-tắt". Thêm năng lực
-  mới = viết 1 package thật + `insert:` vào cây plugin + redeploy.
-- **1 UI thật, dùng chung mọi user**: theme light/dark thật (đổi được, lưu
-  lại), sidebar đúng cấu trúc thật đối chiếu qua ảnh chụp `chat.deepseek.com`
-  thật, toast thật có animation, empty-state composer thật khi chưa có tin
-  nhắn.
-- **Log retention thật**: archive/restore (`tar` thật) + xoá theo yêu cầu
-  (`DELETE /sessions/:id`), verify bằng session archive-rồi-restore vẫn
-  replay đúng.
-- **Telemetry cross-layer thật**: log JSON có gắn `sessionId` xuyên suốt mọi
-  service, verify bằng grep 1 sessionId thật qua từng log.
+- **Multi-user thật**: đăng ký/đăng nhập/đăng xuất thật, 2 role, token thu hồi được ngay (Redis), TTL trượt theo hoạt
+  động thật, gateway là điểm enforce authorization DUY NHẤT (theo user id, mọi route), rate-limit thật.
+- **Multi-session thật trong một runtime**: mỗi runtime `dsh` phục vụ nhiều session của nhiều user; mỗi agent có scope
+  riêng, flow là agent preset. Session idle bị gỡ khỏi RAM và resume từ log; runtime chết thì session tự resume ở lần
+  kết nối sau (đã test bằng `docker restart` và `kill -9`).
+- **Cô lập giữa user — tự xây, nhiều lớp** (dsh nói rõ scope/preset KHÔNG phải ranh giới bảo mật): (1) authorization +
+  đường dẫn dựng từ id đã kiểm; (2) `workspace-guard` từ chối tool có đường dẫn ra ngoài workspace (theo symlink);
+  (3) `fox-confine.sh` — bubblewrap root rỗng cho bash/python, env allow-list (`env -i`); (4) secret mỗi lần boot giữa
+  gateway và runtime. Đo thật: 22 vector đọc/ghi chéo + 8 kiểm tra python, 0 rò rỉ (docs/single-backend-architecture-plan.md §13).
+- **Chat turn thật**: streaming qua model OpenAI-compatible thật, resume được giữa chừng dù reload trang hay runtime bị kill.
+- **Tool thật**: `web_search` (Serper), `python` (1 kernel/cuộc hội thoại, ngắt được cell quá hạn), `analyze_data` (pool
+  worker + hàng đợi), skill theo user (`<workspace>/.dsh/skills`), file/project theo user.
+- **Quota thật**: số session đồng thời (toàn cục và theo user), token budget/session (dựng lại từ log nên không reset khi resume).
+- **Năng lực cố định, giống nhau cho mọi user**: capability là bundle cố định trong profile hoặc preset của flow — không
+  có "user tự chọn/bật-tắt". Thêm năng lực = package + profile/preset + `dependencies` + build lại image.
+- **1 UI thật, dùng chung mọi user** (theme, i18n vi/en, sidebar, toast…).
+- **Xoá theo yêu cầu**: `DELETE /sessions/:id` (runtime nhả session, xoá workspace + log), xoá project xoá cả chat của nó.
+- **Telemetry**: log JSON có `sessionId` xuyên gateway → runtime; `/healthz`, `/readyz`.
+- **Deploy 2 service**: image `backend` + `web`, compose ở `infra/deploy/`, test e2e `scripts/e2e-backend.mjs`.
 
 ## 5. Giới hạn/gap thật hiện tại (ghi rõ, không giả vờ đã xong)
 
-- **MicroVM isolation thật** — chỉ có chiến lược viết ra
-  (`docs/microvm-isolation-strategy.md`, khuyến nghị gVisor `runsc`), CHƯA
-  triển khai. Ranh giới cô lập thật hiện tại vẫn là Docker container
-  thường (có giới hạn resource CPU/RAM/PID mỗi container từ 2026-09-09,
-  nhưng chưa phải cô lập kernel-level).
-- **`services/orchestrator` yêu cầu shared-secret từ gateway** (2026-09-09,
-  không phải per-user auth — orchestrator vẫn không biết user là ai, chỉ
-  xác thực đúng caller là gateway). `OPENAI_API_KEY` vẫn dùng chung, forward
-  vào mọi container — chưa có LLM-call proxy riêng để tách biệt theo
-  session. Xem `docs/security-performance-review-2026-09-09.md`.
-- **Chat log + ảnh đính kèm lưu đĩa cục bộ 1 host** — chưa lên object
-  storage, chưa có backup. Chiến lược đã viết sẵn, chưa làm:
-  `docs/object-storage-strategy.md`.
-- **Multi-provider credential admin UI** — chỉ 1 provider cố định qua biến
-  môi trường, không có màn quản lý nhiều API key/provider.
-- **Reasoning-effort picker, chọn model giữa chừng session** — model chỉ
-  chọn được lúc TẠO session (tự động chọn model đầu tiên `GET /models` trả
-  về), không đổi được giữa chừng.
-- **Workspace/folder cho session** — chỉ có danh sách phẳng + nhóm theo
-  ngày (Today/Yesterday/...), không có khái niệm thư mục/dự án.
-- **Không có kho plugin cho user tự chọn năng lực khác nhau** — quyết định
-  có chủ đích: mọi user thật ra cần giống nhau, không cần khác nhau. Cần
-  bộ năng lực khác nhau theo nhóm user thật sự thì đây là việc xây LẠI,
-  không phải bật lại thứ có sẵn.
-- **Chưa từng chạy qua browser thật** — mọi verify FE là Node WS client
-  thật hoặc jsdom + React thật, chưa có công cụ mở browser trong session
-  này.
-- **Escalation `danger-full-access` luôn bị chặn, có chủ đích** — không
-  có approval channel nào được wire (hệ thống multi-tenant không có
-  human-in-the-loop). Model thử escalate khi sandbox backend không dùng
-  được sẽ luôn nhận lỗi `"no approval channel is available"`, không có UI
-  duyệt nào để bật lên.
-- **`warmpool.ts` không dọn thư mục pool member cũ** (2026-09-11,
-  `docs/code-rules.md` §83) — `data/dsh-home/_pool/<uuid>` của pool
-  member bị thay thế (hibernate/thay bằng replenish) không bao giờ tự
-  xoá, tích luỹ vô thời hạn trên đĩa host. Quan sát thật: 76 thư mục mồ
-  côi sau vài ngày test. Chưa sửa.
+- **Cô lập logic, không phải ranh giới kernel cho tool chạy trong process**: `workspace-guard` là policy fence (còn
+  cửa sổ check-then-use, không nhìn được vào dòng lệnh `bash`); ranh giới thật cho bash/python là bubblewrap. Một lỗ
+  hổng trong runtime hoặc thoát được sandbox là đọc được dữ liệu của mọi user cùng lúc. Production bắt buộc có sandbox
+  (gateway từ chối khởi động nếu thiếu). gVisor/microVM mới chỉ có chiến lược (`docs/microvm-isolation-strategy.md`).
+- **Trần thông lượng của một runtime**: ~2.300–2.800 chunk-event/s ≈ 100–150 session *đang stream cùng lúc* (đo bằng
+  mock LLM, máy dev). Dùng `FOX_RUNTIME_COUNT` để dùng nhiều core; chưa đo với LLM thật và phần cứng thật.
+- **Một replica BE**: nhiều replica cần sticky routing theo session id + storage dùng chung + khoá mở session.
+- **Mất log chưa flush khi runtime bị kill**: phần reply đang stream bị mất (turn được đóng là `interrupted`).
+- **`OPENAI_API_KEY` dùng chung**, runtime giữ trong env của nó (không lọt vào bash/python) — chưa có LLM-call proxy riêng.
+- **Archive/hibernate ra ngoài đĩa chưa chuyển sang** kiến trúc mới (orchestrator cũ có, mặc định tắt). Chat log lưu
+  đĩa cục bộ của 1 volume, chưa lên object storage (`docs/object-storage-strategy.md`).
+- **bash của flow `default` còn mạng và đọc được `/usr`, `/etc` tối thiểu** (allow-list); chưa cắt mạng.
+- **Chọn model chỉ lúc tạo session**; chưa có reasoning-effort picker, chưa có UI quản lý nhiều provider.
+- **Chưa từng chạy qua browser thật** — verify FE là Node WS client thật hoặc jsdom + React.
+- **Escalation `danger-full-access` luôn bị chặn, có chủ đích** — không có approval channel.
+- **dsh ghim `0.1.1-rc.2`**; bản mới hơn (0.2.0-rc.2) đổi preset sang plugin bundle, `agent/created`, log V4 — nâng cấp là dự án riêng.
 
 ## 6. Đọc thêm
 

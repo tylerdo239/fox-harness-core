@@ -1,7 +1,7 @@
 /**
- * Transparent WS↔WS relay to the one fixed worker's `packages/transport`
- * endpoint (roadmap Phase 2: "một worker cố định. Chưa multi-user" — no
- * per-user routing/affinity yet, that's Phase 3's orchestrator). Frames are
+ * Transparent WS↔WS relay to the agent runtime's `packages/transport`
+ * endpoint (runtime/supervisor.ts picks which runtime process serves a
+ * session; the URL carries the per-session flow/model/cwd). Frames are
  * relayed verbatim (opaque strings) — the gateway does not parse or
  * understand `packages/transport`'s wire protocol, keeping the two
  * decoupled. This also means log-before-fanout needs no new work here: it's
@@ -16,8 +16,10 @@ export function proxyToWorker(
   workerUrl: string,
   onClientMessage?: () => void,
   onEveryClientMessage?: () => void,
+  // The runtime only accepts connections that carry the gateway's secret (runtime/supervisor.ts).
+  headers?: Record<string, string>,
 ): void {
-  const workerWs = new WebSocket(workerUrl)
+  const workerWs = new WebSocket(workerUrl, headers ? { headers } : undefined)
 
   // Buffer browser->worker frames that arrive before the upstream socket is
   // open — a real race otherwise: the browser can send its first followup

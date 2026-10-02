@@ -1,10 +1,10 @@
-// Plain process.env, loaded from .env the same way services/orchestrator
-// does (docs/code-rules.md §1 boundary — this file is the only place
-// gateway reads the environment). Phase 7 grew this from 4 inline
-// `process.env` reads directly in index.ts into a real config module,
-// matching the pattern services/orchestrator already uses — justified now
-// that gateway owns real state (MariaDB users/ownership, Redis tokens), not
-// just 2 proxy target URLs.
+// Plain process.env, loaded from .env (docs/code-rules.md §1 boundary — this
+// file is the only place gateway reads the environment).
+
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 try {
   process.loadEnvFile()
@@ -17,6 +17,13 @@ function envOr(name: string, fallback: string): string {
   return process.env[name] ?? fallback
 }
 
+// A setting with no safe default: fail loudly at boot instead of at the first request.
+function requireEnv(name: string): string {
+  const raw = process.env[name]
+  if (!raw) throw new Error(`fox-harness-gateway: ${name} is required — set it in the environment (.env)`)
+  return raw
+}
+
 function envIntOr(name: string, fallback: number): number {
   const raw = process.env[name]
   if (!raw) return fallback
@@ -24,27 +31,20 @@ function envIntOr(name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-// Security fix 2026-09-09: deliberate exception to every other setting in
-// this file's "unconfigured = permissive default" convention — a shared
-// secret that silently no-ops when unset would defeat the exact fix it's
-// for (services/orchestrator's routes otherwise have zero auth of their
-// own, docs/security-performance-review-2026-09-09.md finding #1). Fails
-// loud at boot instead. Low real friction: both gateway and orchestrator
-// already load the SAME root `.env` (each via its own `process.loadEnvFile()`
-// from cwd), so one added line covers both processes.
-function requireEnv(name: string): string {
-  const raw = process.env[name]
-  if (!raw) {
-    throw new Error(
-      `fox-harness-gateway: ${name} is required (services/orchestrator has no auth of its own otherwise) — set it in the shared .env`,
-    )
-  }
-  return raw
-}
+const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
+const confineRunner = join(repoRoot, 'infra/docker/backend/fox-confine.sh')
+const isProd = process.env.NODE_ENV === 'production'
+
+// Which agent flows exist (each is an agent preset in packages/profile-template/presets). `workspace`
+// = the flow works on the user's files, so its working directory gets the files API.
+const flows = {
+  default: { workspace: false },
+  'data-analysis': { workspace: true },
+  'data-studio': { workspace: false },
+} as const
 
 export const config = {
   port: envIntOr('GATEWAY_PORT', 4000),
-  orchestratorUrl: envOr('ORCHESTRATOR_URL', 'http://127.0.0.1:4100').replace(/\/$/, ''),
   // Port 3307, not 3306 — this dev machine may already run a local
   // MariaDB/MySQL on 3306 (same dodge as the old Postgres 5433-not-5432
   // default). Phase 7 added `users`/`sessions`; `plugin_catalog`/
@@ -56,28 +56,15 @@ export const config = {
   // `mariadb://` is a real, required scheme (services/gateway/src/db.ts's
   // comment on `createPool`), not an arbitrary label.
   databaseUrl: envOr('DATABASE_URL', 'mariadb://fox_harness:fox_harness_dev@127.0.0.1:3307/fox_harness'),
-  // Same Redis this repo has run since Phase 3 (services/orchestrator's
-  // affinity store) — Phase 7 tokens live under a distinct `fh:gwtoken:`
-  // key prefix, no collision with orchestrator's `fh:session:*`/`fh:warmpool`/
-  // `fh:lock:*` keys.
+  // Login tokens (`fh:gwtoken:*`) and auth rate-limit counters live here.
   redisUrl: envOr('REDIS_URL', 'redis://127.0.0.1:6379'),
   tokenTtlMs: envIntOr('TOKEN_TTL_MS', 60 * 60 * 1000),
-  // Security fix 2026-09-09: sent as `x-fox-harness-internal-secret` on
-  // every call to services/orchestrator (orchestrator-client.ts) — see
-  // `requireEnv`'s own comment above for why this one setting fails loud
-  // instead of falling back.
-  internalSecret: requireEnv('ORCHESTRATOR_INTERNAL_SECRET'),
   // Security fix 2026-09-09: docs/security-performance-review-2026-09-09.md
   // finding #5 — no rate-limit existed on /auth/login or /auth/register at
   // all. Redis-backed fixed window (redis.ts's `checkRateLimit`), keyed per
   // route so one endpoint being hammered doesn't lock out the other.
   authRateLimitMax: envIntOr('AUTH_RATE_LIMIT_MAX', 10),
   authRateLimitWindowMs: envIntOr('AUTH_RATE_LIMIT_WINDOW_MS', 60 * 1000),
-  // Performance fix 2026-09-09 (docs/security-performance-review-2026-09-09.md
-  // finding #3): every orchestrator-client.ts call had no timeout at all —
-  // orchestrator hanging meant the WS upgrade handler hung right along with
-  // it, forever.
-  orchestratorRequestTimeoutMs: envIntOr('ORCHESTRATOR_REQUEST_TIMEOUT_MS', 10 * 1000),
   // Performance fix 2026-09-09 (finding #6): `mariadb.createPool()` had no
   // explicit `connectionLimit` — see db.ts's own comment for how this was
   // verified to actually need the object-config form, not a query-string
@@ -107,4 +94,51 @@ export const config = {
   // `mongodbDatabaseName` — same rule on both sides (src/database/mongodb.py).
   mongodbUrl: process.env.MONGODB_URL ?? process.env.MongoDBWrite ?? 'mongodb://127.0.0.1:27017',
   mongodbDatabaseName: envOr('MONGODB_DATABASE_NAME', 'bot_data_studio'),
+  // ---- The agent runtime (docs/single-backend-architecture-plan.md) ----
+  // This process now owns what services/orchestrator used to: it starts the `dsh` runtime(s) and routes
+  // each session to one. Everything below is that.
+  repoRoot,
+  // Everything on disk lives under here: the dsh home (logs, profile), `users/<userId>/<sessionId>/`
+  // workspaces, `projects/<projectId>/`. Must be OUTSIDE any git checkout: skill discovery takes the
+  // nearest `.git` ancestor as a project root, which would make every workspace share one (checked at boot).
+  dataDir: envOr('GATEWAY_DATA_DIR', join(homedir(), '.fox-harness', 'data')),
+  // `dsh` is started as a program, never imported (docs/code-rules.md §1).
+  dshBin: envOr('FOX_DSH_BIN', join(repoRoot, 'node_modules/@deepseek-ai/dsh/lib/bin.js')),
+  // K runtimes share one dsh home; a session goes to hash(sessionId) % K. One runtime tops out around a
+  // hundred concurrently *streaming* sessions (docs §13.7), so K is how a node uses more than one core.
+  runtimeCount: Math.max(1, envIntOr('FOX_RUNTIME_COUNT', 1)),
+  runtimeBasePort: envIntOr('FOX_RUNTIME_BASE_PORT', 4201),
+  runtimeReadyTimeoutMs: envIntOr('FOX_RUNTIME_READY_TIMEOUT_MS', 60_000),
+  // Strict bubblewrap runner for bash/python (infra/docker/backend/fox-confine.sh). Required in production:
+  // without it model-run code can read every other user's files.
+  confineRunner: existsSync(confineRunner) ? confineRunner : undefined,
+  requireSandbox: envOr('FOX_REQUIRE_SANDBOX', isProd ? '1' : '0') === '1',
+  maxUploadBytes: envIntOr('MAX_UPLOAD_BYTES', 70 * 1024 * 1024),
+  // 0 = unlimited. Counted over sessions that have an open browser connection.
+  maxConcurrentSessions: envIntOr('MAX_CONCURRENT_SESSIONS', 0),
+  maxSessionsPerUser: envIntOr('MAX_SESSIONS_PER_USER', 0),
+  // Chosen per session at creation (stored in discovery_sessions.model); falls back to OPENAI_MODEL_ID.
+  allowedModels: (() => {
+    const raw = envOr('OPENAI_ALLOWED_MODELS', '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+    return raw.length > 0 ? raw : [envOr('OPENAI_MODEL_ID', 'default')]
+  })(),
+  flows,
+  allowedFlows: Object.keys(flows),
+  // The ONLY variables the runtime process inherits from this one. The database URL, S3 and Redis
+  // credentials, and anything else of the gateway's stay out of a process that runs model-written code.
+  runtimeEnvPassthrough: [
+    'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL_ID', 'OPENAI_CONTEXT_WINDOW', 'OPENAI_EXTRA_BODY',
+    'SESSION_TOKEN_BUDGET', 'LLM_IDLE_TIMEOUT_MS', 'SERPER_API_KEY',
+    'EMBEDDING_API_KEY', 'EMBEDDING_BASE_URL', 'EMBEDDING_MODEL_ID',
+    'DREMIO_URL', 'DREMIO_USERNAME', 'DREMIO_PASSWORD',
+    'MEILISEARCH_URL', 'MEILISEARCH_MASTER_KEY', 'MEILISEARCH_SEMANTIC_RATIO',
+    'DATA_STUDIO_V3_DEBUG', 'MONGODB_URL', 'MongoDBWrite', 'MONGODB_DATABASE_NAME',
+    'FOX_PYTHON', 'FOX_PYTHON_DATA_STUDIO', 'DATA_STUDIO_AGENT_DIR',
+    'FOX_DS_WORKERS', 'FOX_DS_QUEUE_TIMEOUT_MS', 'FOX_DS_IDLE_MS',
+    'FOX_PY_IDLE_MS', 'FOX_PY_FORGET_MS', 'FOX_PY_MAX_KERNELS', 'FOX_PY_CELL_TIMEOUT_MS',
+    'FOX_IDLE_DISPOSE_MS', 'FOX_IDLE_SWEEP_MS',
+  ] as const,
 }

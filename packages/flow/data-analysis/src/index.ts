@@ -65,14 +65,15 @@ const WRAP_UP =
 export function apply(ctx: Context, config: Config) {
   ctx.systemPrompt.section({ name: 'fox:data-analysis', order: 30, text: DATA_ANALYSIS })
 
-  const turns = new Map<string, { turn: number; startedAt: number; wrappedUp: boolean }>()
+  // WeakMap, not Map<id,…>: one runtime hosts many sessions for a long time, and an entry must go with its agent.
+  const turns = new WeakMap<object, { turn: number; startedAt: number; wrappedUp: boolean }>()
   ctx.on('agent/pre-step', async (payload, next) => {
     const decision = await next()
     if (decision.kind === 'reject') return decision
-    let state = turns.get(payload.agent.id)
+    let state = turns.get(payload.agent)
     if (state?.turn !== payload.turn) {
       state = { turn: payload.turn, startedAt: Date.now(), wrappedUp: false }
-      turns.set(payload.agent.id, state)
+      turns.set(payload.agent, state)
     }
     if (payload.step <= config.maxSteps && Date.now() - state.startedAt <= config.turnDeadlineMs) return decision
     if (state.wrappedUp) return { kind: 'reject' }

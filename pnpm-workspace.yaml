@@ -31,18 +31,13 @@ allowBuilds:
   '@google/genai': false
   koffi: false
   protobufjs: false
-  # services/orchestrator's `dockerode` pulls these in only for its optional
-  # ssh://-transport support (connecting to a remote Docker host over SSH) —
-  # not used here, orchestrator always talks to the local Docker socket.
-  cpu-features: false
-  ssh2: false
   # dsh-base's default row set needs this for real (dsh-bash-sandbox,
   # dsh-tool-bash, dsh-tool-fs-search, dsh-permission-presets all depend on
   # the 'subprocess'/'shell' services it backs — confirmed the hard way:
   # disabling the subprocess row instead, to dodge this, left 4 entries stuck
   # "pending" and boot refuses to start with any entry unactivated). Its
-  # bundled prebuilt binary has no build for infra/docker/worker's platform,
-  # so it needs to actually compile — see that Dockerfile for the toolchain.
+  # bundled prebuilt binary has no build for infra/docker/backend's platform,
+  # so it needs to actually compile — see infra/docker/backend/Dockerfile for the toolchain.
   node-pty: true
   # Phase 9 (docs/agent-core-architecture-roadmap.md): now a real, direct
   # devDependency (root package.json) — this project's first bundler,

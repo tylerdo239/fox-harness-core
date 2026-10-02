@@ -17,7 +17,6 @@ const testDb = `fox_ds_smoke_${randomUUID().slice(0, 8)}`
 // gateway/src/config.ts fails loud on these at import time; the smoke test never uses them.
 process.env.MONGODB_URL = url
 process.env.MONGODB_DATABASE_NAME = testDb
-process.env.ORCHESTRATOR_INTERNAL_SECRET ??= 'smoke'
 process.env.S3_BUCKET ??= 'smoke'
 process.env.S3_ACCESS_KEY_ID ??= 'smoke'
 process.env.S3_SECRET_ACCESS_KEY ??= 'smoke'

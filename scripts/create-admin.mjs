@@ -52,7 +52,7 @@ const passwordHash = await hashPassword(password)
 // still what the `on duplicate key update` branch keys off of, unrelated
 // to `id`'s type, so the idempotent re-run behavior is unaffected.
 await pool.query(
-  `insert into users (email, password_hash, role) values (?, ?, 'admin')
+  `insert into discovery_users (email, password_hash, role) values (?, ?, 'admin')
    on duplicate key update password_hash = values(password_hash), role = 'admin'`,
   [email, passwordHash],
 )

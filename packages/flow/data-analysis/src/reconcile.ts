@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
  * (recorded in `.fox/sources.json`), a file the user explicitly shared into the project
  * (`outputs/`), or one chat's own output (`generated/<session id>/…`). Anything else has no owner,
  * and the UI then shows it in every chat of the project because it cannot tell whose it is
- * (services/orchestrator/src/workspace-files.ts `originOf`, which returns `origin: 'chat'` with no
+ * (services/gateway/src/runtime/workspace-files.ts `originOf`, which returns `origin: 'chat'` with no
  * `sessionId`). This walk restores the invariant at the end of every turn by moving anything else
  * into this chat's own folder.
  *

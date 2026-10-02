@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import '@deepseek-ai/dsh-agent'
+import type { Session } from '@deepseek-ai/dsh-session'
 
 // Phase 6 checklist item 1: "Quota: token ... theo user." Tracks budget per
 // SESSION, not per user — real user identity DOES exist now (Phase 7's
@@ -21,18 +22,36 @@ import '@deepseek-ai/dsh-agent'
 // log-is-truth principle, roadmap §0.4); out of scope for this pass, same
 // "documented gap, not silently accepted" discipline as every other known
 // limitation in this project (see docs/code-rules.md).
-const usedTokensBySession = new Map<string, number>()
+// Usage is read from the session's own durable log (`assistant/message.usage`), cached per
+// Session object. Two things this fixes over the old process-wide `Map<sessionId, number>`:
+//  - it never reset: with idle disposal (one runtime hosting many sessions) a session that is
+//    disposed and resumed gets a NEW Session object, whose total is rebuilt from the log instead
+//    of starting again at 0 — the budget survives hibernate/resume, closing the gap documented
+//    here earlier;
+//  - it never leaked: a WeakMap entry dies with its Session.
+const usedBySession = new WeakMap<Session, number>()
+
+function usageOf(event: { type: string; data: unknown }): number {
+  if (event.type !== 'assistant/message') return 0
+  const usage = (event.data as { usage?: { inputTokens: number; outputTokens: number } }).usage
+  return usage ? usage.inputTokens + usage.outputTokens : 0
+}
+
+function usedTokens(session: Session): number {
+  let used = usedBySession.get(session)
+  if (used === undefined) {
+    used = 0
+    for (const event of session.events) used += usageOf(event)
+    usedBySession.set(session, used)
+  }
+  return used
+}
 
 export function apply(ctx: Context) {
-  // Always track usage, even with no budget configured — makes the counter
-  // available for future use (e.g. a future `/quota` inspection endpoint)
-  // without needing SESSION_TOKEN_BUDGET set.
+  // Keep a cached total current as new messages are logged.
   ctx.on('session/event', (session, event) => {
-    if (event.type !== 'assistant/message') return
-    const usage = (event.data as { usage?: { inputTokens: number; outputTokens: number } }).usage
-    if (!usage) return
-    const total = usage.inputTokens + usage.outputTokens
-    usedTokensBySession.set(session.id, (usedTokensBySession.get(session.id) ?? 0) + total)
+    const cached = usedBySession.get(session)
+    if (cached !== undefined) usedBySession.set(session, cached + usageOf(event))
   })
 
   const raw = launchEnvironmentOf(ctx).get('SESSION_TOKEN_BUDGET')?.value
@@ -42,13 +61,9 @@ export function apply(ctx: Context) {
   // `agent/pre-step` is the real gate the turn/step machine already exposes
   // for exactly this (roadmap §2.2's `reject | enter(messages)` waterfall,
   // packages/agent-driver/src/agent.ts's own `turn()` honors it verbatim).
-  // A reject closes the turn with `reason: {kind: 'blocked'}`, which
-  // packages/client-ui-conversation's existing event handler already
-  // surfaces as a visible notice — no new FE plumbing needed for this to be
-  // observable, it falls out of a mechanism Phase 2 already built.
+  // A reject closes the turn with `reason: {kind: 'blocked'}`.
   ctx.on('agent/pre-step', async (payload, next) => {
-    const used = usedTokensBySession.get(payload.agent.id) ?? 0
-    if (used >= budget) return { kind: 'reject' }
+    if (usedTokens(payload.agent.session) >= budget) return { kind: 'reject' }
     return next()
   })
 }

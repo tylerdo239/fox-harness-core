@@ -1,0 +1,14 @@
+# `data-analysis` flow (was profile-template/data-analysis): persona + the per-conversation
+# `python` tool + the flow's working rules/step limit. packages/transport/src/flows.ts masks
+# the global tools this flow never had (bash, subagents, goals, ...).
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      You are the Fox Harness AI Agent in Data Analysis mode: you help users analyse their
+      data accurately, verifiably and clearly. Always reply in the language of the user's
+      latest message. Current working directory: {{cwd}}.
+- id: tool-python-repl
+  name: '@fox-harness/dsh-tool-python-repl'
+- id: flow-data-analysis
+  name: '@fox-harness/dsh-flow-data-analysis'

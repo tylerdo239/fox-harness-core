@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 
@@ -55,8 +55,34 @@ export class PythonKernel {
   /** Deliberately NOT cleared when the process restarts: the numbers were computed and stated, and stay true. */
   private readonly results: Array<{ label: string; value: string; turn: number }> = []
 
-  async run(code: string, cwd: string, timeoutMs: number, signal: AbortSignal, turn: number, host: HostHandler): Promise<string> {
-    const note = this.process ? '' : this.start(cwd)
+  /** A cell is running (or queued): not a candidate for eviction. */
+  get busy(): boolean {
+    return this.inflight > 0
+  }
+
+  get alive(): boolean {
+    return this.process !== undefined
+  }
+
+  private confined = false
+  private inflight = 0
+  private tail: Promise<unknown> = Promise.resolve()
+
+  /**
+   * One cell at a time per kernel: `reply`/`host` are single slots, and an agent that runs two tool
+   * calls concurrently (or a retry racing a timeout) would overwrite them.
+   */
+  run(code: string, cwd: string, timeoutMs: number, signal: AbortSignal, turn: number, host: HostHandler, outputDir?: string): Promise<string> {
+    this.inflight += 1
+    const result = this.tail.then(() => this.runExclusive(code, cwd, timeoutMs, signal, turn, host, outputDir))
+    const settled = result.catch(() => undefined)
+    this.tail = settled
+    void settled.then(() => { this.inflight -= 1 })
+    return result
+  }
+
+  private async runExclusive(code: string, cwd: string, timeoutMs: number, signal: AbortSignal, turn: number, host: HostHandler, outputDir?: string): Promise<string> {
+    const note = this.process ? '' : this.start(cwd, outputDir)
     const process = this.process!
     this.host = host
 
@@ -153,7 +179,12 @@ export class PythonKernel {
         clearTimeout(timer)
         resolve(value)
       }
-      child.kill('SIGINT')
+      // Confined, the spawned process is bwrap, which does not relay a signal to the interpreter in
+      // its PID namespace (measured: the over-limit cell was never interrupted and the whole kernel
+      // got SIGKILLed, taking every variable with it). The interpreter shares bwrap's process group,
+      // so signal the group.
+      if (this.confined && child.pid !== undefined) globalThis.process.kill(-child.pid, 'SIGINT')
+      else child.kill('SIGINT')
     })
   }
 
@@ -182,23 +213,41 @@ export class PythonKernel {
     }
   }
 
-  private start(cwd: string): string {
+  private start(cwd: string, outputDir?: string): string {
     const marker = join(cwd, SESSION_MARKER)
     const restarted = existsSync(marker)
     writeFileSync(marker, `${new Date().toISOString()}\n`)
 
     // Minimal environment: model-written code must not be able to read the
-    // worker's API keys.
-    const child = spawn(globalThis.process.env.FOX_PYTHON ?? 'python3', ['-u', RUNNER], {
+    // runtime's API keys.
+    //
+    // FOX_CONFINE_RUNNER (docs/single-backend-architecture-plan.md §7.2): when set, the interpreter
+    // runs under that bwrap-compatible runner (infra/docker/spike/fox-confine.sh) so it sees only
+    // its own workspace — without it the process can read every other user's files, because it
+    // shares the runtime's filesystem. The runner mounts nothing but a minimal system, the venv,
+    // the workspace (read-write) and, read-only, the directory FOX_CONFINE_RO names (this
+    // package's runner.py + helpers).
+    const python = globalThis.process.env.FOX_PYTHON ?? 'python3'
+    const confine = globalThis.process.env.FOX_CONFINE_RUNNER
+    const [program, ...programArgs] = confine
+      ? [confine, '--ro-bind', '/', '/', '--bind', cwd, cwd, '--tmpfs', '/tmp', '--', python, '-u', RUNNER]
+      : [python, '-u', RUNNER]
+    this.confined = confine !== undefined && confine !== ''
+    const child = spawn(program!, programArgs, {
       cwd,
+      // Own process group when confined, so an interrupt can reach the interpreter (see interrupt()).
+      detached: this.confined,
       env: {
         PATH: globalThis.process.env.PATH,
-        HOME: globalThis.process.env.HOME,
+        HOME: confine ? '/tmp' : globalThis.process.env.HOME,
         LANG: 'C.UTF-8',
         PYTHONIOENCODING: 'utf-8',
         MPLBACKEND: 'Agg',
-        // Output folder for figures and save_artifact(): a project chat's own subfolder.
-        ...(globalThis.process.env.FOX_OUTPUT_DIR ? { FOX_OUTPUT_DIR: globalThis.process.env.FOX_OUTPUT_DIR } : {}),
+        ...(confine ? { MPLCONFIGDIR: '/tmp/mpl', FOX_CONFINE_RO: dirname(RUNNER), FOX_PYTHON: python } : {}),
+        // Output folder for figures and save_artifact(): a project chat's own subfolder. Per
+        // SESSION now (agentOptions.outputDir, set by packages/transport from what the gateway
+        // passes) — the process-wide env var only remains as the fallback for one-session-per-process use.
+        ...((outputDir ?? globalThis.process.env.FOX_OUTPUT_DIR) ? { FOX_OUTPUT_DIR: (outputDir ?? globalThis.process.env.FOX_OUTPUT_DIR)! } : {}),
       },
     })
     this.stderrTail = ''
@@ -207,7 +256,16 @@ export class PythonKernel {
       this.stderrTail = (this.stderrTail + chunk.toString()).slice(-2000)
     })
     createInterface({ input: child.stdout }).on('line', (line) => {
-      const message = JSON.parse(line) as CellReply | { host: HostRequest }
+      // Same rule as the data-studio kernel: a stray non-JSON line on the protocol channel must never throw out of
+      // this handler (it would take the whole runtime down, not just this conversation).
+      let message: CellReply | { host: HostRequest }
+      try {
+        message = JSON.parse(line) as CellReply | { host: HostRequest }
+        if (message === null || typeof message !== 'object') throw new Error('not an object')
+      } catch {
+        this.stderrTail = (this.stderrTail + line + '\n').slice(-2000)
+        return
+      }
       if ('host' in message) child.stdin.write(JSON.stringify(this.answerHost(message.host)) + '\n')
       else this.reply?.(message)
     })

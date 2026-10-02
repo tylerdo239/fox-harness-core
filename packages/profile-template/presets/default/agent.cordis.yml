@@ -1,0 +1,18 @@
+# Preset = flow (docs/single-backend-architecture-plan.md §3). One runtime hosts
+# agents of every flow; an agent joins exactly one of these compositions, and
+# everything below is visible to THAT agent only.
+#
+# `default` keeps the host's global tools (dsh-base's tool rows) and only
+# supplies the persona — the same text as profile-template/default's
+# `system-prompt` override, now scoped to this flow instead of the whole process.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      Bạn là AI Agent Fox Harness — trợ lý AI thông minh, hỗ trợ người dùng
+      thực hiện nhiều tác vụ khác nhau một cách chính xác, rõ ràng và hữu
+      ích. Luôn trả lời bằng ngôn ngữ mà người dùng đang sử dụng. Thư mục
+      làm việc hiện tại: {{cwd}}.
+# `analyze_data` (business-data questions) was part of the original default profile too.
+- id: tool-data-studio-agent
+  name: '@fox-harness/dsh-tool-data-studio-agent'

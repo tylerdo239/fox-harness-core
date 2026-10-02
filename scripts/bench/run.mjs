@@ -4,7 +4,7 @@
 // Why this exists: every measurement before this one lived in a throwaway
 // scratch directory, so "did that harness change help?" was answered from
 // memory. This runs a fixed set of questions with known answers against the
-// REAL stack — gateway, orchestrator, a worker container per case, the real
+// REAL stack — gateway, its agent runtime, the real
 // model — and writes a report the next run can be compared against.
 //
 // The questions are NOT invented here: they are sampled from
@@ -17,9 +17,8 @@
 //   node scripts/bench/run.mjs --suite full --repeat 3
 //   node scripts/bench/run.mjs --baseline scripts/bench/reports/<file>.json
 //
-// Deliberately sequential: one chat is one Docker container, and this host
-// caps concurrent containers (fs.inotify.max_user_instances). Running cases
-// in parallel would measure the host, not the harness.
+// Deliberately sequential: running cases in parallel would measure the host
+// (one runtime process serves them all), not the harness.
 
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -85,7 +84,7 @@ async function runCase(token, testCase, run) {
       })
     }
     const transcript = await ask(token, projectId, testCase, started)
-    // What the chat wrote: everything in its own output folder (services/orchestrator's
+    // What the chat wrote: everything in its own output folder (the workspace files API's
     // workspace-files.ts marks those `origin: 'chat'`).
     const listed = await (await api(token, `/projects/${projectId}/files`)).json()
     const filesWritten = (listed.files ?? []).filter((file) => file.origin === 'chat').map((file) => file.path)

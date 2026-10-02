@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-import { DataStudioKernel } from './kernel.ts'
+import { DataStudioPool } from './pool.ts'
 
 export const name = 'fox-harness-tool-data-studio-agent'
 export const inject = ['tools']
@@ -19,8 +19,9 @@ export const inject = ['tools']
 const TIMEOUT_MS = 600_000
 
 export function apply(ctx: Context) {
-  const kernel = new DataStudioKernel()
-  ctx.effect(() => () => kernel.stop(), 'fox-harness-tool-data-studio-agent.kernel')
+  // A pool, not one kernel: one runtime serves many sessions (see pool.ts).
+  const pool = new DataStudioPool()
+  ctx.effect(() => () => pool.stop(), 'fox-harness-tool-data-studio-agent.pool')
 
   ctx.tools.register(
     defineTool({
@@ -93,7 +94,7 @@ export function apply(ctx: Context) {
         }),
       },
       async execute(args, exec) {
-        const reply = await kernel.ask(args.question, TIMEOUT_MS, exec.signal)
+        const reply = await pool.ask(args.question, TIMEOUT_MS, exec.signal)
         if (!reply.ok) throw new Error(reply.error ?? 'analyze_data: unknown error')
         return {
           answer: reply.answer ?? '',
