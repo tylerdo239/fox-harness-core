@@ -5,8 +5,8 @@
 # Build from the REPO ROOT (needs the whole pnpm workspace):
 #   docker build -f infra/docker/backend/Dockerfile -t fox-harness-backend:dev .
 #
-# Run it with CAP_SYS_ADMIN (bubblewrap needs it to create the PID/mount namespaces that confine each
-# session's bash/python to its own workspace; the container's default seccomp profile blocks them otherwise).
+# Run it with CAP_SYS_ADMIN and CAP_NET_ADMIN (bubblewrap needs them to create the PID/mount/network namespaces
+# that confine each session's bash/python to its own workspace and off the network; the command itself keeps none).
 # Mount a persistent volume at /data (everything on disk lives there). See infra/deploy/README.md.
 
 # Debian (glibc), not Alpine (musl): node-pty's prebuilt binaries target glibc.

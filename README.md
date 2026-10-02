@@ -64,7 +64,9 @@ container boundary:
 3. **Strict sandbox for `bash` and `python`** (`infra/docker/backend/fox-confine.sh`)
    — bubblewrap with an empty root: only a minimal read-only system, the
    session's own workspace and a private `/tmp`. The environment is allow-listed
-   (`env -i`) so the runtime's credentials never reach model-run code.
+   (`env -i`) so the runtime's credentials never reach model-run code, and the
+   network is cut (`--unshare-net`: only a loopback), so it cannot reach Redis,
+   Mongo, MariaDB, the runtime or the internet. The boot self-test checks both.
 4. **Runtime secret** — the gateway generates a per-boot secret; runtimes refuse
    any connection without it (loopback alone is not a boundary).
 

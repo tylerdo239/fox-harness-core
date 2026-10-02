@@ -3,6 +3,8 @@
 // stateless JWT for exactly this reason). That is ALL Redis is used for now: session placement no longer
 // needs it (see runtime/supervisor.ts).
 
+import { createHash } from 'node:crypto'
+
 import { Redis } from 'ioredis'
 
 import { config } from './config.ts'
@@ -10,7 +12,11 @@ import type { Role } from './db.ts'
 
 const redis = new Redis(config.redisUrl)
 
-const tokenKey = (token: string) => `fh:gwtoken:${token}`
+// Only a SHA-256 of a token is ever written to Redis (the key and the per-user index): whoever reads Redis — a
+// dump, a backup, a misconfigured network — learns no token they could log in with. Tokens are 256-bit random, so
+// an unsalted fast hash is enough.
+const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex')
+const tokenKey = (token: string) => `fh:gwtoken:${tokenHash(token)}`
 
 export interface TokenRecord {
   userId: number
@@ -23,15 +29,15 @@ export async function storeToken(token: string, record: TokenRecord, ttlMs: numb
   await redis.set(tokenKey(token), JSON.stringify(record), 'PX', ttlMs)
   // Index the token under its user so a role change / password reset can revoke every live login of that user
   // (a token carries the role it was issued with). Entries of expired tokens are harmless: revoking them is a no-op.
-  await redis.sadd(userTokensKey(record.userId), token)
+  await redis.sadd(userTokensKey(record.userId), tokenHash(token))
 }
 
 /** Revoke every token issued to `userId` (role changed, password reset): their next request is a 401. */
 export async function revokeUserTokens(userId: number): Promise<number> {
-  const tokens = await redis.smembers(userTokensKey(userId))
-  if (tokens.length > 0) await redis.del(...tokens.map(tokenKey))
+  const hashes = await redis.smembers(userTokensKey(userId))
+  if (hashes.length > 0) await redis.del(...hashes.map((hash) => `fh:gwtoken:${hash}`))
   await redis.del(userTokensKey(userId))
-  return tokens.length
+  return hashes.length
 }
 
 // Sliding expiration (2026-09-09, real gap found: a fixed 1-hour TTL from

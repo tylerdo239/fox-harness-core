@@ -157,8 +157,18 @@ export class RuntimeSupervisor {
       encoding: 'utf8',
       timeout: 15_000,
     })
-    if (probe.status === 0) return undefined
-    return `the runner failed its self-test (exit ${probe.status}): ${(probe.stderr || probe.error?.message || '').trim().slice(0, 200)} — does the container have CAP_SYS_ADMIN?`
+    if (probe.status !== 0) {
+      return `the runner failed its self-test (exit ${probe.status}): ${(probe.stderr || probe.error?.message || '').trim().slice(0, 200)} — does the container have CAP_SYS_ADMIN?`
+    }
+    // And it must cut the network: confined code that can open a socket reaches Redis (login tokens), Mongo,
+    // MariaDB and the runtime. In its own network namespace the main routing table is empty (only the header line;
+    // counting interfaces would not do — a kernel adds its fallback tunnel devices to every new namespace).
+    const net = spawnSync(config.confineRunner, ['--bind', config.dataDir, config.dataDir, '--tmpfs', '/tmp', '--', '/usr/bin/sh', '-c', 'grep -vc Iface /proc/net/route; true'], {
+      encoding: 'utf8',
+      timeout: 15_000,
+    })
+    if (net.status === 0 && net.stdout.trim() === '0') return undefined
+    return `the runner does not isolate the network (routes: ${net.stdout.trim() || net.stderr.trim().slice(0, 160)}) — does the container have CAP_NET_ADMIN?`
   }
 
   /** Skill discovery treats the nearest `.git` ancestor as the project root, so a data dir inside a checkout merges every workspace. */

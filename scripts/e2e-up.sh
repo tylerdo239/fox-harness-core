@@ -23,7 +23,7 @@ until docker exec foxe2e-mariadb mariadb -uroot -px discovery-agent -e "select 1
   i=$((i+1)); [ $i -gt 60 ] && { echo "mariadb not ready"; exit 1; }; sleep 2
 done
 
-docker run -d --name foxe2e-backend --network $NET --cap-add SYS_ADMIN -v foxe2e-data:/data \
+docker run -d --name foxe2e-backend --network $NET --cap-add SYS_ADMIN --cap-add NET_ADMIN -v foxe2e-data:/data \
   -e GATEWAY_PORT=4000 -e FOX_RUNTIME_COUNT=2 \
   -e DATABASE_URL='mariadb://root:x@foxe2e-mariadb:3306/discovery-agent' -e REDIS_URL=redis://foxe2e-redis:6379 \
   -e S3_ENDPOINT=http://foxe2e-minio:9000 -e S3_BUCKET=fox-harness-skills -e S3_ACCESS_KEY_ID=minioadmin -e S3_SECRET_ACCESS_KEY=minioadmin123 -e S3_FORCE_PATH_STYLE=true \

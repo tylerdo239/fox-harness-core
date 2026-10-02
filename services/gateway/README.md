@@ -14,7 +14,7 @@ started as a program. The chat protocol between a runtime and a browser is relay
 | File | Role |
 |---|---|
 | `src/index.ts` | HTTP routes, the WebSocket upgrade, start-up/shutdown. |
-| `src/auth.ts`, `password.ts`, `redis.ts` | Accounts (scrypt), login tokens (Redis, sliding TTL, instantly revocable), rate limits. |
+| `src/auth.ts`, `password.ts`, `redis.ts` | Accounts (scrypt), login tokens (Redis stores only their SHA-256; sliding TTL, instantly revocable), rate limits. |
 | `src/db.ts` | MariaDB: `discovery_users`, `discovery_sessions`, `discovery_projects`, `discovery_custom_skills` (`infra/migrations/001_init.sql`). |
 | `src/runtime/supervisor.ts` | Starts `FOX_RUNTIME_COUNT` runtimes, readiness probe (a real WebSocket handshake), restart with backoff, shard routing `hash(sessionId) % N`, the per-boot secret, graceful stop. |
 | `src/runtime/materialize.ts` | Writes the ONE dsh profile at start-up (`packages/profile-template/runtime/template`), links the flow presets. |

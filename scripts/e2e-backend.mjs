@@ -392,6 +392,48 @@ const tests = {
     return { ok: ru === 'user' && ra === 'admin' && viewRoles.every((r) => r === 'user'), detail: `user session role=${ru}, admin session role=${ra}, admin viewing the user's session -> ${JSON.stringify(viewRoles)}` }
   },
 
+  // Model-run bash/python get their own network namespace (fox-confine.sh --unshare-net): measured before the fix,
+  // confined code reached the gateway's Redis (login tokens) without a password, Mongo, MariaDB and the internet.
+  async sandboxNoNetwork() {
+    const { a } = await users()
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    const targets = [['foxe2e-redis', 6379], ['foxe2e-mariadb', 3306], ['127.0.0.1', 4000], ['foxe2e-backend', 4000], ['host.docker.internal', 4999], ['example.com', 443]]
+    const rows = []
+    let n = 0
+    for (const [host, port] of targets) {
+      c.send(`CALL bash ${JSON.stringify({ command: `timeout 5 bash -c 'exec 3<>/dev/tcp/${host}/${port}' 2>/dev/null && echo NET-OPEN-${port} || echo NET-CLOSED`, description: 'net' })}`); n += 1
+      await c.turnEnds(n, 40000).catch(() => {})
+      rows.push([`bash -> ${host}:${port}`, toolText(c.events).includes(`NET-OPEN-${port}`)])
+      const code = `import socket\ntry:\n    socket.create_connection((${JSON.stringify(host)}, ${port}), 5); print('NET-OPEN-${port}')\nexcept Exception as e:\n    print('NET-CLOSED', type(e).__name__)`
+      c.send(`CALL python ${JSON.stringify({ code })}`); n += 1
+      await c.turnEnds(n, 90000).catch(() => {})
+      rows.push([`python -> ${host}:${port}`, toolText(c.events).includes(`NET-OPEN-${port}`)])
+    }
+    // no capability left (a root bwrap keeps them all by default; measured: CAP_SYS_ADMIN before --cap-drop ALL)
+    c.send(`CALL bash ${JSON.stringify({ command: "grep CapEff /proc/self/status | sed 's/.*:\\s*/CAPS:/'", description: 'caps' })}`); n += 1
+    await c.turnEnds(n, 40000).catch(() => {})
+    const caps = (toolText(c.events).match(/CAPS:([0-9a-f]+)/) ?? [])[1]
+    // control: the sandbox still runs code
+    c.send(`CALL bash ${JSON.stringify({ command: 'echo SANDBOX-RUNS', description: 'ok' })}`); n += 1
+    await c.turnEnds(n, 40000).catch(() => {})
+    const control = toolText(c.events).includes('SANDBOX-RUNS')
+    c.close()
+    const open = rows.filter(([, reached]) => reached).map(([l]) => l)
+    return { ok: open.length === 0 && /^0+$/.test(caps ?? '') && control, detail: `${rows.length} probes, reachable=${JSON.stringify(open)}, CapEff=${caps}, control=${control}` }
+  },
+
+  // Redis holds only SHA-256 hashes of login tokens: a Redis dump or a reader on the network gets nothing to log in with.
+  async tokensHashedInRedis() {
+    const u = await newUser('dave')
+    const keys = execFileSync('docker', ['exec', 'foxe2e-redis', 'redis-cli', '--scan', '--pattern', 'fh:*'], { encoding: 'utf8' })
+    const members = execFileSync('docker', ['exec', 'foxe2e-redis', 'redis-cli', 'smembers', `fh:gwuser:${u.id}`], { encoding: 'utf8' })
+    const rawInRedis = keys.includes(u.token) || members.includes(u.token)
+    const works = (await api('GET', '/sessions/mine', u.token)).status === 200
+    await api('POST', '/auth/logout', u.token)
+    const revoked = (await api('GET', '/sessions/mine', u.token)).status === 401
+    return { ok: !rawInRedis && works && revoked, detail: `raw token in redis=${rawInRedis}, token works=${works}, logout revokes=${revoked}` }
+  },
+
   async purge() {
     const { a } = await users()
     const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
