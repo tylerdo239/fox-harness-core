@@ -288,7 +288,7 @@ Bot không có test; fox nên có tối thiểu:
 - Transaction nhiều document (cần replica set; bot cũng từ chối).
 - Thay đổi hợp đồng API bên ngoài của gateway (chỉ đổi kiểu id).
 - Đổi Dremio, Meilisearch, embedding, hoặc logic pipeline.
-- Chuyển các bảng MariaDB của gateway (`users`, `sessions`, `projects`, `custom_skills`) sang Mongo. Đây là hệ thống lưu trữ khác, không thuộc kế hoạch này.
+- Chuyển các bảng MariaDB của gateway (`discovery_users`, `discovery_sessions`, `discovery_projects`, `discovery_custom_skills`) sang Mongo. Đây là hệ thống lưu trữ khác, không thuộc kế hoạch này.
 - Dùng chung DB thật sự với `bot-data-studio-api` (D1-a); để sau khi hai bên thống nhất schema.
 
 ## 13. Đã triển khai và cách kiểm thử local
