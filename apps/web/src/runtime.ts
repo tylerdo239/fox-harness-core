@@ -10,6 +10,9 @@ import { createContext, useContext } from 'react'
 
 import type { ClientToServer, ServerToClient } from './wire.ts'
 
+// services/gateway's two roles. The gateway enforces them; the UI only hides what a `user` cannot use.
+export type UserRole = 'admin' | 'user'
+
 export interface Runtime {
   sessionId: string
   // Real gap fixed 2026-09-08: the FE never captured who's logged in
@@ -17,6 +20,9 @@ export interface Runtime {
   // persists it to localStorage (same lifetime as the token, shared
   // across tabs — 2026-09-10, was sessionStorage) alongside.
   userEmail: string
+  // The role `/auth/login` returned, stored next to the token (App.tsx). A stored token from before roles
+  // existed reads as 'user' until the next login.
+  userRole: UserRole
   apiUrl: (path: string) => string
   authHeaders: () => Record<string, string>
   // Real gap fixed 2026-09-09: every call site used to build its own raw

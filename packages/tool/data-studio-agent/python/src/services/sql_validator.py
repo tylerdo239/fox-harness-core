@@ -6,9 +6,12 @@ from sqlglot import exp
 from sqlglot.errors import OptimizeError, ParseError
 from sqlglot.optimizer.qualify import qualify
 
+import re
+
 from src.crud_mongo import entity as entity_crud
 from src.crud_mongo import entity_column as entity_column_crud
 from src.database.mongodb import AttrDatabase
+from src.security import role as role_mod
 
 DEFAULT_LIMIT = 1000
 
@@ -34,45 +37,62 @@ class ValidationResult:
     errors: list[ValidationError] = field(default_factory=list)
 
 
+def _full_catalog(db: AttrDatabase, entity_ids: list[str]):
+    """The referenced entities and ALL their non-deprecated columns, read as admin: the validator must see
+    what exists in order to judge what the caller's role may touch (a role-filtered read would make a
+    forbidden column look merely "unknown", and the CTE path below skips unknown-column checks)."""
+    with role_mod.as_role(role_mod.ADMIN):
+        entities = entity_crud.list_by_ids(db, entity_ids)
+        columns = entity_column_crud.list_by_entity_ids(db, [e.id for e in entities])
+    return entities, columns
+
+
 def build_schema_for_entities(db: AttrDatabase, entity_ids: list[str]) -> dict:
     """Build a SQLGlot-shaped schema dict {catalog: {db: {table: {col: type}}}}
     scoped to the given entities, using only real physical names from our catalog."""
     schema: dict = {}
-    entities = entity_crud.list_by_ids(db, entity_ids)
-
+    entities, columns = _full_catalog(db, entity_ids)
+    by_entity: dict[str, dict[str, str]] = {}
+    for col in columns:
+        by_entity.setdefault(col.entity_id, {})[col.physical_name] = col.data_type
     for entity in entities:
         path_parts = entity.physical_path.split(".")
         if len(path_parts) != 3:
             continue
         catalog, database, table = path_parts
-
-        columns = entity_column_crud.list_by_entity_ids(db, [entity.id])
-
-        col_types = {col.physical_name: col.data_type for col in columns}
-        schema.setdefault(catalog, {}).setdefault(database, {})[table] = col_types
-
+        cols = by_entity.get(entity.id)
+        if cols:  # sqlglot rejects a table with no columns
+            schema.setdefault(catalog, {}).setdefault(database, {})[table] = cols
     return schema
 
 
-def _blocked_columns_for_entities(db: AttrDatabase, entity_ids: list[str]) -> set[tuple[str, str]]:
-    """Returns {(table_physical_name, column_physical_name)} for columns that must
-    never be exposed to the agent (not is_exposed, or is_pii)."""
-    entities_by_id = {e.id: e for e in entity_crud.list_by_ids(db, entity_ids)}
-    columns = entity_column_crud.list_by_entity_ids(db, entity_ids)
-
+def _blocked_columns_for_entities(db: AttrDatabase, entity_ids: list[str], role: str = role_mod.ADMIN) -> set[tuple[str, str]]:
+    """Returns {(table_physical_PATH, column_physical_name)} for columns this role must never reach: not
+    exposed, PII (for every role), or — for role user — not opted in for users (src/security/role.py).
+    Keyed by the full physical path, not the bare table name, so an alias cannot dodge it."""
+    entities, columns = _full_catalog(db, entity_ids)
+    entities_by_id = {e.id: e for e in entities}
     blocked = set()
     for col in columns:
         entity = entities_by_id.get(col.entity_id)
         if entity is None:
             continue
-        if not col.is_exposed or col.is_pii:
-            blocked.add((entity.physical_name, col.physical_name))
+        if not col.is_exposed or col.is_pii or not role_mod.doc_allowed(col, role) or not role_mod.doc_allowed(entity, role):
+            blocked.add((entity.physical_path, col.physical_name))
     return blocked
 
 
-def _allowed_table_paths(db: AttrDatabase, entity_ids: list[str]) -> set[str]:
-    entities = entity_crud.list_by_ids(db, entity_ids)
-    return {e.physical_path for e in entities}
+def _allowed_table_paths(db: AttrDatabase, entity_ids: list[str], role: str = role_mod.ADMIN) -> set[str]:
+    """Physical paths of the referenced entities that this role may query."""
+    entities, _ = _full_catalog(db, entity_ids)
+    return {e.physical_path for e in entities if role_mod.doc_allowed(e, role)}
+
+
+def _table_path(table: exp.Table) -> str:
+    return ".".join(p for p in (table.catalog, table.db, table.name) if p)
+
+
+_IDENT = re.compile(r'"([^"]+)"|\b([A-Za-z_][A-Za-z0-9_]*)\b')
 
 
 def validate_sql(
@@ -112,10 +132,10 @@ def validate_sql(
             ],
         )
 
-    allowed_paths = _allowed_table_paths(db, entity_ids)
+    role = role_mod.current()
+    allowed_paths = _allowed_table_paths(db, entity_ids, role)
     for table in tree.find_all(exp.Table):
-        path_parts = [p for p in (table.catalog, table.db, table.name) if p]
-        table_path = ".".join(path_parts)
+        table_path = _table_path(table)
         if table_path not in allowed_paths:
             errors.append(
                 ValidationError(
@@ -143,17 +163,49 @@ def validate_sql(
             errors=[ValidationError(ValidationErrorType.UNKNOWN_COLUMN, str(e))],
         )
 
-    blocked = _blocked_columns_for_entities(db, entity_ids)
+    blocked = _blocked_columns_for_entities(db, entity_ids, role)
+    # Which physical table(s) each name a column can be qualified with refers to — its alias or its bare
+    # name. qualify() rewrites every column to `<alias>.<col>`, so comparing that against a table's
+    # physical NAME (the old check) let any aliased table through. A name bound to several tables (two
+    # scopes reusing an alias) is checked against all of them.
+    by_name: dict[str, set[str]] = {}
+    for table in qualified.find_all(exp.Table):
+        path = _table_path(table)
+        by_name.setdefault(table.alias_or_name, set()).add(path)
     for column in qualified.find_all(exp.Column):
-        table_name = column.table
-        col_name = column.name
-        if (table_name, col_name) in blocked:
-            errors.append(
-                ValidationError(
-                    ValidationErrorType.BLOCKED_COLUMN,
-                    f"Column '{table_name}.{col_name}' is not exposed to the agent (PII or unexposed)",
+        for path in by_name.get(column.table, set()):
+            if (path, column.name) in blocked:
+                errors.append(
+                    ValidationError(
+                        ValidationErrorType.BLOCKED_COLUMN,
+                        f"Column '{column.table}.{column.name}' is not exposed to role '{role}' (PII, unexposed, or not opted in for this role)",
+                    )
                 )
-            )
+                break
+
+    if role != role_mod.ADMIN:
+        # A star that survived qualification (it could not be expanded against the schema) would return
+        # columns nobody checked.
+        if any(isinstance(star.parent, exp.Select) or isinstance(star.parent, exp.Column) for star in qualified.find_all(exp.Star)):
+            errors.append(ValidationError(ValidationErrorType.BLOCKED_COLUMN, "SELECT * is not allowed for role 'user'"))
+        # Raw Dremio fragments the generator embeds as exp.Var (glossary filters) are opaque to the checks
+        # above: refuse any that names a blocked column of a table in this query, or a table this role
+        # may not query at all.
+        in_query = {path for paths in by_name.values() for path in paths}
+        blocked_names = {col for (path, col) in blocked if path in in_query}
+        with role_mod.as_role(role_mod.ADMIN):
+            hidden_tables = {e.physical_name for e in entity_crud.list_exposed_active(db) if not role_mod.doc_allowed(e, role)}
+        for var in qualified.find_all(exp.Var):
+            tokens = {a or b for a, b in _IDENT.findall(var.name or "")}
+            hit = tokens & (blocked_names | hidden_tables)
+            if hit:
+                errors.append(
+                    ValidationError(
+                        ValidationErrorType.BLOCKED_COLUMN,
+                        f"An expression references {sorted(hit)[0]!r}, which is not available to role '{role}'",
+                    )
+                )
+                break
 
     if errors:
         return ValidationResult(is_valid=False, errors=errors)

@@ -17,8 +17,21 @@ export interface TokenRecord {
   role: Role
 }
 
+const userTokensKey = (userId: number) => `fh:gwuser:${userId}`
+
 export async function storeToken(token: string, record: TokenRecord, ttlMs: number): Promise<void> {
   await redis.set(tokenKey(token), JSON.stringify(record), 'PX', ttlMs)
+  // Index the token under its user so a role change / password reset can revoke every live login of that user
+  // (a token carries the role it was issued with). Entries of expired tokens are harmless: revoking them is a no-op.
+  await redis.sadd(userTokensKey(record.userId), token)
+}
+
+/** Revoke every token issued to `userId` (role changed, password reset): their next request is a 401. */
+export async function revokeUserTokens(userId: number): Promise<number> {
+  const tokens = await redis.smembers(userTokensKey(userId))
+  if (tokens.length > 0) await redis.del(...tokens.map(tokenKey))
+  await redis.del(userTokensKey(userId))
+  return tokens.length
 }
 
 // Sliding expiration (2026-09-09, real gap found: a fixed 1-hour TTL from

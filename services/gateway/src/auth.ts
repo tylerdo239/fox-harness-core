@@ -8,9 +8,9 @@
 import { randomBytes } from 'node:crypto'
 
 import { config } from './config.ts'
-import { createUser, getUserByEmail, type Role } from './db.ts'
+import { createUser, getUserByEmail, updateUserPassword, updateUserRole, type Role } from './db.ts'
 import { hashPassword, verifyPassword } from './password.ts'
-import { resolveToken, revokeToken, storeToken, type TokenRecord } from './redis.ts'
+import { resolveToken, revokeToken, revokeUserTokens, storeToken, type TokenRecord } from './redis.ts'
 
 export type AuthedIdentity = TokenRecord
 
@@ -24,12 +24,13 @@ export type AuthedIdentity = TokenRecord
 // Computed once at module load (not per-request) since it's a constant.
 const DUMMY_PASSWORD_HASH = await hashPassword('fox-harness-timing-safety-dummy')
 
-export async function register(email: string, password: string): Promise<{ id: number; email: string; role: Role }> {
+// Only reachable by an admin (index.ts's adminGate): there is no self-registration.
+export async function register(email: string, password: string, role: Role = 'user'): Promise<{ id: number; email: string; role: Role }> {
   const existing = await getUserByEmail(email)
   if (existing) throw new Error('email already registered')
   const passwordHash = await hashPassword(password)
   try {
-    const user = await createUser(email, passwordHash, 'user')
+    const user = await createUser(email, passwordHash, role)
     return { id: user.id, email: user.email, role: user.role }
   } catch (error) {
     // Bug fix 2026-09-09 (docs/security-performance-review-2026-09-09.md's
@@ -77,4 +78,17 @@ export async function resolveIdentity(token: string): Promise<AuthedIdentity | u
 
 export async function logout(token: string): Promise<void> {
   await revokeToken(token)
+}
+
+/**
+ * Admin changes a user's role and/or password. Every existing login of that user is revoked: a token carries the
+ * role it was issued with, so keeping it would keep the old permissions until it expired.
+ * Returns false for an unknown user.
+ */
+export async function changeUser(userId: number, change: { role?: Role; password?: string }): Promise<boolean> {
+  let found = true
+  if (change.role !== undefined) found = (await updateUserRole(userId, change.role)) && found
+  if (change.password !== undefined) found = (await updateUserPassword(userId, await hashPassword(change.password))) && found
+  if (found) await revokeUserTokens(userId)
+  return found
 }

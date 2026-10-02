@@ -51,6 +51,7 @@ from src.crud_mongo import conversation as conversation_crud
 from src.database.models.enums import MessageRole
 from src.database.mongodb import AttrDatabase, check_mongo_connection, ensure_indexes, get_mongo_db
 from src.pipeline_v3.orchestrator import run_pipeline_v3
+from src.security import role as role_mod
 from src.services.dremio_client import DremioClient
 from src.services.embedding_client import EmbeddingClient
 from src.services.llm_client import LLMClient
@@ -196,6 +197,10 @@ async def main() -> None:
         if not line:
             continue
         request = json.loads(line)
+        # The role of the conversation's owner (packages/tool/data-studio-agent/src/index.ts: gateway ->
+        # runtime -> tool, never from the model). Set per question: this one process answers every user's
+        # questions in turn. Anything unexpected falls back to "user" (least privilege), see src/security/role.py.
+        role_mod.set_role(request.get("role", role_mod.USER))
         try:
             reply = await handle(request["question"], llm, emb, vs, dremio)
         except Exception as e:  # noqa: BLE001 — surface any crash to the TS side instead of dying

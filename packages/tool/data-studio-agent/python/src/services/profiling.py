@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.crud_mongo import entity as entity_crud
+from src.security import role as role_mod
 from src.crud_mongo import entity_column as entity_column_crud
 from src.database.mongodb import AttrDatabase
 from src.services.dremio_client import DremioClient, DremioQueryError
@@ -9,7 +10,7 @@ from src.services.dremio_client import DremioClient, DremioQueryError
 SAMPLE_VALUES_LIMIT = 20
 
 
-def profile_entity(client: DremioClient, db: AttrDatabase, entity) -> dict[str, Any]:
+def _profile_entity_impl(client: DremioClient, db: AttrDatabase, entity) -> dict[str, Any]:
     columns = entity_column_crud.list_by_entity_ids(db, [entity.id])
 
     if not columns:
@@ -46,7 +47,7 @@ def profile_entity(client: DremioClient, db: AttrDatabase, entity) -> dict[str, 
     return {"entity": entity.physical_name, "columns_profiled": columns_profiled, "row_count": row_count}
 
 
-def profile_all_entities(
+def _profile_all_entities_impl(
     client: DremioClient, db: AttrDatabase, entity_ids: list[str] | None = None
 ) -> list[dict[str, Any]]:
     entities = entity_crud.list_exposed_active(db)
@@ -113,3 +114,17 @@ def _stringify(value: Any) -> str | None:
     if value is None:
         return None
     return str(value)
+
+
+def profile_all_entities(
+    client: DremioClient, db: AttrDatabase, entity_ids: list[str] | None = None
+) -> list[dict[str, Any]]:
+    """Admin operation: always sees the FULL catalog, whoever calls it (src/security/role.py)."""
+    with role_mod.as_role(role_mod.ADMIN):
+        return _profile_all_entities_impl(client, db, entity_ids)
+
+
+def profile_entity(client: DremioClient, db: AttrDatabase, entity) -> dict[str, Any]:
+    """Admin operation: always sees the FULL catalog, whoever calls it (src/security/role.py)."""
+    with role_mod.as_role(role_mod.ADMIN):
+        return _profile_entity_impl(client, db, entity)

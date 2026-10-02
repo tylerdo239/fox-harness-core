@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.crud_mongo import data_source as data_source_crud
+from src.security import role as role_mod
 from src.crud_mongo import entity as entity_crud
 from src.crud_mongo import entity_column as entity_column_crud
 from src.database.mongodb import AttrDatabase, AttrDict
@@ -29,7 +30,7 @@ def list_available_dremio_sources(client: DremioClient) -> list[dict[str, str]]:
     return result
 
 
-def sync_dremio_metadata(
+def _sync_dremio_metadata_impl(
     client: DremioClient,
     db: AttrDatabase,
     source_names: list[str] | None = None,
@@ -160,3 +161,13 @@ def _sync_columns(db: AttrDatabase, entity: AttrDict, fields: list[dict[str, Any
     for name, column in existing_columns.items():
         if name not in seen_names and not column.is_deprecated:
             entity_column_crud.update(db, column.id, is_deprecated=True)
+
+
+def sync_dremio_metadata(
+    client: DremioClient,
+    db: AttrDatabase,
+    source_names: list[str] | None = None,
+) -> dict[str, Any]:
+    """Admin operation: always sees the FULL catalog, whoever calls it (src/security/role.py)."""
+    with role_mod.as_role(role_mod.ADMIN):
+        return _sync_dremio_metadata_impl(client, db, source_names)

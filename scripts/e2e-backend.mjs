@@ -36,13 +36,22 @@ async function api(method, path, token, body, raw = false) {
   return { status: res.status, json, text }
 }
 
-async function newUser(label) {
+// Self-registration is gone: accounts are created by an admin (scripts/e2e-up.sh bootstraps one).
+const ADMIN = { email: 'admin@e2e.test', password: 'admin-e2e-password' }
+let adminToken
+async function admin() {
+  if (!adminToken) adminToken = (await api('POST', '/auth/login', undefined, ADMIN)).json?.token
+  if (!adminToken) throw new Error('admin login failed — did scripts/e2e-up.sh create the admin?')
+  return adminToken
+}
+
+async function newUser(label, role = 'user') {
   const email = `${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@e2e.test`
   const password = 'correct-horse-battery'
-  const reg = await api('POST', '/auth/register', undefined, { email, password })
-  if (reg.status !== 201) throw new Error(`register failed: ${reg.status} ${reg.text}`)
+  const reg = await api('POST', '/users', await admin(), { email, password, role })
+  if (reg.status !== 201) throw new Error(`create user failed: ${reg.status} ${reg.text}`)
   const login = await api('POST', '/auth/login', undefined, { email, password })
-  return { email, token: login.json.token, id: login.json.userId }
+  return { email, password, token: login.json.token, id: reg.json.id, role: login.json.role }
 }
 
 /** One chat connection through the full path. `events` = snapshot + live events. */
@@ -322,6 +331,65 @@ const tests = {
     again.send('after the stop'); await again.turnEnds(3, 40000)
     again.close()
     return { ok: ends[0] === 'completed' && ends.length === 2 && ends[1] !== 'completed' && JSON.stringify(turnsOf(again.events)) === '[1,2,3]' && firstKept, detail: `turn ends after restart=${JSON.stringify(ends)} (completed turn kept, interrupted one closed), next turns=${JSON.stringify(turnsOf(again.events))}` }
+  },
+
+  // Two roles. user: chats + own data + Data Studio dashboards read-only. admin: everything (src/index.ts adminGate).
+  async roleGate() {
+    const { a } = await users()
+    const adm = await admin()
+    const rows = []
+    const expect = async (label, token, method, path, body, want) => {
+      const r = await api(method, path, token, body)
+      rows.push([label, r.status, want])
+    }
+    // no self-registration
+    await expect('register, anonymous', undefined, 'POST', '/auth/register', { email: `x${Date.now()}@e2e.test`, password: 'xxxxxxxxxx' }, 401)
+    await expect('register, as user', a.token, 'POST', '/auth/register', { email: `y${Date.now()}@e2e.test`, password: 'xxxxxxxxxx' }, 403)
+    await expect('create user, as user', a.token, 'POST', '/users', { email: `z${Date.now()}@e2e.test`, password: 'xxxxxxxxxx' }, 403)
+    await expect('list users, as user', a.token, 'GET', '/users', undefined, 403)
+    await expect('change a role, as user', a.token, 'PATCH', `/users/${a.id}`, { role: 'admin' }, 403)
+    // Data Studio: admin-only except reading dashboards
+    for (const [method, path, body] of [
+      ['GET', '/data-studio/sources'], ['PATCH', '/data-studio/sources/x', {}], ['GET', '/data-studio/glossary'],
+      ['POST', '/data-studio/glossary', {}], ['GET', '/data-studio/metrics'], ['GET', '/data-studio/relationships'],
+      ['POST', '/data-studio/dremio/sync', {}], ['POST', '/data-studio/dremio/browse', {}], ['PATCH', '/data-studio/entities/x', { allow_user: true }],
+      ['PATCH', '/data-studio/charts/x', {}], ['POST', '/data-studio/dashboards', { title: 't' }], ['GET', '/data-studio/dashboards/meta/available-charts'],
+    ]) await expect(`${method} ${path}, as user`, a.token, method, path, body, 403)
+    const dashUser = await api('GET', '/data-studio/dashboards', a.token)
+    rows.push(['GET dashboards, as user (read-only allowed)', dashUser.status === 403 ? 403 : 'not 403', 'not 403'])
+    const srcAdmin = await api('GET', '/data-studio/sources', adm)
+    rows.push(['GET sources, as admin', srcAdmin.status === 403 || srcAdmin.status === 401 ? srcAdmin.status : 'allowed', 'allowed'])
+    // an admin cannot demote themselves
+    const list = await api('GET', '/users', adm)
+    const me = Array.isArray(list.json) ? list.json.find((u) => u.email === ADMIN.email) : undefined
+    if (!me) return { ok: false, detail: `GET /users as admin -> ${list.status}, admin not listed` }
+    await expect('admin demotes self', adm, 'PATCH', `/users/${me.id}`, { role: 'user' }, 400)
+    // promoting a user revokes their old token; their next login carries the new role
+    const c = await newUser('carol')
+    await expect('promote carol, as admin', adm, 'PATCH', `/users/${c.id}`, { role: 'admin' }, 204)
+    await expect("carol's old token after the role change", c.token, 'GET', '/sessions/mine', undefined, 401)
+    const relog = await api('POST', '/auth/login', undefined, { email: c.email, password: c.password })
+    rows.push(["carol's new login role", relog.json?.role, 'admin'])
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks` }
+  },
+
+  // The OWNER's role reaches the runtime with every connect (it is what analyze_data limits data by).
+  async roleReachesRuntime() {
+    const { a } = await users()
+    const adm = await admin()
+    const cu = chat(a.token, { params: { flow: 'default' } }); await cu.opened; await cu.ready()
+    const ca = chat(adm, { params: { flow: 'default' } }); await ca.opened; await ca.ready()
+    await sleep(500)
+    const logs = execFileSync('docker', ['logs', BACKEND], { encoding: 'utf8' })
+    const roleOf = (id) => (logs.match(new RegExp(`"ws_connect","sessionId":"${id}"[^\\n]*"role":"(\\w+)"`)) ?? [])[1]
+    const ru = roleOf(cu.sessionId), ra = roleOf(ca.sessionId)
+    // an admin opening the USER's session still runs it with the owner's role
+    const view = chat(adm, { session: cu.sessionId }); await view.opened; await view.ready(); await sleep(300)
+    const logs2 = execFileSync('docker', ['logs', BACKEND], { encoding: 'utf8' })
+    const viewRoles = [...logs2.matchAll(new RegExp(`"ws_connect","sessionId":"${cu.sessionId}"[^\\n]*"role":"(\\w+)"`, 'g'))].map((m) => m[1])
+    cu.close(); ca.close(); view.close()
+    return { ok: ru === 'user' && ra === 'admin' && viewRoles.every((r) => r === 'user'), detail: `user session role=${ru}, admin session role=${ra}, admin viewing the user's session -> ${JSON.stringify(viewRoles)}` }
   },
 
   async purge() {

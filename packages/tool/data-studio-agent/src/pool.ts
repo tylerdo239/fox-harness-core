@@ -42,10 +42,10 @@ export class DataStudioPool {
     return { busy: this.workers.filter((worker) => worker.busy).length, queued: this.waiting.length }
   }
 
-  async ask(question: string, timeoutMs: number, signal: AbortSignal): Promise<AnalyzeReply> {
+  async ask(question: string, role: 'admin' | 'user', timeoutMs: number, signal: AbortSignal): Promise<AnalyzeReply> {
     const worker = await this.acquire(signal)
     try {
-      return await worker.kernel.ask(question, timeoutMs, signal)
+      return await worker.kernel.ask(question, role, timeoutMs, signal)
     } finally {
       worker.lastUsed = Date.now()
       this.release(worker)

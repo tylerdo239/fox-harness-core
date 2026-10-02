@@ -42,6 +42,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.database.mongodb import check_mongo_connection, ensure_indexes, get_mongo_db
+from src.security import role as role_mod
 from src.services.dremio_client import DremioClient
 from src.services.dremio_sync import list_available_dremio_sources, sync_dremio_metadata
 from src.services.embedding_client import EmbeddingClient
@@ -77,6 +78,9 @@ async def main() -> None:
         print(json.dumps({'ok': False, 'error': 'MongoDB is unreachable — set MONGODB_URL (or MongoDBWrite)'}), flush=True)
         return
     ensure_indexes()
+    # Only the gateway's admin-only routes start this process (browse/sync/reindex/profile need the FULL
+    # catalog), so its catalog reads run as admin — see src/security/role.py.
+    role_mod.set_role(role_mod.ADMIN)
     client = DremioClient(settings)
     emb = EmbeddingClient(settings)
     vs = MeiliStore(settings)

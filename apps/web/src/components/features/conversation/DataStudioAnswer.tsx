@@ -52,8 +52,11 @@ export interface DataStudioAnswerData {
 
 // "Ghim vào dashboard" for an already-persisted chart (the `charts` document `chartId` references, created by
 // bridge/runner.py). Opens the same "Thêm vào dashboard" dialog as the Data Studio chat.
+// Admin only: pinning calls admin-only dashboard routes (services/gateway 403s them for role `user`).
 export function PinToDashboardButton({ chartId, t }: { chartId: string; t: T }) {
   const [open, setOpen] = useState(false);
+  const { userRole } = useRuntime();
+  if (userRole !== "admin") return null;
   return (
     <>
       <Button variant="outline" onClick={() => setOpen(true)}>
@@ -159,6 +162,9 @@ export function DataStudioAnswer({
   const [active, setActive] = useState(0);
   const [editing, setEditing] = useState<null | "fields" | "colors" | "dashboard">(null);
   const runtime = useRuntime();
+  // The chart toolbar (edit fields / colors -> PATCH /data-studio/charts/:id, add to dashboard) only calls
+  // admin-only routes, so role `user` gets the chart and the view switcher without it.
+  const isAdmin = runtime.userRole === "admin";
   const sql = useMemo(() => (entry.sql ? prettySql(entry.sql) : ""), [entry.sql]);
 
   // Working copy of the charts so toolbar edits (fields / colors / labels) repaint immediately; each edit is
@@ -249,6 +255,7 @@ export function DataStudioAnswer({
           <div className="ds-views">
             <div className="ds-views-head">
               <div className="ds-section-label">{t("conversation.dsVisualizations")}</div>
+              {isAdmin && (
               <div className="ds-toolbar">
                 {activeChart?.chart_id && (
                   <Button variant="outline" onClick={() => setEditing("dashboard")}>
@@ -262,6 +269,7 @@ export function DataStudioAnswer({
                   <span className="ds-swatch" aria-hidden /> {t("dsx.editColors")}
                 </Button>
               </div>
+              )}
             </div>
             {viewCount > 1 && (
               <div className="ds-view-cards">
@@ -301,7 +309,7 @@ export function DataStudioAnswer({
         </div>
       )}
 
-      {activeChart && (
+      {isAdmin && activeChart && (
         <>
           <EditFieldsDialog
             open={editing === "fields"}

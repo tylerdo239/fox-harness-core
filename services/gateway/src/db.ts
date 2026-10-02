@@ -89,6 +89,16 @@ export async function getUserById(id: number): Promise<UserRecord | undefined> {
 
 // Never selects password_hash — this is the admin-listing surface
 // (GET /users), never meant to carry hashes over the wire even to an admin.
+export async function updateUserRole(id: number, role: Role): Promise<boolean> {
+  const result = await pool.query<{ affectedRows: number }>(`update discovery_users set role = ? where id = ?`, [role, id])
+  return result.affectedRows > 0
+}
+
+export async function updateUserPassword(id: number, passwordHash: string): Promise<boolean> {
+  const result = await pool.query<{ affectedRows: number }>(`update discovery_users set password_hash = ? where id = ?`, [passwordHash, id])
+  return result.affectedRows > 0
+}
+
 export async function listUsers(): Promise<PublicUser[]> {
   const rows = await pool.query<{ id: number; email: string; role: Role; created_at: string }[]>(
     `select id, email, role, created_at from discovery_users order by created_at`,

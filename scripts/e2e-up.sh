@@ -31,5 +31,7 @@ docker run -d --name foxe2e-backend --network $NET --cap-add SYS_ADMIN -v foxe2e
   -e MONGODB_URL=mongodb://spike-user:spike-pw@mongo.invalid:27017 \
   -e FOX_IDLE_DISPOSE_MS=8000 -e FOX_IDLE_SWEEP_MS=1000 -e FOX_PY_CELL_TIMEOUT_MS=5000 \
   fox-harness-backend:dev >/dev/null
+# There is no self-registration: the e2e test signs up its users through this admin.
+docker exec foxe2e-backend node scripts/create-admin.mjs admin@e2e.test admin-e2e-password >/dev/null
 docker run -d --name foxe2e-web --network $NET -p 127.0.0.1:18080:80 -e BACKEND_URL=http://foxe2e-backend:4000 fox-harness-web:dev >/dev/null
 echo "stack starting; wait for http://127.0.0.1:18080/readyz"

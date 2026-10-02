@@ -35,6 +35,8 @@ export {
   LogOut as LogOutIcon,
   // Settings dialog's Profile tab nav item (2026-09-10).
   User as ProfileIcon,
+  // Settings dialog's Users tab nav item (admin only).
+  Users as UsersIcon,
   // Settings dialog's Language dropdown trigger (2026-09-10) — replaces
   // the bare native `<select>` with a real styled dropdown matching the
   // Theme picker's own polish right above it.

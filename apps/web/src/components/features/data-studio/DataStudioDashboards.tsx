@@ -6,6 +6,8 @@
 //               "Lưu PDF" (browser print of the report), "Chỉnh sửa".
 //   * builder — charts saved from conversations (left), drag / resize canvas (center), layout / density / theme /
 //               card style / header panel (right), "Xem trước" and "Xuất bản" (bulk save).
+// Role `user` gets the list and the report read-only (services/gateway only lets them GET dashboards): no create,
+// delete or edit, and never the builder.
 // State lives in this component (no URL routes), like the project hub.
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -77,6 +79,7 @@ function Spinner({ label }: { label: string }) {
 
 function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
   const runtime = useRuntime();
+  const isAdmin = runtime.userRole === "admin";
   const { t, locale } = useLocale();
   const [dashboards, setDashboards] = useState<DashboardSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,9 +128,11 @@ function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
           <h2>{t("dsx.dashboardsTitle")}</h2>
           <p className="ds-muted">{t("dsx.dashboardsSubtitle")}</p>
         </div>
-        <Button variant="primary" onClick={() => void create()} disabled={creating}>
-          <PlusIcon size={14} /> {t("dsx.newDashboard")}
-        </Button>
+        {isAdmin && (
+          <Button variant="primary" onClick={() => void create()} disabled={creating}>
+            <PlusIcon size={14} /> {t("dsx.newDashboard")}
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -135,7 +140,7 @@ function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
       ) : dashboards.length === 0 ? (
         <div className="ds-dash-empty">
           <DashboardsIcon size={28} />
-          <p>{t("dsx.noDashboardsHint")}</p>
+          <p>{isAdmin ? t("dsx.noDashboardsHint") : t("dsx.noDashboardsReadOnly")}</p>
         </div>
       ) : (
         <div className="ds-dash-cards">
@@ -150,7 +155,7 @@ function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
                   {t("dsx.chartsCount", { n: String(d.widget_count) })} · {new Date(d.updated_at).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US")}
                 </span>
               </button>
-              {confirmId === d.id ? (
+              {!isAdmin ? null : confirmId === d.id ? (
                 <div className="ds-dash-confirm">
                   <span>{t("dsx.confirmDelete", { name: d.title })}</span>
                   <Button variant="primary" onClick={() => void remove(d.id)}>
@@ -198,7 +203,7 @@ function WidgetBody({ widget, look }: { widget: WidgetOut; look: ReturnType<type
 
 // ---- report ----
 
-function DashboardReport({ id, onBack, onEdit }: { id: string; onBack: () => void; onEdit: () => void }) {
+function DashboardReport({ id, onBack, onEdit }: { id: string; onBack: () => void; onEdit?: () => void }) {
   const runtime = useRuntime();
   const { t } = useLocale();
   const [dash, setDash] = useState<DashboardDetail | null>(null);
@@ -246,9 +251,11 @@ function DashboardReport({ id, onBack, onEdit }: { id: string; onBack: () => voi
           <Button variant="outline" onClick={savePdf}>
             {t("dsx.savePdf")}
           </Button>
-          <Button variant="primary" onClick={onEdit}>
-            {t("dsx.edit")}
-          </Button>
+          {onEdit && (
+            <Button variant="primary" onClick={onEdit}>
+              {t("dsx.edit")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -631,9 +638,20 @@ function PanelBtn({ active, onClick, children }: { active: boolean; onClick: () 
 type Mode = { mode: "list" } | { mode: "report"; id: string } | { mode: "edit"; id: string };
 
 export function DataStudioDashboards() {
+  const { userRole } = useRuntime();
+  const isAdmin = userRole === "admin";
   const [state, setState] = useState<Mode>({ mode: "list" });
-  if (state.mode === "report") {
-    return <DashboardReport key={state.id} id={state.id} onBack={() => setState({ mode: "list" })} onEdit={() => setState({ mode: "edit", id: state.id })} />;
+  // A user never reaches the builder; `edit` left over from an admin login on this tab shows the report instead.
+  if (state.mode === "report" || (state.mode === "edit" && !isAdmin)) {
+    const id = state.id;
+    return (
+      <DashboardReport
+        key={id}
+        id={id}
+        onBack={() => setState({ mode: "list" })}
+        onEdit={isAdmin ? () => setState({ mode: "edit", id }) : undefined}
+      />
+    );
   }
   if (state.mode === "edit") {
     return <DashboardBuilder key={state.id} id={state.id} onBack={() => setState({ mode: "report", id: state.id })} onPreview={() => setState({ mode: "report", id: state.id })} />;

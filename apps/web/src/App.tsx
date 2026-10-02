@@ -8,7 +8,8 @@
  * list, settings, plugin inventory) is now just a component here.
  *
  * Talks directly to services/gateway's real wire protocol: `POST
- * /auth/{register,login,logout}` for accounts, then `/sessions/new` or
+ * /auth/{login,logout}` for accounts (accounts are created by an admin
+ * in Settings > Users, `POST /users`), then `/sessions/new` or
  * `/sessions/<id>` over WebSocket for `{session|snapshot|event|error}`
  * frames and `{followup|steer}` commands. See services/gateway/README.md
  * and packages/transport/README.md for the authoritative protocol docs.
@@ -40,13 +41,20 @@ import {
   translateErrorCode,
   useLocale,
 } from "./i18n/locale.tsx";
-import { RuntimeContext, type Runtime } from "./runtime.ts";
+import { RuntimeContext, type Runtime, type UserRole } from "./runtime.ts";
 import type { ServerToClient } from "./wire.ts";
 
 const STORAGE_TOKEN = "fox-harness/token";
 const STORAGE_GATEWAY = "fox-harness/gatewayUrl";
 const STORAGE_SIDEBAR_COLLAPSED = "fox-harness/sidebarCollapsed";
 const STORAGE_EMAIL = "fox-harness/email";
+// The role `/auth/login` returned, stored next to the token (same lifetime). A stored token with no stored
+// role (a login from before roles existed) reads as "user" — least privilege; the gateway is the real authority.
+const STORAGE_ROLE = "fox-harness/role";
+
+function storedRole(): UserRole {
+  return localStorage.getItem(STORAGE_ROLE) === "admin" ? "admin" : "user";
+}
 
 // Real 2-column frame (sidebar | center), reimplementing dsh's real
 // `dsh-client-ui-layout`'s AppFrame algorithm — read directly from its
@@ -212,7 +220,7 @@ async function login(
   httpBase: string,
   email: string,
   password: string,
-): Promise<{ token: string; email: string }> {
+): Promise<{ token: string; email: string; role: UserRole }> {
   const res = await fetch(`${httpBase}/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -231,30 +239,8 @@ async function login(
   // Real gap fixed 2026-09-08: services/gateway's real response already
   // includes `email` (added same day) — the FE had never captured it, so
   // there was no way to show WHO is logged in anywhere in the UI.
-  const body = (await res.json()) as { token: string; email: string };
-  return body;
-}
-
-async function register(
-  httpBase: string,
-  email: string,
-  password: string,
-): Promise<void> {
-  const res = await fetch(`${httpBase}/auth/register`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      code?: string;
-    };
-    throw new AuthError(
-      body.error ?? `register failed: HTTP ${res.status}`,
-      body.code,
-    );
-  }
+  const body = (await res.json()) as { token: string; email: string; role?: string };
+  return { token: body.token, email: body.email, role: body.role === "admin" ? "admin" : "user" };
 }
 
 async function logoutRequest(httpBase: string, token: string): Promise<void> {
@@ -416,6 +402,7 @@ function AppInner() {
   const [userEmail, setUserEmail] = useState(
     () => localStorage.getItem(STORAGE_EMAIL) ?? "",
   );
+  const [userRole, setUserRole] = useState<UserRole>(storedRole);
   // Drives both the URL-update trigger and the visible session-id (session-bar
   // below) — lazy-initialized from whatever the URL already says on first
   // paint, so a direct `/chat/<id>` visit doesn't flash "no session" first.
@@ -447,6 +434,8 @@ function AppInner() {
   // problem.
   function handleAuthExpired(): void {
     localStorage.removeItem(STORAGE_TOKEN);
+    localStorage.removeItem(STORAGE_ROLE);
+    setUserRole("user");
     wsRef.current?.close();
     wsRef.current = null;
     setStatus("disconnected");
@@ -769,6 +758,7 @@ function AppInner() {
     () => ({
       sessionId,
       userEmail,
+      userRole,
       connected: status === "connected",
       apiUrl: (path) => `${gatewayHttpBaseRef.current}${path}`,
       authHeaders: () => {
@@ -838,7 +828,7 @@ function AppInner() {
       bumpSessionsVersion: () => setSessionsVersion((v) => v + 1),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sessionId, userEmail, status, hasChatted, sessionTitle, sessionsVersion, dataStudioMode],
+    [sessionId, userEmail, userRole, status, hasChatted, sessionTitle, sessionsVersion, dataStudioMode],
   );
 
   function handleLogin(email: string, password: string): void {
@@ -848,7 +838,9 @@ function AppInner() {
       try {
         const result = await login(httpBase, email, password);
         localStorage.setItem(STORAGE_EMAIL, result.email);
+        localStorage.setItem(STORAGE_ROLE, result.role);
         setUserEmail(result.email);
+        setUserRole(result.role);
         // Resumes whatever `/chat/<id>`, `/data/…` or `/data-studio[/chat/<id>]` is currently in the address
         // bar — this is what makes a deep link work while logged out: the URL stays as typed/bookmarked
         // through the login screen, no special-casing needed.
@@ -867,32 +859,6 @@ function AppInner() {
         );
       }
     })();
-  }
-
-  // Returns whether it succeeded so ConnectForm can switch itself back to
-  // login mode (real gap fixed 2026-09-08: this used to be fire-and-forget,
-  // reusing the error slot for a success string — the form stayed in
-  // "Create account" mode afterward, so the very next click just tried to
-  // register the same address again instead of logging in with it).
-  async function handleRegister(
-    email: string,
-    password: string,
-  ): Promise<boolean> {
-    setConnectError(null);
-    const httpBase = gatewayUrl.trim().replace(/\/$/, "");
-    try {
-      await register(httpBase, email, password);
-      return true;
-    } catch (error) {
-      setConnectError(
-        error instanceof AuthError
-          ? translateErrorCode(t, error.code, error.message)
-          : error instanceof Error
-            ? error.message
-            : String(error),
-      );
-      return false;
-    }
   }
 
   function handleLogout(): void {
@@ -915,7 +881,9 @@ function AppInner() {
     // a normal fresh login.
     localStorage.removeItem(STORAGE_TOKEN);
     localStorage.removeItem(STORAGE_EMAIL);
+    localStorage.removeItem(STORAGE_ROLE);
     setUserEmail("");
+    setUserRole("user");
     setAuthenticated(false);
     replaceUrl("/");
     setProjectView(null);
@@ -1018,6 +986,12 @@ function AppInner() {
       return next;
     });
   }
+  // Role `user` only reaches Chat and Dashboards in Data Studio (the gateway 403s every other /data-studio/*
+  // route for them) — a section left over from an admin login on this tab falls back to Chat.
+  const visibleDataStudioSection: DataStudioSection =
+    userRole === "admin" || dataStudioSection === "chat" || dataStudioSection === "dashboards"
+      ? dataStudioSection
+      : "chat";
   const cols = computeColumns(
     viewportWidth,
     sidebarCollapsed ? 0 : SIDEBAR_EXPANDED_WIDTH,
@@ -1064,7 +1038,6 @@ function AppInner() {
           error={connectError}
           connecting={status === "connecting"}
           onLogin={handleLogin}
-          onRegister={handleRegister}
         />
       </div>
     );
@@ -1082,7 +1055,7 @@ function AppInner() {
           <DataStudioSidebar
             collapsed={sidebarCollapsed}
             onToggleCollapse={toggleSidebarCollapse}
-            activeSection={dataStudioSection}
+            activeSection={visibleDataStudioSection}
             onSelectSection={setDataStudioSection}
             onNewChat={() => {
               setDataStudioSection("chat");
@@ -1117,18 +1090,18 @@ function AppInner() {
         )}
         <div id="center-col" className="fh-center-col">
           {dataStudioMode ? (
-            dataStudioSection === "chat" ? (
+            visibleDataStudioSection === "chat" ? (
               <>
                 {sessionId && hasChatted && <SessionTitleBar />}
                 <Conversation variant="data-studio" />
               </>
-            ) : dataStudioSection === "data-sources" ? (
+            ) : visibleDataStudioSection === "data-sources" ? (
               <DataStudioDataSources />
-            ) : dataStudioSection === "glossary" ? (
+            ) : visibleDataStudioSection === "glossary" ? (
               <DataStudioGlossary />
-            ) : dataStudioSection === "relationships" ? (
+            ) : visibleDataStudioSection === "relationships" ? (
               <DataStudioRelationships />
-            ) : dataStudioSection === "metrics" ? (
+            ) : visibleDataStudioSection === "metrics" ? (
               <DataStudioMetrics />
             ) : (
               <DataStudioDashboards />

@@ -19,7 +19,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { Readable } from 'node:stream'
 import { WebSocketServer } from 'ws'
 
-import { login, logout, register, resolveIdentity, type AuthedIdentity } from './auth.ts'
+import { changeUser, login, logout, register, resolveIdentity, type AuthedIdentity } from './auth.ts'
 import { config } from './config.ts'
 import {
   countCustomSkills,
@@ -32,6 +32,7 @@ import {
   getProjectOwnerId,
   getSessionOwnerId,
   getSessionRuntimeInfo,
+  getUserById,
   listSessionPlacementsForOwner,
   listCustomSkills,
   listProjectsForOwner,
@@ -179,6 +180,17 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
+// Every async route runs through this: a rejected handler (MariaDB, Redis or Mongo unreachable, a bug) answers
+// that ONE request with 500 instead of becoming an unhandled rejection that takes the whole gateway (and every
+// live chat) down.
+function handle(res: ServerResponse, run: () => Promise<unknown>): void {
+  run().catch((error: unknown) => {
+    log('route_failed', { error: error instanceof Error ? error.message : String(error) })
+    if (!res.headersSent) sendJson(res, 500, { error: 'internal error' })
+    else res.end()
+  })
+}
+
 // Shared by POST /data-studio/relationships and PATCH /data-studio/relationships/:id
 // — same shape either way. Sends its own 400 and returns undefined on any
 // validation failure, so callers can `if (!input) return` without duplicating
@@ -288,7 +300,7 @@ function requireRole(identity: AuthedIdentity | undefined, role: Role): identity
   return !!identity && identity.role === role
 }
 
-const server = createServer((req, res) => {
+function route(req: IncomingMessage, res: ServerResponse): void {
   // apps/web is a separately-served static bundle (roadmap Phase 2 step 4),
   // so its origin differs from the gateway's in any real deployment — the
   // browser sends a CORS preflight before the real POST (application/json
@@ -339,8 +351,9 @@ const server = createServer((req, res) => {
   // admin...) is deliberately NOT touched — none of their errors are
   // surfaced to a user anywhere yet (console-only), so a `code` there would
   // be speculative, not a real need.
-  if (req.method === 'POST' && url.pathname === '/auth/register') {
-    void (async () => {
+  // Admin creates an account (adminGate): POST /users (or the old /auth/register path), body {email, password, role?}.
+  if (req.method === 'POST' && (url.pathname === '/auth/register' || url.pathname === '/users')) {
+    handle(res, async () => {
       // Security fix 2026-09-09: no rate-limit existed here at all before —
       // checked first, before even reading the body, so a hammered client
       // doesn't cost more than 1 Redis round trip per attempt.
@@ -350,7 +363,7 @@ const server = createServer((req, res) => {
         res.end(JSON.stringify({ error: 'too many attempts, try again shortly', code: 'rate_limited' }))
         return
       }
-      let body: { email?: unknown; password?: unknown }
+      let body: { email?: unknown; password?: unknown; role?: unknown }
       try {
         body = JSON.parse(await readBody(req))
       } catch {
@@ -366,7 +379,10 @@ const server = createServer((req, res) => {
         return
       }
       try {
-        const user = await register(body.email, body.password)
+        if (body.role !== undefined && body.role !== 'admin' && body.role !== 'user') {
+          return sendJson(res, 400, { error: "role must be 'admin' or 'user'", code: 'invalid_role' })
+        }
+        const user = await register(body.email, body.password, (body.role as Role | undefined) ?? 'user')
         log('register_ok', { userId: user.id })
         res.writeHead(201, { 'content-type': 'application/json' })
         res.end(JSON.stringify(user))
@@ -385,12 +401,12 @@ const server = createServer((req, res) => {
         res.writeHead(500, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: 'registration failed', code: 'registration_failed' }))
       }
-    })()
+    })
     return
   }
 
   if (req.method === 'POST' && url.pathname === '/auth/login') {
-    void (async () => {
+    handle(res, async () => {
       // Security fix 2026-09-09: separate bucket from /auth/register (same
       // reasoning as that route's own comment) — a login brute-force
       // attempt shouldn't also lock a real user out of registering.
@@ -419,7 +435,7 @@ const server = createServer((req, res) => {
       log('login_ok', { userId: result.userId })
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ token: result.token, email: result.email, role: result.role }))
-    })()
+    })
     return
   }
 
@@ -432,7 +448,7 @@ const server = createServer((req, res) => {
   // the "logged out" session. This route + apps/web's rewired logout button
   // (main.ts) close that gap for real.
   if (req.method === 'POST' && url.pathname === '/auth/logout') {
-    void (async () => {
+    handle(res, async () => {
       // Idempotent by design (same spirit as register/login's own error
       // handling) — logging out an already-invalid/expired token is not an
       // error, the end state (no valid token) is identical either way, so
@@ -444,7 +460,7 @@ const server = createServer((req, res) => {
       log('logout_ok', {})
       res.writeHead(204)
       res.end()
-    })()
+    })
     return
   }
 
@@ -460,7 +476,7 @@ const server = createServer((req, res) => {
   // to how the FE is delivered).
   const pluginInventoryMatch = PLUGIN_INVENTORY_PATH.exec(url.pathname)
   if (req.method === 'GET' && pluginInventoryMatch) {
-    void (async () => {
+    handle(res, async () => {
       const sessionId = pluginInventoryMatch[1]
       if (!SESSION_ID_RE.test(sessionId)) {
         res.writeHead(400, { 'content-type': 'application/json' })
@@ -488,7 +504,7 @@ const server = createServer((req, res) => {
         res.writeHead(502, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: 'failed to fetch plugin inventory' }))
       }
-    })()
+    })
     return
   }
 
@@ -507,8 +523,34 @@ const server = createServer((req, res) => {
   // does not know about users, and a
   // full session list is exactly that kind of thing gateway shouldn't push
   // down into it just for this).
+  // Admin: change a user's role and/or reset the password (adminGate). Revokes that user's logins.
+  const userMatch = req.method === 'PATCH' ? /^\/users\/(\d+)$/.exec(url.pathname) : null
+  if (userMatch) {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      let body: { role?: unknown; password?: unknown }
+      try {
+        body = JSON.parse(await readBody(req))
+      } catch {
+        return sendJson(res, 400, { error: 'invalid JSON body', code: 'invalid_json' })
+      }
+      if (body.role !== undefined && body.role !== 'admin' && body.role !== 'user') return sendJson(res, 400, { error: "role must be 'admin' or 'user'", code: 'invalid_role' })
+      if (body.password !== undefined && (typeof body.password !== 'string' || body.password.length < 8)) return sendJson(res, 400, { error: 'password must be at least 8 characters', code: 'invalid_password' })
+      if (body.role === undefined && body.password === undefined) return sendJson(res, 400, { error: 'nothing to change' })
+      const userId = Number(userMatch[1])
+      // An admin cannot demote themselves: it would lock the last admin out by accident.
+      if (identity?.userId === userId && body.role === 'user') return sendJson(res, 400, { error: 'you cannot remove your own admin role', code: 'self_demote' })
+      const changed = await changeUser(userId, { ...(body.role !== undefined ? { role: body.role as Role } : {}), ...(typeof body.password === 'string' ? { password: body.password } : {}) })
+      if (!changed) return sendJson(res, 404, { error: 'user not found' })
+      log('user_changed', { userId, by: identity?.userId, role: body.role, passwordReset: body.password !== undefined })
+      res.writeHead(204)
+      res.end()
+    })
+    return
+  }
+
   if (req.method === 'GET' && url.pathname === '/users') {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!requireRole(identity, 'admin')) {
         res.writeHead(identity ? 403 : 401, { 'content-type': 'application/json' })
@@ -517,12 +559,12 @@ const server = createServer((req, res) => {
       }
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify(await listUsers()))
-    })()
+    })
     return
   }
 
   if (req.method === 'GET' && url.pathname === '/sessions') {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!requireRole(identity, 'admin')) {
         res.writeHead(identity ? 403 : 401, { 'content-type': 'application/json' })
@@ -531,7 +573,7 @@ const server = createServer((req, res) => {
       }
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify(await listSessionOwners()))
-    })()
+    })
     return
   }
 
@@ -541,7 +583,7 @@ const server = createServer((req, res) => {
   // connection table (runtime/live.ts; the database never duplicates it) — a
   // session nobody is connected to reads as 'hibernated', "not currently running".
   if (req.method === 'GET' && SESSION_MINE_PATH.test(url.pathname)) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) {
         res.writeHead(401, { 'content-type': 'application/json' })
@@ -553,7 +595,7 @@ const server = createServer((req, res) => {
       const withStatus = rows.map((row) => ({ ...row, status: isLive(row.sessionId) ? 'running' : 'hibernated' }))
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify(withStatus))
-    })()
+    })
     return
   }
 
@@ -565,10 +607,10 @@ const server = createServer((req, res) => {
   // even the identity requirement that has, since there's no earlier point
   // in the flow to get one from.
   if (req.method === 'GET' && MODELS_PATH.test(url.pathname)) {
-    void (async () => {
+    handle(res, async () => {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ models: config.allowedModels }))
-    })()
+    })
     return
   }
 
@@ -576,7 +618,7 @@ const server = createServer((req, res) => {
   // besides switch/create. Ownership-or-admin, same check as purge below.
   const renameMatch = req.method === 'PATCH' ? SESSION_RENAME_PATH.exec(url.pathname) : null
   if (renameMatch) {
-    void (async () => {
+    handle(res, async () => {
       const sessionId = renameMatch[1]
       if (!SESSION_ID_RE.test(sessionId)) {
         res.writeHead(400, { 'content-type': 'application/json' })
@@ -627,7 +669,7 @@ const server = createServer((req, res) => {
       log('rename_ok', { sessionId, userId: identity.userId, source })
       res.writeHead(204)
       res.end()
-    })()
+    })
     return
   }
 
@@ -637,7 +679,7 @@ const server = createServer((req, res) => {
   // session id never inherits stale ownership.
   const purgeMatch = SESSION_PURGE_PATH.exec(url.pathname)
   if (req.method === 'DELETE' && purgeMatch) {
-    void (async () => {
+    handle(res, async () => {
       const sessionId = purgeMatch[1]
       if (!SESSION_ID_RE.test(sessionId)) {
         res.writeHead(400, { 'content-type': 'application/json' })
@@ -667,14 +709,14 @@ const server = createServer((req, res) => {
         res.writeHead(500, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: 'failed to purge session' }))
       }
-    })()
+    })
     return
   }
 
   // Per-user skills (docs/skill-transfer-plan.md). `GET /skills` feeds the "/"
   // menu: built-in skills a user may invoke directly + the user's own.
   if (req.method === 'GET' && url.pathname === '/skills') {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const custom = await listCustomSkills(identity.userId)
@@ -686,14 +728,14 @@ const server = createServer((req, res) => {
           ...custom.map((skill) => ({ name: skill.name, description: skill.description, source: 'custom' })),
         ],
       })
-    })()
+    })
     return
   }
 
   // Projects (docs/rlm-transfer-plan.md 9.1): GET/POST /projects,
   // PATCH/DELETE /projects/:id, GET /projects/:id/sessions. Owner (or admin) only.
   if (PROJECTS_PATH.test(url.pathname) && (req.method === 'GET' || req.method === 'POST')) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       if (req.method === 'GET') return sendJson(res, 200, { projects: await listProjectsForOwner(identity.userId) })
@@ -702,14 +744,14 @@ const server = createServer((req, res) => {
       const project = await createProject(identity.userId, name)
       log('project_created', { projectId: project.projectId, userId: identity.userId })
       sendJson(res, 201, project)
-    })()
+    })
     return
   }
 
   const projectMatch = PROJECT_PATH.exec(url.pathname)
   const projectSessionsMatch = PROJECT_SESSIONS_PATH.exec(url.pathname)
   if ((projectMatch && (req.method === 'PATCH' || req.method === 'DELETE')) || (projectSessionsMatch && req.method === 'GET')) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const projectId = (projectMatch ?? projectSessionsMatch)![1]
@@ -739,7 +781,7 @@ const server = createServer((req, res) => {
         log('project_delete_failed', { projectId, error: String(error) })
         sendJson(res, 502, { error: 'failed to delete project' })
       }
-    })()
+    })
     return
   }
 
@@ -747,7 +789,7 @@ const server = createServer((req, res) => {
   // chat's output into the project's shared outputs/. The chat must belong to the project.
   const promoteMatch = PROJECT_PROMOTE_PATH.exec(url.pathname)
   if (req.method === 'POST' && promoteMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const projectId = promoteMatch[1]
@@ -772,7 +814,7 @@ const server = createServer((req, res) => {
         log('project_promote_failed', { projectId, error: String(error) })
         sendJson(res, 500, { error: 'promote failed' })
       }
-    })()
+    })
     return
   }
 
@@ -781,17 +823,17 @@ const server = createServer((req, res) => {
   // (`analyze_data`) — no per-row ownership concept for this data, unlike
   // sessions/projects/skills.
   if (req.method === 'GET' && url.pathname === '/data-studio/sources') {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       sendJson(res, 200, await listDataSources())
-    })()
+    })
     return
   }
 
   const sourceMatch = req.method === 'GET' || req.method === 'PATCH' ? DATA_STUDIO_SOURCE_PATH.exec(url.pathname) : null
   if (sourceMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const sourceId = sourceMatch[1]
@@ -807,33 +849,33 @@ const server = createServer((req, res) => {
       }
       const updated = await updateDataSource(sourceId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'data source not found' })
-    })()
+    })
     return
   }
 
   const sourceEntitiesMatch = req.method === 'GET' ? DATA_STUDIO_SOURCE_ENTITIES_PATH.exec(url.pathname) : null
   if (sourceEntitiesMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       sendJson(res, 200, await listEntitiesForSource(sourceEntitiesMatch[1]))
-    })()
+    })
     return
   }
 
   const entityColumnsMatch = req.method === 'GET' ? DATA_STUDIO_ENTITY_COLUMNS_PATH.exec(url.pathname) : null
   if (entityColumnsMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       sendJson(res, 200, await listColumnsForEntity(entityColumnsMatch[1]))
-    })()
+    })
     return
   }
 
   const entityMatch = req.method === 'GET' || req.method === 'PATCH' ? DATA_STUDIO_ENTITY_PATH.exec(url.pathname) : null
   if (entityMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const entityId = entityMatch[1]
@@ -849,13 +891,13 @@ const server = createServer((req, res) => {
       }
       const updated = await updateEntity(entityId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'entity not found' })
-    })()
+    })
     return
   }
 
   const columnMatch = req.method === 'GET' || req.method === 'PATCH' ? DATA_STUDIO_COLUMN_PATH.exec(url.pathname) : null
   if (columnMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const columnId = columnMatch[1]
@@ -871,12 +913,12 @@ const server = createServer((req, res) => {
       }
       const updated = await updateEntityColumn(columnId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'column not found' })
-    })()
+    })
     return
   }
 
   if (DATA_STUDIO_GLOSSARY_PATH.test(url.pathname) && (req.method === 'GET' || req.method === 'POST')) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       if (req.method === 'GET') return sendJson(res, 200, await listGlossaryTerms())
@@ -897,14 +939,14 @@ const server = createServer((req, res) => {
         related_entity_ids: Array.isArray(body.related_entity_ids) ? body.related_entity_ids : undefined,
       })
       sendJson(res, 201, created)
-    })()
+    })
     return
   }
 
   const glossaryTermMatch =
     req.method === 'PATCH' || req.method === 'DELETE' ? DATA_STUDIO_GLOSSARY_TERM_PATH.exec(url.pathname) : null
   if (glossaryTermMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const termId = glossaryTermMatch[1]
@@ -921,35 +963,35 @@ const server = createServer((req, res) => {
       }
       const updated = await updateGlossaryTerm(termId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'term not found' })
-    })()
+    })
     return
   }
 
   if (req.method === 'GET' && DATA_STUDIO_BROWSE_ENTITIES_PATH.test(url.pathname)) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       sendJson(res, 200, await listBrowseEntities())
-    })()
+    })
     return
   }
 
   if (DATA_STUDIO_RELATIONSHIPS_PATH.test(url.pathname) && (req.method === 'GET' || req.method === 'POST')) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       if (req.method === 'GET') return sendJson(res, 200, await listRelationships())
       const input = await parseRelationshipInput(req, res)
       if (!input) return
       sendJson(res, 201, await createRelationship(input))
-    })()
+    })
     return
   }
 
   const relationshipMatch =
     req.method === 'PATCH' || req.method === 'DELETE' ? DATA_STUDIO_RELATIONSHIP_PATH.exec(url.pathname) : null
   if (relationshipMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const relationshipId = relationshipMatch[1]
@@ -962,12 +1004,12 @@ const server = createServer((req, res) => {
       if (!input) return
       const updated = await updateRelationship(relationshipId, input)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'relationship not found' })
-    })()
+    })
     return
   }
 
   if (DATA_STUDIO_METRICS_PATH.test(url.pathname) && (req.method === 'GET' || req.method === 'POST')) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       if (req.method === 'GET') return sendJson(res, 200, await listMetrics())
@@ -987,13 +1029,13 @@ const server = createServer((req, res) => {
         return sendJson(res, 400, { error: 'name, base_entity_id, aggregation, and measure_column_id are required' })
       }
       sendJson(res, 201, await createMetric(body as unknown as MetricInput))
-    })()
+    })
     return
   }
 
   const metricMatch = req.method === 'PATCH' || req.method === 'DELETE' ? DATA_STUDIO_METRIC_PATH.exec(url.pathname) : null
   if (metricMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const metricId = metricMatch[1]
@@ -1010,7 +1052,7 @@ const server = createServer((req, res) => {
       }
       const updated = await updateMetric(metricId, body)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'metric not found' })
-    })()
+    })
     return
   }
 
@@ -1018,7 +1060,7 @@ const server = createServer((req, res) => {
   // Dremio calls (Python, packages/tool/data-studio-agent/python/bridge/admin_runner.py),
   // unlike every other /data-studio/* route above (plain sqlite CRUD here).
   if (req.method === 'POST' && DATA_STUDIO_DREMIO_BROWSE_PATH.test(url.pathname)) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       try {
@@ -1028,12 +1070,12 @@ const server = createServer((req, res) => {
         log('data_studio_dremio_browse_failed', { error: String(error) })
         return sendJson(res, 502, { error: 'failed to reach the Dremio bridge' })
       }
-    })()
+    })
     return
   }
 
   if (req.method === 'POST' && DATA_STUDIO_DREMIO_SYNC_PATH.test(url.pathname)) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       let body: { source_names?: unknown }
@@ -1055,7 +1097,7 @@ const server = createServer((req, res) => {
         log('data_studio_dremio_sync_failed', { error: String(error) })
         return sendJson(res, 502, { error: 'failed to reach the Dremio bridge' })
       }
-    })()
+    })
     return
   }
 
@@ -1079,17 +1121,17 @@ const server = createServer((req, res) => {
         : undefined
 
   if (req.method === 'GET' && DATA_STUDIO_AVAILABLE_CHARTS_PATH.test(url.pathname)) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       sendJson(res, 200, await availableCharts())
-    })()
+    })
     return
   }
 
   const chartMatch = req.method === 'PATCH' ? DATA_STUDIO_CHART_PATH.exec(url.pathname) : null
   if (chartMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const body = await readJson()
@@ -1102,12 +1144,12 @@ const server = createServer((req, res) => {
       if ('label_overrides' in body) patch.label_overrides = asStringMap(body.label_overrides) ?? {}
       const updated = await updateChart(chartMatch[1], patch)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'chart not found' })
-    })()
+    })
     return
   }
 
   if (DATA_STUDIO_DASHBOARDS_PATH.test(url.pathname) && (req.method === 'GET' || req.method === 'POST')) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       if (req.method === 'GET') return sendJson(res, 200, await listDashboards())
@@ -1118,13 +1160,13 @@ const server = createServer((req, res) => {
         201,
         await createDashboard(typeof body.title === 'string' ? body.title : undefined, typeof body.description === 'string' ? body.description : undefined),
       )
-    })()
+    })
     return
   }
 
   const dashboardMatch = req.method === 'GET' || req.method === 'PATCH' || req.method === 'DELETE' ? DATA_STUDIO_DASHBOARD_PATH.exec(url.pathname) : null
   if (dashboardMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const dashboardId = dashboardMatch[1]
@@ -1144,14 +1186,14 @@ const server = createServer((req, res) => {
         appearance: body.appearance && typeof body.appearance === 'object' && !Array.isArray(body.appearance) ? (body.appearance as Record<string, unknown>) : null,
       })
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'dashboard not found' })
-    })()
+    })
     return
   }
 
   // "Thêm vào dashboard" from a chat chart.
   const pinMatch = req.method === 'POST' ? DATA_STUDIO_DASHBOARD_CHARTS_PATH.exec(url.pathname) : null
   if (pinMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const body = await readJson()
@@ -1160,13 +1202,13 @@ const server = createServer((req, res) => {
       if (result === 'no-dashboard') return sendJson(res, 404, { error: 'dashboard not found' })
       if (result === 'no-chart') return sendJson(res, 404, { error: 'chart not found' })
       sendJson(res, 200, result)
-    })()
+    })
     return
   }
 
   const widgetsMatch = req.method === 'POST' || req.method === 'PUT' ? DATA_STUDIO_DASHBOARD_WIDGETS_PATH.exec(url.pathname) : null
   if (widgetsMatch) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const dashboardId = widgetsMatch[1]
@@ -1201,7 +1243,7 @@ const server = createServer((req, res) => {
       if (added === 'no-dashboard') return sendJson(res, 404, { error: 'dashboard not found' })
       if (added === 'no-chart') return sendJson(res, 404, { error: 'chart not found' })
       sendJson(res, 200, added)
-    })()
+    })
     return
   }
 
@@ -1211,7 +1253,7 @@ const server = createServer((req, res) => {
   // a chat without a working directory answers 404.
   const workspaceMatch = WORKSPACE_FILES_PATH.exec(url.pathname)
   if (workspaceMatch && (req.method === 'GET' || (req.method === 'POST' && !workspaceMatch[3]))) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const [, kind, id, path] = workspaceMatch
@@ -1251,12 +1293,12 @@ const server = createServer((req, res) => {
         if (!res.headersSent) sendJson(res, 500, { error: 'files unavailable' })
         else res.end()
       }
-    })()
+    })
     return
   }
 
   if (url.pathname === '/custom-skills' && (req.method === 'GET' || req.method === 'POST')) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       if (req.method === 'GET') return sendJson(res, 200, { skills: await listCustomSkills(identity.userId) })
@@ -1276,13 +1318,13 @@ const server = createServer((req, res) => {
       log('custom_skill_created', { userId: identity.userId, name: record.name })
       await pushSkills(identity.userId, await listSessionPlacementsForOwner(identity.userId))
       sendJson(res, 201, record)
-    })()
+    })
     return
   }
 
   const customSkillMatch = CUSTOM_SKILL_PATH.exec(url.pathname)
   if (customSkillMatch && (req.method === 'PUT' || req.method === 'DELETE')) {
-    void (async () => {
+    handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const name = decodeURIComponent(customSkillMatch[1])
@@ -1309,12 +1351,50 @@ const server = createServer((req, res) => {
       log('custom_skill_updated', { userId: identity.userId, name })
       await pushSkills(identity.userId, await listSessionPlacementsForOwner(identity.userId))
       sendJson(res, 200, record)
-    })()
+    })
     return
   }
 
   res.writeHead(404, { 'content-type': 'application/json' })
   res.end(JSON.stringify({ error: 'not found' }))
+}
+
+// Role gate, in front of every route (one place instead of a check in each of ~30 handlers). Two roles:
+//   admin — everything;
+//   user  — chats, own projects/files/skills, and Data Studio dashboards READ-ONLY.
+// Admin-only: every /data-studio/* route except reading dashboards (semantic-layer edits, Dremio browse/sync,
+// the catalog itself — which would reveal tables a user may not query —, charts, dashboard changes), creating
+// accounts (no self-registration) and managing users.
+const USER_DATA_STUDIO_READS = [/^\/data-studio\/dashboards$/, /^\/data-studio\/dashboards\/[^/]+$/]
+const ADMIN_ONLY_PATHS = [/^\/auth\/register$/, /^\/users$/, /^\/users\/[^/]+$/]
+
+function needsAdmin(req: IncomingMessage, pathname: string): boolean {
+  if (req.method === 'OPTIONS') return false
+  if (pathname.startsWith('/data-studio/')) return !(req.method === 'GET' && USER_DATA_STUDIO_READS.some((re) => re.test(pathname)))
+  return ADMIN_ONLY_PATHS.some((re) => re.test(pathname))
+}
+
+async function adminGate(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  const url = new URL(req.url ?? '/', 'http://localhost')
+  if (!needsAdmin(req, url.pathname)) return true
+  const identity = await identityFromRequest(req, url)
+  if (identity?.role === 'admin') return true
+  res.setHeader('access-control-allow-origin', '*')
+  log('admin_gate_denied', { path: url.pathname, method: req.method, userId: identity?.userId })
+  sendJson(res, identity ? 403 : 401, identity ? { error: 'admin role required', code: 'forbidden' } : { error: 'unauthorized' })
+  return false
+}
+
+const server = createServer((req, res) => {
+  adminGate(req, res).then(
+    (allowed) => {
+      if (allowed) route(req, res)
+    },
+    (error: unknown) => {
+      log('admin_gate_failed', { error: String(error) })
+      if (!res.headersSent) sendJson(res, 500, { error: 'internal error' })
+    },
+  )
 })
 
 // Performance fix 2026-09-09 (docs/security-performance-review-2026-09-09.md
@@ -1376,6 +1456,11 @@ server.on('upgrade', (req, socket, head) => {
       session = row
     }
 
+    // The OWNER's role decides what this session's agent may touch (Data Studio data — python/src/security/role.py).
+    // Owner, not viewer: it must match the workspace and the user id, and not depend on who connected first. For a
+    // new session the owner is the caller. A missing account reads as 'user' (least privilege).
+    const ownerRole: Role = isNew ? identity.role : ((await getUserById(session.ownerId))?.role ?? 'user')
+
     // Concurrent-session quota — only a NEW live session counts; one already live is never turned away.
     const quota = checkQuota(sessionId, session.ownerId)
     if (!quota.ok) return reject('429 Too Many Requests', 'ws_quota_rejected', { sessionId, reason: quota.reason })
@@ -1406,7 +1491,7 @@ server.on('upgrade', (req, socket, head) => {
 
       // What the runtime must know to open this session, sent on EVERY connect so it keeps no control state
       // of its own: restart it, change the shard count, and the next connect re-establishes everything.
-      const params = new URLSearchParams({ flow: session.flow, cwd: placement.cwd, user: String(session.ownerId) })
+      const params = new URLSearchParams({ flow: session.flow, cwd: placement.cwd, user: String(session.ownerId), role: ownerRole })
       if (session.model !== undefined) params.set('model', session.model)
       if (placement.outputDir !== undefined) params.set('output', placement.outputDir)
       if (isNew) params.set('id', sessionId)
@@ -1429,16 +1514,22 @@ server.on('upgrade', (req, socket, head) => {
         runtime.headers,
       )
     })
-  })()
+  })().catch((error: unknown) => {
+    log('ws_upgrade_failed', { error: error instanceof Error ? error.message : String(error) })
+    if (socket.writable) socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n')
+    socket.destroy()
+  })
 })
 
 // Data Studio's MongoDB (docs/data-studio-mongodb-plan.md). Non-fatal on purpose: chat, auth and
 // projects don't need it, so an unreachable Mongo only breaks the /data-studio/* routes (which then
 // fail per request) instead of taking the whole gateway down.
-void checkMongoConnection().then(async (ok) => {
-  log('mongo_check', { ok })
-  if (ok) await ensureIndexes()
-})
+void checkMongoConnection()
+  .then(async (ok) => {
+    log('mongo_check', { ok })
+    if (ok) await ensureIndexes()
+  })
+  .catch((error: unknown) => log('mongo_check', { ok: false, error: error instanceof Error ? error.message : String(error) }))
 
 // Readiness is "this process AND its runtime(s) can take a chat"; liveness is just "this process answers".
 // (Both are matched before authentication, ahead of the router above, by wrapping the listener below.)
@@ -1462,6 +1553,13 @@ async function shutdown(signal: string): Promise<void> {
 }
 process.on('SIGTERM', () => void shutdown('SIGTERM'))
 process.on('SIGINT', () => void shutdown('SIGINT'))
+
+// Last line of defence. The mongodb driver rejects promises nobody holds when a connect fails while operations are
+// queued (MongoTopologyClosedError from Topology.close draining its wait queue) — Node's default would exit and drop
+// every live chat. Log it; the request that hit it already got its error.
+process.on('unhandledRejection', (reason: unknown) => {
+  log('unhandled_rejection', { error: reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason) })
+})
 
 main().catch((error: unknown) => {
   console.error('[gateway] failed to start:', error)

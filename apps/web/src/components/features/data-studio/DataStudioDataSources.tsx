@@ -4,6 +4,7 @@
 // URL routes for this. Real CRUD against services/gateway's new
 // /data-studio/* routes (data-studio-db.ts) — no mock data.
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { ArrowLeftIcon } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
@@ -31,6 +32,8 @@ interface Entity {
   grain_description: string | null;
   is_exposed: 0 | 1;
   is_pii: 0 | 1;
+  // Role `user` may query this table (services/gateway's role gate). Admins always can.
+  allow_user: 0 | 1;
 }
 interface EntityColumn {
   id: string;
@@ -46,6 +49,8 @@ interface EntityColumn {
   is_exposed: 0 | 1;
   is_pii: 0 | 1;
   is_default_select: 0 | 1;
+  // Role `user` may see this column. Never for a PII column, whatever this says.
+  allow_user: 0 | 1;
 }
 
 const ROLE_OPTIONS = ["", "dimension", "measure", "key"];
@@ -141,6 +146,28 @@ export function DataStudioDataSources() {
     if (res.ok) await loadColumns(column.entity_id);
   }
 
+  // "Cho phép role user" on a table also opens (or closes) every non-PII column of it in the same PATCH
+  // (`allow_user_columns`), so opening a table is one click; single columns can be closed again below.
+  async function setEntityAllowUser(entity: Entity, allow: boolean): Promise<void> {
+    const res = await runtime.authedFetch(`/data-studio/entities/${entity.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ allow_user: allow, allow_user_columns: true }),
+    });
+    if (!res.ok) toast.error(t("dataStudio.allowUserFailed"));
+    await loadEntities(entity.data_source_id);
+  }
+
+  async function setColumnAllowUser(column: EntityColumn, allow: boolean): Promise<void> {
+    const res = await runtime.authedFetch(`/data-studio/columns/${column.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ allow_user: allow }),
+    });
+    if (!res.ok) toast.error(t("dataStudio.allowUserFailed"));
+    await loadColumns(column.entity_id);
+  }
+
   async function browseDremio(): Promise<void> {
     setBrowsing(true);
     setBrowseError(null);
@@ -206,6 +233,7 @@ export function DataStudioDataSources() {
               <th>{t("dataStudio.colAggregation")}</th>
               <th>{t("dataStudio.colExposed")}</th>
               <th>{t("dataStudio.colPii")}</th>
+              <th>{t("dataStudio.colAllowUser")}</th>
             </tr>
           </thead>
           <tbody>
@@ -274,17 +302,29 @@ export function DataStudioDataSources() {
                     onChange={(e) => saveColumn(column, { is_pii: e.target.checked ? 1 : 0 })}
                   />
                 </td>
+                <td>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    aria-label={t("dataStudio.colAllowUser")}
+                    checked={!column.is_pii && !!column.allow_user}
+                    disabled={!!column.is_pii}
+                    title={column.is_pii ? t("dataStudio.piiNeverVisible") : undefined}
+                    onChange={(e) => void setColumnAllowUser(column, e.target.checked)}
+                  />
+                </td>
               </tr>
             ))}
             {columns.length === 0 && (
               <tr>
-                <td colSpan={8} className="fh-data-studio-empty">
+                <td colSpan={9} className="fh-data-studio-empty">
                   {t("dataStudio.noColumns")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+        <p className="ds-muted">{t("dataStudio.piiNeverVisible")}</p>
       </div>
     );
   }
@@ -312,6 +352,7 @@ export function DataStudioDataSources() {
               <th>{t("dataStudio.colSynonyms")}</th>
               <th>{t("dataStudio.colExposed")}</th>
               <th>{t("dataStudio.colPii")}</th>
+              <th>{t("dataStudio.colAllowUser")}</th>
               <th />
             </tr>
           </thead>
@@ -353,6 +394,15 @@ export function DataStudioDataSources() {
                   />
                 </td>
                 <td>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    aria-label={t("dataStudio.colAllowUser")}
+                    checked={!!entity.allow_user}
+                    onChange={(e) => void setEntityAllowUser(entity, e.target.checked)}
+                  />
+                </td>
+                <td>
                   <Button
                     variant="link"
                     onClick={() => {
@@ -367,7 +417,7 @@ export function DataStudioDataSources() {
             ))}
             {entities.length === 0 && (
               <tr>
-                <td colSpan={7} className="fh-data-studio-empty">
+                <td colSpan={8} className="fh-data-studio-empty">
                   {t("dataStudio.noEntities")}
                 </td>
               </tr>
