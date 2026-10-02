@@ -12,7 +12,6 @@
     { "path": "packages/tool/python-repl" },
     { "path": "packages/tool/data-studio-agent" },
     { "path": "services/gateway" },
-    { "path": "services/orchestrator" },
     { "path": "apps/web" }
   ]
 }
