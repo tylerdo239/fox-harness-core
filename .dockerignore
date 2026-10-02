@@ -1,8 +1,7 @@
-# infra/docker/worker/Dockerfile builds from the repo root and reinstalls
+# infra/docker/{backend,web}/Dockerfile build from the repo root and reinstall
 # dependencies inside the image — node_modules here would only add weight and
 # platform mismatches. .env must never enter a build context: real credentials
-# reach a worker container only at `docker run` time (services/orchestrator's
-# config.workerEnvPassthrough), never baked into an image layer.
+# reach the backend only at `docker run` time, never baked into an image layer.
 node_modules/
 **/lib/
 **/dist/

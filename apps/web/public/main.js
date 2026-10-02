@@ -111320,7 +111320,10 @@ ${entry.sql}
   }
   function defaultGatewayUrl() {
     const fromQuery = new URLSearchParams(location.search).get("gateway");
-    return fromQuery ?? localStorage.getItem(STORAGE_GATEWAY) ?? "http://localhost:4000";
+    return fromQuery ?? localStorage.getItem(STORAGE_GATEWAY) ?? // Served by the FE image (infra/docker/web), nginx forwards the API paths and the chat WebSocket
+    // to the backend on the SAME origin. Only the dev static server (scripts/serve-web.mjs, port 5173)
+    // sits on a different origin from the gateway.
+    (location.port === "5173" ? "http://localhost:4000" : location.origin);
   }
   function wsBaseFor(httpBase) {
     return httpBase.replace(/^http/, "ws").replace(/\/$/, "");

@@ -1,0 +1,41 @@
+# nginx's official image runs envsubst over /etc/nginx/templates/*.template at start-up, so ${BACKEND_URL} below
+# is filled in from the container's environment; the nginx variables ($host, $uri, ...) are listed in
+# NGINX_ENVSUBST_FILTER's default and left alone.
+
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  ''      close;
+}
+
+server {
+  listen 80;
+  server_name _;
+  root /usr/share/nginx/html;
+
+  # Uploads go through the backend (data files for analysis): keep nginx from buffering or capping them first.
+  client_max_body_size 80m;
+  proxy_request_buffering off;
+
+  # The backend's HTTP API and the chat WebSocket (/sessions/new, /sessions/<id>). `/chat/<id>` is NOT here: it is
+  # a browser route handled by the SPA below.
+  location ~ ^/(auth|sessions|projects|skills|custom-skills|models|users|data-studio|healthz|readyz)(/|$) {
+    proxy_pass ${BACKEND_URL};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    # A turn can stream for minutes; a WebSocket may sit idle between messages.
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_buffering off;
+  }
+
+  # Hashed assets could be cached long; the bundle names are fixed today, so revalidate instead.
+  location = /index.html { add_header Cache-Control "no-cache"; }
+  location / {
+    try_files $uri /index.html;
+    add_header Cache-Control "no-cache";
+  }
+}

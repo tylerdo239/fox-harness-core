@@ -31,12 +31,11 @@
 // along with the per-session UI-plugin delivery system (apps/web/README.md).
 // `apps/web` is a single, normally-built static bundle now — there is
 // nothing left for the WORKER to serve or report about the frontend.
-// NOT covered here (documented, not silently skipped): the full Docker
-// orchestrator/gateway stack (services/orchestrator/README.md's own kill -9
-// test is the authoritative one, but it needs Docker + Redis + MariaDB up
-// and is slower than a smoke test should be) and the plugin-registry build
-// pipeline (services/plugin-registry/README.md). Run those manually after a
-// version bump too if this script passes.
+// NOT covered here (documented, not silently skipped): the full two-container
+// stack (scripts/e2e-backend.mjs is the authoritative test — real nginx, gateway,
+// runtimes, two users, isolation, restart and purge — but it needs Docker and the
+// built images and is slower than a smoke test should be), and scope/preset
+// behaviour. Run the e2e test after a version bump too if this script passes.
 
 import { execFile, spawn } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
