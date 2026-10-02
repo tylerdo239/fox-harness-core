@@ -1,20 +1,44 @@
 # infra/migrations
 
-MariaDB schema migrations, run by hand in order (`mariadb ... < NNN_*.sql`):
+MariaDB schema, run by hand (`mariadb ... < 001_init.sql`):
 
-- `001_init.sql` — the base schema: `users`, `sessions`, `custom_skills`.
-- `002_projects_title_source.sql` — table `projects`; columns
-  `sessions.title_source` and `sessions.project_id`.
+- `001_init.sql` — the whole current schema in one file: `discovery_users`,
+  `discovery_sessions` (incl. `title_source`, `model`, `project_id`), `discovery_projects`,
+  `discovery_custom_skills`.
+
+Consolidated 2026-10-02: `002_projects_title_source.sql` was folded into
+`001_init.sql` and deleted. A fresh database only ever needs `001_init.sql`.
+A database created from the *previous* `001_init.sql` and never given `002`
+can be brought up to date by running the statements below once (all are
+`if not exists`, so re-running is harmless). The schema has no foreign keys
+(the owning system does not want them); `owner_id` integrity is enforced by
+services/gateway, and nothing deletes a user:
+
+```sql
+alter table discovery_sessions add column if not exists title_source varchar(16) after title;
+alter table discovery_sessions add column if not exists model varchar(200) after flow;
+alter table discovery_sessions add column if not exists project_id varchar(36) after model;
+create index if not exists sessions_project_id_idx on discovery_sessions (project_id);
+create table if not exists discovery_projects (
+  id int auto_increment primary key,
+  project_id varchar(36) not null unique,
+  owner_id int not null,
+  name varchar(120) not null,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp,
+  index projects_owner_id_idx (owner_id)
+) engine=innodb;
+```
 
 Prod's DB server is MariaDB. This repo ran Postgres from Phase 5 through
 2026-09-08; the Postgres-era migration history and the `pg` driver code
 were removed entirely on 2026-09-09 (explicit instruction — not kept for
 historical record).
 
-Convention (2026-09-15): a file that has been handed over or applied
-somewhere is never edited. `001_init.sql` went to the team provisioning
-prod, so every schema change is a new numbered file that only adds to what
-the earlier files created, written with `if not exists` so running it twice
-is harmless. (2026-09-09 through 2026-09-14 this repo used numbered files,
-then folded them into `001_init.sql` and edited it in place while the dev
-database was the only deployment; prod ended that.)
+Convention note: from 2026-09-15 a file that had been handed over or applied
+somewhere was never edited and every change was a new numbered file. On
+2026-10-02 the user explicitly asked for one merged file with the latest
+tables, so that convention was set aside once; if `001_init.sql` has already
+been applied on a shared database, hand the DB team the new file together
+with the upgrade statements above rather than assuming it matches what they
+ran. Future changes should go back to new numbered files (`002_*.sql`, ...).
