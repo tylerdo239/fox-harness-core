@@ -1,16 +1,7 @@
-// Phase 7: real login-token store (`fh:gwtoken:*`), Redis-backed specifically
-// so an admin can revoke a token instantly (docs/agent-core-architecture-roadmap.md's
-// Phase 7 architecture decision — chosen over a stateless JWT for exactly
-// this reason) — reuses the same Redis this repo has run since Phase 3
-// (services/orchestrator/src/redis.ts), a separate `ioredis` client here
-// since services/* don't import each other (docs/code-rules.md §1).
-//
-// Phase 12 item 2 ADDS read-only access to orchestrator's OWN `fh:session:*`
-// affinity records (a different key namespace, same Redis instance) — used
-// only to attach a live status dot to GET /sessions/mine's listing. This is
-// the same "Redis is a store SHARED across services, not orchestrator-
-// private" precedent Phase 5 already established (services/plugin-registry
-// reads it directly too, see that service's README), not a new exception.
+// Real login-token store (`fh:gwtoken:*`) and rate-limit counters — Redis-backed specifically so an admin can
+// revoke a token instantly (docs/agent-core-architecture-roadmap.md's Phase 7 decision — chosen over a
+// stateless JWT for exactly this reason). That is ALL Redis is used for now: session placement no longer
+// needs it (see runtime/supervisor.ts).
 
 import { Redis } from 'ioredis'
 
@@ -72,37 +63,4 @@ export async function checkRateLimit(bucket: string, key: string, max: number, w
   const count = await redis.incr(redisKey)
   if (count === 1) await redis.pexpire(redisKey, windowMs)
   return count <= max
-}
-
-// ---- Phase 12 item 2 ----
-
-export type LiveSessionStatus = 'running' | 'hibernated' | 'archived'
-
-interface SessionRecordShape {
-  status: LiveSessionStatus
-}
-
-// Performance fix 2026-09-09 (docs/security-performance-review-2026-09-09.md
-// finding #2): `GET /sessions/mine` used to call a single-item version of
-// this once per row (N round trips even though `Promise.all`-parallelized).
-// One `MGET` instead — same "best-effort" semantics as before: a Redis
-// miss (session never spawned yet, or evicted) reads as `undefined`, the
-// caller treats that as "not currently running", never as an error.
-export async function getLiveSessionStatuses(sessionIds: string[]): Promise<Map<string, LiveSessionStatus | undefined>> {
-  const result = new Map<string, LiveSessionStatus | undefined>()
-  if (sessionIds.length === 0) return result
-  const raws = await redis.mget(sessionIds.map((id) => `fh:session:${id}`))
-  sessionIds.forEach((id, index) => {
-    const raw = raws[index]
-    if (!raw) {
-      result.set(id, undefined)
-      return
-    }
-    try {
-      result.set(id, (JSON.parse(raw) as SessionRecordShape).status)
-    } catch {
-      result.set(id, undefined)
-    }
-  })
-  return result
 }

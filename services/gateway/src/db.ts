@@ -71,19 +71,19 @@ function toUser(row: UserRow): UserRecord {
 // id in the same round trip, same mechanism this function already used.
 export async function createUser(email: string, passwordHash: string, role: Role): Promise<UserRecord> {
   const rows = await pool.query<UserRow[]>(
-    `insert into users (email, password_hash, role) values (?, ?, ?) returning *`,
+    `insert into discovery_users (email, password_hash, role) values (?, ?, ?) returning *`,
     [email, passwordHash, role],
   )
   return toUser(rows[0])
 }
 
 export async function getUserByEmail(email: string): Promise<UserRecord | undefined> {
-  const rows = await pool.query<UserRow[]>(`select * from users where email = ?`, [email])
+  const rows = await pool.query<UserRow[]>(`select * from discovery_users where email = ?`, [email])
   return rows[0] ? toUser(rows[0]) : undefined
 }
 
 export async function getUserById(id: number): Promise<UserRecord | undefined> {
-  const rows = await pool.query<UserRow[]>(`select * from users where id = ?`, [id])
+  const rows = await pool.query<UserRow[]>(`select * from discovery_users where id = ?`, [id])
   return rows[0] ? toUser(rows[0]) : undefined
 }
 
@@ -91,7 +91,7 @@ export async function getUserById(id: number): Promise<UserRecord | undefined> {
 // (GET /users), never meant to carry hashes over the wire even to an admin.
 export async function listUsers(): Promise<PublicUser[]> {
   const rows = await pool.query<{ id: number; email: string; role: Role; created_at: string }[]>(
-    `select id, email, role, created_at from users order by created_at`,
+    `select id, email, role, created_at from discovery_users order by created_at`,
   )
   return rows.map((row) => ({ id: row.id, email: row.email, role: row.role, createdAt: row.created_at }))
 }
@@ -100,18 +100,47 @@ export async function listUsers(): Promise<PublicUser[]> {
 // `on conflict do nothing`) — the WS upgrade handler (index.ts) calls this
 // once right after a brand-new session is created; a retried/duplicate call
 // must never silently reassign ownership.
-export async function createSession(sessionId: string, ownerId: number, flow: string, projectId?: string): Promise<void> {
-  await pool.query(`insert ignore into sessions (session_id, owner_id, flow, project_id) values (?, ?, ?, ?)`, [
+export async function createSession(sessionId: string, ownerId: number, flow: string, projectId?: string, model?: string): Promise<void> {
+  await pool.query(`insert ignore into discovery_sessions (session_id, owner_id, flow, model, project_id) values (?, ?, ?, ?, ?)`, [
     sessionId,
     ownerId,
     flow,
+    model ?? null,
     projectId ?? null,
   ])
-  if (projectId !== undefined) await pool.query(`update projects set updated_at = now() where project_id = ?`, [projectId])
+  if (projectId !== undefined) await pool.query(`update discovery_projects set updated_at = now() where project_id = ?`, [projectId])
+}
+
+// Everything the agent runtime needs to (re)open a session — read from here on EVERY
+// connect now that no orchestrator keeps it in Redis (docs/single-backend-architecture-plan.md §2).
+export interface SessionRuntimeInfo {
+  ownerId: number
+  flow: string
+  model: string | undefined
+  projectId: string | undefined
+}
+
+export async function getSessionRuntimeInfo(sessionId: string): Promise<SessionRuntimeInfo | undefined> {
+  const rows = await pool.query<{ owner_id: number; flow: string; model: string | null; project_id: string | null }[]>(
+    `select owner_id, flow, model, project_id from discovery_sessions where session_id = ?`,
+    [sessionId],
+  )
+  const row = rows[0]
+  if (!row) return undefined
+  return { ownerId: row.owner_id, flow: row.flow, model: row.model ?? undefined, projectId: row.project_id ?? undefined }
+}
+
+/** Placement inputs of every session an owner has — what a skills push needs to find their working directories. */
+export async function listSessionPlacementsForOwner(ownerId: number): Promise<{ sessionId: string; projectId: string | undefined }[]> {
+  const rows = await pool.query<{ session_id: string; project_id: string | null }[]>(
+    `select session_id, project_id from discovery_sessions where owner_id = ?`,
+    [ownerId],
+  )
+  return rows.map((row) => ({ sessionId: row.session_id, projectId: row.project_id ?? undefined }))
 }
 
 export async function getSessionOwnerId(sessionId: string): Promise<number | undefined> {
-  const rows = await pool.query<{ owner_id: number }[]>(`select owner_id from sessions where session_id = ?`, [sessionId])
+  const rows = await pool.query<{ owner_id: number }[]>(`select owner_id from discovery_sessions where session_id = ?`, [sessionId])
   return rows[0]?.owner_id
 }
 
@@ -123,17 +152,17 @@ export async function getSessionOwnerId(sessionId: string): Promise<number | und
 // returns rows where this is set, so a session opened but never actually
 // used never shows up in the sidebar's real session list at all.
 export async function markSessionFirstMessage(sessionId: string): Promise<void> {
-  await pool.query(`update sessions set first_message_at = now() where session_id = ? and first_message_at is null`, [
+  await pool.query(`update discovery_sessions set first_message_at = now() where session_id = ? and first_message_at is null`, [
     sessionId,
   ])
 }
 
-// Phase 6's real delete-on-request (services/orchestrator's `purgeSession`)
-// deletes the session's data; this is gateway's own matching bookkeeping
+// Phase 6's real delete-on-request (runtime/sessions.ts's `purgeSessionData`)
+// deletes the session's data; this is the matching bookkeeping
 // cleanup, called right after a successful purge (index.ts) so a
 // purged-then-recreated session id can't inherit stale ownership/title.
 export async function deleteSessionRow(sessionId: string): Promise<void> {
-  await pool.query(`delete from sessions where session_id = ?`, [sessionId])
+  await pool.query(`delete from discovery_sessions where session_id = ?`, [sessionId])
 }
 
 export interface SessionOwnerRow {
@@ -147,7 +176,7 @@ export interface SessionOwnerRow {
 // richer shape; a regular user's OWN listing is `listSessionsForOwner` below.
 export async function listSessionOwners(): Promise<SessionOwnerRow[]> {
   const rows = await pool.query<{ session_id: string; owner_id: number; created_at: string }[]>(
-    `select session_id, owner_id, created_at from sessions order by created_at`,
+    `select session_id, owner_id, created_at from discovery_sessions order by created_at`,
   )
   return rows.map((row) => ({ sessionId: row.session_id, ownerId: row.owner_id, createdAt: row.created_at }))
 }
@@ -173,7 +202,7 @@ interface OwnedSessionDbRow {
 }
 
 const OWNED_SESSION_SELECT = `select s.session_id, s.title, s.created_at, s.updated_at, s.flow, s.project_id, p.name as project_name
-  from sessions s left join projects p on p.project_id = s.project_id`
+  from discovery_sessions s left join discovery_projects p on p.project_id = s.project_id`
 
 function toOwnedSession(row: OwnedSessionDbRow): OwnedSessionRow {
   return {
@@ -224,11 +253,11 @@ export type TitleSource = 'user' | 'fallback' | 'provider'
 // user rename — and doesn't re-sort the list.
 export async function renameSession(sessionId: string, title: string, source: TitleSource = 'user'): Promise<void> {
   if (source === 'user') {
-    await pool.query(`update sessions set title = ?, title_source = 'user', updated_at = now() where session_id = ?`, [title, sessionId])
+    await pool.query(`update discovery_sessions set title = ?, title_source = 'user', updated_at = now() where session_id = ?`, [title, sessionId])
     return
   }
   await pool.query(
-    `update sessions set title = ?, title_source = ? where session_id = ? and (title_source is null or (title_source = 'fallback' and ? = 'provider'))`,
+    `update discovery_sessions set title = ?, title_source = ? where session_id = ? and (title_source is null or (title_source = 'fallback' and ? = 'provider'))`,
     [title, source, sessionId, source],
   )
 }
@@ -241,13 +270,13 @@ export async function renameSession(sessionId: string, title: string, source: Ti
 // opening an old chat to read it, no message sent, bumped it to the top and
 // visibly jumped that row in the sidebar the instant it was clicked).
 export async function touchSessionRow(sessionId: string): Promise<void> {
-  await pool.query(`update sessions set updated_at = now() where session_id = ?`, [sessionId])
+  await pool.query(`update discovery_sessions set updated_at = now() where session_id = ?`, [sessionId])
 }
 
 // Every session of a user, including ones never chatted in (unlike
 // `listSessionsForOwner`) — a skill edit must reach a freshly opened chat too.
 export async function listSessionIdsForOwner(ownerId: number): Promise<string[]> {
-  const rows = await pool.query<{ session_id: string }[]>(`select session_id from sessions where owner_id = ?`, [ownerId])
+  const rows = await pool.query<{ session_id: string }[]>(`select session_id from discovery_sessions where owner_id = ?`, [ownerId])
   return rows.map((row) => row.session_id)
 }
 
@@ -274,7 +303,7 @@ function toProject(row: ProjectRow): ProjectRecord {
 
 export async function createProject(ownerId: number, name: string): Promise<ProjectRecord> {
   const rows = await pool.query<ProjectRow[]>(
-    `insert into projects (project_id, owner_id, name) values (?, ?, ?) returning project_id, name, created_at, updated_at`,
+    `insert into discovery_projects (project_id, owner_id, name) values (?, ?, ?) returning project_id, name, created_at, updated_at`,
     [randomUUID(), ownerId, name],
   )
   return toProject(rows[0])
@@ -282,28 +311,28 @@ export async function createProject(ownerId: number, name: string): Promise<Proj
 
 export async function listProjectsForOwner(ownerId: number): Promise<ProjectRecord[]> {
   const rows = await pool.query<ProjectRow[]>(
-    `select project_id, name, created_at, updated_at from projects where owner_id = ? order by updated_at desc`,
+    `select project_id, name, created_at, updated_at from discovery_projects where owner_id = ? order by updated_at desc`,
     [ownerId],
   )
   return rows.map(toProject)
 }
 
 export async function getProjectOwnerId(projectId: string): Promise<number | undefined> {
-  const rows = await pool.query<{ owner_id: number }[]>(`select owner_id from projects where project_id = ?`, [projectId])
+  const rows = await pool.query<{ owner_id: number }[]>(`select owner_id from discovery_projects where project_id = ?`, [projectId])
   return rows[0]?.owner_id
 }
 
 export async function renameProject(projectId: string, name: string): Promise<void> {
-  await pool.query(`update projects set name = ?, updated_at = now() where project_id = ?`, [name, projectId])
+  await pool.query(`update discovery_projects set name = ?, updated_at = now() where project_id = ?`, [name, projectId])
 }
 
 export async function deleteProjectRow(projectId: string): Promise<void> {
-  await pool.query(`delete from projects where project_id = ?`, [projectId])
+  await pool.query(`delete from discovery_projects where project_id = ?`, [projectId])
 }
 
 // Every chat of a project, including never-used ones — deleting a project purges them all.
 export async function listSessionIdsForProject(projectId: string): Promise<string[]> {
-  const rows = await pool.query<{ session_id: string }[]>(`select session_id from sessions where project_id = ?`, [projectId])
+  const rows = await pool.query<{ session_id: string }[]>(`select session_id from discovery_sessions where project_id = ?`, [projectId])
   return rows.map((row) => row.session_id)
 }
 
@@ -344,14 +373,14 @@ async function toCustomSkill(row: CustomSkillRow): Promise<CustomSkillRecord> {
 // exceeds 50.
 export async function listCustomSkills(ownerId: number): Promise<CustomSkillRecord[]> {
   const rows = await pool.query<CustomSkillRow[]>(
-    `select name, description, content_key, created_at, updated_at from custom_skills where owner_id = ? order by name`,
+    `select name, description, content_key, created_at, updated_at from discovery_custom_skills where owner_id = ? order by name`,
     [ownerId],
   )
   return Promise.all(rows.map(toCustomSkill))
 }
 
 export async function countCustomSkills(ownerId: number): Promise<number> {
-  const rows = await pool.query<{ n: bigint }[]>(`select count(*) as n from custom_skills where owner_id = ?`, [ownerId])
+  const rows = await pool.query<{ n: bigint }[]>(`select count(*) as n from discovery_custom_skills where owner_id = ?`, [ownerId])
   return Number(rows[0].n)
 }
 
@@ -376,7 +405,7 @@ export async function createCustomSkill(
   let inserted: CustomSkillRow
   try {
     const rows = await pool.query<CustomSkillRow[]>(
-      `insert into custom_skills (owner_id, name, description, content_key) values (?, ?, ?, ?) returning name, description, content_key, created_at, updated_at`,
+      `insert into discovery_custom_skills (owner_id, name, description, content_key) values (?, ?, ?, ?) returning name, description, content_key, created_at, updated_at`,
       [ownerId, skill.name, skill.description, key],
     )
     inserted = rows[0]
@@ -387,7 +416,7 @@ export async function createCustomSkill(
   try {
     await putSkillContent(key, skill.content)
   } catch (error) {
-    await pool.query(`delete from custom_skills where owner_id = ? and name = ?`, [ownerId, skill.name]).catch(() => {})
+    await pool.query(`delete from discovery_custom_skills where owner_id = ? and name = ?`, [ownerId, skill.name]).catch(() => {})
     throw error
   }
   return toCustomSkill(inserted)
@@ -411,19 +440,19 @@ export async function updateCustomSkill(
 ): Promise<CustomSkillRecord | undefined> {
   await putSkillContent(skillContentKey(ownerId, name), fields.content)
   const result = await pool.query<{ affectedRows: number }>(
-    `update custom_skills set description = ?, updated_at = now() where owner_id = ? and name = ?`,
+    `update discovery_custom_skills set description = ?, updated_at = now() where owner_id = ? and name = ?`,
     [fields.description, ownerId, name],
   )
   if (result.affectedRows === 0) return undefined
   const rows = await pool.query<CustomSkillRow[]>(
-    `select name, description, content_key, created_at, updated_at from custom_skills where owner_id = ? and name = ?`,
+    `select name, description, content_key, created_at, updated_at from discovery_custom_skills where owner_id = ? and name = ?`,
     [ownerId, name],
   )
   return rows[0] ? toCustomSkill(rows[0]) : undefined
 }
 
 export async function deleteCustomSkill(ownerId: number, name: string): Promise<boolean> {
-  const result = await pool.query<{ affectedRows: number }>(`delete from custom_skills where owner_id = ? and name = ?`, [ownerId, name])
+  const result = await pool.query<{ affectedRows: number }>(`delete from discovery_custom_skills where owner_id = ? and name = ?`, [ownerId, name])
   if (result.affectedRows === 0) return false
   // Best-effort — an orphaned object nobody will ever reference again is
   // harmless; the DB row (the half that actually matters) is already gone.

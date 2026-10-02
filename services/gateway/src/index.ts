@@ -8,11 +8,13 @@
 // Phase 7: real accounts + 2 roles (admin, user), replacing the single
 // shared-operator-secret model Phase 2-6 used. Gateway is the SOLE
 // authorization enforcer (docs/agent-core-architecture-roadmap.md's Phase 7
-// architecture decision) — services/orchestrator does no auth checks of its
+// architecture decision) — the agent runtime does no auth checks of its
 // own, same as before; every route below now resolves a real identity and
 // checks it before proxying anywhere.
 
 import { randomUUID } from 'node:crypto'
+import { createReadStream } from 'node:fs'
+import { mkdir, stat } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import { WebSocketServer } from 'ws'
@@ -29,6 +31,8 @@ import {
   deleteSessionRow,
   getProjectOwnerId,
   getSessionOwnerId,
+  getSessionRuntimeInfo,
+  listSessionPlacementsForOwner,
   listCustomSkills,
   listProjectsForOwner,
   listSessionIdsForOwner,
@@ -82,25 +86,27 @@ import {
   type RelationshipInput,
 } from './data-studio-db.ts'
 import { runAdminBridge } from './data-studio-bridge.ts'
+import { isLive, liveCount, track as trackConnection, checkQuota } from './runtime/live.ts'
+import { ensurePlacement, isUuid, placementFor, projectDirFor } from './runtime/paths.ts'
+import { deleteProjectData, purgeSessionData, workspaceDirForSession } from './runtime/sessions.ts'
+import { syncSkills } from './runtime/skills-sync.ts'
+import { RuntimeSupervisor } from './runtime/supervisor.ts'
 import {
-  deleteProjectFiles,
-  ensureSession,
-  fetchModels,
-  OrchestratorHttpError,
-  promoteProjectOutput,
-  purgeSession,
-  syncSkills,
-  touchSession,
-  workspaceFiles,
-} from './orchestrator-client.ts'
+  contentTypeFor,
+  listWorkspaceFiles,
+  promoteOutput,
+  resolveInside,
+  saveUpload,
+  UploadTooLargeError,
+} from './runtime/workspace-files.ts'
 import { checkMongoConnection, ensureIndexes } from './mongo.ts'
 import { proxyToWorker } from './proxy.ts'
-import { checkRateLimit, getLiveSessionStatuses, renewToken } from './redis.ts'
+import { checkRateLimit, renewToken } from './redis.ts'
 import { loadBuiltinSkills, MAX_SKILLS_PER_USER, validateSkill } from './skills.ts'
 
 // Phase 6 checklist item 2: cross-layer telemetry, tagged with sessionId.
 // Same structured-JSON-to-stdout convention duplicated in
-// services/orchestrator (see that service's index.ts for why this isn't a
+// the runtime (see packages/transport/src/server.ts: this isn't a
 // shared import).
 function log(event: string, fields: Record<string, unknown> = {}): void {
   console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'gateway', event, ...fields }))
@@ -110,9 +116,12 @@ function log(event: string, fields: Record<string, unknown> = {}): void {
 // a `randomUUID()` output (WS upgrade handler, brand-new session branch) —
 // this matches that exact shape. Applied at every entry point that reads a
 // sessionId out of the URL path before it touches the DB or (via
-// orchestrator) the filesystem, rejecting anything else with a real 400 —
+// the runtime) the filesystem, rejecting anything else with a real 400 —
 // a malformed id (e.g. containing `../`) used to be able to reach
-// `path.join(config.dataDir, sessionId)` on the orchestrator side.
+// `path.join(config.dataDir, sessionId)`.
+// The agent runtime(s) this process starts and routes to (runtime/supervisor.ts).
+const runtime = new RuntimeSupervisor()
+
 const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const PLUGIN_INVENTORY_PATH = /^\/sessions\/([^/]+)\/plugin-inventory$/
@@ -128,6 +137,8 @@ const MODELS_PATH = /^\/models$/
 const CUSTOM_SKILL_PATH = /^\/custom-skills\/([^/]+)$/
 // Data-analysis working directory (docs/rlm-transfer-plan.md giai đoạn 4) of a
 // chat, or of a project (9.1) — shared by that project's chats.
+// An upload's file name: no path separators, no leading dot.
+const UPLOAD_NAME_RE = /^[^/\\.][^/\\]{0,199}$/
 const WORKSPACE_FILES_PATH = /^\/(sessions|projects)\/([^/]+)\/files(?:\/(.+))?$/
 // Projects (docs/rlm-transfer-plan.md 9.1). Project ids are UUIDs, the same
 // shape SESSION_ID_RE checks.
@@ -203,15 +214,17 @@ async function parseRelationshipInput(req: IncomingMessage, res: ServerResponse)
   return { from_entity_id, to_entity_id, cardinality, join_type_default, column_pairs }
 }
 
-// Writes the owner's current skills into the given sessions' $DSH_HOME/skills
-// (docs/skill-transfer-plan.md). A failure is logged, not surfaced: the skill
-// is already saved in MariaDB, and the next WS connect syncs again.
-async function pushSkills(ownerId: number, sessionIds: string[]): Promise<void> {
-  if (sessionIds.length === 0) return
+// Writes the owner's current skills into the working directory of each given session (`<cwd>/.dsh/skills`,
+// runtime/skills-sync.ts). A failure is logged, not surfaced: the skill is already saved in MariaDB, and the
+// next WS connect syncs again.
+async function pushSkills(ownerId: number, sessions: { sessionId: string; projectId: string | undefined }[]): Promise<void> {
+  if (sessions.length === 0) return
   try {
     const skills = (await listCustomSkills(ownerId)).map(({ name, description, content }) => ({ name, description, content }))
-    const synced = await syncSkills(config.orchestratorUrl, { sessionIds, skills })
-    log('skills_sync_ok', { ownerId, synced: synced.length, skills: skills.length })
+    const cwds = sessions.map(({ sessionId, projectId }) => placementFor({ ownerId, projectId }, sessionId).cwd)
+    for (const cwd of new Set(cwds)) await mkdir(cwd, { recursive: true })
+    const synced = await syncSkills(cwds, skills)
+    log('skills_sync_ok', { ownerId, synced, skills: skills.length })
   } catch (error) {
     log('skills_sync_failed', { ownerId, error: String(error) })
   }
@@ -304,6 +317,16 @@ const server = createServer((req, res) => {
   }
 
   const url = new URL(req.url ?? '/', 'http://localhost')
+
+  // Probes (no auth, no CORS): liveness = this process answers; readiness = it AND every agent runtime can take a chat.
+  if (req.method === 'GET' && (url.pathname === '/healthz' || url.pathname === '/readyz')) {
+    const health = runtime.health()
+    const ok = url.pathname === '/healthz' || health.ready
+    res.writeHead(ok ? 200 : 503, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ ok, ...(url.pathname === '/readyz' ? health : {}) }))
+    return
+  }
+
 
   // i18n (2026-09-10): `/auth/register`+`/auth/login` are the only 2 routes
   // whose `error` string is actually shown to a user today (apps/web's
@@ -450,17 +473,16 @@ const server = createServer((req, res) => {
         res.end(JSON.stringify({ error: 'unauthorized' }))
         return
       }
-      if (!(await canAccessSession(identity, sessionId))) {
+      // The runtime's plugin tree is shared by every session it serves, so this is operator-only now.
+      if (identity.role !== 'admin') {
         res.writeHead(403, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: 'forbidden' }))
         return
       }
       try {
-        const target = await ensureSession(config.orchestratorUrl, sessionId)
-        const workerRes = await fetch(`http://${target.host}:${target.port}/plugin-inventory`)
-        const body = await workerRes.text()
-        res.writeHead(workerRes.status, { 'content-type': 'application/json' })
-        res.end(body)
+        const upstream = await runtime.pluginInventory(sessionId)
+        res.writeHead(upstream.status, { 'content-type': 'application/json' })
+        res.end(upstream.body)
       } catch (error) {
         console.error(`[gateway] plugin-inventory(${sessionId}) failed:`, error)
         res.writeHead(502, { 'content-type': 'application/json' })
@@ -481,8 +503,8 @@ const server = createServer((req, res) => {
   // session, no catalog/approval/toggle involved.
 
   // Phase 7 admin-only listings — gateway's own bookkeeping (session_owners),
-  // never proxied anywhere; orchestrator has no "list every session" route
-  // of its own (roadmap: orchestrator "không biết nội dung session", and a
+  // never proxied anywhere (the runtime has no "list every session" route and
+  // does not know about users, and a
   // full session list is exactly that kind of thing gateway shouldn't push
   // down into it just for this).
   if (req.method === 'GET' && url.pathname === '/users') {
@@ -515,11 +537,9 @@ const server = createServer((req, res) => {
 
   // Phase 12 item 2: the route that didn't exist AT ALL before this phase —
   // any authenticated user (not just admin, unlike GET /sessions above) can
-  // list their OWN sessions. Status is joined in live from Redis (Phase 12's
-  // own design note: orchestrator's SessionRecord.status stays the one
-  // source of truth, the database never duplicates it) — a session with no live
-  // Redis record yet (never spawned) or one whose record expired reads as
-  // 'hibernated', the safe default for "not currently running".
+  // list their OWN sessions. Status is joined in live from this process's own
+  // connection table (runtime/live.ts; the database never duplicates it) — a
+  // session nobody is connected to reads as 'hibernated', "not currently running".
   if (req.method === 'GET' && SESSION_MINE_PATH.test(url.pathname)) {
     void (async () => {
       const identity = await identityFromRequest(req, url)
@@ -529,8 +549,8 @@ const server = createServer((req, res) => {
         return
       }
       const rows = await listSessionsForOwner(identity.userId)
-      const statuses = await getLiveSessionStatuses(rows.map((row) => row.sessionId))
-      const withStatus = rows.map((row) => ({ ...row, status: statuses.get(row.sessionId) ?? 'hibernated' }))
+      // 'running' = a browser is connected to it right now; every other session is just a log on disk.
+      const withStatus = rows.map((row) => ({ ...row, status: isLive(row.sessionId) ? 'running' : 'hibernated' }))
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify(withStatus))
     })()
@@ -546,14 +566,8 @@ const server = createServer((req, res) => {
   // in the flow to get one from.
   if (req.method === 'GET' && MODELS_PATH.test(url.pathname)) {
     void (async () => {
-      try {
-        res.writeHead(200, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ models: await fetchModels(config.orchestratorUrl) }))
-      } catch (error) {
-        console.error('[gateway] models() failed:', error)
-        res.writeHead(502, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ error: 'failed to reach orchestrator' }))
-      }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ models: config.allowedModels }))
     })()
     return
   }
@@ -618,7 +632,7 @@ const server = createServer((req, res) => {
   }
 
   // Phase 6 checklist item 4: real delete-on-request — proxied straight to
-  // the orchestrator's own purge route (see orchestrator-client.ts), plus
+  // runtime/sessions.ts's purgeSessionData, plus
   // (Phase 7) gateway's own ownership-row cleanup so a purged-then-reused
   // session id never inherits stale ownership.
   const purgeMatch = SESSION_PURGE_PATH.exec(url.pathname)
@@ -642,15 +656,15 @@ const server = createServer((req, res) => {
         return
       }
       try {
-        await purgeSession(config.orchestratorUrl, sessionId)
+        const info = await getSessionRuntimeInfo(sessionId)
+        if (info) await purgeSessionData(runtime, sessionId, info)
         await deleteSessionRow(sessionId)
         log('purge_ok', { sessionId, userId: identity.userId })
         res.writeHead(204)
         res.end()
       } catch (error) {
-        const status = error instanceof OrchestratorHttpError ? error.status : 502
         log('purge_failed', { sessionId, error: String(error) })
-        res.writeHead(status, { 'content-type': 'application/json' })
+        res.writeHead(500, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: 'failed to purge session' }))
       }
     })()
@@ -712,10 +726,11 @@ const server = createServer((req, res) => {
       // Deleting a project deletes its chats and its shared folder.
       try {
         for (const sessionId of await listSessionIdsForProject(projectId)) {
-          await purgeSession(config.orchestratorUrl, sessionId)
+          const info = await getSessionRuntimeInfo(sessionId)
+          if (info) await purgeSessionData(runtime, sessionId, info)
           await deleteSessionRow(sessionId)
         }
-        await deleteProjectFiles(config.orchestratorUrl, projectId)
+        await deleteProjectData(projectId)
         await deleteProjectRow(projectId)
         log('project_deleted', { projectId, userId: identity.userId })
         res.writeHead(204)
@@ -748,11 +763,14 @@ const server = createServer((req, res) => {
         return sendJson(res, 404, { error: 'output not found' })
       }
       try {
-        const upstream = await promoteProjectOutput(config.orchestratorUrl, projectId, { sessionId, path })
-        sendJson(res, upstream.status, await upstream.json())
+        const dir = projectDirFor(projectId)
+        const promoted = dir ? await promoteOutput(dir, sessionId, path) : undefined
+        if (!promoted) return sendJson(res, 404, { error: 'output not found' })
+        log('project_promote_ok', { projectId, sessionId })
+        sendJson(res, 201, { path: promoted })
       } catch (error) {
         log('project_promote_failed', { projectId, error: String(error) })
-        sendJson(res, 502, { error: 'orchestrator unavailable' })
+        sendJson(res, 500, { error: 'promote failed' })
       }
     })()
     return
@@ -1190,34 +1208,49 @@ const server = createServer((req, res) => {
   // GET /sessions/:id/files lists, POST /sessions/:id/files?name=<file> uploads
   // the raw body, GET /sessions/:id/files/<path> downloads — the same under
   // /projects/:id/files for a project's shared folder. Owner (or admin) only;
-  // orchestrator answers 404 for a chat without a working directory.
+  // a chat without a working directory answers 404.
   const workspaceMatch = WORKSPACE_FILES_PATH.exec(url.pathname)
   if (workspaceMatch && (req.method === 'GET' || (req.method === 'POST' && !workspaceMatch[3]))) {
     void (async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const [, kind, id, path] = workspaceMatch
-      const owner = `${kind}/${id}`
       const allowed =
         kind === 'projects' ? await canAccessProject(identity, id) : SESSION_ID_RE.test(id) && (await canAccessSession(identity, id))
       if (!allowed) return sendJson(res, 404, { error: 'not found' })
-      const upload = req.method === 'POST'
-      const subpath = upload ? `/${encodeURIComponent(url.searchParams.get('name') ?? '')}` : path ? `/${path}` : ''
-      let upstream: Response
+      const owner = `${kind}/${id}`
+      let dir: string | undefined
+      if (kind === 'projects') dir = projectDirFor(id)
+      else {
+        const info = await getSessionRuntimeInfo(id)
+        dir = info ? workspaceDirForSession(info, id) : undefined
+      }
+      if (!dir) return sendJson(res, 404, { error: 'no working directory' })
+
       try {
-        upstream = await workspaceFiles(config.orchestratorUrl, owner, subpath, upload ? req : undefined)
+        if (req.method === 'POST') {
+          const name = url.searchParams.get('name') ?? ''
+          if (!UPLOAD_NAME_RE.test(name)) return sendJson(res, 400, { error: 'invalid file name' })
+          try {
+            await saveUpload(dir, name, req)
+          } catch (error) {
+            if (error instanceof UploadTooLargeError) return sendJson(res, 413, { error: error.message })
+            throw error
+          }
+          log('workspace_upload', { owner, userId: identity.userId })
+          return sendJson(res, 201, { path: name })
+        }
+        if (!path) return sendJson(res, 200, { files: await listWorkspaceFiles(dir) })
+        const target = resolveInside(dir, decodeURIComponent(path))
+        const info = target ? await stat(target).catch(() => undefined) : undefined
+        if (!target || !info?.isFile()) return sendJson(res, 404, { error: 'file not found' })
+        res.writeHead(200, { 'content-type': contentTypeFor(target), 'content-length': info.size })
+        createReadStream(target).pipe(res)
       } catch (error) {
         log('workspace_files_failed', { owner, error: String(error) })
-        return sendJson(res, 502, { error: 'orchestrator unavailable' })
+        if (!res.headersSent) sendJson(res, 500, { error: 'files unavailable' })
+        else res.end()
       }
-      if (upload && upstream.ok) log('workspace_upload', { owner, userId: identity.userId })
-      const length = upstream.headers.get('content-length')
-      res.writeHead(upstream.status, {
-        'content-type': upstream.headers.get('content-type') ?? 'application/octet-stream',
-        ...(length ? { 'content-length': length } : {}),
-      })
-      if (upstream.body) Readable.fromWeb(upstream.body as never).pipe(res)
-      else res.end()
     })()
     return
   }
@@ -1241,7 +1274,7 @@ const server = createServer((req, res) => {
       const record = await createCustomSkill(identity.userId, checked.skill)
       if (!record) return sendJson(res, 409, { error: `skill "${checked.skill.name}" already exists`, code: 'skill_exists' })
       log('custom_skill_created', { userId: identity.userId, name: record.name })
-      await pushSkills(identity.userId, await listSessionIdsForOwner(identity.userId))
+      await pushSkills(identity.userId, await listSessionPlacementsForOwner(identity.userId))
       sendJson(res, 201, record)
     })()
     return
@@ -1258,7 +1291,7 @@ const server = createServer((req, res) => {
           return sendJson(res, 404, { error: 'skill not found', code: 'skill_not_found' })
         }
         log('custom_skill_deleted', { userId: identity.userId, name })
-        await pushSkills(identity.userId, await listSessionIdsForOwner(identity.userId))
+        await pushSkills(identity.userId, await listSessionPlacementsForOwner(identity.userId))
         res.writeHead(204)
         res.end()
         return
@@ -1274,7 +1307,7 @@ const server = createServer((req, res) => {
       const record = await updateCustomSkill(identity.userId, name, checked.skill)
       if (!record) return sendJson(res, 404, { error: 'skill not found', code: 'skill_not_found' })
       log('custom_skill_updated', { userId: identity.userId, name })
-      await pushSkills(identity.userId, await listSessionIdsForOwner(identity.userId))
+      await pushSkills(identity.userId, await listSessionPlacementsForOwner(identity.userId))
       sendJson(res, 200, record)
     })()
     return
@@ -1309,130 +1342,82 @@ server.on('upgrade', (req, socket, head) => {
       socket.destroy()
       return
     }
+    const reject = (status: string, event: string, fields: Record<string, unknown> = {}) => {
+      log(event, { userId: identity.userId, ...fields })
+      socket.write(`HTTP/1.1 ${status}\r\n\r\n`)
+      socket.destroy()
+    }
 
     const isNew = match[1] === 'new'
-    // A brand-new session's id must be decided HERE, before routing — the
-    // orchestrator needs it to register Redis affinity, and packages/transport
-    // no longer gets to mint it unobserved (proxy.ts stays deliberately
-    // byte-blind, so gateway can't just "read" an id back out of the first
-    // frame either — see packages/transport/README.md's `?id=` note).
+    // A brand-new session's id is decided here, before routing: the row (flow/model/owner) is written under
+    // it, and the runtime is told it with the first connect (proxy.ts stays byte-blind).
     const sessionId = isNew ? randomUUID() : match[1]
+    // Only a reconnect carries an id from the client; it is used to build filesystem paths further down.
+    if (!isNew && !SESSION_ID_RE.test(sessionId)) return reject('400 Bad Request', 'ws_bad_session_id')
 
-    // Security fix 2026-09-09: only meaningful for a reconnect — `isNew`'s
-    // sessionId is always a freshly-generated randomUUID() above, already
-    // valid by construction. A malformed reconnect id (e.g. containing
-    // `../`) used to be able to reach path.join(dataDir, sessionId) on the
-    // orchestrator side via the "brand new" fallback (see SESSION_ID_RE's
-    // own comment).
-    if (!isNew && !SESSION_ID_RE.test(sessionId)) {
-      socket.write('HTTP/1.1 400 Bad Request\r\n\r\n')
-      socket.destroy()
-      return
+    // A reconnect to an EXISTING session must be owned by this identity (or the identity must be admin).
+    if (!isNew && !(await canAccessSession(identity, sessionId))) return reject('403 Forbidden', 'ws_forbidden', { sessionId })
+
+    // Everything the runtime needs to (re)open the session comes from the database row, never from the
+    // reconnect's URL: flow, model, project and owner are chosen once, at creation.
+    let session: { ownerId: number; flow: string; model: string | undefined; projectId: string | undefined }
+    if (isNew) {
+      const model = url.searchParams.get('model') ?? undefined
+      const projectId = url.searchParams.get('project') ?? undefined
+      // a chat inside a project must be in the caller's own project, and is always a data-analysis chat
+      if (projectId !== undefined && !(await canAccessProject(identity, projectId))) return reject('403 Forbidden', 'ws_forbidden_project', { projectId })
+      const flow = projectId !== undefined ? 'data-analysis' : (url.searchParams.get('flow') ?? 'default')
+      if (!config.allowedFlows.includes(flow)) return reject('400 Bad Request', 'ws_invalid_flow', { flow })
+      if (model !== undefined && !config.allowedModels.includes(model)) return reject('400 Bad Request', 'ws_invalid_model', { model })
+      session = { ownerId: identity.userId, flow, model, projectId }
+    } else {
+      const row = await getSessionRuntimeInfo(sessionId)
+      if (!row) return reject('404 Not Found', 'ws_unknown_session', { sessionId })
+      session = row
     }
 
-    // Phase 7: a reconnect to an EXISTING session must be owned by this
-    // identity (or the identity must be admin) — a brand-new session has no
-    // owner yet, so there's nothing to check until after it's created below.
-    if (!isNew && !(await canAccessSession(identity, sessionId))) {
-      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n')
-      socket.destroy()
-      return
-    }
-
-    // Phase 12 item 4: only meaningful for a brand-new session — an
-    // existing session's rehydrate reuses the model it was created with
-    // (services/orchestrator/src/ensure.ts), not whatever this reconnect's
-    // URL happens to carry.
-    const model = url.searchParams.get('model') ?? undefined
-    // Same rule as `model` above, for which agent loop/profile to spawn a
-    // brand-new session with (docs/data-analysis-flow-plan.md) — a
-    // reconnect/rehydrate always reuses the session's original flow instead.
-    // docs/rlm-transfer-plan.md 9.1: a brand-new chat inside a project must be in
-    // the caller's own project, and is always a data-analysis chat.
-    const projectId = isNew ? (url.searchParams.get('project') ?? undefined) : undefined
-    if (projectId !== undefined && !(await canAccessProject(identity, projectId))) {
-      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n')
-      socket.destroy()
-      return
-    }
-    const flow = projectId !== undefined ? 'data-analysis' : (url.searchParams.get('flow') ?? undefined)
+    // Concurrent-session quota — only a NEW live session counts; one already live is never turned away.
+    const quota = checkQuota(sessionId, session.ownerId)
+    if (!quota.ok) return reject('429 Too Many Requests', 'ws_quota_rejected', { sessionId, reason: quota.reason })
 
     let target
+    let placement
     try {
-      target = await ensureSession(config.orchestratorUrl, sessionId, isNew ? model : undefined, isNew ? flow : undefined, projectId)
+      placement = placementFor(session, sessionId)
+      await ensurePlacement(placement)
+      target = await runtime.target(sessionId)
     } catch (error) {
-      // Phase 6 checklist item 1: a quota rejection (orchestrator's 429,
-      // services/orchestrator/src/errors.ts's QuotaExceededError) is an
-      // expected outcome under load, not a gateway/orchestrator fault —
-      // surface it as 429, not the generic 502 every other failure gets.
-      if (error instanceof OrchestratorHttpError && error.status === 429) {
-        log('ws_quota_rejected', { sessionId })
-        socket.write('HTTP/1.1 429 Too Many Requests\r\n\r\n')
-        socket.destroy()
-        return
-      }
-      // Phase 12 item 4: orchestrator's 400 (InvalidModelError — a `model`
-      // outside its configured allow-list) is a client bug, not a gateway/
-      // orchestrator fault, same treatment as the 429 case above.
-      if (error instanceof OrchestratorHttpError && error.status === 400) {
-        log('ws_invalid_model', { sessionId })
-        socket.write('HTTP/1.1 400 Bad Request\r\n\r\n')
-        socket.destroy()
-        return
-      }
-      console.error(`[gateway] ensureSession(${sessionId}) failed:`, error)
-      log('ws_ensure_failed', { sessionId, error: String(error) })
-      socket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n')
-      socket.destroy()
-      return
+      console.error(`[gateway] runtime target for ${sessionId} failed:`, error)
+      return reject('502 Bad Gateway', 'ws_runtime_unavailable', { sessionId, error: String(error) })
     }
 
-    if (isNew) await createSession(sessionId, identity.userId, flow ?? 'default', projectId)
+    if (isNew) await createSession(sessionId, identity.userId, session.flow, session.projectId, session.model)
 
-    // Per-user skills must be on disk before the first message: a warm-pool
-    // container booted before anyone owned it (docs/skill-transfer-plan.md).
-    const skillOwnerId = isNew ? identity.userId : await getSessionOwnerId(sessionId)
-    if (skillOwnerId !== undefined) await pushSkills(skillOwnerId, [sessionId])
+    // Per-user skills must be on disk before the first message.
+    await pushSkills(session.ownerId, [{ sessionId, projectId: session.projectId }])
 
     wss.handleUpgrade(req, socket, head, (browserWs) => {
-      log('ws_connect', { sessionId, isNew, userId: identity.userId })
-      touchSession(config.orchestratorUrl, sessionId, 'connected')
+      log('ws_connect', { sessionId, isNew, userId: identity.userId, flow: session.flow, shard: target.shard })
+      const untrack = trackConnection(sessionId, session.ownerId)
       browserWs.on('close', () => {
+        untrack()
         log('ws_disconnect', { sessionId })
-        touchSession(config.orchestratorUrl, sessionId, 'disconnected')
       })
 
-      const workerPath = isNew ? `new?id=${sessionId}` : sessionId
-      const workerUrl = `ws://${target.host}:${target.port}/sessions/${workerPath}`
-      // WS upgrades only ever carry the token as `?token=` (browsers can't
-      // set custom headers on an upgrade request, same reason
-      // `identityFromRequest` falls back to this for the WS case) — safe to
-      // re-read directly rather than threading it back out of that function.
+      // What the runtime must know to open this session, sent on EVERY connect so it keeps no control state
+      // of its own: restart it, change the shard count, and the next connect re-establishes everything.
+      const params = new URLSearchParams({ flow: session.flow, cwd: placement.cwd, user: String(session.ownerId) })
+      if (session.model !== undefined) params.set('model', session.model)
+      if (placement.outputDir !== undefined) params.set('output', placement.outputDir)
+      if (isNew) params.set('id', sessionId)
+      const workerUrl = `ws://${target.host}:${target.port}/sessions/${isNew ? 'new' : sessionId}?${params}`
+
+      // WS upgrades only ever carry the token as `?token=` (browsers can't set custom headers on an upgrade
+      // request), so it is re-read directly here rather than threaded out of identityFromRequest.
       const token = url.searchParams.get('token') ?? ''
-      // 2026-09-09: marks the session as real (infra/migrations/001_init.sql)
-      // the first time the user actually sends something — see db.ts's own
-      // comment on why `GET /sessions/mine` filters on this instead of
-      // just existing. Second callback (2026-09-10, folds in a real bug
-      // fix — see below): sliding token expiration (renews on every real
-      // client message, not just the first, for a long session with no
-      // other REST call in between — redis.ts's `renewToken`) AND the
-      // sidebar sort-order touch.
-      //
-      // Real bug fixed 2026-09-10 ("chọn 1 trong các đoạn chat list này sẽ
-      // bị nhảy"): `touchSessionRow` used to fire unconditionally right on
-      // WS connect (`touchSession(...)` right above, a DIFFERENT function —
-      // that one pings the ORCHESTRATOR to keep the worker container awake
-      // while connected, unrelated to sort order, stays as-is). That meant
-      // merely clicking an old chat in the sidebar to READ it — no message
-      // sent — bumped `updated_at` to now(), so `SessionList.tsx`'s refetch
-      // (fires on every `sessionId` change) re-sorted that exact row to the
-      // top of "Today" an instant after the click, visibly jumping out from
-      // under the cursor. Real chat apps (claude.ai, chat.deepseek.com)
-      // only re-sort on actual send activity, not on opening a chat to view
-      // it. Moved to this callback instead — same real-activity signal
-      // `markSessionFirstMessage` already uses, fires on every message (not
-      // just the first) so an old chat you actually resume chatting in
-      // still climbs back to the top, just not from a bare open.
+      // First client frame = a real message: the session now shows in the sidebar. Every client frame
+      // renews the sliding login token and the sidebar sort order (a bare open of an old chat must not
+      // re-sort it, docs/code-rules.md 2026-09-10).
       proxyToWorker(
         browserWs,
         workerUrl,
@@ -1441,6 +1426,7 @@ server.on('upgrade', (req, socket, head) => {
           void touchSessionRow(sessionId)
           void renewToken(token, config.tokenTtlMs)
         },
+        runtime.headers,
       )
     })
   })()
@@ -1454,6 +1440,30 @@ void checkMongoConnection().then(async (ok) => {
   if (ok) await ensureIndexes()
 })
 
-server.listen(config.port, () => {
-  console.log(`[gateway] listening on http://127.0.0.1:${config.port} -> orchestrator ${config.orchestratorUrl}`)
+// Readiness is "this process AND its runtime(s) can take a chat"; liveness is just "this process answers".
+// (Both are matched before authentication, ahead of the router above, by wrapping the listener below.)
+async function main(): Promise<void> {
+  await runtime.start()
+  server.listen(config.port, () => {
+    console.log(`[gateway] listening on http://127.0.0.1:${config.port}; ${config.runtimeCount} agent runtime(s), data in ${config.dataDir}`)
+  })
+}
+
+let shuttingDown = false
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return
+  shuttingDown = true
+  log('shutdown', { signal, liveSessions: liveCount() })
+  // Stop taking connections, let the runtimes flush every session log (they do it on idle and on SIGTERM), exit.
+  server.close()
+  for (const client of wss.clients) client.close(1001, 'server shutting down')
+  await runtime.stop()
+  process.exit(0)
+}
+process.on('SIGTERM', () => void shutdown('SIGTERM'))
+process.on('SIGINT', () => void shutdown('SIGINT'))
+
+main().catch((error: unknown) => {
+  console.error('[gateway] failed to start:', error)
+  void runtime.stop().finally(() => process.exit(1))
 })
