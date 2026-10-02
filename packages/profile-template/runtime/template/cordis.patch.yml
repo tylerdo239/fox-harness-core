@@ -1,0 +1,61 @@
+# The ONE profile every runtime process boots (services/gateway/src/runtime/materialize.ts copies this
+# to $DSH_HOME/profiles/fox-harness/ at start-up). It replaces the three per-flow profiles
+# (profile-template/default, data-analysis, data-studio): a flow is now an AGENT PRESET
+# (packages/profile-template/presets/<flow>), joined per session by packages/transport, so one process hosts
+# agents of every flow. Per-flow differences that used to be `disabled: true` rows live in
+# packages/transport/src/flows.ts (a per-agent tool mask) and in the presets.
+#
+# Top level MUST be a YAML array; `{id, ...fields}` overrides an existing row, `insert:` only adds one
+# (docs/code-rules.md §4). Everything here is process-wide: only things that are the same for every flow.
+
+# Joined per session by packages/transport. profile-boot forces `roots` to upstream's own preset dir,
+# so ours are found through the user root: $DSH_HOME/.agent-presets (a symlink the gateway creates).
+- insert:
+    - id: agent-presets
+      name: '@deepseek-ai/dsh-agent-presets'
+      config:
+        default: default
+        includeUserRoot: true
+
+# Identity text per flow comes from each preset's `persona` row; this is only the fallback for an agent
+# that joined none, and dsh's own "powered by DeepSeek Harness" opener is off for everyone.
+- id: system-prompt
+  name: '@deepseek-ai/dsh-system-prompt'
+  config:
+    includeHarnessIdentity: false
+    persona: >-
+      Bạn là AI Agent Fox Harness — trợ lý AI thông minh, hỗ trợ người dùng
+      thực hiện nhiều tác vụ khác nhau một cách chính xác, rõ ràng và hữu
+      ích. Luôn trả lời bằng ngôn ngữ mà người dùng đang sử dụng. Thư mục
+      làm việc hiện tại: {{cwd}}.
+
+# dsh-base selects search source `deepseek-official` (needs DEEPSEEK_API_KEY); ours is Serper.
+- id: web
+  name: '@deepseek-ai/dsh-web'
+  config:
+    searchProvider: serper
+
+# Compaction for a small context window (OPENAI_CONTEXT_WINDOW): compact earlier than the 0.8 default and
+# cap the summary so the summarization request still fits.
+- id: compaction-basic
+  name: '@deepseek-ai/dsh-compaction-basic'
+  config:
+    thresholdRatio: 0.7
+    maxTokens: 4096
+
+# The data-analysis flow's own skills, next to the built-in ones ($DSH_BUNDLED_SKILL_DIR). Per-user skills
+# are NOT configured here: they live in each workspace's `.dsh/skills` (project root of that workspace).
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+  config:
+    customSkillDirs:
+      - !!js "(process.env.FOX_REPO_ROOT ?? '/repo') + '/packages/flow/data-analysis/skills'"
+
+# bash/python run under a strict bubblewrap profile that exposes only the session's own workspace
+# (infra/docker/backend/fox-confine.sh). dsh-sandbox-local's own profile mounts the whole filesystem
+# read-only, i.e. every other user's files. `runnerCommand` and its failure signatures must be given together.
+- id: sandbox
+  name: '@deepseek-ai/dsh-sandbox-local'
+  config:
+    runnerCommand: !!js "process.env.FOX_CONFINE_RUNNER ? [process.env.FOX_CONFINE_RUNNER] : []"
+    runnerFailureSignatures: !!js "process.env.FOX_CONFINE_RUNNER ? ['fox-confine:', 'bwrap:'] : []"

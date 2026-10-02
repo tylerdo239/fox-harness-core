@@ -21,6 +21,7 @@ import {
   type TurnEndReason,
   type UserMessage,
 } from '@deepseek-ai/dsh-session'
+import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import {
   BlockAssembler,
@@ -73,24 +74,46 @@ export class FoxHarnessAgent implements Agent {
   readonly options: AgentOptions
   readonly session: Session
   readonly inbox: Inbox
+  /**
+   * The agent's OWN scoped context (`dsh-scope`), as in dsh-agent-loop's
+   * `this.ctx = this.scope.ctx.extend({ agent: this })`. Registrations made
+   * through it — `tools.restrict()`, `tools.guard()`, `systemPrompt.section()`,
+   * scoped `ctx.on()` listeners, an agent preset's mount — are visible to THIS
+   * agent only and die with its scope. This is what lets one dsh process host
+   * agents with different tool/prompt sets (docs/single-backend-architecture-plan.md).
+   * Scopes route trusted same-process plugins; they are NOT a security boundary.
+   */
   readonly ctx: Context
+  readonly scope: Scope
 
   private _status: AgentStatus = 'idle'
   private readonly dispatch: AgentEventDispatch
-  private turnSeq = 0
+  private turnSeq: number
   private requestHeaderLogged = false
   private driving = false
   private currentAbort: AbortController | undefined
   private idleWaiters: Array<() => void> = []
 
-  constructor(ctx: Context, session: Session, options: AgentOptions) {
-    this.ctx = ctx
+  constructor(loopCtx: Context, session: Session, options: AgentOptions) {
     this.session = session
     this.id = session.id
     this.options = options
+    // Resume must continue the turn numbering, not restart at 1: a rehydrated
+    // session already has `turn/start` events, and dsh-agent-loop restores the
+    // counter from them (`lastTurn`, lib/index.js:371). Without this every
+    // resume reused turn numbers already in the log.
+    let lastTurn = 0
+    for (const event of session.events) {
+      if (event.type === 'turn/start') lastTurn = (event.data as { turn: number }).turn
+    }
+    this.turnSeq = lastTurn
     // Built once and reused — dispatch.ts's own doc says repeat dispatchers
     // (a loop driver) should build this in the constructor, not per-call.
-    this.dispatch = agentEvents(ctx, this)
+    // Keyed on the loop's own ctx, exactly like dsh-agent-loop: the scope
+    // carrier (`scopeTarget(agent)`) is what routes scoped listeners.
+    this.dispatch = agentEvents(loopCtx, this)
+    this.scope = createScope(loopCtx, this)
+    this.ctx = this.scope.ctx.extend({ agent: this })
     this.inbox = new Inbox(session, {
       inserted: (message) => this.dispatch.emit('agent/inbox/inserted', { message }),
       discarded: (message) => this.dispatch.emit('agent/inbox/discarded', { message }),
@@ -141,6 +164,9 @@ export class FoxHarnessAgent implements Agent {
   async disposeGracefully(): Promise<void> {
     this.cancel({ kind: 'disposed' } as AgentCancelCause, { keepInbox: true })
     await this.whenIdle()
+    // Same order as dsh-agent-loop's dispose: cancel -> idle -> scope teardown
+    // (unregisters everything this agent's scoped ctx registered).
+    await this.scope.dispose()
   }
 
   private wake(): void {

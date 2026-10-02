@@ -32,7 +32,7 @@ const FORWARDED_ENV = [
   'DREMIO_URL', 'DREMIO_USERNAME', 'DREMIO_PASSWORD',
   'MEILISEARCH_URL', 'MEILISEARCH_MASTER_KEY', 'MEILISEARCH_SEMANTIC_RATIO',
   // MongoDB holding the shared semantic layer + chat history (docs/data-studio-mongodb-plan.md) —
-  // forwarded to every worker container by services/orchestrator (config.ts workerEnvPassthrough).
+  // forwarded to the runtime by services/gateway (config.ts runtimeEnvPassthrough).
   'MONGODB_URL', 'MongoDBWrite', 'MONGODB_DATABASE_NAME',
 ] as const
 
@@ -59,7 +59,7 @@ export interface AnalyzeReply {
   truncated?: boolean
 }
 
-// One persistent process per worker container (i.e. per session), started
+// One persistent process per POOL WORKER (pool.ts), started
 // lazily on the first call and reused across turns — avoids paying Python
 // startup + import cost (agno/sqlglot/chromadb) on every question.
 export class DataStudioKernel {
@@ -131,7 +131,20 @@ export class DataStudioKernel {
       console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'data-studio-agent', ...fields }))
     })
     createInterface({ input: child.stdout }).on('line', (line) => {
-      this.reply?.(JSON.parse(line) as AnalyzeReply)
+      // stdout is the protocol channel (one JSON reply per question), but a library the pipeline uses can still
+      // print to it (seen for real: a `WARNING  Failed to parse cleaned JSON ...` line from the model-output
+      // parser). An unguarded JSON.parse threw out of this event handler and crashed the WHOLE runtime process —
+      // every session on that shard — so anything that is not a JSON object is logged and ignored.
+      let reply: AnalyzeReply
+      try {
+        const parsed: unknown = JSON.parse(line)
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object')
+        reply = parsed as AnalyzeReply
+      } catch {
+        console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'data-studio-agent', event: 'stdout_noise', line: line.slice(0, 500) }))
+        return
+      }
+      this.reply?.(reply)
     })
     child.on('exit', () => {
       if (this.process === child) this.process = undefined

@@ -13,7 +13,7 @@ export const name = 'fox-harness-transport'
 // PERMANENTLY pending (Cordis `inject` waits for every named service to
 // exist), a real bug caught by grepping for leftover references after the
 // removal, not by a failing test.
-export const inject = ['agents', 'sessions']
+export const inject = ['agents', 'sessions', 'tools']
 
 export interface Config {
   /** WebSocket bind port for the event stream + command endpoint. */
@@ -34,5 +34,9 @@ export const Config: z<Config> = z.object({
 // streaming protocols like session/event from its Remote method model.
 // Wire protocol + verified log-before-fanout guarantee: see server.ts.
 export function apply(ctx: Context, config: Config) {
-  ctx.effect(() => startTransportServer(ctx, config.port, config.host), 'fox-harness-transport.server()')
+  // One runtime process per shard (services/gateway's supervisor starts K of them from ONE profile),
+  // so port/host cannot live only in the profile's patch file: the supervisor sets them per process.
+  const port = process.env.FOX_TRANSPORT_PORT ? Number(process.env.FOX_TRANSPORT_PORT) : config.port
+  const host = process.env.FOX_TRANSPORT_HOST ?? config.host
+  ctx.effect(() => startTransportServer(ctx, port, host), 'fox-harness-transport.server()')
 }

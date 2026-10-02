@@ -49,14 +49,64 @@ function pythonLiteral(value: unknown): string {
 // work is slow, not because anything was wasted (reading that 25 MB file takes 0.2s). Affordable
 // now that a cell over the limit is interrupted and the session survives it (kernel.ts), so the
 // cost of reaching the limit is one cell's work instead of every variable in the conversation.
-const CELL_TIMEOUT_MS = 300_000
+const CELL_TIMEOUT_MS = Number(process.env.FOX_PY_CELL_TIMEOUT_MS ?? 300_000)
 const VARIABLES_CLEARED = 'Python variables: none are in memory now.'
 
 // `python` tool for the data-analysis flow (docs/rlm-transfer-plan.md, giai đoạn 2):
-// one persistent IPython process per worker container, i.e. per conversation.
+// one persistent IPython process per CONVERSATION. It used to be one per worker container,
+// which was the same thing; with one runtime hosting many sessions
+// (docs/single-backend-architecture-plan.md) the kernels are kept per session id.
+//
+// A kernel's Python process costs real RAM, so an idle one is stopped (its variables go, the
+// "session restarted" notes already handle that) and a cap evicts the least recently used one
+// that is not mid-cell. The kernel OBJECT stays (it holds the ledger of results the
+// conversation already stated, which must survive a restart) until the conversation has been
+// quiet for much longer.
+const IDLE_STOP_MS = Number(process.env.FOX_PY_IDLE_MS ?? 15 * 60_000)
+const FORGET_MS = Number(process.env.FOX_PY_FORGET_MS ?? 6 * 60 * 60_000)
+const MAX_LIVE_KERNELS = Number(process.env.FOX_PY_MAX_KERNELS ?? 64)
+
+interface KernelEntry {
+  kernel: PythonKernel
+  lastUsed: number
+}
+
 export function apply(ctx: Context) {
-  const kernel = new PythonKernel()
-  ctx.effect(() => () => kernel.stop(), 'fox-harness-tool-python-repl.kernel')
+  const kernels = new Map<string, KernelEntry>()
+  // Never started: answers `variablesNote` for a conversation that has no kernel (yet / any more).
+  const none = new PythonKernel()
+  const kernelFor = (sessionId: string): PythonKernel => {
+    let entry = kernels.get(sessionId)
+    if (!entry) kernels.set(sessionId, (entry = { kernel: new PythonKernel(), lastUsed: Date.now() }))
+    entry.lastUsed = Date.now()
+    return entry.kernel
+  }
+  const evict = (): void => {
+    const now = Date.now()
+    for (const [id, entry] of kernels) {
+      if (entry.kernel.busy) continue
+      if (now - entry.lastUsed > FORGET_MS) {
+        entry.kernel.stop()
+        kernels.delete(id)
+      } else if (entry.kernel.alive && now - entry.lastUsed > IDLE_STOP_MS) {
+        entry.kernel.stop()
+      }
+    }
+    const live = [...kernels].filter(([, entry]) => entry.kernel.alive && !entry.kernel.busy).sort((a, b) => a[1].lastUsed - b[1].lastUsed)
+    let over = [...kernels].filter(([, entry]) => entry.kernel.alive).length - MAX_LIVE_KERNELS
+    for (const [, entry] of live) {
+      if (over <= 0) break
+      entry.kernel.stop()
+      over -= 1
+    }
+  }
+  const sweep = setInterval(evict, Number(process.env.FOX_PY_SWEEP_MS ?? 30_000))
+  sweep.unref()
+  ctx.effect(() => () => {
+    clearInterval(sweep)
+    for (const { kernel } of kernels.values()) kernel.stop()
+    kernels.clear()
+  }, 'fox-harness-tool-python-repl.kernels')
 
   ctx.tools.register(
     defineTool({
@@ -83,12 +133,18 @@ export function apply(ctx: Context) {
       },
       async execute(args, exec) {
         const session = exec.agent?.session
-        const cwd = session?.header.cwd ?? process.cwd()
+        // Without a session there is no conversation to own a kernel: sharing one would mix
+        // two users' variables, so refuse instead.
+        if (session === undefined) throw new Error('the python tool needs a conversation (no agent session on this call)')
+        const kernel = kernelFor(session.id)
+        const cwd = session.header.cwd ?? process.cwd()
         const host = (request: HostRequest): string => {
-          if (session === undefined || request.kind !== 'history') throw new Error(`unsupported host request "${request.kind}"`)
+          if (request.kind !== 'history') throw new Error(`unsupported host request "${request.kind}"`)
           return renderTurn(session, Number(request.turn))
         }
-        const output = await kernel.run(args.code, cwd, CELL_TIMEOUT_MS, exec.signal, session ? turnCount(session) : 0, host)
+        // `outputDir` rides on the agent's options (packages/transport sets it per session).
+        const outputDir = (exec.agent?.options as { outputDir?: string } | undefined)?.outputDir
+        const output = await kernel.run(args.code, cwd, CELL_TIMEOUT_MS, exec.signal, turnCount(session), host, outputDir)
         return { output }
       },
     }),
@@ -112,7 +168,7 @@ export function apply(ctx: Context) {
     if (decision.kind === 'reject') return decision
     const session = payload.agent.session
     const usedPythonBefore = session.events.some((event) => event.type === 'tool/call' && event.data.name === 'python')
-    const current = kernel.variablesNote(usedPythonBefore, turnCount(session))
+    const current = (kernels.get(session.id)?.kernel ?? none).variablesNote(usedPythonBefore, turnCount(session))
     const retained = retainedNote(session)
     if (retained === undefined && current === '') return decision
     const text = current || VARIABLES_CLEARED

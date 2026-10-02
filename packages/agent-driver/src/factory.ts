@@ -1,11 +1,13 @@
 import type { Context } from '@deepseek-ai/cordis'
+import { emitAgentEvent } from '@deepseek-ai/dsh-agent'
 import type {
   AgentFactory,
   AgentHandle,
+  AgentSetup,
   CreateAgentOptions,
   ResumeAgentOptions,
 } from '@deepseek-ai/dsh-agent'
-import type { Session } from '@deepseek-ai/dsh-session'
+import { SessionPreparation, type Session } from '@deepseek-ai/dsh-session'
 
 import { FoxHarnessAgent } from './agent.ts'
 
@@ -40,11 +42,17 @@ export class FoxHarnessAgentLoop implements AgentFactory {
   constructor(private readonly ctx: Context) {}
 
   async createAgent(ownerCtx: Context, options: CreateAgentOptions): Promise<AgentHandle> {
-    const session = this.ctx.sessions.prepare(options.sessionId, {
-      seed: options.seed,
-      meta: options.meta,
-    })
-    return this.enterAndAnnounce(ownerCtx, session, options.agentOptions ?? {})
+    const preparation = SessionPreparation.create(
+      this.ctx.sessions.prepare(options.sessionId, {
+        seed: options.seed,
+        meta: options.meta,
+      }),
+    )
+    try {
+      return await this.setupAndPublish(ownerCtx, preparation.session, options.agentOptions ?? {}, options.setup, options.signal, 'startup')
+    } finally {
+      preparation[Symbol.dispose]()
+    }
   }
 
   // Phase 3 (hibernate/rehydrate): load a persisted session back off disk in
@@ -60,34 +68,83 @@ export class FoxHarnessAgentLoop implements AgentFactory {
   async resume(ownerCtx: Context, options: ResumeAgentOptions): Promise<AgentHandle> {
     const preparation = await this.ctx.sessionPersistence.prepare(options.resumeSessionId, options.signal)
     try {
-      return await this.enterAndAnnounce(ownerCtx, preparation.session, options.agentOptions ?? {})
+      return await this.setupAndPublish(ownerCtx, preparation.session, options.agentOptions ?? {}, options.setup, options.signal, 'resume')
     } finally {
       preparation[Symbol.dispose]()
     }
   }
 
-  private async enterAndAnnounce(
+  /**
+   * Build the agent (with its own scope), run the caller's `setup(agent.ctx)`
+   * BEFORE the agent is visible anywhere, then publish — dsh-agent-loop's
+   * `setupAndPublish` (lib/index.js:1250). `setup` is where an agent preset is
+   * joined (`ctx.agentPresets.mount(agentCtx, id)`): registrations land in
+   * this agent's scope, so a failed setup rolls everything back by disposing
+   * that scope. Spike-level scope cuts vs. upstream (documented, not
+   * accidental): no owner-fiber lifecycle effect and no factory-wide
+   * ownership/teardown tracking (`FactoryOwnership`).
+   */
+  private async setupAndPublish(
     ownerCtx: Context,
     session: Session,
     agentOptions: NonNullable<CreateAgentOptions['agentOptions']>,
+    setup: AgentSetup | undefined,
+    signal: AbortSignal | undefined,
+    source: 'startup' | 'resume',
   ): Promise<AgentHandle> {
-    // The agent's own `.ctx` is this factory's well-injected ctx too — not
-    // ownerCtx — for the same reason: agent.ts's runStep() touches
-    // ctx.systemPrompt/ctx.llm/ctx.tools, none of which ownerCtx is
-    // guaranteed to have unlocked.
+    // The agent's loop ctx is this factory's well-injected ctx — not
+    // ownerCtx — for the reason in the class comment above.
     const agent = new FoxHarnessAgent(this.ctx, session, agentOptions)
 
-    const detachSession = this.ctx.sessions.enter(session)
-    const detachAgent = this.ctx.agents.enter(agent, ownerCtx.agent)
-    this.ctx.sessions.announce(session)
-    this.ctx.agents.announce(agent)
+    let detachSession: (() => void) | undefined
+    let detachAgent: (() => void) | undefined
+    let disposing: Promise<void> | undefined
+    // Memoized (as upstream): the owner, a failed publish and a caller can all
+    // ask for it; teardown must run exactly once.
+    const dispose = (): Promise<void> =>
+      (disposing ??= (async () => {
+        try {
+          await agent.disposeGracefully()
+        } finally {
+          detachAgent?.()
+          detachSession?.()
+        }
+      })())
 
-    const dispose = async () => {
-      await agent.disposeGracefully()
-      detachAgent()
-      detachSession()
+    try {
+      signal?.throwIfAborted()
+      const commit = await raceAbort(setup?.(agent.ctx), signal)
+      if (commit) commit.commit()
+      signal?.throwIfAborted()
+
+      detachSession = agent.ctx.sessions.enter(session)
+      detachAgent = this.ctx.agents.enter(agent, ownerCtx.agent)
+      agent.ctx.sessions.announce(session)
+      this.ctx.agents.announce(agent)
+      emitAgentEvent(this.ctx, agent, 'agent/session-start', { source })
+      return { agent, dispose }
+    } catch (error) {
+      await dispose()
+      throw error
     }
-
-    return { agent, dispose }
   }
+}
+
+/** Await `value`, rejecting early if `signal` aborts first (caller cancellation during setup). */
+async function raceAbort<T>(value: T | Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return value
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason instanceof Error ? signal.reason : new Error('agent creation aborted'))
+    signal.addEventListener('abort', onAbort, { once: true })
+    Promise.resolve(value).then(
+      (result) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(result)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
 }

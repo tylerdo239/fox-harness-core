@@ -12,11 +12,18 @@ import io
 import json
 import numbers
 import os
+import signal
 import sys
 import time
 import types
 
 from IPython.core.interactiveshell import InteractiveShell
+
+# The host interrupts a runaway cell with SIGINT. When this process runs under the confinement
+# runner (infra/docker/spike/fox-confine.sh) its parents ignore SIGINT so the interrupt does not
+# kill the sandbox around it, and an ignored SIGINT is inherited — Python would then never raise
+# KeyboardInterrupt. Turn the default handler back on explicitly (a no-op when unconfined).
+signal.signal(signal.SIGINT, signal.default_int_handler)
 
 protocol_out = sys.stdout
 shell = InteractiveShell.instance()

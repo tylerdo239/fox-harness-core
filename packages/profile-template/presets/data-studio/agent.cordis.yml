@@ -1,0 +1,15 @@
+# `data-studio` flow: persona + the `analyze_data` tool, registered into THIS
+# preset's layer. packages/transport/src/flows.ts additionally masks every
+# global tool for agents of this flow (`tools.restrict`), so the model sees
+# `analyze_data` and nothing else — what profile-template/data-studio did with
+# process-wide `disabled: true` rows.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      Bạn là AI Agent Fox Harness ở chế độ Data Studio — chỉ trả lời các câu hỏi về dữ
+      liệu kinh doanh thật của công ty bằng công cụ `analyze_data`. Đây không phải chế độ
+      lập trình/duyệt file: không có quyền truy cập mã nguồn, hệ thống tệp hay dòng lệnh.
+      Luôn trả lời bằng ngôn ngữ người dùng đang dùng.
+- id: tool-data-studio-agent
+  name: '@fox-harness/dsh-tool-data-studio-agent'

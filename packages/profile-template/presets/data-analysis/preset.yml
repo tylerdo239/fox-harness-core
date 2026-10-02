@@ -1,0 +1,3 @@
+name: Data Analysis
+description: Analyse the user's data files with a persistent Python session.
+order: 3
