@@ -4,6 +4,7 @@ import '@deepseek-ai/dsh-agent'
 import '@deepseek-ai/dsh-session'
 
 import { startTransportServer } from './server.ts'
+import { workspaceGuard } from './workspace-guard.ts'
 
 export const name = 'fox-harness-transport'
 // Follow-up (2026-09-08): 'clientManifest' removed — that service
@@ -39,4 +40,9 @@ export function apply(ctx: Context, config: Config) {
   const port = process.env.FOX_TRANSPORT_PORT ? Number(process.env.FOX_TRANSPORT_PORT) : config.port
   const host = process.env.FOX_TRANSPORT_HOST ?? config.host
   ctx.effect(() => startTransportServer(ctx, port, host), 'fox-harness-transport.server()')
+  // ONE guard for every agent in this process — top-level agents AND the subagents they spawn (which do
+  // not share their parent's scope): a tool call whose path leaves the calling session's own workspace is
+  // refused. FOX_SHARED_READ_DIRS (the built-in skills) stay readable.
+  const sharedReadDirs = (process.env.FOX_SHARED_READ_DIRS ?? '').split(':').filter(Boolean)
+  ctx.effect(() => ctx.tools.guard(workspaceGuard(sharedReadDirs)), 'fox-harness-transport.workspace-guard')
 }

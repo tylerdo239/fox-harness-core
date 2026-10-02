@@ -3,7 +3,6 @@ import '@deepseek-ai/dsh-agent'
 import '@deepseek-ai/dsh-agent-presets'
 import '@deepseek-ai/dsh-tools'
 
-import { workspaceGuard } from './workspace-guard.ts'
 
 // A "flow" (default / data-analysis / data-studio) is an agent preset
 // (`@deepseek-ai/dsh-agent-presets`, docs/single-backend-architecture-plan.md §3):
@@ -24,8 +23,6 @@ const FLOW_TOOL_MASK: Record<string, 'all' | readonly string[]> = {
   ],
 }
 
-const sharedReadDirs = (process.env.FOX_SHARED_READ_DIRS ?? '').split(':').filter(Boolean)
-
 export const FLOW_RE = /^[a-z0-9][a-z0-9-]*$/
 
 /**
@@ -42,10 +39,6 @@ export async function joinFlow(ctx: Context, agentCtx: Context, flow: string): P
     throw new Error(`flow "${flow}" requested but this runtime has no agent-presets row`)
   }
   await presets.mount(agentCtx, flow)
-  // Every agent, whatever its flow: its tools may only touch its own workspace
-  // (plus FOX_SHARED_READ_DIRS, read-only). Registered through the agent's own
-  // ctx, so it applies to this agent alone.
-  agentCtx.tools.guard(workspaceGuard(sharedReadDirs))
   const mask = FLOW_TOOL_MASK[flow]
   if (mask !== undefined) {
     const globalTools = ctx.tools.schemas().map((schema) => schema.name)

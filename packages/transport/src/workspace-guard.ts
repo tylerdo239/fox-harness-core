@@ -40,39 +40,43 @@ function inside(root: string, target: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
 
+/** Every path-like string in a tool's arguments, at any depth (a tool may take `edits: [{ file_path }]`). */
+function collectPaths(value: unknown, out: string[], depth = 0): void {
+  if (depth > 6 || value === null || typeof value !== 'object') return
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (PATH_KEYS.has(key)) {
+      for (const entry of Array.isArray(item) ? item : [item]) if (typeof entry === 'string') out.push(entry)
+    } else if (key === 'pattern' && typeof item === 'string') {
+      // A glob pattern can carry its own base ("/other/**", "../x/*").
+      if (isAbsolute(item) || item.split(/[\\/]/).includes('..')) {
+        out.push(isAbsolute(item) ? item.split(/[\\/]/).filter((part) => !/[*?[\]{}]/.test(part)).join(sep) || sep : item)
+      }
+    }
+    if (typeof item === 'object') collectPaths(item, out, depth + 1)
+  }
+}
+
+/**
+ * Registered GLOBALLY (packages/transport/src/index.ts), not per agent: a subagent gets its own scope
+ * (joined to the parent's preset, not to the parent's agent scope), so a guard on the parent's scope
+ * did not cover it — measured: a subagent's `read` returned another user's file. Every agent's calls
+ * pass here and are judged against THAT agent's session cwd (a subagent shares its parent's cwd).
+ */
 export function workspaceGuard(sharedReadDirs: readonly string[] = []): ToolGuard {
   const shared = sharedReadDirs.map((dir) => realpathOrAncestor(resolve(dir)))
   return (execution) => {
-    const args = execution.arguments
-    if (args === null || typeof args !== 'object') return undefined
+    const paths: string[] = []
+    collectPaths(execution.arguments, paths)
+    if (paths.length === 0) return undefined
     const cwd = execution.agent?.session.header.cwd
-    if (!cwd) return 'workspace guard: this session has no working directory'
+    if (!cwd) return 'workspace guard: this call names a path but its session has no working directory'
     const root = realpathOrAncestor(resolve(cwd))
     const readOnly = READ_ONLY_TOOLS.has(execution.name)
-
-    const deny = (value: string): string | undefined => {
+    for (const value of paths) {
       const target = realpathOrAncestor(resolve(root, value))
-      if (inside(root, target)) return undefined
-      if (readOnly && shared.some((dir) => inside(dir, target))) return undefined
+      if (inside(root, target)) continue
+      if (readOnly && shared.some((dir) => inside(dir, target))) continue
       return `workspace guard: "${value}" is outside this session's workspace`
-    }
-
-    for (const [key, value] of Object.entries(args as Record<string, unknown>)) {
-      const values = Array.isArray(value) ? value : [value]
-      if (PATH_KEYS.has(key)) {
-        for (const item of values) {
-          if (typeof item !== 'string') continue
-          const reason = deny(item)
-          if (reason) return reason
-        }
-      } else if (key === 'pattern' && typeof value === 'string') {
-        // A glob pattern can carry its own base ("/other/**", "../x/*").
-        if (isAbsolute(value) || value.split(/[\\/]/).includes('..')) {
-          const base = value.split(/[\\/]/).filter((part) => !/[*?[\]{}]/.test(part)).join(sep) || sep
-          const reason = deny(isAbsolute(value) ? base : value)
-          if (reason) return reason
-        }
-      }
     }
     return undefined
   }

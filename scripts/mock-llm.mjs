@@ -103,6 +103,8 @@ createServer((req, res) => {
           .filter((m) => m.role === 'user' && textOf(m.content).includes('<available_skills>'))
           .flatMap((m) => [...textOf(m.content).matchAll(/^- `([^`]+)`/gm)].map((x) => x[1])),
         lastUser: textOf(humanUser(body.messages)?.content).slice(0, 200),
+        // the tool result this request answers, if any (lets a test see what a tool returned, e.g. inside a subagent)
+        lastTool: (() => { const m = body.messages?.[body.messages.length - 1]; return m?.role === 'tool' ? textOf(m.content).slice(0, 400) : undefined })(),
       })
       const chunks = reply(body)
       const slow = chunks.length > 6

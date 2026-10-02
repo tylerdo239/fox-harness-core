@@ -382,3 +382,14 @@ trên shard, `restarts: 1`). Trước đây lỗi này chỉ giết một contai
 `python-repl/src/kernel.ts`: dòng không phải JSON object bị ghi log (`stdout_noise`) và bỏ qua; có test tái hiện (kernel cũ làm lọt
 exception, kernel mới sống sót). Bài học: trong kiến trúc nhiều session/process, một exception không bắt trong handler của tool
 không còn là lỗi của một session mà là của cả shard.
+
+**Lỗ hổng tìm ra khi review (2026-10-02), đã sửa**: guard chặn đường dẫn được đăng ký trên scope của agent cha, nhưng
+subagent có scope riêng (nối vào preset của cha qua `composeFrom`, không nối vào scope của cha) nên **không bị guard**:
+đo thật, `read` của subagent trả về file của user khác, và đọc được `/proc/self/environ` của runtime (khoá LLM, secret nội bộ).
+Sửa: guard đăng ký **toàn cục** một lần trong `packages/transport/src/index.ts` (áp cho mọi agent, xét theo cwd của chính
+session gọi tool) và quét cả tham số đường dẫn lồng nhau. Test hồi quy `subagentIsolation` trong `scripts/e2e-backend.mjs`
+(fail trên image cũ, pass trên image mới). Bash/python của subagent vốn đã nằm trong sandbox bwrap.
+
+**Còn mở (từ review)**: log của subagent không được flush xuống đĩa (đo thật: sau nhiều phút file chỉ có header) — mất khi
+runtime restart, có lẽ đã tồn tại từ trước; subagent con không được Hub theo dõi nên không bị dispose khi idle (chưa đo RAM);
+khe đua giữa dispose idle và một kết nối mới tới cùng session (chưa tái hiện).

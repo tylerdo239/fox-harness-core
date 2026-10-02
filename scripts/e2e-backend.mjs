@@ -171,7 +171,8 @@ const tests = {
       ['grep data root', 'grep', { pattern: 'SECRET-B', path: '/data', output_mode: 'content' }, 'SECRET-B-CANARY'],
       ['bash cat other user', 'bash', { command: `cat ${bDir}/secret.txt`, description: 'cat' }, 'SECRET-B-CANARY'],
       ['bash cat host file', 'bash', { command: 'cat /data/canary-outside.txt', description: 'cat' }, 'HOSTFILE-CANARY'],
-      ['bash list users dir', 'bash', { command: 'ls /data/users', description: 'ls' }, bId],
+      // each entry printed as USERDIR:<name>:END so a short id like `2` cannot match digits elsewhere in the result
+      ['bash list users dir', 'bash', { command: "ls /data/users | sed 's/.*/USERDIR:&:END/'", description: 'ls' }, `USERDIR:${bId}:END`],
       ['bash /proc/1/environ', 'bash', { command: "cat /proc/1/environ | tr '\\0' '\\n'", description: 'p' }, 'DATABASE_URL'],
       ['bash env', 'bash', { command: 'env', description: 'env' }, 'S3_SECRET'],
     ]
@@ -190,6 +191,29 @@ const tests = {
     ca.close()
     const leaks = rows.filter(([, ok]) => !ok).map(([l]) => l)
     return { ok: leaks.length === 0 && control, detail: `${rows.length} vectors, leaks=${JSON.stringify(leaks)}, own-workspace control=${control}` }
+  },
+
+  // A subagent has its own scope (joined to the parent's preset, not the parent's agent scope), so a guard on
+  // the parent's scope did not cover it: measured, a subagent's `read` returned another user's file. The child
+  // runs in the background, so what its tool returned is read from the mock LLM's record of the child's request.
+  async subagentIsolation() {
+    const { a, b } = await users()
+    const bDir = workspaceOf(world.bobSession)
+    dx('sh', '-c', `echo SECRET-B-CANARY > ${bDir}/secret.txt`)
+    await clearMock()
+    const ca = chat(a.token, { params: { flow: 'default' } }); await ca.opened; await ca.ready()
+    const probes = [`${bDir}/secret.txt`, '/proc/self/environ']
+    let n = 0
+    for (const path of probes) {
+      ca.send(`CALL subagent ${JSON.stringify({ description: 'probe', prompt: `CALL read ${JSON.stringify({ file_path: path })}` })}`); n += 1
+      await ca.turnEnds(n, 60000).catch(() => {})
+    }
+    await sleep(8000) // the children finish in the background
+    const seen = (await mock()).map((r) => r.lastTool ?? '').filter(Boolean)
+    const childSawRead = seen.filter((t) => t.includes('workspace guard') || t.includes('<content>'))
+    const leaked = seen.some((t) => t.includes('SECRET-B-CANARY') || t.includes('OPENAI_API_KEY') || t.includes('FOX_INTERNAL_SECRET'))
+    ca.close()
+    return { ok: childSawRead.length >= 2 && !leaked, detail: `child read results=${childSawRead.length} (must be refused), leaked=${leaked}: ${childSawRead.map((t) => t.slice(0, 70)).join(' | ')}` }
   },
 
   async pythonAndFiles() {
