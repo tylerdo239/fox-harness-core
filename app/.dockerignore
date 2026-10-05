@@ -3,5 +3,6 @@ node_modules/
 lib/
 public/main.js
 *.tsbuildinfo
-.env
-.env.*
+# any .env at any depth — a plain `.env` only matches the context root
+**/.env
+**/.env.*

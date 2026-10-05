@@ -13,9 +13,11 @@ node_modules/
 **/.venv/
 **/__pycache__/
 .git/
-.env
-.env.*
-!.env.example
+# any .env at any depth (e.g. the data-studio worker reads python/.env): a plain `.env` only matches the
+# context root, and a nested one would be baked into the image
+**/.env
+**/.env.*
+!**/.env.example
 data/
 # the data-studio pipeline's per-run markdown traces
 packages/tool/data-studio-agent/python/debug/
