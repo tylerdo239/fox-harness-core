@@ -218,12 +218,14 @@ Bắt kết nối thật trong container backend khi chạy cả 3 flow, các do
 |---|---|---|
 | LLM và embedding | `OPENAI_BASE_URL`, `EMBEDDING_BASE_URL` (hiện là `https://proxy.onebot.meobeo.ai`) | Bắt buộc. Thiếu thì báo lỗi, **không** tự rơi về `api.openai.com` |
 | Web search | `https://google.serper.dev/search` | `SERPER_API_KEY` |
-| Telemetry Agno (thư viện của worker Data Studio) | `https://os-api.agno.com` | Chưa tắt; tắt bằng `AGNO_TELEMETRY=false` |
 
 Đã chặn vĩnh viễn (code nằm trong package dsh, nhưng plugin không bao giờ được nạp):
 - `https://harness-telemetry.deepseeksvc.com`: dòng `session-telemetry-otel` bị tắt, runtime chạy với `DSH_TELEMETRY_DISABLED=1`.
 - `https://api.deepseek.com`: dòng `llm-deepseek` và `web-search-deepseek` bị tắt. Agent-driver và `packages/core` không còn mặc định `deepseek-official`; không có model thì báo lỗi.
 - Adapter đa nhà cung cấp `llm-pi-ai` cũng bị tắt.
+- `https://os-api.agno.com`: telemetry của Agno (framework gọi LLM trong worker Data Studio), trước đây gửi sau mỗi
+  lần agent chạy, chặn luồng khoảng 0,8 giây mỗi lần, khoảng 19 lần mỗi câu hỏi. Giờ cả hai entrypoint của worker
+  (`bridge/runner.py`, `bridge/admin_runner.py`) ép `AGNO_TELEMETRY=false` trước khi Agno chạy.
 
 Hạ tầng nội bộ: MariaDB, Redis, S3/MinIO (`S3_ENDPOINT`; **để trống sẽ gọi AWS S3**), MongoDB, Meilisearch,
 Dremio. Meilisearch phải chạy container riêng, có master key và `MEILI_NO_ANALYTICS=true`.

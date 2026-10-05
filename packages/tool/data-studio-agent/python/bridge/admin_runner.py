@@ -33,6 +33,7 @@ and there's no other point in this app's flow where reindex would run.
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -40,6 +41,11 @@ from pathlib import Path
 # `src.*` (this service's package root, one level up) needs adding by hand,
 # same fix bridge/runner.py already applies.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Agno (the LLM-call framework) posts a telemetry event to https://os-api.agno.com after EVERY agent run — awaited
+# inline, ~0.8 s each, ~17 per question — unless this is "false". Forced here, before anything imports agno, so no
+# deployment env can turn it back on. Agno reads it on each agent/team/workflow run.
+os.environ["AGNO_TELEMETRY"] = "false"
 
 from src.database.mongodb import check_mongo_connection, ensure_indexes, get_mongo_db
 from src.security import role as role_mod
