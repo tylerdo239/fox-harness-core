@@ -27,8 +27,12 @@ The web container makes no outbound call.
 ## The web container (`app/`)
 
 - Serves the SPA and forwards `/auth`, `/sessions` (including the chat WebSocket), `/projects`, `/skills`,
-  `/custom-skills`, `/models`, `/users`, `/data-studio`, `/healthz`, `/readyz` to `BACKEND_URL`
-  (default `http://backend:4000`). Point your load balancer / TLS terminator at this container.
+  `/custom-skills`, `/models`, `/users`, `/data-studio`, `/healthz`, `/readyz` to `BACKEND_URL`.
+  Point your load balancer / TLS terminator at this container.
+- **`BACKEND_URL` is required** (no default; `app/.env.example`): the backend's internal address, e.g.
+  `http://fox-backend:4000`. Without it, or without `http(s)://`, the container refuses to start. It is read at
+  start-up, so changing it needs a restart, not a rebuild. The bundle itself contains no backend address: the page
+  always calls its own origin.
 - No secrets, no volume.
 
 ## The backend container (`api/`)

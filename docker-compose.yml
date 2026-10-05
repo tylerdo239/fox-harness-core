@@ -6,9 +6,10 @@
 #                                                 only the infrastructure, then run the code directly:
 #                                                 `cd api && pnpm dev` (gateway :4000) and `cd app && pnpm dev` (:5173)
 #
-# Secrets (OPENAI_*, SERPER_API_KEY, EMBEDDING_*, DREMIO_*, ...) come from api/.env (copy api/.env.example).
-# That file uses 127.0.0.1 addresses for running the code directly; the `backend` service below overrides them
-# with the service names. Infrastructure ports are published on 127.0.0.1 only.
+# Config: api/.env (copy api/.env.example) for the backend — secrets (OPENAI_*, SERPER_API_KEY, EMBEDDING_*,
+# DREMIO_*, ...) — and app/.env (copy app/.env.example) for the web UI (BACKEND_URL). Both use 127.0.0.1
+# addresses for running the code directly; the services below override those with the service names.
+# Infrastructure ports are published on 127.0.0.1 only.
 
 name: fox-harness
 
@@ -16,6 +17,10 @@ services:
   web:
     build: ./app
     image: fox-harness-web:dev
+    # app/.env (copy app/.env.example) holds BACKEND_URL for `pnpm dev`; inside compose the backend is the
+    # `backend` service, so it is overridden here (the same pattern as the backend's api/.env).
+    env_file:
+      - ./app/.env
     environment:
       BACKEND_URL: http://backend:4000
     ports:

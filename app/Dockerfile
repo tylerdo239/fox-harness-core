@@ -3,7 +3,8 @@
 #
 # Build from THIS folder:
 #   docker build -t fox-harness-web:dev ./app
-# Run: BACKEND_URL (default http://backend:4000) is where /auth, /sessions, ... are proxied.
+# Run: BACKEND_URL (required, no default — e.g. http://fox-backend:4000) is where /auth, /sessions, ... are
+# proxied. Put it in the container's environment (compose: app/.env; Kubernetes: the Deployment's env).
 
 FROM node:22-slim AS build
 RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
@@ -16,6 +17,8 @@ RUN pnpm run build
 
 FROM nginx:1.27-alpine
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+# Runs before nginx's own template step: no BACKEND_URL → refuse to start with a clear message, instead of nginx
+# proxying to a guessed host.
+COPY docker/require-backend-url.sh /docker-entrypoint.d/05-require-backend-url.sh
 COPY --from=build /app/public /usr/share/nginx/html
-ENV BACKEND_URL=http://backend:4000
 EXPOSE 80

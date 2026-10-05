@@ -262,6 +262,10 @@ at `public` itself, so every `tsc -b` run dumped 19 stray, genuinely
 HTTP-servable files — `App.js`, `components/*.js`, `.tsbuildinfo`, ... —
 straight into the same directory `scripts/serve.mjs` serves live.)
 
+Configuration: `app/.env` (copy `app/.env.example`) — only `BACKEND_URL`. The page always calls its own origin;
+`scripts/serve.mjs` (dev) and nginx (`Dockerfile`, production) forward the API paths and the chat WebSocket to
+`BACKEND_URL`, the path list being `nginx.conf.template`'s for both.
+
 Then serve `public/` — **`pnpm dev`** (bundles, then `scripts/serve.mjs`; port
 5173 by default, `PORT=` to override), not a generic static server. Real
 reason this matters, not just a preference: a plain `python3 -m

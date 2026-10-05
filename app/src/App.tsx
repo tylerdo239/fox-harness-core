@@ -93,10 +93,9 @@ function defaultGatewayUrl(): string {
   return (
     fromQuery ??
     localStorage.getItem(STORAGE_GATEWAY) ??
-    // Served by the FE image (app/Dockerfile), nginx forwards the API paths and the chat WebSocket
-    // to the backend on the SAME origin. Only the dev static server (app/scripts/serve.mjs, port 5173)
-    // sits on a different origin from the gateway.
-    (location.port === "5173" ? "http://localhost:4000" : location.origin)
+    // Always the page's own origin: nginx in the web container (app/Dockerfile) and the dev server
+    // (app/scripts/serve.mjs) both forward the API paths and the chat WebSocket to BACKEND_URL (app/.env).
+    location.origin
   );
 }
 

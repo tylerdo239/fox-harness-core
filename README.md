@@ -157,6 +157,7 @@ Requires Docker, the Node version pinned in `.nvmrc` and pnpm `11.7.0` (via core
 
 ```bash
 cp api/.env.example api/.env               # fill in OPENAI_*, EMBEDDING_*, SERPER_API_KEY, DREMIO_*
+cp app/.env.example app/.env               # BACKEND_URL (compose overrides it with the service name)
 docker compose up -d --build               # everything; open http://127.0.0.1:8080
 docker compose exec backend node scripts/create-admin.mjs <email> <password>
 ```
@@ -166,7 +167,7 @@ To edit code with instant reload, run only the infrastructure in Docker and the 
 ```bash
 docker compose up -d mariadb redis minio mongo meilisearch dremio mysql
 cd api && pnpm install && pnpm run build && pnpm dev      # gateway + runtimes on :4000
-cd app && pnpm install && pnpm dev                         # UI on http://127.0.0.1:5173 (talks to :4000)
+cd app && pnpm install && pnpm dev                         # UI on http://127.0.0.1:5173; forwards API + WebSocket to app/.env's BACKEND_URL
 ```
 
 On macOS the strict sandbox is unavailable (bubblewrap is Linux-only), so
