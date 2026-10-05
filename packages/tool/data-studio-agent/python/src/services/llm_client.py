@@ -59,6 +59,9 @@ def _caller_name() -> str:
 
 class LLMClient:
     def __init__(self, settings: Settings) -> None:
+        # Without a base URL the OpenAI SDK silently targets api.openai.com — never allowed here.
+        if not settings.openai_base_url:
+            raise RuntimeError("OPENAI_BASE_URL is not set; refusing to fall back to api.openai.com")
         self._model = OpenAILike(
             id=settings.openai_model_id,
             api_key=settings.openai_api_key,

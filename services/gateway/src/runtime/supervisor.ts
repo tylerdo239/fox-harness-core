@@ -196,6 +196,9 @@ export class RuntimeSupervisor {
       FOX_TRANSPORT_HOST: HOST,
       FOX_TRANSPORT_PORT: String(shard.port),
       FOX_SHARED_READ_DIRS: sharedRead,
+      // dsh's session telemetry (uploads raw session logs) is also disabled as a profile row; a non-empty value
+      // here opts the process out even if that row were ever re-enabled.
+      DSH_TELEMETRY_DISABLED: '1',
     }
     if (config.confineRunner) {
       env.FOX_CONFINE_RUNNER = config.confineRunner

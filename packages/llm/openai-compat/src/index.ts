@@ -14,7 +14,7 @@ export interface Config {
   provider: string
   /**
    * Base URL up to but not including `/chat/completions`, e.g.
-   * `https://api.openai.com/v1`. Optional — falls back to the `OPENAI_BASE_URL`
+   * `https://llm-gateway.internal/v1`. Optional — falls back to the `OPENAI_BASE_URL`
    * launch-environment variable (adapter.ts's `resolveBaseURL()`) when unset,
    * so a deploy can be driven by env vars alone with no patch file to edit.
    */
@@ -27,7 +27,7 @@ export const Config: z<Config> = z.object({
   provider: z.string().default('openai-compat').description('Provider route registered with ctx.llm.'),
   baseURL: z
     .string()
-    .description('Base URL, e.g. https://api.openai.com/v1 — optional, falls back to OPENAI_BASE_URL env var.'),
+    .description('Base URL, e.g. https://llm-gateway.internal/v1 — optional, falls back to OPENAI_BASE_URL env var.'),
   apiKeyEnv: z
     .string()
     .role('credential-ref')

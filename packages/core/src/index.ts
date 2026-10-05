@@ -23,13 +23,14 @@ export function apply(ctx: Context) {
   // registering via `ctx.on()` at root scope (not agent-scoped) means every
   // agent gets this override, matching "agent-scoped listeners receive only
   // that agent" vs. a plain root listener receiving all of them.
-  ctx.on('agent/request', async (payload, next) => {
+  ctx.on('agent/request', async (payload) => {
     // One runtime hosts many sessions (docs/single-backend-architecture-plan.md),
     // so the model is chosen PER AGENT (`agentOptions.model`, set at create/resume
     // by packages/transport from what the gateway read out of the sessions row);
     // the process-wide env value is only the default for an agent that has none.
+    // No model at all is a configuration error, never a reason to fall through to another provider.
     const model = payload.agent.options.model ?? launchEnvironmentOf(ctx).get('OPENAI_MODEL_ID')?.value
-    if (!model) return next()
+    if (!model) throw new Error('no model configured: set OPENAI_MODEL_ID (or pass a model for the session)')
     return { provider: 'openai-compat', model }
   })
 

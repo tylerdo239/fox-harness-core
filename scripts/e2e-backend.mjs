@@ -455,6 +455,22 @@ const tests = {
     }
   },
 
+  // No vendor service is ever wired in: the runtime's EFFECTIVE configuration (dsh --dump-config) keeps dsh's
+  // session telemetry (harness-telemetry.deepseeksvc.com), the DeepSeek adapters (api.deepseek.com) and the
+  // pi-ai multi-provider adapter disabled, the default model route is ours, and the runtimes run opted out.
+  async noVendorServices() {
+    const dump = dx('sh', '-c', 'DSH_HOME=/data/dsh-home FOX_REPO_ROOT=/repo FOX_DATA_DIR=/data node --expose-internals /repo/node_modules/@deepseek-ai/dsh/lib/bin.js --profile fox-harness --dump-config')
+    const row = (id) => (dump.match(new RegExp(`(?:^|\\n)- id: ${id}\\n(?:  .*\\n)*`)) ?? [''])[0]
+    const off = ['session-telemetry-otel', 'llm-deepseek', 'web-search-deepseek', 'llm-pi-ai'].filter((id) => !/\n  disabled: true\n/.test(row(id)))
+    const defaultRoute = /provider: openai-compat/.test(row('agent-default-model'))
+    const envs = dx('sh', '-c', 'for p in /proc/[0-9]*; do [ "$p" = "/proc/$$" ] && continue; tr "\\0" " " < $p/cmdline 2>/dev/null | grep -q -- "bin.js --profile fox-harness" && tr "\\0" "\\n" < $p/environ | grep -c "^DSH_TELEMETRY_DISABLED=1$"; done; true')
+    const optedOut = envs.trim().split('\n').filter(Boolean)
+    return {
+      ok: off.length === 0 && defaultRoute && optedOut.length > 0 && optedOut.every((n) => n === '1'),
+      detail: `still enabled=${JSON.stringify(off)}, default route openai-compat=${defaultRoute}, runtimes opted out=${JSON.stringify(optedOut)}`,
+    }
+  },
+
   async purge() {
     const { a } = await users()
     const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
