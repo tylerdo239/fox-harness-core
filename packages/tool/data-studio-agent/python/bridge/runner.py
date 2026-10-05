@@ -37,6 +37,7 @@ latency. Acceptable for now; a headless render step could remove it later.
 
 import asyncio
 import json
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -46,6 +47,11 @@ from pathlib import Path
 # Kept independent of CWD since the TS kernel (packages/tool/data-studio-agent)
 # invokes this by absolute path, same as packages/tool/python-repl's runner.py.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Agno (the LLM-call framework) posts a telemetry event to https://os-api.agno.com after EVERY agent run — awaited
+# inline, ~0.8 s each, ~17 per question — unless this is "false". Forced here, before anything imports agno, so no
+# deployment env can turn it back on. Agno reads it on each agent/team/workflow run.
+os.environ["AGNO_TELEMETRY"] = "false"
 
 from src.crud_mongo import conversation as conversation_crud
 from src.database.models.enums import MessageRole

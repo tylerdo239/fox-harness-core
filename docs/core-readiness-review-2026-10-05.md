@@ -13,8 +13,9 @@ runtime, mock LLM), test Python với MongoDB thật, và hỏi đáp bằng LLM
 |---|---|
 | Deploy bao nhiêu container? | **2 container của mình**: `web` và `backend`. Các dịch vụ còn lại là hạ tầng bên ngoài. |
 | Phân quyền đã chặt nhất chưa? | **Chặt ở tầng ứng dụng, chưa phải mức cao nhất.** Còn 3 việc bắt buộc trước khi cho user thật dùng (mục 3.3). |
-| Chat, skill có còn chạy như cũ? | **Có.** 17/17 e2e pass, kể cả chat, resume, skill riêng từng user, python, file, project. |
-| Thêm skill/tool theo kiểu plugin còn chạy? | **Có, đã thử thật**: thêm một tool plugin mới và một skill mới, cả hai hoạt động, 17/17 e2e vẫn pass. |
+| Chat, skill có còn chạy như cũ? | **Có.** 19/19 e2e pass, kể cả chat, resume, skill riêng từng user, python, file, project. |
+| DB (`001_init.sql`) đã hoàn thiện chưa? | **Có, sau một bản sửa charset** (mục 7). |
+| Thêm skill/tool theo kiểu plugin còn chạy? | **Có, đã thử thật**: thêm một tool plugin mới và một skill mới, cả hai hoạt động, 19/19 e2e vẫn pass. |
 
 ## 2. Deploy: hệ thống gồm những container nào
 
@@ -80,7 +81,7 @@ Browser ──► web (nginx + bundle React)  ──►  backend (gateway + N ru
 
 ## 4. Tính năng còn giữ nguyên không
 
-### 4.1 E2e (stack hai container, 17/17 pass)
+### 4.1 E2e (stack hai container, 19/19 pass)
 
 | Test | Kiểm tra gì |
 |---|---|
@@ -94,6 +95,8 @@ Browser ──► web (nginx + bundle React)  ──►  backend (gateway + N ru
 | `idleDisposeAndResume`, `restartResumes`, `gracefulStopMidTurn` | Session idle được giải phóng và resume; restart container không mất lịch sử |
 | `roleGate`, `roleReachesRuntime` | Phân quyền role |
 | `sandboxNoNetwork`, `tokensHashedInRedis` | Hai bản vá bảo mật mới |
+| `unicodeText` | Tiêu đề session và tên project tiếng Việt + emoji ghi và đọc đúng; email dài hơn 255 ký tự trả về 400 |
+| `noVendorServices` | Cấu hình thực tế của runtime giữ tắt telemetry dsh, adapter DeepSeek và pi-ai; model mặc định là `openai-compat` |
 | `purge` | Xóa session thì xóa luôn workspace và log |
 
 ### 4.2 LLM thật (stack local 8080, Dremio thật)
@@ -137,7 +140,7 @@ Sau đó build image, dựng stack e2e và chạy:
 | Flow default: gọi tool, nhận kết quả, tool thấy đúng `cwd` của session đó | PASS |
 | Flow default: tool cũ vẫn còn (27 → 28) | PASS |
 | Flow data-studio và data-analysis: **không** thấy `probe_echo` (gắn theo preset) | PASS |
-| Toàn bộ 17 e2e trên image có plugin mới | 17/17 PASS |
+| Toàn bộ 19 e2e trên image có plugin mới | 19/19 PASS |
 
 Worktree và image thử nghiệm đã xóa; repo không bị thay đổi.
 
@@ -178,7 +181,7 @@ Lưu ý: mask của flow `data-analysis` là **deny-list**, nên một tool glob
 - [x] Cô lập workspace giữa các user, kể cả subagent
 - [x] Sandbox: không mạng, không capability, env sạch
 - [x] Token trong Redis đã được hash
-- [x] Chat, resume, skill, python, file, project vẫn chạy (17/17 e2e)
+- [x] Chat, resume, skill, python, file, project vẫn chạy (19/19 e2e)
 - [x] Thêm tool/skill theo kiểu plugin vẫn chạy (đã thử thật)
 - [ ] Push `fix/subagent-workspace-guard` và `feat/role-based-authz`, merge vào `dev`
 - [ ] Bắt buộc mật khẩu cho Redis và Mongo trên production
@@ -186,15 +189,54 @@ Lưu ý: mask của flow `data-analysis` là **deny-list**, nên một tool glob
 - [ ] Audit log khi admin mở session của người khác
 - [ ] Thử UI mới trên trình duyệt
 - [ ] Hạ tầng cấp `SYS_ADMIN` + `NET_ADMIN` cho container backend
+- [x] Schema MariaDB đầy đủ, khai báo `utf8mb4`
 - [ ] Sync lại catalog Dremio; admin bật các bảng cho user
 
-## 7. Chạy lại để kiểm chứng
+## 7. Database (`infra/migrations/001_init.sql`)
+
+4 bảng: `discovery_users`, `discovery_sessions`, `discovery_projects`, `discovery_custom_skills`. Không có foreign key.
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Mọi câu SQL trong code (gateway, `create-admin.mjs`) chỉ dùng cột có trong schema | Đạt |
+| Kích thước cột khớp với kiểm tra trong code (title 255, tên project 120, tên skill 64, mô tả 280, hash mật khẩu 161 = salt 32 + `:` + 128) | Đạt; riêng email trước đây không có kiểm tra độ dài, **đã thêm** (>255 ký tự trả về 400) |
+| Index khớp với truy vấn (session theo chủ sở hữu + `updated_at`, theo project; project theo chủ sở hữu; skill theo chủ sở hữu + tên) | Đạt |
+| Không có foreign key: xóa project thì code xóa các session của nó trước; không có đường xóa user | Đạt, không phát sinh dữ liệu mồ côi |
+| Chạy được trên DB sạch | Đạt (stack e2e tạo DB từ file mỗi lần) |
+| **Charset** | **Lỗi, đã sửa.** File chưa khai báo charset nên bảng lấy theo mặc định của server. Trên server `latin1`, ghi tiêu đề tiếng Việt hoặc emoji lỗi `ERROR 1366`. Giờ mỗi bảng khai báo `utf8mb4` / `utf8mb4_unicode_ci`, và DB của stack e2e cố tình chạy với mặc định `latin1` để luôn kiểm chứng điều này. |
+
+DB nào đã tạo bảng từ bản cũ trên một server không phải `utf8mb4` thì chạy các lệnh `alter table ... convert to
+character set utf8mb4` trong `infra/migrations/README.md`. Stack local hiện tại đã là `utf8mb4` nên không cần.
+Schema MongoDB của Data Studio có thêm trường `allowed_roles` nhưng không cần migration: thiếu trường này nghĩa
+là chỉ admin thấy.
+
+## 8. Dịch vụ bên ngoài được gọi
+
+Bắt kết nối thật trong container backend khi chạy cả 3 flow, các domain ngoài chỉ gồm:
+
+| Dịch vụ | URL | Cấu hình |
+|---|---|---|
+| LLM và embedding | `OPENAI_BASE_URL`, `EMBEDDING_BASE_URL` (hiện là `https://proxy.onebot.meobeo.ai`) | Bắt buộc. Thiếu thì báo lỗi, **không** tự rơi về `api.openai.com` |
+| Web search | `https://google.serper.dev/search` | `SERPER_API_KEY` |
+
+Đã chặn vĩnh viễn (code nằm trong package dsh, nhưng plugin không bao giờ được nạp):
+- `https://harness-telemetry.deepseeksvc.com`: dòng `session-telemetry-otel` bị tắt, runtime chạy với `DSH_TELEMETRY_DISABLED=1`.
+- `https://api.deepseek.com`: dòng `llm-deepseek` và `web-search-deepseek` bị tắt. Agent-driver và `packages/core` không còn mặc định `deepseek-official`; không có model thì báo lỗi.
+- Adapter đa nhà cung cấp `llm-pi-ai` cũng bị tắt.
+- `https://os-api.agno.com`: telemetry của Agno (framework gọi LLM trong worker Data Studio), trước đây gửi sau mỗi
+  lần agent chạy, chặn luồng khoảng 0,8 giây mỗi lần, khoảng 19 lần mỗi câu hỏi. Giờ cả hai entrypoint của worker
+  (`bridge/runner.py`, `bridge/admin_runner.py`) ép `AGNO_TELEMETRY=false` trước khi Agno chạy.
+
+Hạ tầng nội bộ: MariaDB, Redis, S3/MinIO (`S3_ENDPOINT`; **để trống sẽ gọi AWS S3**), MongoDB, Meilisearch,
+Dremio. Meilisearch phải chạy container riêng, có master key và `MEILI_NO_ANALYTICS=true`.
+
+## 9. Chạy lại để kiểm chứng
 
 ```bash
 docker build -f infra/docker/backend/Dockerfile -t fox-harness-backend:dev .
 docker build -f infra/docker/web/Dockerfile -t fox-harness-web:dev .
 sh scripts/e2e-up.sh                           # tự khởi động mock LLM (cổng 4999); web ở :18080
-node scripts/e2e-backend.mjs                   # 17 test
+node scripts/e2e-backend.mjs                   # 19 test
 sh scripts/e2e-down.sh
 cd packages/tool/data-studio-agent/python && MONGODB_URL=mongodb://127.0.0.1:27017 uv run python tests/role_authz_test.py
 ```

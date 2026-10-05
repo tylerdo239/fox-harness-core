@@ -6,6 +6,9 @@ from src.settings import Settings
 class EmbeddingClient:
     def __init__(self, settings: Settings) -> None:
         self._model = settings.embedding_model_id
+        # Without a base URL the OpenAI SDK silently targets api.openai.com — never allowed here.
+        if not settings.embedding_base_url:
+            raise RuntimeError("EMBEDDING_BASE_URL is not set; refusing to fall back to api.openai.com")
         self._client = AsyncOpenAI(
             api_key=settings.embedding_api_key,
             base_url=settings.embedding_base_url,

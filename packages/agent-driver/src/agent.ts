@@ -431,17 +431,18 @@ export class FoxHarnessAgent implements Agent {
     tools: GenerateOptions['tools'],
     signal: AbortSignal,
   ): Promise<{ assembler: BlockAssembler; config: LlmCallConfig }> {
-    const defaultConfig: LlmCallConfig = {
-      provider: this.options.provider ?? 'deepseek-official',
-      model: this.options.model ?? 'deepseek-v4-flash',
-      maxTokens: this.options.maxTokens,
+    // dsh-agent-loop defaults to deepseek-official/deepseek-v4-flash here. We never call DeepSeek: the route comes
+    // from the `agent/request` waterfall (packages/core) or the agent's own options, otherwise the call fails.
+    const defaultConfig = (): LlmCallConfig => {
+      if (!this.options.model) throw new Error('no model configured for this agent (OPENAI_MODEL_ID is unset)')
+      return { provider: this.options.provider ?? 'openai-compat', model: this.options.model, maxTokens: this.options.maxTokens }
     }
 
     for (;;) {
       const config = await this.dispatch.waterfall(
         'agent/request',
         { turn, step, signal },
-        async () => defaultConfig,
+        async () => defaultConfig(),
       )
 
       const prepared = await this.ctx.llm.prepareCall(config, signal)

@@ -59,3 +59,24 @@
   config:
     runnerCommand: !!js "process.env.FOX_CONFINE_RUNNER ? [process.env.FOX_CONFINE_RUNNER] : []"
     runnerFailureSignatures: !!js "process.env.FOX_CONFINE_RUNNER ? ['fox-confine:', 'bwrap:'] : []"
+
+# Never call DeepSeek's or anyone else's services: these dsh-base rows are switched off for good, so their plugins
+# are never loaded (the code stays inside node_modules but nothing runs it).
+#   session-telemetry-otel — would upload raw session logs to harness-telemetry.deepseeksvc.com
+#   llm-deepseek, web-search-deepseek — api.deepseek.com; our LLM is openai-compat, our search is Serper
+#   llm-pi-ai — multi-provider adapter that a `llm-pi-ai:` settings section could point at any vendor
+- id: session-telemetry-otel
+  disabled: true
+- id: llm-deepseek
+  disabled: true
+- id: web-search-deepseek
+  disabled: true
+- id: llm-pi-ai
+  disabled: true
+
+# dsh-base's default model for an agent created without one is deepseek-official/deepseek-v4-flash.
+- id: agent-default-model
+  name: '@deepseek-ai/dsh-agent-default-model'
+  config:
+    provider: openai-compat
+    model: !!js "process.env.OPENAI_MODEL_ID ?? 'unset-OPENAI_MODEL_ID'"
