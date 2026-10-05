@@ -1,0 +1,4025 @@
+/* This "shell" layer owns layout/structure only — every color,
+ * spacing-of-emphasis, and radius value below reads through a
+ * `var(--fh-*, <fallback>)`, where `--fh-*` comes from `theme.css` (a real
+ * static stylesheet, 2026-09-08 follow-up — used to be a dynamically-
+ * mounted UI plugin, Phase 4-12). The literal fallback values here still
+ * matter: if `theme.css` ever fails to load for some reason, the page stays
+ * fully usable on plain values instead of breaking. */
+:root {
+  color-scheme: light dark;
+  --bg: var(--fh-bg, #ffffff);
+  --surface: var(--fh-surface, #f7f7f7);
+  --fg: var(--fh-text, #1a1a1a);
+  --muted: var(--fh-muted, #6b6b6b);
+  --border: var(--fh-border, #dddddd);
+  --bubble-user: var(--fh-bubble-user, #fdece0);
+  --bubble-assistant: var(--fh-bubble-assistant, #f2f2f2);
+  --bubble-live: var(--fh-bubble-live, #fff8e1);
+  /* Brand orange (2026-09-08, brightness/white-text direction confirmed
+   * same day — see theme.css's own comment for the full reasoning/contrast
+   * math). Light mode is deliberately the BRIGHTER of the 2 themes here. */
+  --accent: var(--fh-accent, #ff7a1f);
+  --accent-contrast: var(--fh-accent-contrast, #ffffff);
+  --accent-text: var(--fh-alias-accent-text, #b3450c);
+  --error: var(--fh-error, #c0392b);
+  --radius-sm: var(--fh-radius-sm, 6px);
+  --radius-md: var(--fh-radius-md, 10px);
+  --radius-lg: var(--fh-radius-lg, 10px);
+  --shadow-sm: var(--fh-shadow-sm, none);
+  /* Phase 12 item 7 — new tokens for this phase's new components. */
+  --status-success: var(--fh-alias-status-success, #1a7f37);
+  --status-neutral: var(--fh-alias-status-neutral, #6b6b6b);
+  --status-danger: var(--fh-alias-status-danger, #c0392b);
+  --overlay-mask: var(--fh-specific-overlay-mask, rgba(0, 0, 0, 0.4));
+  /* Phase 14 — real shadow/motion tokens + 2 new surface tones (see
+   * theme.css's own comment on why bg-hover/bg-raised are new values, not
+   * aliases — this project's palette has fewer distinct surfaces than
+   * dsh's real one). */
+  --shadow-lv1: var(--fh-shadow-lv1, 0 2px 4px 0 rgba(0, 0, 0, 0.05));
+  --shadow-lv2: var(--fh-shadow-lv2, 0 4px 12px 0 rgba(0, 0, 0, 0.06));
+  --shadow-lv3: var(--fh-shadow-lv3, 0 12px 32px 0 rgba(0, 0, 0, 0.12));
+  --ease: var(--fh-ease, ease-in-out);
+  --duration-fast: var(--fh-duration-fast, 0.1s);
+  --duration-base: var(--fh-duration-base, 0.2s);
+  --bg-hover: var(--fh-alias-bg-hover, #ececed);
+  --bg-raised: var(--fh-alias-bg-raised, #f5f5f6);
+  --border-subtle: var(--fh-alias-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--fh-bg, #14161a);
+    --surface: var(--fh-surface, #1b1d22);
+    --fg: var(--fh-text, #eaeaea);
+    --muted: var(--fh-muted, #9a9a9a);
+    --border: var(--fh-border, #333640);
+    --bubble-user: var(--fh-bubble-user, #3a2712);
+    --bubble-assistant: var(--fh-bubble-assistant, #24262b);
+    --bubble-live: var(--fh-bubble-live, #3a3316);
+    --accent: var(--fh-accent, #d9600f);
+    --accent-contrast: var(--fh-accent-contrast, #ffffff);
+    --accent-text: var(--fh-alias-accent-text, #f37021);
+    --error: var(--fh-error, #ff8a75);
+    --shadow-sm: var(--fh-shadow-sm, none);
+    --status-success: var(--fh-alias-status-success, #3fb950);
+    --status-neutral: var(--fh-alias-status-neutral, #9a9a9a);
+    --status-danger: var(--fh-alias-status-danger, #ff8a75);
+    --overlay-mask: var(--fh-specific-overlay-mask, rgba(0, 0, 0, 0.6));
+    --bg-hover: var(--fh-alias-bg-hover, #2a2a2c);
+    --bg-raised: var(--fh-alias-bg-raised, #1e1e20);
+    --border-subtle: var(--fh-alias-border-subtle, rgba(255, 255, 255, 0.08));
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  /* Phase 14: real dsh "general UI" body size (s-14: 400 14px/22px). */
+  font: var(
+    --fh-text-s,
+    14px/1.45 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif
+  );
+}
+
+/* Real 2-column frame (sidebar | center — a `details` column exists in the
+ * algorithm app/src/App.tsx runs but nothing occupies it yet, so it's
+ * never rendered here at all). Reimplements dsh's real `dsh-client-ui-layout`
+ * breakpoint/collapse algorithm (docs/code-rules.md's Phase 10 entry) — same
+ * 1024px breakpoint, same 56px rail width — as a deliberately smaller v1:
+ * fixed sidebar width, no drag-to-resize. `grid-template-columns` is set as
+ * a React inline style (App.tsx's `gridTemplateColumns` computation), not
+ * here — this class only owns the transition/overflow behavior around it.
+ */
+#app {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 100%;
+  overflow: hidden;
+  transition: grid-template-columns var(--duration-base) var(--ease);
+}
+
+/* Phase 15 (2026-09-08) — real dsh-client-ui-sidebar structure/measurements
+ * (docs/agent-core-architecture-roadmap.md's Phase 15 has the full research
+ * + citations): `.root{padding:6px 12px}`. */
+#sidebar-col {
+  padding: 6px 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#sidebar-col.fh-sidebar-rail {
+  align-items: center;
+  padding: 6px;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-brand-mark,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-brand-name,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-search-toggle,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-region,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-new-session-label,
+#sidebar-col.fh-sidebar-rail .fh-sidebar-account-email,
+/* 2026-09-10: the account row's new trailing "..." icon collapses to
+ * icon-only (avatar circle) in rail mode too, same as everything else in
+ * this list — the row is still fully clickable, the icon is only a
+ * discoverability hint that doesn't fit a 56px rail. */
+#sidebar-col.fh-sidebar-rail .fh-sidebar-account-more {
+  display: none;
+}
+
+/* Real `.logoRow{height:60px;padding:8px 0 8px 4px}`, rail's
+ * `{height:36px;padding:0}`. */
+.fh-sidebar-logo-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 60px;
+  margin-bottom: 8px;
+  padding: 8px 0 8px 4px;
+  overflow: hidden;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-logo-row {
+  height: 36px;
+  margin-bottom: 12px;
+  padding: 0;
+  justify-content: center;
+}
+
+.fh-sidebar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-brand {
+  flex: none;
+}
+
+.fh-sidebar-brand-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+/* Real `.brandName{font-size:18px;font-weight:600;letter-spacing:.04em}`.
+ * Color (2026-09-10, user request) — `var(--accent)`, the same brand
+ * orange token `.fh-sidebar-brand-mark` (the icon next to it) already
+ * uses, so the mark and the "Fox Harness" text match instead of the text
+ * defaulting to plain `--fg`. */
+.fh-sidebar-brand-name {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--accent);
+}
+
+/* Real bug fixed 2026-09-09: this rule used to HIDE the collapse toggle in
+ * rail mode — the one control that could ever expand it back. Once
+ * collapsed, the only thing left visible in the logo row was the static,
+ * non-interactive brand mark (which has no onClick at all) — a dead end,
+ * no way to reopen. Fixed above by hiding `.fh-sidebar-brand-mark` in rail
+ * mode instead, so the toggle stays the one visible, always-clickable
+ * control regardless of collapsed state. */
+
+/* Visual identity (height/border/bg/radius/font) moved into `.fh-btn-raised`
+ * (docs/code-rules.md §67 — `primitives/Button.tsx`'s `variant="raised"`);
+ * this residual rule only keeps the layout concerns specific to sitting in
+ * the sidebar (flex/margin) plus the real rail-mode collapse below — a
+ * reusable Button primitive shouldn't dictate its own external margin. */
+.fh-sidebar-new-session {
+  flex: none;
+  margin: 0 2px 8px;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-new-session {
+  width: 36px;
+  height: 36px;
+  margin: 0 0 12px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+/* Real `.regionArea{flex:1;min-height:0;overflow:hidden}` — the session
+ * list grows to fill the sidebar column above the fixed footer, scrolling
+ * independently. */
+.fh-sidebar-region {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Phase 13: real per-session backend-plugin-contributed UI (a fixed,
+ * hand-written set — app/src/pluginUi.tsx — not dynamically loaded
+ * code; see that file's own comment). */
+#sidebar-plugin-ui {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  padding: 0 0.5em;
+}
+
+.fh-plugin-ui-button {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--border);
+  text-align: left;
+  font: var(--fh-text-s, inherit);
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-plugin-ui-button:hover {
+  background: var(--bg-hover);
+}
+
+/* Account row (2026-09-08 follow-up — real chat.deepseek.com screenshot
+ * showed a real avatar+email account row at the bottom, not a plain
+ * "Settings" button with a gear icon). 2026-09-10 follow-up: no longer
+ * opens the Settings dialog directly — opens `AccountMenu`'s own popup
+ * (Settings/Logout) above itself instead; `.fh-sidebar-account-more`
+ * (the trailing "..." icon) is the new visual hint that this is a menu
+ * trigger now, not a direct action. */
+.fh-sidebar-account {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  height: 44px;
+  margin: 0.25em 0;
+  padding: 0 0.5em;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  text-align: left;
+  border-radius: 12px;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-sidebar-account:hover {
+  background: var(--bg-hover);
+}
+
+.fh-sidebar-account-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
+.fh-sidebar-account-email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85em;
+}
+
+.fh-sidebar-account-more {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.fh-sidebar-account:hover .fh-sidebar-account-more {
+  opacity: 1;
+}
+
+/* AccountMenu.tsx's popup — portaled to `document.body` (see that file's
+ * own comment for why: `#sidebar-col`'s real `overflow: hidden` would
+ * otherwise clip it, especially in rail mode). `position: fixed` with
+ * `left`/`bottom` set inline from the trigger's own
+ * `getBoundingClientRect()` — this rule only owns the fixed chrome
+ * (size/border/shadow), not placement. Same visual language as
+ * `.fh-lang-select-popup`/`.fh-history-chat-row-menu-popup`
+ * (border/radius/shadow), a smaller z-index than
+ * `.fh-settings-dialog`'s 1000 (that dialog and this popup are never open
+ * at the same time in practice — clicking "Settings" here closes the
+ * popup before opening it — but the ordering should still hold either
+ * way). */
+.fh-account-menu-popup {
+  position: fixed;
+  min-width: 200px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lv2);
+  padding: 4px;
+  z-index: 50;
+}
+
+/* Real `.footArea{flex-direction:column;flex:none}`. */
+.fh-sidebar-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Search toggle moved into the logo row (2026-09-08 follow-up, real
+ * chat.deepseek.com screenshot — the search icon sits next to the brand
+ * mark and the collapse toggle, not scoped inside the session list). The
+ * expand-on-click interaction itself is unchanged (dsh-client-ui-
+ * workspace's real `.search`/`.searchExpanded`), only WHERE the trigger
+ * lives moved; the resulting input row renders directly below the logo
+ * row. */
+.fh-sidebar-search-row {
+  flex: none;
+  padding: 0 2px 8px;
+}
+
+/* `input[type="text"].fh-history-chat-search`, not just the class — the
+ * general `input[type="text"]` rule further down (Phase 14) has the same
+ * or higher specificity and would otherwise silently win on background/
+ * radius regardless of source order. */
+input[type="text"].fh-history-chat-search {
+  width: 100%;
+  height: 30px;
+  padding: 0 0.6em;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.85em;
+}
+
+/* Date-grouped chat history list (2026-09-08 follow-up — real
+ * chat.deepseek.com screenshot showed "Today"/"30 Days" section headers,
+ * replacing the flat undifferentiated list this had before). Renamed
+ * `fh-session-*` -> `fh-history-chat-*` 2026-09-10 (component renamed
+ * `SessionList.tsx` -> `HistoryChat.tsx`, see that file's own comment). */
+.fh-history-chat-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.fh-history-chat-group-label {
+  padding: 0.6em 0.75em 0.3em;
+  color: var(--muted);
+  font-size: 0.75em;
+  font-weight: 500;
+}
+
+/* Phase 14/15: real dsh session-row convention (`dsh-client-ui-workspace`'s
+ * real `Rows.module.css`, read directly at both phases) — hover AND
+ * selected both just swap the row's background, no left-border indicator.
+ * Kept ONE deliberate addition beyond the literal real behavior: the
+ * active row's title also tints with the accent color, since real dsh's
+ * rows sit inside a real navigation model this app doesn't fully have yet
+ * — a pure background-only "selected" state was too easy to lose track of
+ * in practice. Real `.sessionRow{height:32px;border-radius:8px;padding:0
+ * 8px;gap:6px}` (Phase 15 — fixed height replaces the previous em-relative
+ * padding). */
+.fh-history-chat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 0.85em;
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 0 0.4em;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-history-chat-row:hover {
+  background: var(--bg-hover);
+}
+
+.fh-history-chat-row.active {
+  background: var(--bg-hover);
+}
+
+/* Marks a "Phân tích dữ liệu" (data-analysis flow) chat in the history list. */
+.fh-history-chat-row-flow {
+  flex: none;
+  color: var(--accent-text);
+}
+
+.fh-history-chat-row.active .fh-history-chat-row-title {
+  /* --accent-text, not --accent (2026-09-08) — plain --accent as TEXT on
+   * this row's own --bg-hover only reaches ~2.5:1 in light mode (computed,
+   * fails WCAG AA); --accent-text is the legible variant for exactly this
+   * kind of "accent color used as text on the page's own surface" case. */
+  color: var(--accent-text);
+}
+
+/* Real `.title{font-size:14px;line-height:20px}` — was inheriting the
+ * row's 0.85em (~11.9px off a 14px base) before this Phase 15 correction. */
+.fh-history-chat-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* Phase 15 (2026-09-08) correction to Phase 14's own earlier fix: real dsh
+ * icon buttons INSIDE a session row specifically (not a settings row —
+ * different package/context) are `.iconButton{width:16px;height:16px;
+ * border-radius:4px}` — smaller and less rounded than the 22px/6px
+ * previously carried over from a settings-list citation — now
+ * `.fh-icon-btn-sm`/`.fh-icon-btn-plain` (docs/code-rules.md §67,
+ * `primitives/IconButton.tsx`). Real too: `.rowActions{display:none}` by
+ * default, shown only on row hover — that part is specific to sitting in
+ * a history-chat row, kept here rather than folded into the shared
+ * primitive. `button.fh-history-chat-row-menu-trigger` (element+class, not
+ * just `.fh-history-chat-row-menu-trigger`) so this `display:none`
+ * reliably beats `.fh-icon-btn`'s own `display` regardless of which rule
+ * happens to come first in the file.
+ *
+ * 2026-09-10: renamed from `.fh-history-chat-row-rename` — this button now
+ * opens a 2-item menu (Rename/Delete), not a direct rename action. Also
+ * revealed on `.menu-open` (a React-state class, not a real `:hover` — set
+ * while THIS row's popup is open), not just `:hover`: the popup itself is
+ * portaled outside the row, so moving the mouse toward it ends the row's
+ * own `:hover` — without this, the trigger would visually vanish out from
+ * under an already-open menu. */
+button.fh-history-chat-row-menu-trigger {
+  display: none;
+}
+
+.fh-history-chat-row:hover .fh-history-chat-row-menu-trigger,
+.fh-history-chat-row.menu-open .fh-history-chat-row-menu-trigger {
+  display: inline-flex;
+}
+
+/* This row's own popup (Rename/Delete) — portaled to `document.body`, same
+ * reasoning as `AccountMenu.tsx`'s popup (`#sidebar-col`'s real
+ * `overflow: hidden`/`overflow-y: auto` would otherwise clip it). 3rd
+ * hand-rolled copy of this exact "floating card" chrome now
+ * (`.fh-account-menu-popup`, `.fh-lang-select-popup`, this one) — a real
+ * consolidation candidate if a 4th ever shows up, not done here to keep
+ * this change scoped to what was actually asked. Positioned via `left`
+ * (2026-09-10, user: "dropdown xuất hiện từ bên phải nút 3 chấm" — opens to
+ * the RIGHT of the trigger, was below-left via `right` before this) — see
+ * `HistoryChat.tsx`'s own `openRowMenu()` comment for why. */
+.fh-history-chat-row-menu-popup {
+  position: fixed;
+  min-width: 160px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lv2);
+  padding: 4px;
+  z-index: 50;
+}
+
+/* Delete's destructive-action tint — `MenuItem`'s own `className`
+ * passthrough (same mechanism every primitive here uses for a call site's
+ * own on-top override), not a new `variant`: this is the only destructive
+ * menu item in the app so far. */
+.fh-menu-item-danger {
+  color: var(--status-danger);
+}
+
+/* Rename's inline `<input>` (2026-09-10, replaces `window.prompt` — user:
+ * "khi ấn đổi tên biến title hiện tại thành ô input để nhập") — sits in the
+ * exact flex slot `.fh-history-chat-row-title` occupied (`flex: 1`, same
+ * `font-size`/`line-height`), just compact enough (22px, not the base
+ * `input[type="text"]` rule's 34px) to fit inside the row's fixed 32px
+ * height without changing it. `input[type="text"].fh-history-chat-row-
+ * rename-input`, not just the class — same reason
+ * `.fh-history-chat-search` needs it (that rule above, `input[type="text"]`
+ * further down, has equal-or-higher specificity and would otherwise
+ * silently win on height/padding/border-radius regardless of source
+ * order). */
+input[type="text"].fh-history-chat-row-rename-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.fh-status-dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  flex: none;
+  background: var(--muted);
+}
+
+.fh-status-dot.running {
+  background: var(--status-success);
+}
+.fh-status-dot.hibernated {
+  background: var(--status-neutral);
+}
+.fh-status-dot.archived {
+  background: var(--status-danger);
+}
+
+#center-col {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#center-col > * {
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* app/src/components/Conversation.tsx's root — the only child of
+ * #center-col that needs to actually grow (everything else, header/
+ * connect-form/session-bar, is a fixed-height row). Every element in this
+ * flex-fill chain needs BOTH `flex:1` (grow) AND `min-height:0` (override
+ * flexbox's default min-height:auto, which would otherwise let #log's
+ * content push the whole chain taller instead of scrolling internally). */
+#center-col > .fh-conversation-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* `SessionTitleBar.tsx` (2026-09-15) — click-to-edit chat title, top-left
+ * of the chat column. Real bug fixed same day (user: "đoạn hội thoại đang
+ * có 2 margin 2 bên là cho title ko nằm sát sidebar đổi title ra ngoài"):
+ * `#center-col > *` above gives every direct child `max-width:760px;
+ * margin:0 auto` to center the CHAT BUBBLE column on wide screens — this
+ * title bar inherited that too, so on a wide viewport it sat indented,
+ * aligned with the narrow bubble column instead of starting right after
+ * the sidebar the way a real title bar should. Opts back out to the full
+ * `#center-col` width, own small side padding instead of the large
+ * auto-centering margin.
+ *
+ * Follow-up fix, same day (user: "nhưng vẫn còn max width tôi ko muốn
+ * title có max width"): a plain `.fh-session-title-bar` class selector
+ * LOSES to `#center-col > *` regardless of source order — an ID selector
+ * always outranks a class one, so `max-width:760px` kept winning even with
+ * `max-width:none` written right here. `#center-col > .fh-session-title-bar`
+ * matches that same ID's specificity and adds the class on top, which is
+ * what actually overrides it. Fixed-height row, not part of the
+ * `.fh-conversation-root` flex-fill chain above (same "everything else is
+ * a fixed-height row" convention that comment already documents). */
+#center-col > .fh-session-title-bar {
+  flex: none;
+  max-width: none;
+  margin: 0;
+  padding: 0.6em 1.25em;
+}
+
+.fh-session-title-bar-display {
+  display: block;
+  max-width: 100%;
+  padding: 0.15em 0.4em;
+  margin-left: -0.4em;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  font-size: 1em;
+  font-weight: 600;
+  text-align: left;
+  cursor: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-session-title-bar-display:hover {
+  background: var(--bg-hover);
+}
+
+/* Same specificity note as `.fh-history-chat-row-rename-input` above —
+ * `input[type="text"]`'s own base rule needs an equally-specific selector
+ * to actually override, not just a class. */
+input[type="text"].fh-session-title-bar-input {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  padding: 0.15em 0.4em;
+  margin-left: -0.4em;
+  border-radius: var(--radius-sm);
+  font-size: 1em;
+  font-weight: 60;
+}
+
+.fh-conversation-root > #log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Real chat.deepseek.com screenshot (2026-09-08) — a centered "welcome"
+ * layout before any message exists, instead of an empty #log pinned above
+ * a bottom composer. Only the layout survives here, not the fake mode
+ * tabs (see Conversation.tsx's own comment) — this app's REAL composer,
+ * just centered and enlarged. */
+.fh-conversation-root.fh-conversation-empty {
+  justify-content: center;
+  gap: 1.5em;
+}
+
+.fh-conversation-empty-heading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  color: var(--accent);
+}
+
+.fh-conversation-empty-heading h2 {
+  margin: 0;
+  color: var(--fg);
+  font: var(--fh-text-l, 500 1.4em/1.4 inherit);
+}
+
+.fh-conversation-empty #send-form {
+  margin: 0 1em;
+  padding: 1.1em 1.3em;
+}
+
+.fh-conversation-empty #text-input {
+  font-size: 1.05em;
+  /* User: "bắt đầu default là 3 dòng min khi ở trò chuyện mới" — only the
+   * centered new-conversation composer starts tall; the bottom-docked
+   * composer used once a conversation has messages keeps its normal
+   * 1-line start (`#text-input`'s own `min-height: 1.5em`) and grows from
+   * there like before. 4.5em = 3 lines × the `1.5` line-height inherited
+   * from `#text-input`'s `font` shorthand. */
+  min-height: 4.5em;
+}
+
+/* ============================================================
+ * Real primitives (2026-09-10, docs/code-rules.md §67) —
+ * app/src/components/primitives/{IconButton,Button,MenuItem,
+ * SelectableCard}.tsx. Consolidates what used to be ~10 separate
+ * hand-rolled button classes scattered across this file (.fh-theme-toggle,
+ * .fh-sidebar-collapse-toggle, .fh-sidebar-search-toggle,
+ * .fh-settings-close, .fh-history-chat-row-menu-trigger, .fh-account-menu-item,
+ * .fh-settings-nav-item, .fh-settings-theme-card, .fh-sidebar-new-session,
+ * .fh-settings-profile-logout, .fh-lang-toggle, .fh-auth-switch,
+ * button[type=submit]) into one real, small set of variants — every value
+ * below is copied verbatim from whichever old rule it replaces, this is a
+ * dedup pass, not a redesign. Each component still accepts an extra
+ * `className` for the handful of call sites that need their OWN further
+ * context-specific override on top (rail-mode collapse/hide, a session
+ * row's hover-reveal) — those residual rules stay at their original
+ * locations near the component they belong to, not here.
+ * ============================================================ */
+
+/* IconButton — circular icon-only. `bordered` (visible border, `--fg`)
+ * was `.fh-theme-toggle`/`.fh-sidebar-collapse-toggle`/
+ * `.fh-sidebar-search-toggle` (also `.fh-sidebar-toggle` — the header
+ * hamburger this rule used to also cover no longer exists, removed
+ * 2026-09-10 along with `#header` itself). `plain` (no border, `--muted`
+ * fading to `--fg` on hover) was `.fh-settings-close` (size `md`) and
+ * `.fh-history-chat-row-menu-trigger` (size `sm`, 16px/4px radius instead of the
+ * 28px/circle `md` size). */
+.fh-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border-radius: 999px;
+  transition:
+    background var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.fh-icon-btn:hover {
+  background: var(--bg-hover);
+}
+
+.fh-icon-btn-md {
+  width: 28px;
+  height: 28px;
+}
+
+.fh-icon-btn-sm {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.fh-icon-btn-bordered {
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+
+.fh-icon-btn-plain {
+  border: none;
+  color: var(--muted);
+}
+
+.fh-icon-btn-plain:hover {
+  color: var(--fg);
+}
+
+/* Button — real CTA/action shapes. `primary` declares almost nothing of
+ * its own: the base `button {}` rule (further below) already gives every
+ * plain `<button>` the accent fill — this only adds the pill shape/padding
+ * (was `button[type=submit]`, now removed as its own selector). `raised`
+ * was `.fh-sidebar-new-session`'s base look (that class still exists, now
+ * only for the sidebar-specific margin + rail-mode collapse — see its own
+ * rule). `outline` was `.fh-settings-profile-logout`'s look — used to
+ * also have a 2nd, smaller size for `.fh-lang-toggle`, removed 2026-09-10
+ * along with that component (replaced by the real `LanguageSelect.tsx`
+ * dropdown everywhere), so `Button` dropped its `size` prop entirely
+ * rather than keep a dimension nothing exercises anymore. `link` was
+ * `.fh-auth-switch` — its own `align-self: center` layout concern also
+ * stays at its own rule, same reasoning as `.fh-sidebar-new-session`'s
+ * margin. */
+.fh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.fh-btn-primary {
+  border-radius: 999px;
+  padding: 0 1.3em;
+}
+
+.fh-btn-raised {
+  height: 38px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 500;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-btn-raised:hover {
+  background: var(--bg-hover);
+}
+
+.fh-btn-outline {
+  height: 34px;
+  padding: 0 1em;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.85em;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.fh-btn-outline:hover {
+  background: var(--bg-hover);
+}
+
+.fh-btn-link {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: transparent;
+  border: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 0.85em;
+}
+
+.fh-btn-link:hover {
+  text-decoration: underline;
+  background: transparent;
+}
+
+/* MenuItem — icon + label, full-width flat row, hover background.
+ * `popup` was `.fh-account-menu-item` (AccountMenu's popup — its
+ * container isn't a flex column, so this variant needs its own explicit
+ * `width: 100%`). `nav` was `.fh-settings-nav-item` (Settings' nav rail —
+ * that column IS a flex column with default stretch, so no explicit width
+ * needed there) — the one variant that ever sets `active`. */
+.fh-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  height: 36px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.fh-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.fh-menu-item-popup {
+  width: 100%;
+  padding: 0 0.6em;
+  border-radius: 8px;
+  font-size: 0.85em;
+}
+
+.fh-menu-item-nav {
+  padding: 0 0.75em;
+  border-radius: 10px;
+  font-size: 0.9em;
+}
+
+.fh-menu-item-nav.active {
+  background: var(--bg-hover);
+  font-weight: 600;
+}
+
+/* SelectableCard — bordered card, icon stacked above the label, active
+ * state. Was `.fh-settings-theme-card` (Settings > General's Light/Dark
+ * picker) — only 1 real call site today, extracted anyway as a real,
+ * separately-nameable UI concept (see primitives/SelectableCard.tsx's own
+ * comment). The `height:auto`/`min-height` here is itself a real bug fix
+ * (2026-09-09) — the base `button {height:34px}` rule below was clamping
+ * this, nowhere near enough room for an 18px icon + gap + label stacked in
+ * a column. */
+.fh-selectable-card {
+  flex: 1;
+  height: auto;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 1em;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--fg);
+  font-size: 0.85em;
+}
+
+.fh-selectable-card:hover {
+  background: var(--bg-hover);
+}
+
+.fh-selectable-card.active {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* On the auth screen there's no header row to sit inline in — float the
+ * theme/lang controls in the corner instead, as one flex row (2026-09-10:
+ * was just `.fh-theme-toggle` alone before `LangToggle` existed). Inside
+ * #header (once connected) both stay normal inline flex children of
+ * #header itself, no override needed. */
+.fh-auth-screen {
+  position: relative;
+}
+
+.fh-auth-screen-controls {
+  position: absolute;
+  top: 1.25em;
+  right: 1.25em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+#header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  padding: 1em 1em 0.5em;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+#header h1 {
+  font: var(--fh-text-l, 600 1.4em/1 inherit);
+  margin: 0;
+}
+
+.status {
+  font-size: 0.8em;
+  padding: 0.1em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.status-connected {
+  color: #1a7f37;
+  border-color: #1a7f37;
+}
+.status-connecting {
+  color: #9a6700;
+  border-color: #9a6700;
+}
+.status-disconnected {
+  color: var(--muted);
+}
+
+/* Real gap fixed 2026-09-08: the login/register form used to render packed
+ * into the same row as a "Gateway URL" input inside the app's own header
+ * grid — the very first screen anyone ever sees looked like a debug/config
+ * form, not a product login screen (a user correctly called this "the flow
+ * is wrong"). `#connect-form`'s wrapper `.fh-auth-screen` now owns the
+ * whole viewport pre-login; nothing here shares layout with the connected
+ * app anymore. */
+.fh-auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2em 1em;
+  background: var(--bg);
+}
+
+.fh-auth-card {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25em;
+  padding: 2em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lv2);
+}
+
+.fh-auth-brand h1 {
+  font: var(--fh-text-l, 600 1.4em/1 inherit);
+  margin: 0 0 0.35em;
+}
+
+.fh-auth-brand p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+/* Silent-reconnect loading screen (2026-09-10, "lúc quay lại web khi đang
+ * check token nên có màn loading để tránh hiện form login") — sits inside
+ * the SAME `.fh-auth-screen` shell as the real login form (already
+ * centers its child, already the right full-viewport background), just a
+ * bare spinner instead of `.fh-auth-card` — no brand/copy needed for a
+ * window this brief. This app's first CSS `@keyframes` — a real, if
+ * small, exception to the "no animation until asked" restraint used
+ * elsewhere this session (e.g. deliberately NOT adding a live-streaming
+ * cursor blink, §80) — a loading screen is exactly the situation an
+ * animation was actually asked for. */
+.fh-auth-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fh-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: fh-spin 0.8s linear infinite;
+}
+
+@keyframes fh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#connect-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+}
+
+#connect-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+#connect-form input {
+  width: 100%;
+}
+
+#connect-form #connect-submit {
+  margin-top: 0.25em;
+  width: 100%;
+}
+
+/* Text-link style toggle between "Log in" and "Register" — the two modes
+ * of one screen, not two competing buttons anymore. Visual identity
+ * (height/padding/radius/color, matching real dsh `.linkButton`) moved
+ * into `.fh-btn-link`; this residual rule only keeps the one layout
+ * concern specific to sitting in `.fh-auth-card`'s flex column. */
+.fh-auth-switch {
+  align-self: center;
+}
+
+/* Phase 14: real dsh input convention (`fields.module.css`, read directly)
+ * — 8px radius, 34px height, focus swaps ONLY the border color, no
+ * browser-default glow/ring. */
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  font: inherit;
+  height: 34px;
+  padding: 0 0.7em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* 2026-09-08 follow-up — re-grounded against real dsh button source read
+ * directly from installed compiled output (dsh-client-ui-primitives, where
+ * the actual `Button` component lives, is still not installed anywhere on
+ * this machine — same gap Phase 14 hit — so this is reconstructed from
+ * every CONSUMER package that literally has its own button CSS: real class
+ * names/rules cited below, not guessed):
+ *
+ * `dsh-client-ui-sidebar`'s real `.newSession` (the sidebar's own primary
+ * CTA): `height:38px;border-radius:12px` — a soft ROUNDED RECTANGLE, not a
+ * pill, despite being a prominent 38px-tall primary action. This is the
+ * real basis for keeping 12px (not height/2) as this app's DEFAULT/prominent
+ * button radius. `dsh-client-ui-settings-models`'s real `.addModelButton`/
+ * `.linkButton` (secondary/tertiary, smaller actions): `height:28px;
+ * border-radius:14px` — height/2, a true pill, but only at THIS smaller
+ * size tier. `.iconButton:disabled`/`.addModelButton:disabled`:
+ * `opacity:.4` — the real disabled-state value (this file previously had
+ * 0.5, close but not the real number). Real buttons all use a FIXED pixel
+ * `height`, never em-relative padding alone — switched to match, and to
+ * flush-align with this app's own 34px inputs (Phase 14). */
+button {
+  font: var(--fh-text-s-strong, inherit);
+  height: 34px;
+  padding: 0 0.9em;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* `dsh-client-ui-settings-models`'s real `.primaryButton`/`.addButton`
+ * pairing is a true pill at the LARGER size tier (36px height, 18px
+ * radius = height/2) — `border-radius:999px` here renders IDENTICALLY
+ * (CSS clamps radius to half the element's shorter side), so this app's 2
+ * real primary CTAs (login, send) keep it — same visual result, slightly
+ * more robust if the height ever changes. Was a `button[type="submit"]`
+ * element selector; both real submit buttons now render through
+ * `primitives/Button.tsx`'s `variant="primary"` (docs/code-rules.md §67)
+ * instead, so this is `.fh-btn-primary` up in the Primitives section, not
+ * a selector keyed off the `type` attribute anymore. */
+
+.error {
+  color: var(--error);
+  font-size: 0.85em;
+}
+
+/* Real `sonner` toast library (2026-09-08 follow-up — replaces the
+ * hand-rolled .fh-toast-* version above; user asked for a real library with
+ * real animation instead). `sonner.css` (its own compiled stylesheet, see
+ * index.html — copied from node_modules on every build by
+ * app/scripts/build.mjs so it can never silently drift out of sync with the
+ * installed version) supplies the actual toast markup/animation/gesture
+ * behavior; this block ONLY overrides its color variables to reuse THIS
+ * app's own tokens instead of sonner's built-in palette. Selector matches
+ * sonner's own specificity (`[data-sonner-toaster][data-sonner-theme='…']`)
+ * so this wins purely on source order (sonner.css loads first in
+ * index.html) without needing `!important`; the attribute VALUE is left
+ * unqualified so it applies no matter which theme value the `<Toaster
+ * theme="…">` prop happens to be set to (App.tsx explains why that prop is
+ * fixed and doesn't matter here — these vars point at THIS app's own
+ * `--surface`/`--fg`/`--status-success`/`--error`, which already vary by
+ * light/dark on their own). */
+[data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--surface);
+  --normal-border: var(--border);
+  --normal-text: var(--fg);
+  --success-bg: var(--surface);
+  --success-border: var(--status-success);
+  --success-text: var(--status-success);
+  --error-bg: var(--surface);
+  --error-border: var(--error);
+  --error-text: var(--error);
+  --border-radius: 12px;
+  font-family: var(--fh-font, inherit);
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font: var(--fh-text-s-strong, 500 14px/22px inherit);
+}
+
+#session-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.4em 1em;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+#session-id {
+  font-family: ui-monospace, monospace;
+}
+
+#log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  /* Phase 14: real dsh chat-column vertical rhythm (`ChatView.module.css`'s
+   * real `.column{gap:16px}`) — 1rem, not 1em: this app's body font-size is
+   * 14px, and `rem` reads the ROOT (default 16px) so this is the exact
+   * real value, not a scaled approximation. */
+  gap: 1rem;
+}
+
+/* Real bug fixed 2026-09-11 (user: "UI đang bị shrink khi bị tràn thành
+ * scroll" — specifically tool-pill/assistant-text). Root cause: `#log`'s
+ * OWN height is definite (`flex: 1` inside `.fh-conversation-root`'s fixed
+ * chain, not an intrinsic/auto size), so once its children's combined
+ * content height exceeds that, the flexbox spec's default `flex-shrink: 1`
+ * on every child kicks in FIRST — each entry gets proportionally squeezed
+ * to fit, which is what actually read as "shrinking" — before `overflow-y:
+ * auto` ever gets a chance to turn the excess into a scrollbar (that only
+ * ever catches what's left AFTER shrinking, e.g. a `.tool-pill-detail`
+ * that still can't get any smaller). `#log > *` forces every one of its
+ * direct children (each log entry renders as exactly one such child —
+ * `.notice`/`.tool-pill`/`.bubble`/`.assistant-text`) to keep its natural
+ * height instead, so `#log` overflows as a whole and scrolls normally, the
+ * behavior that was actually intended. A well-known real flexbox gotcha,
+ * not specific to any one entry type — every prior fix in this area
+ * (`.tool-pill-detail`'s own internal cap, the composer's `flex: 1`
+ * removal) was correct on its own terms but didn't address this. */
+#log > * {
+  flex-shrink: 0;
+}
+
+/* Phase 14: real dsh bubble radius (`MessageItem.module.css`, 22px) — the
+ * SAME radius the composer card below uses, a deliberate real visual echo
+ * between the two, not independently chosen values. */
+.bubble {
+  max-width: 85%;
+  padding: 0.55em 0.8em;
+  border-radius: 22px;
+  box-shadow: var(--shadow-lv1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble-user {
+  align-self: flex-end;
+  background: var(--bubble-user);
+}
+
+/* Assistant replies (2026-09-10, "ui đoạn chat AI trả lời ko cần bọc
+ * container như 1 chat message full đi") — no `.bubble` wrapper at all,
+ * unlike `.bubble-user` above. Real claude.ai/ChatGPT/Gemini/
+ * chat.deepseek.com convention: the USER's message is a bubble, the
+ * ASSISTANT's reply is plain flowing text, left-aligned, no background/
+ * border/shadow, closer to full column width. No explicit `align-self`
+ * (unlike `.bubble-user`'s `flex-end`) — `#log`'s default flex
+ * `align-items: stretch` already fills the row's width, which is exactly
+ * the point. */
+.assistant-text {
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.assistant-text-body {
+  color: var(--fg);
+}
+
+/* Real markdown rendering (2026-09-15, Markdown.tsx — react-markdown +
+ * remark-gfm + rehype-highlight) replaced this app's old plain-text-plus-
+ * `linkify()` assistant bubbles. `white-space: pre-wrap` dropped from
+ * `.assistant-text` above for this reason: block elements (`<p>`, `<ul>`,
+ * ...) now own line/paragraph spacing themselves — keeping `pre-wrap` on
+ * top of real block layout would double-space everything. */
+.assistant-text-body :is(h1, h2, h3, h4, h5, h6) {
+  margin: 0.9em 0 0.4em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.assistant-text-body :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+.assistant-text-body h1 {
+  font-size: 1.35em;
+}
+.assistant-text-body h2 {
+  font-size: 1.2em;
+}
+.assistant-text-body :is(h3, h4, h5, h6) {
+  font-size: 1.05em;
+}
+
+.assistant-text-body p {
+  margin: 0.5em 0;
+}
+.assistant-text-body p:first-child {
+  margin-top: 0;
+}
+.assistant-text-body p:last-child {
+  margin-bottom: 0;
+}
+
+.assistant-text-body :is(ul, ol) {
+  margin: 0.5em 0;
+  padding-inline-start: 1.4em;
+}
+.assistant-text-body li {
+  margin: 0.2em 0;
+}
+.assistant-text-body li > :is(ul, ol) {
+  margin: 0.2em 0;
+}
+
+.assistant-text-body blockquote {
+  margin: 0.6em 0;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+.assistant-text-body hr {
+  margin: 1em 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.assistant-text-body strong {
+  font-weight: 600;
+}
+
+/* Inline `` `code` `` — distinct from a fenced block (`.md-code-block`
+ * below): small, on-line, no header/copy button. */
+.assistant-text-body .md-inline-code {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* Fenced code block — header row (language label + copy button) over a
+ * `<pre><code>` body. `React.memo` in Markdown.tsx keeps a finished block
+ * from re-rendering once its content stops changing; this is purely the
+ * visual shell, matching claude.ai/ChatGPT's own "labeled card" convention
+ * rather than a bare unstyled `<pre>`. */
+.md-code-block {
+  margin: 0.6em 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.md-code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.3em 0.3em 0.3em 0.8em;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+.md-code-block-lang {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-transform: lowercase;
+}
+
+.md-code-block pre {
+  margin: 0;
+  padding: 0.8em;
+  overflow-x: auto;
+}
+
+.md-code-block code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: var(--fg);
+  background: none;
+}
+
+/* Table — `.md-table-wrap` (Markdown.tsx) scrolls horizontally instead of
+ * overflowing/breaking the chat column on a wide table. */
+.md-table-wrap {
+  margin: 0.6em 0;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.md-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.md-table-wrap :is(th, td) {
+  padding: 0.45em 0.7em;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.md-table-wrap tr:last-child td {
+  border-bottom: none;
+}
+.md-table-wrap th {
+  background: var(--surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Syntax highlight (`highlight.js`'s real `hljs-*` class names, via
+ * `rehype-highlight`) — deliberately NOT one of highlight.js's own bundled
+ * theme stylesheets: an imported theme is tuned to ITS OWN background
+ * colors, not this app's `--bg`/`--surface`/`--fg` tokens, and would look
+ * like a foreign insert in both light and dark mode. A small palette
+ * reusing this app's own tokens where a semantic match exists (`--accent`
+ * for keywords, `--status-success`/`--status-danger` for string/deletion)
+ * plus a few new `--fh-syntax-*` tokens (fallback-only, same `var(--fh-x,
+ * fallback)` pattern this whole file already uses — see the file's own
+ * header comment) for the handful of concepts nothing existing maps to. */
+:root {
+  --syntax-comment: var(--fh-syntax-comment, #6b7280);
+  --syntax-number: var(--fh-syntax-number, #0550ae);
+  --syntax-function: var(--fh-syntax-function, #8250df);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --syntax-comment: var(--fh-syntax-comment, #9198a1);
+    --syntax-number: var(--fh-syntax-number, #79c0ff);
+    --syntax-function: var(--fh-syntax-function, #d2a8ff);
+  }
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-type {
+  color: var(--accent-text);
+}
+.hljs-string,
+.hljs-addition {
+  color: var(--status-success);
+}
+.hljs-deletion {
+  color: var(--status-danger);
+}
+.hljs-number {
+  color: var(--syntax-number);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-built_in {
+  color: var(--syntax-function);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable {
+  color: var(--fg);
+}
+.hljs-tag,
+.hljs-name {
+  color: var(--accent-text);
+}
+.hljs-meta,
+.hljs-punctuation {
+  color: var(--muted);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+
+/* Real gap fixed 2026-09-11 (user: "ko có lịch sử tool search show trên UI
+ * chat khi tìm kiếm xong gồm link ntn") — this app never rendered a single
+ * `<a>` before (Conversation.tsx's own `linkify()`, applied to assistant
+ * replies and expanded tool-pill results). `--accent-text`, not `--accent`
+ * directly — same WCAG-contrast-safe alias
+ * `.fh-history-chat-row.active .fh-history-chat-row-title` already uses for
+ * accent-on-text (plain `--accent` as text fails AA on some real
+ * backgrounds, see that rule's own comment); this app has never shipped a
+ * default-blue link since the orange rebrand either. */
+.fh-link {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 0.15em;
+  word-break: break-all;
+}
+
+.fh-link:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Collapsed tool-call pill (2026-09-10, "làm UI UX lại cho casual như các
+ * platform ai agent") — replaces the old always-expanded `.card`/
+ * `.card-error` (2 separate raw monospace cards per tool call, one for
+ * the call, one for the result) and `.divider` (a "lượt {n}" turn marker,
+ * removed entirely — see Conversation.tsx's own `turn/start` comment for
+ * why). Same 12px radius/raised-surface/subtle-border shell `.card` used
+ * (real dsh tool-call card convention, `GenericCommandCard`'s real CSS) —
+ * this is a restructure for the collapse/expand interaction, not a new
+ * visual language. */
+.tool-pill {
+  align-self: flex-start;
+  max-width: 85%;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+  overflow: hidden;
+}
+
+.tool-pill-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  width: 100%;
+  padding: 0.5em 0.8em;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-pill-header:hover {
+  background: var(--bg-hover);
+}
+
+.tool-pill-chevron {
+  margin-left: auto;
+  flex: none;
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.tool-pill.expanded .tool-pill-chevron {
+  transform: rotate(180deg);
+}
+
+.tool-pill-error .tool-pill-header {
+  color: var(--error);
+}
+
+/* Real bug fixed 2026-09-11 (user: "UI đang bị shrink khi bị tràn thành
+ * scroll") — this had no `max-height`/`overflow-y` of its own at all, so a
+ * long real tool result (e.g. a full duckduckgo_web_search result set, now
+ * several lines per result plus clickable links) grew this pill without any
+ * bound. `.tool-pill` itself sits inside `#log` (`flex:1; min-height:0;
+ * overflow-y:auto`) — an unbounded pill just pushed `#log`'s scrollable
+ * content taller instead of scrolling on its own, which is what actually
+ * read as "the UI shrinking": the rest of the pill (and anything after it)
+ * got shoved down/out of the visible area rather than the long result
+ * staying contained. Capped like a real deliberate detail panel, with its
+ * own internal scroll instead of growing forever. */
+.tool-pill-detail {
+  padding: 0 0.8em 0.7em;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 0.1em;
+  padding-top: 0.6em;
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--muted);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.tool-pill-args {
+  margin-bottom: 0.5em;
+}
+
+/* `SearchSourcesPill` (2026-09-15) — reuses `.tool-pill`'s shell
+ * (background/border/radius/collapse-expand) wholesale; `.search-pill`
+ * only overrides what's genuinely different: a real list of numbered
+ * sources instead of monospace args/result text. */
+.search-pill-detail {
+  font-family: var(--fh-font, inherit);
+  white-space: normal;
+}
+
+.search-pill-list {
+  margin: 0;
+  padding-inline-start: 1.4em;
+}
+
+.search-pill-list li {
+  margin: 0 0 0.7em;
+}
+.search-pill-list li:last-child {
+  margin-bottom: 0;
+}
+
+.search-pill-source-link {
+  font-weight: 500;
+}
+
+.search-pill-snippet {
+  margin-top: 0.15em;
+  color: var(--muted);
+}
+
+.search-pill-published {
+  margin-top: 0.15em;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.search-pill-truncated {
+  margin-top: 0.6em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* `DataStudioResultPill` (docs/data-studio-agent-transfer-plan.md) — same
+ * `.tool-pill` shell; `.data-studio-pill-detail` stacks answer/chart/SQL/
+ * table sections, each already styled by Markdown.tsx/ChartView.tsx. */
+.data-studio-pill-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+  font-family: var(--fh-font, inherit);
+  white-space: normal;
+}
+
+.data-studio-error {
+  color: var(--error);
+}
+
+.data-studio-truncated {
+  padding-top: 0.5em;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.chart-view {
+  width: 100%;
+}
+
+.chart-view-title {
+  margin-bottom: 0.4em;
+  font-weight: 500;
+  font-size: 0.9em;
+  color: var(--muted);
+}
+
+.notice {
+  align-self: center;
+  font-size: 0.8em;
+  color: var(--error);
+}
+
+.notice-muted {
+  color: var(--muted);
+}
+
+/* Conversation.tsx: shown while a reply runs, from `turn/start` to `turn/end`. */
+.fh-run-status {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.fh-run-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.fh-run-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: fh-run-dot 1.2s ease-in-out infinite;
+}
+
+.fh-run-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.fh-run-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes fh-run-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fh-run-elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+.fh-stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+/* Phase 14: real dsh composer convention (`InputBar.module.css`'s real
+ * `.card`) — a floating rounded card, NOT a full-width bar with a top
+ * border. 22px radius matches `.bubble` above exactly, on purpose (real
+ * dsh does the same — same radius language for both). `position: relative`
+ * (used to anchor the `/`-command dropdown's `position: absolute` above
+ * it) removed 2026-09-10 along with that whole feature — nothing else
+ * inside this form needs a positioning context. */
+/* Follow-up (2026-09-11, user: "khung chat sai — textarea phải nằm trên
+ * nút send"): real chat platforms (chat.deepseek.com/ChatGPT/claude.ai)
+ * stack the composer — textarea spans the full card width on top, Send
+ * sits in its own row underneath, right-aligned — not side-by-side in 1
+ * row. `flex-direction: column` (was a single flex row); the previous
+ * `align-items: flex-end` note about anchoring Send to the textarea's
+ * bottom no longer applies now that they're stacked rows, not row-mates. */
+#send-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin: 0 1em 1em;
+  padding: 0.75em 1em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-lv2);
+}
+
+/* Send's own row below the textarea, right-aligned — the only action the
+ * composer has today, but a real row (not just `align-self` on the
+ * button) so a 2nd future action (attach, model picker, ...) has an
+ * obvious place to land on the left without restructuring this again. */
+.fh-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Files bar of a data-analysis chat (WorkspacePanel.tsx), top of the composer. */
+.fh-workspace-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.fh-workspace-bar .fh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.fh-workspace-list {
+  list-style: none;
+  margin: 0.4em 0 0;
+  padding: 0;
+  max-height: 12em;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.fh-workspace-file {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  width: 100%;
+  padding: 0.4em 0.75em;
+  background: none;
+  color: var(--fg);
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.fh-workspace-file:hover {
+  background: var(--bg-hover);
+}
+
+.fh-workspace-file-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-workspace-file-size,
+.fh-workspace-empty {
+  color: var(--fg-muted, var(--fg));
+  opacity: 0.7;
+  font-size: 0.85em;
+}
+
+.fh-workspace-empty {
+  padding: 0.5em 0.75em;
+}
+
+.fh-workspace-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  cursor: zoom-out;
+}
+
+.fh-workspace-preview img {
+  max-width: 90vw;
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 8px;
+}
+
+/* No border at all, in every state including focus (2026-09-10, user:
+ * "khi input focus ko cần outline cam cũng như border input là ko cần
+ * thiết cho input chat") — `#text-input`'s ID specificity (1,0,0) already
+ * beats the shared `input[type="text"]`/`input[type="text"]:focus` base
+ * rule (0,2,1) regardless of state, so this one declaration covers both
+ * the resting AND focused look; no separate `:focus` override needed.
+ * Every OTHER text input in the app (login, search, HistoryChat's rename
+ * field, ...) keeps the shared base rule's real border/focus-color
+ * untouched — this opt-out is scoped to the chat composer specifically,
+ * which already sits inside its own bordered `#send-form` card. */
+/* 2026-09-11: composer switched from a single-line `<input>` to a
+ * `<textarea>` (multi-line + max-10-lines-then-scroll, raised from 6 same
+ * day) — the shared `input[type="text"]` base rule above no longer
+ * matches this element at all, so `background`/`color`/`padding` that
+ * rule used to supply are now declared here explicitly instead of relying
+ * on it. `resize: none` (no drag-handle — height is driven by JS
+ * auto-grow, `Conversation.tsx`, not user dragging) + `overflow-y: auto` +
+ * `max-height: 15em` (10 lines × the `1.5` line-height below) is the
+ * whole "max ~10 lines then scroll" behavior — JS only grows
+ * `style.height` to fit content; the browser clips at `max-height` and
+ * shows the scrollbar on its own. Real bug fixed same day: `flex: 1` here
+ * was a leftover from when `#send-form` was still `flex-direction: row`
+ * (textarea filling horizontal space next to Send). Now that `#send-form`
+ * is `flex-direction: column`, `flex: 1` makes the textarea a MAIN-axis
+ * (vertical) flex item with `flex-basis: 0%` — flexbox's own main-size
+ * calculation then wins over the JS-set `style.height`, silently capping
+ * growth partway (user-reported: stuck around line 4, never reaching the
+ * real 10-line cap). Dropped entirely — `#send-form`'s default
+ * `align-items: stretch` already fills the textarea's width with no flex
+ * property needed, and height is fully JS-driven again. */
+#text-input {
+  border: none;
+  resize: none;
+  overflow-y: auto;
+  min-height: 1.5em;
+  max-height: 15em;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  /* Phase 14: real dsh composer text size (`InputBar.module.css`'s real
+   * `font-size:16px; line-height:24px` — exactly `--dsw-font-base-16`). */
+  font: var(--fh-text-base, 1em/1.5 inherit);
+}
+
+#text-input:focus {
+  outline: none;
+}
+
+/* Real UI added 2026-09-10 — Settings > General's language control used to
+ * be a bare native `<select>` (the generic `select {}`/`select:focus`
+ * rules that used to live here) — replaced by a real trigger + popup
+ * (`features/LanguageSelect.tsx`). Same-day follow-up: also replaces
+ * `LangToggle.tsx` on the pre-login auth screen (deleted, this was its
+ * only other call site), so this trigger now sizes itself the same way
+ * the old native `select {}` rule did (a real `min-width`, no `width:
+ * 100%`/fixed `max-width`) rather than assuming ONE specific layout
+ * context — it sits as a full-width block in Settings' field-group AND as
+ * a compact item in the auth screen's flex-row corner cluster
+ * (`.fh-auth-screen-controls`), and needs to look right in both. */
+.fh-lang-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  min-width: 160px;
+  height: 34px;
+  padding: 0 0.75em;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85em;
+}
+
+.fh-lang-select-trigger:hover {
+  background: var(--bg-hover);
+}
+
+/* Real bug fixed 2026-09-15 (user: "dropdown đổi lang trong cài đặt chung
+ * đang ko trigger check") — `z-index: 50` put this BEHIND
+ * `.fh-settings-dialog`'s `z-index: 1000` whenever opened from Settings >
+ * General (both `position: fixed`, both portaled to `document.body` as
+ * siblings — real stacking order follows z-index across sibling stacking
+ * contexts regardless of DOM order, not just "whoever mounted last wins").
+ * The popup rendered fully hidden behind the modal, so a click on where an
+ * option visually would be actually landed on the modal underneath instead
+ * — reads exactly as "the dropdown doesn't do anything," not a rendering
+ * glitch, since nothing looked visibly wrong (the trigger button + its
+ * chevron are OUTSIDE the popup, still visible and clickable — only the
+ * popup that opens on click was affected). Only breaks inside Settings —
+ * this component's OTHER mount point (the pre-login auth screen, no modal
+ * wrapping it) was never affected, matching the user's own report scoping
+ * it to "trong cài đặt chung" specifically. `1001`, not just a large
+ * arbitrary number — one above the one real modal it needs to clear. */
+.fh-lang-select-popup {
+  position: fixed;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lv2);
+  padding: 4px;
+  z-index: 1001;
+}
+
+/* Phase 12 item 5: a real settings dialog shell — see index.html's own
+ * comment for why this is shell-native chrome (mask + panel + heading), not
+ * a plugin mount target. 2026-09-10: now a real 2-tab (General/Profile)
+ * nav-rail shell after all — see SettingsDialog.tsx's own comment for why
+ * that earlier "not dsh's nav-rail tab-switching" choice got reversed. */
+/* Phase 14: real dsh settings-dialog convention (`SettingsRoot.module.css`,
+ * read directly) — `z-index:1000` (the real literal, not this project's old
+ * ad hoc `10`), a blurred mask (`backdrop-filter`), and 24px radius — the
+ * single largest real radius value found anywhere in dsh's source, reserved
+ * for exactly this: the one big modal in the app. */
+.fh-settings-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fh-settings-mask {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-mask);
+  backdrop-filter: blur(2px);
+}
+
+/* Widened 2026-09-10 (560px -> 720px) — a single-column stack fit in
+ * 560px, a real left nav rail + content area needs real room for both. */
+.fh-settings-panel {
+  position: relative;
+  width: min(720px, 92vw);
+  height: min(520px, 80vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lv3);
+}
+
+.fh-settings-panel-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75em 1em;
+  border-bottom: 1px solid var(--border);
+}
+
+.fh-settings-panel-header h2 {
+  margin: 0;
+  /* Phase 14: real dsh modal-title size, exactly `--dsw-font-l-20`
+   * (500 20px/28px) — confirmed for this specific use (onboarding modal
+   * title) in the real source, not just the general scale. */
+  font: var(--fh-text-l, 500 1.4em/1.4 inherit);
+}
+
+/* Body row (2026-09-10) — nav rail + content, below the header. Replaces
+ * the old single-column `.fh-settings-sections` stack. */
+.fh-settings-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.fh-settings-nav {
+  flex: none;
+  width: 180px;
+  padding: 0.75em;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fh-settings-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1em 1.25em;
+}
+
+.fh-settings-field-group {
+  margin-bottom: 1.5em;
+}
+
+.fh-settings-section-title {
+  font: var(--fh-text-s-strong, 600 1em/1.4 inherit);
+  margin-bottom: 0.6em;
+  color: var(--fg);
+}
+
+/* General tab's Theme picker — 2 real selectable cards (Light/Dark),
+ * matching the reference screenshot; each sets an explicit target via
+ * `useTheme.ts`'s `setTheme()`, not a toggle. */
+.fh-settings-theme-options {
+  display: flex;
+  gap: 0.75em;
+}
+
+/* Visual identity moved into `.fh-selectable-card` (Primitives section
+ * above) — including the real bug fix that section's own comment
+ * describes (base `button {height:34px}` was clamping this). */
+
+/* Profile tab's info rows — label left, real value right, divider between
+ * rows (matches the reference screenshot's row layout). Only the real
+ * field this app actually has (email) — see SettingsDialog.tsx's own
+ * comment for why Name/Phone/Role/"log out of all devices"/"delete
+ * account" from the reference are deliberately NOT here. */
+.fh-settings-profile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75em 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9em;
+}
+
+.fh-settings-profile-row:last-child {
+  border-bottom: none;
+}
+
+.fh-settings-profile-value {
+  color: var(--muted);
+}
+
+/* Real Logout action (2026-09-10) at the end of the Profile tab, right-
+ * aligned — a second real entry point to the same `handleLogout` the
+ * sidebar's AccountMenu popup already calls, not a duplicate fake one. */
+.fh-settings-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1em;
+}
+
+/* Visual identity moved into `.fh-btn-outline`/`.fh-btn-outline-md`
+ * (Primitives section above). */
+
+/* Phase 14: real dsh scrollbar convention (`--dsh-scrollbar-width:8px` +
+ * dedicated thumb-color tokens, read from the real source) — applied to
+ * this app's 2 real scrolling regions. Webkit-only (`::-webkit-scrollbar`
+ * has no standard equivalent for Firefox short of the coarser
+ * `scrollbar-width`/`scrollbar-color` properties, added alongside it here
+ * for the same visual intent, not a full re-implementation). */
+#log,
+.fh-sidebar-region,
+.tool-pill-detail {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+#log::-webkit-scrollbar,
+.fh-sidebar-region::-webkit-scrollbar,
+.tool-pill-detail::-webkit-scrollbar {
+  width: 8px;
+}
+
+#log::-webkit-scrollbar-thumb,
+.fh-sidebar-region::-webkit-scrollbar-thumb,
+.tool-pill-detail::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+#log::-webkit-scrollbar-thumb:hover,
+.fh-sidebar-region::-webkit-scrollbar-thumb:hover,
+.tool-pill-detail::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+#log::-webkit-scrollbar-track,
+.fh-sidebar-region::-webkit-scrollbar-track,
+.tool-pill-detail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---- Skills (docs/skill-transfer-plan.md) ---- */
+
+/* Sidebar entry under "New chat". */
+.fh-sidebar-skills {
+  flex: none;
+  margin: 0 2px 8px;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-skills {
+  width: 36px;
+  justify-content: center;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-skills-label {
+  display: none;
+}
+
+/* ---- Data analysis flow (docs/data-analysis-flow-plan.md) ---- */
+
+/* Sidebar entry under "Skills". */
+.fh-sidebar-data-analysis {
+  flex: none;
+  margin: 0 2px 8px;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-data-analysis {
+  width: 36px;
+  justify-content: center;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-data-analysis-label {
+  display: none;
+}
+
+/* Data Studio entry (docs/data-studio-agent-transfer-plan.md) — same rail-mode
+ * collapse behavior as the data-analysis entry above. */
+.fh-sidebar-data-studio {
+  flex: none;
+  margin: 0 2px 8px;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-data-studio {
+  width: 36px;
+  justify-content: center;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-sidebar-data-studio-label {
+  display: none;
+}
+
+/* Skills dialog — the Settings dialog shell, larger. */
+.fh-skills-panel {
+  width: min(1040px, 94vw);
+  height: min(700px, 88vh);
+}
+
+.fh-skills-list {
+  width: 240px;
+  overflow-y: auto;
+}
+
+.fh-skills-list-title {
+  margin: 1em 0.75em 0.35em;
+  font-size: 0.75em;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.fh-skills-list-empty {
+  padding: 0.25em 0.75em;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.fh-skills-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-skills-form {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding: 1em 1.25em;
+  overflow-y: auto;
+}
+
+.fh-skills-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.fh-skills-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fh-skills-field-label {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.fh-skills-field-hint {
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+/* Noto/DejaVu first: plain `monospace` lacks precomposed Vietnamese glyphs
+ * on some Linux setups. */
+.fh-skills-textarea {
+  font:
+    13px/1.55 "Noto Sans Mono",
+    "DejaVu Sans Mono",
+    ui-monospace,
+    monospace;
+  padding: 0.6em 0.7em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  resize: vertical;
+}
+
+.fh-skills-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.fh-skills-description {
+  font: inherit;
+  resize: none;
+}
+
+.fh-skills-content {
+  flex: 1;
+  min-height: 14em;
+}
+
+.fh-skills-content .fh-skills-textarea {
+  flex: 1;
+  resize: none;
+}
+
+/* "Expand": the content editor covers the whole form area. */
+.fh-skills-content-expanded {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1em 1.25em;
+  background: var(--bg);
+  border-radius: 0 0 24px 0;
+}
+
+.fh-skills-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5em;
+}
+
+.fh-skills-readonly-name {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.fh-skills-readonly-desc {
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* "/" skill picker, anchored above the composer. */
+#send-form {
+  position: relative;
+}
+
+.fh-skill-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lv2);
+  z-index: 20;
+}
+
+.fh-skill-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  height: auto;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fh-skill-menu-item.active {
+  background: var(--bg-hover);
+}
+
+.fh-skill-menu-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.fh-skill-menu-badge {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.75em;
+  font-weight: 500;
+}
+
+.fh-skill-menu-desc {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+/* Data-analysis project hub (docs/rlm-transfer-plan.md 9.1) — layout from
+ * agent-core's packages/ui-projects/src/ProjectHub.module.css, on fox tokens.
+ * It fills the center column (wider than the chat's 760px). Its buttons reset
+ * the global `button` rule's fixed 34px height and 12px radius. */
+#center-col > .fh-hub-scroll {
+  max-width: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.fh-hub {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 34px 18px 56px;
+  color: var(--fg);
+}
+
+.fh-hub-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 34px;
+}
+
+.fh-hub h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.fh-hub-eyebrow {
+  margin: 0 0 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fh-hub-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fh-hub-search {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 270px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.fh-hub-search input,
+.fh-hub-create input,
+.fh-hub-composer input,
+.fh-hub-title-input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+
+.fh-hub-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: auto;
+  min-height: 40px;
+  padding: 0 17px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.fh-hub-pill-primary {
+  border-color: var(--fg);
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.fh-hub-pill:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.fh-hub-create {
+  display: flex;
+  gap: 10px;
+  margin: -16px 0 24px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.fh-hub-create input {
+  padding: 0 10px;
+}
+
+.fh-hub-table-head,
+.fh-hub-project-row {
+  display: grid;
+  grid-template-columns: 1fr 210px;
+  align-items: center;
+  text-align: left;
+}
+
+.fh-hub-table-head {
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fh-hub-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.fh-hub-project-row,
+.fh-hub-content-row {
+  width: 100%;
+  height: auto;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fh-hub-project-row {
+  padding: 15px 2px;
+}
+
+.fh-hub-project-row:hover,
+.fh-hub-content-row:hover {
+  background: var(--bg-hover);
+}
+
+.fh-hub-project-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.fh-hub-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-hub-folder {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.fh-hub-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.fh-hub-header h1 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-hub-title-input {
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.fh-hub-icon-btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.fh-hub-icon-btn:hover {
+  background: var(--bg-hover);
+}
+
+.fh-hub-composer {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 58px;
+  padding: 8px 9px 8px 18px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+}
+
+.fh-hub-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fh-hub-tabs button {
+  height: auto;
+  padding: 11px 17px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fh-hub-tabs button span {
+  margin-left: 6px;
+  opacity: 0.65;
+}
+
+.fh-hub-tabs button.active {
+  border-bottom-color: var(--fg);
+  color: var(--fg);
+  font-weight: 650;
+}
+
+.fh-hub-content-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 8px;
+  text-align: left;
+}
+
+.fh-hub-content-row > span,
+.fh-hub-output-file > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fh-hub-content-row strong,
+.fh-hub-output-file strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fh-hub-content-row small,
+.fh-hub-output-file small {
+  color: var(--muted);
+}
+
+.fh-hub-sources {
+  padding-top: 18px;
+}
+
+.fh-hub-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: auto;
+  padding: 35px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 18px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fh-hub-dropzone span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fh-hub-progress {
+  width: min(360px, 80%);
+  height: 5px;
+  margin-top: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.fh-hub-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.fh-hub-outputs {
+  display: grid;
+  gap: 28px;
+  padding-top: 22px;
+}
+
+.fh-hub-output-group {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.fh-hub-output-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  background: var(--surface);
+}
+
+.fh-hub-output-heading h2 {
+  margin: 0 0 5px;
+  font-size: 16px;
+}
+
+.fh-hub-output-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fh-hub-output-heading > span {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fh-hub-output-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fh-hub-output-row:last-child {
+  border-bottom: 0;
+}
+
+.fh-hub-output-file {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  height: auto;
+  padding: 15px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fh-hub-promote {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fh-hub-promote:hover {
+  background: var(--bg-hover);
+}
+
+.fh-hub-empty {
+  padding: 44px 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Link back to the project above a chat that belongs to one. */
+.fh-chat-project-bar {
+  display: flex;
+  padding: 10px 16px 0;
+}
+
+.fh-chat-project-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .fh-hub-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .fh-hub-actions {
+    align-items: stretch;
+  }
+
+  .fh-hub-search {
+    width: 100%;
+  }
+
+  .fh-hub-table-head,
+  .fh-hub-project-row {
+    grid-template-columns: 1fr 100px;
+  }
+
+  .fh-hub-output-row {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0 10px 12px;
+  }
+}
+
+/* ---- Data Studio route (docs/data-studio-agent-transfer-plan.md) ---- */
+
+.fh-data-studio-coming-soon {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.fh-data-studio-coming-soon h2 {
+  margin: 0 0 8px;
+  font-size: 1.1em;
+  color: var(--fg);
+}
+
+.fh-data-studio-coming-soon p {
+  margin: 0;
+}
+
+/* Always-expanded DataStudioResultPill (Conversation `variant="data-studio"`)
+ * — the header is a plain status line (no button/chevron), body never
+ * collapses; `.tool-pill-header`'s own base rule already resets button-only
+ * chrome, which a plain `<div>` here simply doesn't have to begin with. */
+.data-studio-pill-static .tool-pill-header {
+  cursor: default;
+}
+
+/* Data Sources admin (docs/data-studio-admin-ui-plan.md) — a plain data
+ * table; wide enough to need its own horizontal scroll. `#center-col > *`
+ * (an ID selector) beats a plain class regardless of source order — matched
+ * here with `#center-col > .fh-data-studio-admin`, same fix already applied
+ * to `.fh-session-title-bar`/`.fh-hub-scroll` for the same reason. */
+#center-col > .fh-data-studio-admin {
+  max-width: none;
+  width: 100%;
+  padding: 24px 32px;
+  overflow-x: auto;
+}
+
+.fh-data-studio-admin-header {
+  margin-bottom: 16px;
+}
+
+.fh-data-studio-admin-header h2 {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.fh-data-studio-crumb-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font-size: 1.05em;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.fh-data-studio-crumb-back:hover {
+  color: var(--accent);
+}
+
+.fh-data-studio-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.fh-data-studio-table th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.fh-data-studio-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.fh-data-studio-table input[type="text"],
+.fh-data-studio-table input:not([type]),
+.fh-data-studio-table select {
+  width: 100%;
+  min-width: 120px;
+}
+
+.fh-data-studio-mono {
+  font-family: monospace;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.fh-data-studio-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px !important;
+}
+
+.fh-data-studio-loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.fh-data-studio-add-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.fh-data-studio-add-form input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.fh-data-studio-relationship-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.fh-data-studio-relationship-arrow {
+  color: var(--muted);
+}
+
+.fh-data-studio-admin-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fh-data-studio-dremio-browse {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.fh-data-studio-dremio-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.fh-data-studio-dremio-list li {
+  padding: 4px 0;
+}
+
+.fh-data-studio-dremio-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fh-data-studio-sync-summary {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.fh-data-studio-widget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fh-data-studio-widget {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.fh-data-studio-widget-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+/* Conversation.tsx's PinToDashboardButton */
+.data-studio-pin {
+  position: relative;
+  display: inline-block;
+}
+
+.data-studio-pin-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.data-studio-pin-popup button {
+  text-align: left;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.data-studio-pin-popup button:hover {
+  background: var(--surface-hover, rgba(127, 127, 127, 0.1));
+}
+
+.data-studio-pin-loading {
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+/* ---- Data Studio chat answer (DataStudioAnswer.tsx) ------------------------------------------
+ * The `analyze_data` reply rendered inline in the Data Studio route, like a normal assistant
+ * message: answer prose, SQL toggle, chart + "recommended visualizations" switcher, row count,
+ * assumptions and follow-up suggestions. Layout modeled on examples/example-data-studio-agent. */
+.ds-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 100%;
+  font-family: var(--fh-font, inherit);
+}
+
+.ds-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.ds-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: fh-spin 0.8s linear infinite;
+}
+
+.ds-error {
+  padding: 10px 12px;
+  border: 1px solid var(--error);
+  border-radius: var(--radius-md);
+  color: var(--error);
+  font-size: 0.9em;
+}
+
+.ds-sql {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ds-sql-toggle {
+  height: auto; /* the global `button` rule fixes 34px */
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8em;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ds-sql-toggle:hover {
+  color: var(--fg);
+}
+
+.ds-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+
+.ds-visual .chart-view-title {
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.ds-section-label {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.7em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ds-view-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.ds-view-card {
+  height: auto; /* the global `button` rule fixes 34px */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fh-duration-fast, 0.1s), border-color var(--fh-duration-fast, 0.1s);
+}
+
+.ds-view-card svg {
+  color: var(--muted);
+}
+
+.ds-view-card:hover {
+  background: var(--surface);
+}
+
+.ds-view-card.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.ds-view-card.active svg {
+  color: var(--accent);
+}
+
+.ds-view-card-title {
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.ds-view-card-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.75em;
+}
+
+.ds-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+.ds-meta .data-studio-pin {
+  margin-left: auto;
+}
+
+.ds-table-wrap {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.ds-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+.ds-table th {
+  position: sticky;
+  top: 0;
+  padding: 6px 10px;
+  background: var(--surface);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ds-table td {
+  max-width: 320px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--border-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-assumptions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+.ds-assumptions li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.ds-assumptions svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ds-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ds-suggestion {
+  height: auto; /* the global `button` rule fixes 34px */
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 0.9em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ds-suggestion svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.ds-suggestion:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* ---- Data Studio chart dialogs, toolbar, dashboards (list / report / builder) ----------------------
+ * Port of examples/example-data-studio-agent's chart-view dialogs and dashboards pages
+ * (Modal.tsx, ChartDialogs.tsx, DataStudioAnswer.tsx, DataStudioDashboards.tsx, DashboardHeader.tsx). */
+.ds-muted {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.ds-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ds-toolbar button,
+.ds-modal-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ds-views-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ds-views-head .ds-section-label {
+  margin-bottom: 0;
+}
+
+.ds-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: conic-gradient(#3b82f6, #10b981, #f59e0b, #ef4444, #8b5cf6, #3b82f6);
+}
+
+.ds-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 160px;
+  height: 100%;
+}
+
+.ds-stat-value {
+  font-size: 3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-stat-label {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+/* Modal (Modal.tsx) — reuses the Settings dialog's mask/panel, but sizes to its content. */
+.ds-modal-panel {
+  height: auto;
+  max-height: 86vh;
+  width: min(520px, 92vw);
+}
+
+.ds-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 18px;
+}
+
+.ds-modal-desc {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.ds-modal-footer {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.ds-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ds-field > span:first-child {
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.ds-field-divided {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ds-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ds-field-row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.ds-field-row > button {
+  flex: none;
+}
+
+.ds-field-row select,
+.ds-field select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+
+.ds-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.ds-color-row {
+  justify-content: space-between;
+}
+
+.ds-color-row input[type="color"] {
+  flex: none;
+  width: 56px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ds-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.ds-pick {
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+}
+
+.ds-pick:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent);
+}
+
+/* Dashboards --------------------------------------------------------------------------------- */
+.ds-dash-list-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ds-dash-list-head p {
+  margin: 4px 0 0;
+}
+
+.ds-dash-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.ds-dash-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--fh-duration-fast, 0.1s);
+}
+
+.ds-dash-card:hover {
+  border-color: var(--accent);
+}
+
+.ds-dash-card-main {
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+}
+
+.ds-dash-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.ds-dash-card-title svg {
+  color: var(--accent);
+}
+
+.ds-dash-card-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.ds-dash-card-meta {
+  margin-top: auto;
+}
+
+.ds-dash-card-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+}
+
+.ds-dash-card:hover .ds-dash-card-delete {
+  opacity: 1;
+}
+
+.ds-dash-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+}
+
+.ds-dash-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 40px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--muted);
+  text-align: center;
+}
+
+.ds-dash-pad {
+  padding: 24px 32px;
+}
+
+/* full-height page (report + builder) inside #center-col */
+#center-col > .ds-dash-page {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ds-dash-topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ds-dash-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+}
+
+.ds-dash-back:hover {
+  color: var(--fg);
+}
+
+.ds-dash-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.ds-dash-body {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 28px 32px;
+}
+
+.ds-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-auto-rows: 70px;
+}
+
+.ds-dash-widget {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ds-dash-widget-title {
+  margin-bottom: 6px;
+  overflow: hidden;
+  font-size: 0.95em;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-dash-widget-plot {
+  flex: 1;
+  min-height: 0;
+}
+
+.ds-dash-text {
+  font-size: 0.9em;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.ds-dash-center {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.ds-dash-header {
+  padding: 32px 32px;
+}
+
+.ds-dash-header-inner {
+  max-width: 1152px;
+  margin: 0 auto;
+}
+
+.ds-dash-header h1 {
+  margin: 0;
+  font-size: 1.9em;
+  font-weight: 700;
+}
+
+.ds-dash-header p {
+  margin: 8px 0 0;
+}
+
+.ds-dash-header-eyebrow {
+  color: var(--accent-text);
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ds-dash-header-kpi {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.ds-dash-header-kpi p {
+  color: var(--muted);
+}
+
+.ds-dash-header-gradient {
+  background: linear-gradient(135deg, #4f7be8, #9069d8, #d85e72, #e89f4a);
+  color: #fff;
+}
+
+.ds-dash-header-gradient p {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.ds-dash-header-two-tone {
+  background: #0a0a0a;
+  color: #fff;
+}
+
+.ds-dash-header-two-tone h1 {
+  font-size: 1.6em;
+}
+
+.ds-dash-header-two-tone p {
+  color: #a3a3a3;
+}
+
+.ds-dash-header-minimal {
+  padding-bottom: 8px;
+}
+
+.ds-dash-header-minimal h1 {
+  font-size: 1.6em;
+}
+
+.ds-dash-header-minimal p {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+/* Builder ----------------------------------------------------------------------------------- */
+.ds-builder {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.ds-builder-side {
+  flex: none;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+
+.ds-builder-panel {
+  width: 280px;
+  gap: 18px;
+  border-right: 0;
+  border-left: 1px solid var(--border);
+}
+
+.ds-builder-divider {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ds-builder-chart {
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.9em;
+  text-align: left;
+}
+
+.ds-builder-chart:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.ds-builder-chart-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.ds-builder-chart-title svg {
+  color: var(--accent);
+}
+
+.ds-builder-preview-header {
+  pointer-events: none;
+}
+
+.ds-builder-title {
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 1.7em;
+  font-weight: 700;
+  outline: none;
+}
+
+.ds-builder-hint {
+  margin: 0 0 14px;
+}
+
+.ds-builder-grid {
+  position: relative;
+}
+
+.ds-builder-widget {
+  position: relative;
+  padding: 12px;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.ds-builder-widget.selected {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent) !important;
+}
+
+.ds-builder-widget-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ds-builder-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: inline-flex;
+  height: auto;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+}
+
+.ds-builder-widget:hover .ds-builder-remove {
+  opacity: 1;
+}
+
+.ds-builder-remove:hover {
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+  color: var(--error);
+}
+
+.ds-builder-textarea {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9em;
+  outline: none;
+}
+
+.ds-builder-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  border-bottom-right-radius: 12px;
+  background: linear-gradient(135deg, transparent 50%, var(--border) 50%, var(--border) 70%, transparent 70%);
+  cursor: se-resize;
+}
+
+.ds-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ds-panel-section .ds-section-label {
+  margin-bottom: 0;
+}
+
+.ds-panel-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.ds-panel-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.ds-panel-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.ds-panel-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.ds-panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ds-panel-btn,
+.ds-panel-option {
+  height: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.9em;
+}
+
+.ds-panel-btn:hover,
+.ds-panel-option:hover {
+  background: var(--surface);
+}
+
+.ds-panel-btn.active,
+.ds-panel-option.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.ds-panel-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.ds-panel-option-title {
+  font-weight: 600;
+}
+
+.ds-theme-swatch {
+  height: 36px;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.ds-theme-swatch.active {
+  border-color: var(--accent);
+}
+
+/* "Lưu PDF" = print the report: hide the app chrome, let the report flow across pages. */
+@media print {
+  body.ds-printing #sidebar-col,
+  body.ds-printing .ds-dash-topbar,
+  body.ds-printing [data-sonner-toaster],
+  body.ds-printing .fh-settings-dialog {
+    display: none !important;
+  }
+
+  body.ds-printing,
+  body.ds-printing #app,
+  body.ds-printing #center-col,
+  body.ds-printing .ds-dash-page,
+  body.ds-printing .ds-dash-scroll {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body.ds-printing .ds-report {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.ds-printing .ds-dash-widget {
+    break-inside: avoid;
+  }
+}

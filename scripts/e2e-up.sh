@@ -1,7 +1,8 @@
 #!/bin/sh
 # Starts the throwaway stack scripts/e2e-backend.mjs tests: MariaDB + Redis + MinIO + the backend image + the web
 # image on a private docker network, and the mock LLM on the host (port 4999). Needs fox-harness-backend:dev and
-# fox-harness-web:dev (docker build -f infra/docker/{backend,web}/Dockerfile ...). Web is published on :18080.
+# fox-harness-web:dev (`docker compose build`, or docker build ./api and ./app). Web is published on :18080.
+# Needs scripts/node_modules (`cd scripts && pnpm install`) for e2e-backend.mjs.
 set -e
 cd "$(dirname "$0")/.."
 NET=foxe2e
@@ -13,7 +14,7 @@ pkill -f "scripts/mock-llm.mjs" 2>/dev/null || true
 MOCK_BIND=0.0.0.0 nohup node scripts/mock-llm.mjs 4999 >/tmp/foxe2e-mock.log 2>&1 &
 
 docker run -d --name foxe2e-mariadb --network $NET -e MARIADB_ROOT_PASSWORD=x -e MARIADB_DATABASE=discovery-agent \
-  -v "$PWD/infra/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro" mariadb:10.11 \
+  -v "$PWD/api/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro" mariadb:10.11 \
   --character-set-server=latin1 --collation-server=latin1_swedish_ci >/dev/null
 # ^ latin1 on purpose: the worst default a provisioned MariaDB can have. 001_init.sql must declare utf8mb4 per table
 # (measured: without it a Vietnamese/emoji title fails with ERROR 1366); the unicodeText test proves it does.

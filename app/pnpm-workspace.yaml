@@ -1,0 +1,4 @@
+# app/ is its own pnpm project (no workspace packages): this file only holds pnpm settings.
+# esbuild's postinstall fetches its platform binary — needed to bundle src/main.tsx.
+allowBuilds:
+  esbuild: true

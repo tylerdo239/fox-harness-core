@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // End-to-end test of the two-service deployment (docs/single-backend-architecture-plan.md): a real browser-facing
 // path — nginx (web image) -> gateway -> the agent runtime(s) it started -> mock LLM — with two real users.
-// Everything is driven over HTTP/WebSocket exactly as apps/web does; the only inspection of the backend's
+// Everything is driven over HTTP/WebSocket exactly as app/ (the web UI) does; the only inspection of the backend's
 // insides is `docker exec` (planting a canary file in another user's workspace, reading logs).
 //
 //   scripts/e2e-up.sh        # builds nothing: needs fox-harness-backend:dev and fox-harness-web:dev

@@ -2,11 +2,11 @@
 
 For handing to whoever provisions the database. The actual DDL to run is
 `001_init.sql` in this same folder — the whole current schema in one file
-(canonical source: `infra/migrations/` in the app repo — copied here for
+(canonical source: `api/migrations/` in the app repo — copied here for
 sharing convenience, keep both in sync). It replaces the former
 `001_init.sql` + `002_projects_title_source.sql` pair (merged 2026-10-02). A
 database created from the old `001` alone can be upgraded with the statements
-in `infra/migrations/README.md` (app repo).
+in `api/migrations/README.md` (app repo).
 
 ## Requirements
 
@@ -29,7 +29,7 @@ in `infra/migrations/README.md` (app repo).
 4 tables, **no foreign keys** (the owning system does not want them). `owner_id`
 in `discovery_sessions`/`discovery_projects`/`discovery_custom_skills` is the
 `discovery_users.id` of the owner, kept consistent by the application
-(services/gateway); nothing deletes a user, so there is no cascade to replicate.
+(api/services/gateway); nothing deletes a user, so there is no cascade to replicate.
 Tables can be created in any order.
 
 ### `discovery_users`
@@ -96,7 +96,7 @@ a user can't have two skills with the same name; `createCustomSkill()`
 still detects that via the same `errno 1062` a violated UNIQUE key raises.
 
 `content` (2026-09-14) no longer lives in this table — it's on S3 (or an
-S3-compatible service), written/read by `services/gateway/src/object-storage.ts`.
+S3-compatible service), written/read by `api/services/gateway/src/object-storage.ts`.
 `content_key` is the only trace of it here.
 
 | Column | Type | Constraints |

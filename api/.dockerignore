@@ -1,0 +1,23 @@
+# api/Dockerfile builds from api/ and reinstalls
+# dependencies inside the image — node_modules here would only add weight and
+# platform mismatches. .env must never enter a build context: real credentials
+# reach the backend only at `docker run` time, never baked into an image layer.
+node_modules/
+**/lib/
+**/dist/
+*.tsbuildinfo
+# packages/tool/data-studio-agent/python's venv — a host-built one would be
+# linked to the HOST's python interpreter (e.g. macOS), useless (and
+# discarded/rebuilt anyway) inside the Linux image; excluding it just avoids
+# uploading it into the build context.
+**/.venv/
+**/__pycache__/
+.git/
+# any .env at any depth (e.g. the data-studio worker reads python/.env): a plain `.env` only matches the
+# context root, and a nested one would be baked into the image
+**/.env
+**/.env.*
+!**/.env.example
+data/
+# the data-studio pipeline's per-run markdown traces
+packages/tool/data-studio-agent/python/debug/

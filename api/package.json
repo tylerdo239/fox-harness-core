@@ -1,0 +1,31 @@
+{
+  "name": "fox-harness-core",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "dev": "node --experimental-strip-types services/gateway/src/index.ts",
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json",
+    "clean": "tsc -b tsconfig.json --clean"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh": "0.1.1-rc.2",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "@fox-harness/dsh-core": "workspace:*",
+    "@fox-harness/dsh-transport": "workspace:*",
+    "@fox-harness/dsh-agent-driver": "workspace:*",
+    "@fox-harness/dsh-flow-data-analysis": "workspace:*",
+    "@fox-harness/dsh-llm-openai-compat": "workspace:*",
+    "@fox-harness/dsh-tool-serper-web-search": "workspace:*",
+    "@fox-harness/dsh-tool-create-skill": "workspace:*",
+    "@fox-harness/dsh-tool-python-repl": "workspace:*",
+    "@fox-harness/dsh-tool-data-studio-agent": "workspace:*"
+  }
+}

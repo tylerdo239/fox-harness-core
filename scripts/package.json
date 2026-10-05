@@ -1,0 +1,13 @@
+{
+  "name": "@fox-harness/e2e",
+  "private": true,
+  "description": "End-to-end tests of the two images together (e2e-up.sh / e2e-backend.mjs) and the mock LLM they use.",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "e2e": "node e2e-backend.mjs"
+  },
+  "devDependencies": {
+    "ws": "8.21.3"
+  }
+}

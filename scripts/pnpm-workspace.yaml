@@ -1,0 +1,2 @@
+# scripts/ is its own small pnpm project (the e2e tests need only `ws`).
+packages: []
