@@ -95,8 +95,8 @@ api/packages/
 │   └── src/
 │       ├── loop/                    (= agent-driver)  agent.ts, factory.ts, runtime-context.ts
 │       ├── policy/                  (= core)          model routing, quota, prompt chung
-│       ├── gateway-link/            (= transport)     server.ts (Hub), flows.ts, workspace-guard.ts
-│       └── index.ts                 export 3 plugin: ./loop, ./policy, ./gateway-link
+│       └── transport/               (= transport)     server.ts (Hub), flows.ts, workspace-guard.ts
+│                                    package export 3 plugin: ./loop, ./policy, ./transport
 ├── llm/openai-compat/               plugin: cách gọi LLM
 ├── tool/*                           plugin: tool
 ├── flow/data-analysis/              plugin: luật riêng flow phân tích
@@ -114,7 +114,7 @@ api/packages/
 ### B.3 Các bước
 
 1. **Mốc trước khi gộp:** `agent-loop-parity.mjs`, `dsh --dump-config` (lưu lại), 19 e2e, LLM thật trên 8080 (3 flow).
-2. **Tạo `agent-core`:** `git mv` code ba package vào `src/loop`, `src/policy`, `src/gateway-link`; viết
+2. **Tạo `agent-core`:** `git mv` code ba package vào `src/loop`, `src/policy`, `src/transport`; viết
    `package.json` (exports, gộp dependencies), `tsconfig.json`, gộp ba `cordis.patch.yml`.
 3. **Cập nhật nơi tham chiếu:**
    - `profile.package.json`: bundle `dsh-core`, `dsh-agent-driver`, `dsh-transport` thay bằng `dsh-agent-core`;
@@ -143,3 +143,10 @@ api/packages/
 ### B.5 Không thay đổi
 Hành vi chạy, giao thức với gateway và FE, cấu hình flow, preset, log session, phân quyền. Đây là tổ chức lại code,
 không phải sửa logic.
+
+## Kết quả (2026-10-05, commit 75cf974)
+
+Đã làm theo plan; thư mục thứ ba giữ tên `transport` (không đổi thành `gateway-link`) cho khớp tài liệu và comment.
+`dsh --dump-config` trước và sau giống hệt (85 row, cùng id, thứ tự và cấu hình; chỉ khác tên package),
+`agent-loop-parity.mjs` khớp, e2e 19/19, LLM thật trên 8080 chạy python và web search. Lockfile không có phiên bản
+mới.
