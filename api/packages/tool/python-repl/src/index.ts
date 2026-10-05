@@ -14,7 +14,7 @@ declare module '@deepseek-ai/cordis' {
     /**
      * A tool call the model made that a plugin can run even when no tool by that name is
      * registered. Answer with the call to make instead, or nothing to leave it alone.
-     * Dispatched by @fox-harness/dsh-agent-driver's `runStep` (packages/agent-driver/src/agent.ts).
+     * Dispatched by @fox-harness/dsh-agent-core/loop's `runStep` (packages/agent-core/src/loop/agent.ts).
      */
     'fox/resolve-tool-call'(call: ResolvedToolCall): ResolvedToolCall | undefined
   }
@@ -142,7 +142,7 @@ export function apply(ctx: Context) {
           if (request.kind !== 'history') throw new Error(`unsupported host request "${request.kind}"`)
           return renderTurn(session, Number(request.turn))
         }
-        // `outputDir` rides on the agent's options (packages/transport sets it per session).
+        // `outputDir` rides on the agent's options (packages/agent-core (transport) sets it per session).
         const outputDir = (exec.agent?.options as { outputDir?: string } | undefined)?.outputDir
         const output = await kernel.run(args.code, cwd, CELL_TIMEOUT_MS, exec.signal, turnCount(session), host, outputDir)
         return { output }

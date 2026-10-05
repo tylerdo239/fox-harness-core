@@ -1,4 +1,4 @@
-# @fox-harness/dsh-agent-driver
+# @fox-harness/dsh-agent-core/loop
 
 Owns the entire turn/step flow, replacing `agent-loop` (roadmap §0.2, "nấc 2").
 **Real implementation as of 2026-09-03** — `src/agent.ts` + `src/factory.ts`,
@@ -72,7 +72,7 @@ Both are now folded into the code (`factory.ts`'s class doc comment, and
 - `cancel()`/`runMaintenance()` are simpler than the reference's `FactoryOwnership` race handling.
 - `resume()` (Phase 3, real now — see below) doesn't distinguish revision-stale
   reservation failures from a genuinely unknown session; both surface as one
-  rejection to `packages/transport`'s caller.
+  rejection to `packages/agent-core (transport)`'s caller.
 
 None of these affect the durable event contract's correctness (docs/code-rules.md
 §3) — they trade away concurrency/retry sophistication the reference has, not

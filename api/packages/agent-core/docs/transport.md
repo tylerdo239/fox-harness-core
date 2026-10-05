@@ -1,4 +1,4 @@
-# @fox-harness/dsh-transport
+# @fox-harness/dsh-agent-core/transport
 
 Real WebSocket event stream + command endpoint, running inside the harness
 worker (roadmap Phase 2 step 1). Not Typert (docs/code-rules.md §0.3) — a
@@ -79,7 +79,7 @@ Two protocol changes, both backward compatible with Phase 2 single-worker use:
   container reattaches to an existing session's mounted log volume (a
   container restart, kill -9, or orchestrator-driven hibernate/rehydrate).
   Only reports "unknown session" if resume also fails (genuinely never
-  persisted). See `packages/agent-driver/README.md`'s Phase 3 section for
+  persisted). See `packages/agent-core (loop)/README.md`'s Phase 3 section for
   where `resume()` itself lives.
 - `/sessions/new` accepts an optional `?id=<uuid>` — `services/gateway` must
   decide a session's id and register Redis affinity for it BEFORE opening the
@@ -94,7 +94,7 @@ Two protocol changes, both backward compatible with Phase 2 single-worker use:
 live-push (Phase 5, below) are all removed along with the whole per-session
 UI-plugin delivery mechanism (`docs/code-rules.md` §30, `app/README.md`)
 — `app` is one single, normally-built static bundle now. This left
-`packages/core`'s `'clientManifest'` inject requirement here as dead weight
+`packages/agent-core (policy)`'s `'clientManifest'` inject requirement here as dead weight
 that would have silently hung this whole plugin forever (Cordis `inject`
 never times out) — a real bug found by grepping for leftover references
 after the removal, fixed by dropping it from `inject`. `GET /plugin-inventory`
@@ -107,7 +107,7 @@ shorthand to an explicit `http.createServer()` + `WebSocketServer({noServer:
 true})` + `server.on('upgrade', ...)` (matching `services/gateway`'s own
 established pattern) — needed so the SAME port can also answer plain HTTP:
 
-- `GET /manifest` — `ctx.clientManifest.list()` (`packages/core`'s
+- `GET /manifest` — `ctx.clientManifest.list()` (`packages/agent-core (policy)`'s
   `ClientManifestRegistry`, self-registration not Loader-tree scanning — see
   docs/code-rules.md §18), urls relative (`/plugins/<id>/client.js`).
 - `GET /plugins/<id>/client.js` — resolves the real file via
@@ -122,7 +122,7 @@ chain: docs/code-rules.md §18.
 ## Phase 5: live `{type:'manifest'}` push (2026-09-07)
 
 Each open WS connection now also subscribes to `client-manifest/changed`
-(`packages/core`'s new event, fired on every `register`/effect-unregister —
+(`packages/agent-core (policy)`'s new event, fired on every `register`/effect-unregister —
 see that package's README) and sends `{type:'manifest'}` — a signal frame,
 carrying no payload — whenever it fires, disposed alongside the existing
 `session/event` listener when the connection closes. This is what lets
@@ -152,7 +152,7 @@ same-sessionId-across-all-three-logs test).
 4, only surfaced once a plugin outside the `@fox-harness/*` scope actually
 had its `client.js` fetched for real.** `GET /plugins/:id/client.js` used
 plain `import.meta.resolve(`${id}/client`)` — real Node resolution, which
-follows this file's own realpath (`/repo/packages/transport/lib/server.js`)
+follows this file's own realpath (`/repo/packages/agent-core (transport)/lib/server.js`)
 and walks up looking for `node_modules`. That only ever reaches
 `/repo/node_modules/`, where `@fox-harness/*` packages ARE reachable
 (`infra/docker/worker/entrypoint.sh` symlinks that scope in) — but never
@@ -170,7 +170,7 @@ how this was found: docs/code-rules.md's Phase 11 entry.
 
 ## Phase 12: `slot` forwarded on `/manifest`, new `GET /plugin-inventory` route (2026-09-07)
 
-`GET /manifest`'s entries now include `slot` (mirrors `packages/core`'s
+`GET /manifest`'s entries now include `slot` (mirrors `packages/agent-core (policy)`'s
 `ClientManifestEntry.slot` verbatim) alongside `id`/`url`/`immediately` —
 `app`'s slots mechanism reads it to decide which outlet to mount into.
 

@@ -16,7 +16,7 @@ is deployed by us. The root `docker-compose.yml` runs everything on one machine 
 fox-harness-core does not fork dsh. It depends on it as a real npm package
 (pinned at `0.1.1-rc.2`) and runs it through dsh's own Cordis plugin runtime,
 replacing exactly one piece — `core/agent-loop` (the turn/step/tool-call loop) —
-with `packages/agent-driver`, a hand-written driver that mirrors
+with `packages/agent-core (loop)`, a hand-written driver that mirrors
 dsh-agent-loop's behaviour (`api/scripts/agent-loop-parity.mjs` checks every
 LLM request is identical; tool calls run one at a time instead of in parallel) and adds what one-process-many-sessions needs: a
 scope per agent and the `setup` hook that joins an agent preset. Every other dsh
@@ -59,7 +59,7 @@ container boundary:
 1. **Authorization** — the gateway checks the caller owns the session/project
    before touching anything; paths are built from ids that passed that check
    (`users/<userId>/<sessionId>`), never from client input.
-2. **Tool guard** (`api/packages/transport/src/workspace-guard.ts`) — every tool call
+2. **Tool guard** (`api/packages/agent-core/src/transport/workspace-guard.ts`) — every tool call
    whose path argument leaves the session's own working directory (after
    following symlinks) is refused. dsh's own fs sandbox only fences *writes*.
 3. **Strict sandbox for `bash` and `python`** (`api/docker/fox-confine.sh`)
@@ -102,14 +102,14 @@ line; the sandbox is the real boundary for `bash`/`python`. Measured results:
 |---|---|
 | `app/` | The web UI: one static React SPA (esbuild IIFE bundle), URL-routed (`/`, `/chat/<id>`), i18n (vi/en), light/dark; nginx config + Dockerfile. Talks only to the gateway's REST/WS API; imports nothing from `api/`. |
 | `api/services/gateway` | Auth, REST, WebSocket proxy, user-id authorization, per-user skills/files/projects, quota, and the **runtime supervisor** (`src/runtime/`): materializes the dsh profile, starts/restarts the runtimes, routes sessions to a shard. Never imports a `dsh-*` package. |
-| `api/packages/agent-driver` | Replacement turn/step/tool-call state machine (`core/agent-loop`'s job), with per-agent scope and `setup` hook. |
-| `api/packages/core` | Per-agent model routing (`agent/request`) and per-session token budget (`agent/pre-step`, rebuilt from the log). |
-| `api/packages/transport` | The WebSocket server inside each runtime: snapshot-then-live protocol, one fan-out listener, idle disposal, flow join, tool guard. Loopback + secret only. |
+| `api/packages/agent-core (loop)` | Replacement turn/step/tool-call state machine (`core/agent-loop`'s job), with per-agent scope and `setup` hook. |
+| `api/packages/agent-core (policy)` | Per-agent model routing (`agent/request`) and per-session token budget (`agent/pre-step`, rebuilt from the log). |
+| `api/packages/agent-core (transport)` | The WebSocket server inside each runtime: snapshot-then-live protocol, one fan-out listener, idle disposal, flow join, tool guard. Loopback + secret only. |
 | `api/packages/llm/openai-compat` | Generic `LlmAdapter` for any OpenAI-compatible `/chat/completions` SSE endpoint. |
 | `api/packages/tool/*` | `serper-web-search`, `create-skill`, `python-repl` (one kernel per conversation), `data-studio-agent` (`analyze_data`, a pool of workers). |
 | `api/packages/flow/data-analysis` | The data-analysis flow's working rules. |
 | `api/packages/profile-template` | `runtime/template` (the ONE dsh profile every runtime boots) and `presets/` (one directory per flow). |
-| `api/packages/contracts` | Type-only definitions shared inside the backend. |
+| `api/api/services/gateway/src/api-types.ts` | Type-only definitions shared inside the backend. |
 | `api/docker/fox-confine.sh` | The strict sandbox runner for model-run `bash`/`python`. |
 | `api/migrations` | MariaDB schema (one file). |
 

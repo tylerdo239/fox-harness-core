@@ -1,0 +1,54 @@
+{
+  "name": "@fox-harness/dsh-agent-core",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "The core agent: the agent loop (replaces dsh-agent-loop), policy (model routing, token budget, shared prompt) and the transport that serves every user's sessions from one runtime.",
+  "exports": {
+    "./loop": {
+      "types": "./lib/loop/index.d.ts",
+      "default": "./lib/loop/index.js"
+    },
+    "./policy": {
+      "types": "./lib/policy/index.d.ts",
+      "default": "./lib/policy/index.js"
+    },
+    "./transport": {
+      "types": "./lib/transport/index.d.ts",
+      "default": "./lib/transport/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "ws": "8.21.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-agent": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-agent-presets": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-launch-environment": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-scope": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-session": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-session-persistence": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "3.18.2",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.12",
+    "typescript": "^5.6.0"
+  }
+}

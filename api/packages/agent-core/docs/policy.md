@@ -1,4 +1,4 @@
-# @fox-harness/dsh-core
+# @fox-harness/dsh-agent-core/policy
 
 Bundle package for the product-specific components (roadmap §1.4, layer 2 of the
 profile). Declares `dsh.bundle.patch` pointing at `cordis.patch.yml`.
@@ -32,7 +32,7 @@ model call, no `assistant/message` produced for it.
 
 `src/index.ts` now does one real thing, not just an empty `apply()`: it
 listens on the `agent/request` waterfall (dispatched by
-`@fox-harness/dsh-agent-driver`, verified real — see that package's README)
+`@fox-harness/dsh-agent-core/loop`, verified real — see that package's README)
 and overrides `provider`/`model` from the `OPENAI_MODEL_ID` launch-environment
 variable when set, routing to `@fox-harness/dsh-llm-openai-compat`'s
 `openai-compat` provider. This is what makes "set 3 env vars, no patch file
@@ -46,7 +46,7 @@ run whose session log shows `assistant/message.source.provider ===
 UI-plugin delivery mechanism it backed (`docs/code-rules.md` §30,
 `app/README.md`) — `app` is one single, normally-built static
 bundle now, with nothing left to register a manifest entry FOR. A real bug
-found removing this: `packages/transport`'s own `inject` array still
+found removing this: `packages/agent-core (transport)`'s own `inject` array still
 required the now-deleted `'clientManifest'` service, which would have left
 that plugin permanently pending forever (Cordis `inject` never times out) —
 caught by grepping for leftover references, not by a failing test. Section
@@ -55,20 +55,20 @@ kept below for the historical record.
 `src/client-manifest.ts`'s `ClientManifestRegistry` (Phase 4) — a small
 Cordis service any package with `dsh.client` self-registers into
 (`packages/client-ui-theme`'s `apply()` is the one real caller so far),
-queried by `packages/transport` to serve the FE boot manifest. Real
+queried by `packages/agent-core (transport)` to serve the FE boot manifest. Real
 implementation + real gap hit getting the type augmentation to actually
 cross the package boundary: docs/code-rules.md §18. `index.ts` re-exports
 `ClientManifestRegistry`/`ClientManifestEntry` explicitly at its bottom —
 don't remove that re-export even though nothing in this file's own `apply()`
 signature seems to need it; TypeScript strips a value-only import from
 declaration emit, which would silently make `ctx.clientManifest` invisible
-to every consumer that only does `import '@fox-harness/dsh-core'`.
+to every consumer that only does `import '@fox-harness/dsh-agent-core/policy'`.
 
 **Phase 5 addition:** `register()` now wraps its unregister in `ctx.effect()`
 (so a plugin disposed by a live `cordis.patch.yml` change — Phase 5's
 enable/disable — cleans up its manifest entry automatically, not just on
 process exit) and emits a new `client-manifest/changed` event on every
-register/unregister. `packages/transport` subscribes to that event per
+register/unregister. `packages/agent-core (transport)` subscribes to that event per
 connection and pushes a `{type:'manifest'}` WS frame so an already-open
 browser tab learns about an enable/disable live, without reconnecting. A
 plugin that never calls `register()` in its own `apply(ctx)` simply never

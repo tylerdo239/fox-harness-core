@@ -1,6 +1,5 @@
-// Type-only contract between services/* and app/*. Never import from a
-// `dsh-*` bundle package here — that would let control-plane code see bundle
-// internals, which docs/code-rules.md §1 forbids.
+// Shapes of the gateway's HTTP API (was api/services/gateway/src/api-types.ts). The web UI keeps its own copy
+// (app/src/wire.ts, skillsApi.ts, workspaceApi.ts): app/ imports nothing from api/.
 
 // Per-user skills (docs/skill-transfer-plan.md). Gateway owns them (MariaDB
 // `discovery_custom_skills`, content on S3) and writes the rendered files into each of the user's

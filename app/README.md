@@ -238,12 +238,12 @@ real dsh research behind them is preserved for the historical record in
   through `var(--fh-*, <fallback>)`.
 
 Talks to `services/gateway`'s real wire protocol directly (`src/wire.ts`,
-mirrored from `packages/transport`'s real shapes, not imported — this
+mirrored from `packages/agent-core (transport)`'s real shapes, not imported — this
 package still has zero dependency on any `@fox-harness/*` package):
 `POST /auth/{register,login,logout}` for accounts, then `/sessions/new` /
 `/sessions/<id>` over WebSocket for `{session|snapshot|event|error}` frames
 and `{followup|steer}` commands. See `services/gateway/README.md` and
-`packages/transport/README.md` for the authoritative protocol docs.
+`packages/agent-core (transport)/README.md` for the authoritative protocol docs.
 
 ## Build
 
@@ -354,7 +354,7 @@ it just can't be chosen from the UI.
   `turn/end`, `Conversation.tsx` shows a status row under the chat — dots,
   "Thinking…"/"Running a tool…" and the elapsed time (hidden while text is
   streaming; "lost connection" once the socket drops) — and the Send button
-  becomes Stop, which sends `{type:'cancel'}` (packages/transport →
+  becomes Stop, which sends `{type:'cancel'}` (packages/agent-core (transport) →
   `agent.cancel({kind:'user'})`); the turn then ends as aborted and the chat
   shows "Stopped.". Enter doesn't send while a reply runs.
 - **The URL** (`/` or `/chat/<id>`, 2026-09-09): which session a reload
@@ -384,7 +384,7 @@ credentials, real `submit` event) → sidebar/session-list/conversation all
 appear → settings dialog opens with both real sections → `/re` shows the
 command dropdown → a real Logout click clears storage AND gets the token a
 genuine `401` afterward. Two real bugs found this way (not by TypeScript):
-`packages/transport`'s `inject` array still requiring the just-deleted
+`packages/agent-core (transport)`'s `inject` array still requiring the just-deleted
 `clientManifest` service (would have left the whole transport plugin
 permanently pending, zero errors, just a WS port that never opens); several
 new `<button>`s missing the `id` attributes `style.css` and this project's

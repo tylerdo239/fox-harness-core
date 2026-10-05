@@ -7,7 +7,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import type { SkillFile } from '@fox-harness/contracts'
+import type { SkillFile } from './api-types.ts'
 
 export const MAX_SKILLS_PER_USER = 50
 const NAME_RE = /^[a-z0-9][a-z0-9-]{1,63}$/

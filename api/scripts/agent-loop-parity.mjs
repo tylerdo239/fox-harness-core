@@ -2,7 +2,8 @@
 // Is @fox-harness/dsh-agent-driver still a faithful replacement for dsh's own agent loop?
 //
 // Runs the SAME scripted conversations (mock LLM, scripts/mock-llm.mjs) through two headless dsh profiles that
-// differ only by the driver — A: dsh-base's @deepseek-ai/dsh-agent-loop, B: + @fox-harness/dsh-agent-driver —
+// differ only by the loop — A: dsh-base's @deepseek-ai/dsh-agent-loop, B: + @fox-harness/dsh-agent-core with only
+// its loop plugin enabled (policy and transport rows disabled) —
 // and compares what each sent to the LLM, request by request: system prompt, tool list, every message. Run it
 // before and after bumping any @deepseek-ai/* version (docs/upstream-upgrade-policy.md); a difference means the
 // upstream loop changed behaviour the driver does not mirror yet.
@@ -25,7 +26,9 @@ const ws = join(here, 'ws')
 mkdirSync(ws, { recursive: true })
 writeFileSync(join(ws, 'note.txt'), 'PARITY-CANARY\n')
 
-const PROFILES = { A: [], B: ['@fox-harness/dsh-agent-driver'] }
+const PROFILES = { A: [], B: ['@fox-harness/dsh-agent-core'] }
+// B keeps only agent-core's loop: its policy (prompt sections, model routing) and transport (a server) are not the loop
+const ONLY_LOOP = '- id: fox-harness-core\n  disabled: true\n- id: fox-harness-transport\n  disabled: true\n'
 for (const [name, extra] of Object.entries(PROFILES)) {
   const dir = join(home, 'profiles', `parity-${name}`)
   mkdirSync(join(dir, 'node_modules'), { recursive: true })
@@ -34,7 +37,7 @@ for (const [name, extra] of Object.entries(PROFILES)) {
     private: true,
     dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless', '@fox-harness/dsh-llm-openai-compat', ...extra] } },
   }))
-  writeFileSync(join(dir, 'cordis.patch.yml'), '- id: agent-default-model\n  config:\n    provider: openai-compat\n    model: mock\n- id: session-telemetry-otel\n  disabled: true\n')
+  writeFileSync(join(dir, 'cordis.patch.yml'), '- id: agent-default-model\n  config:\n    provider: openai-compat\n    model: mock\n- id: session-telemetry-otel\n  disabled: true\n' + (name === 'B' ? ONLY_LOOP : ''))
   // what services/gateway/src/runtime/materialize.ts does: our packages importable from the profile
   symlinkSync(join(API, 'node_modules/@fox-harness'), join(dir, 'node_modules/@fox-harness'))
 }
@@ -84,5 +87,5 @@ try {
   mock.kill()
   rmSync(here, { recursive: true, force: true })
 }
-console.log(differences === 0 ? '\nagent-driver matches dsh-agent-loop' : `\n${differences} difference(s)`)
+console.log(differences === 0 ? '\nagent-core loop matches dsh-agent-loop' : `\n${differences} difference(s)`)
 process.exit(differences === 0 ? 0 : 1)

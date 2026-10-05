@@ -19,22 +19,22 @@ cắm vào đúng những chỗ dsh chưa có hoặc chưa hợp cho nhiều ng�
 api/
 ├── services/gateway/          chương trình gateway (KHÔNG phải plugin dsh)
 └── packages/                  plugin dsh của mình + dữ liệu cấu hình
-    ├── transport/             cổng vào runtime: nhận kết nối, tạo/khôi phục agent, gắn flow, chặn đường dẫn
-    ├── agent-driver/          vòng lặp agent (thay vòng lặp gốc của dsh)
-    ├── core/                  chọn model theo session, quota token, prompt chung
+    ├── agent-core/            ★ CORE AGENT DUY NHẤT — 3 plugin trong 1 package:
+    │     src/loop/              vòng lặp agent (thay vòng lặp gốc của dsh)
+    │     src/policy/            chọn model theo session, quota token, prompt chung
+    │     src/transport/         cổng vào runtime: nhận kết nối, tạo/khôi phục agent, gắn flow, chặn đường dẫn
     ├── llm/openai-compat/     gọi LLM chuẩn OpenAI (/chat/completions)
     ├── tool/                  các tool: python-repl, data-studio-agent, create-skill, serper-web-search
     ├── flow/data-analysis/    luật làm việc riêng của flow phân tích dữ liệu
     ├── profile-template/      cấu hình: profile dsh duy nhất + preset cho từng flow
-    ├── skills/                skill dựng sẵn (markdown) cho mọi user
-    └── contracts/             kiểu dữ liệu dùng chung giữa gateway và transport
+    └── skills/                skill dựng sẵn (markdown) cho mọi user
 ```
 
 ## 1. Năm khái niệm dsh cần biết trước
 
 | Khái niệm | Là gì | Ở repo này |
 |---|---|---|
-| **Plugin Cordis** | Một module export `name`, `inject` (cần những service nào) và `apply(ctx)`. Trong `apply`, plugin đăng ký thứ nó cung cấp: tool, LLM adapter, đoạn prompt, hook sự kiện. | Mỗi folder trong `api/packages/` (trừ `profile-template`, `skills`, `contracts`) là một plugin. |
+| **Plugin Cordis** | Một module export `name`, `inject` (cần những service nào) và `apply(ctx)`. Trong `apply`, plugin đăng ký thứ nó cung cấp: tool, LLM adapter, đoạn prompt, hook sự kiện. | Mỗi folder trong `api/packages/` (trừ `profile-template`, `skills`) là một plugin; riêng `agent-core` chứa ba plugin. |
 | **Row và profile** | Profile là danh sách plugin được nạp. Mỗi plugin là một **row** (`id`, `name`, `config`) trong file `cordis.patch.yml`. Một package có thể kèm `cordis.patch.yml` riêng để tự thêm, sửa hoặc tắt row. | `profile-template/runtime/template/` là **profile duy nhất** mọi runtime dùng. |
 | **Service trên `ctx`** | Plugin dùng chức năng của nhau qua `ctx.llm`, `ctx.tools`, `ctx.systemPrompt`, `ctx.agents`… | Ví dụ tool đăng ký bằng `ctx.tools.register(...)`. |
 | **Sự kiện, hook** | Vòng lặp agent phát sự kiện, và plugin chen vào được: `agent/request` (chọn model trước mỗi lần gọi LLM), `agent/pre-step` (trước mỗi bước), `agent/turn-stopping`… | `core` dùng `agent/request`; `flow/data-analysis` dùng `agent/pre-step` để giới hạn số bước. |
@@ -56,7 +56,7 @@ Do bundle `@deepseek-ai/dsh-base` nạp: lưu và khôi phục session, đăng k
 `grep`, `glob`, `bash`, `subagent`, `todo_write`, goal…), sandbox `bash`, ghép system prompt, nén hội thoại dài
 (`compaction-basic`), skill đọc từ thư mục, agent preset, đặt tiêu đề session, retry khi gọi LLM lỗi, `web_search`.
 
-Một số row của dsh-base **bị tắt có chủ ý** trong profile: vòng lặp gốc `agent-loop` (thay bằng `agent-driver`),
+Một số row của dsh-base **bị tắt có chủ ý** trong profile: vòng lặp gốc `agent-loop` (thay bằng vòng lặp của `agent-core`),
 telemetry gửi về DeepSeek, các adapter gọi DeepSeek, và adapter đa nhà cung cấp `llm-pi-ai`.
 
 ### 2.2 Phần của mình
@@ -64,9 +64,12 @@ telemetry gửi về DeepSeek, các adapter gọi DeepSeek, và adapter đa nhà
 | Package | Làm gì | Cắm vào dsh thế nào | Vì sao cần |
 |---|---|---|---|
 | **`services/gateway`** | Đăng nhập (MariaDB + Redis), phân quyền admin/user, REST (session, project, file, skill, user, Data Studio admin), quota, proxy WebSocket chat. Khởi động N runtime, kiểm tra sẵn sàng, restart khi chết, chọn runtime cho session theo `hash(sessionId) % N`. | Không phải plugin. Chạy `dsh` như một chương trình con và nói chuyện qua WebSocket nội bộ có secret. | dsh là runtime **một người dùng**, không có tài khoản hay phân quyền. Tách gateway riêng để mọi thông tin người dùng nằm ở một chỗ, và runtime không bao giờ có `DATABASE_URL`, `REDIS_URL` hay `S3_*`. |
-| **`packages/transport`** | WebSocket server **trong** runtime (chỉ loopback, bắt buộc secret). Nhận kết nối gateway chuyển vào, đọc `flow/model/cwd/user/role`, **tạo mới hoặc khôi phục** agent, gắn agent vào preset của flow, gửi snapshot log rồi đẩy event trực tiếp, giải phóng session lâu không dùng. Đăng ký **workspace guard** cho mọi agent (gồm subagent). | Plugin, row `fox-harness-transport`. Dùng `ctx.agents.create/resume` với hook `setup`. | dsh không có cổng nhận "nhiều session của nhiều người" vào một process. Flow là preset (`flows.ts`), và guard chặn tool đọc/ghi ra ngoài workspace của chính session. |
-| **`packages/agent-driver`** | Vòng lặp agent: lượt → bước → gọi LLM → chạy tool → lặp. Hành vi giống vòng lặp gốc của dsh (kiểm bằng `api/scripts/agent-loop-parity.mjs`). | Tắt row `agent-loop` gốc, thêm row `fox-harness-agent-loop` (`cordis.patch.yml`). Đăng ký làm agent factory. | Vòng lặp gốc chưa cho mỗi agent **một scope riêng** và **hook `setup`** để gắn preset lúc tạo agent, nên không thể chạy nhiều flow, nhiều người trong một process. Ngoài hai điểm đó, driver chép theo bản gốc. Khác biệt duy nhất còn lại: tool chạy lần lượt thay vì song song. |
-| **`packages/core`** | (1) Chọn model cho từng agent: model của session, hoặc mặc định `OPENAI_MODEL_ID`, luôn qua `openai-compat`; không có model thì báo lỗi. (2) Quota token mỗi session (`SESSION_TOKEN_BUDGET`), tính từ log. (3) Đoạn prompt chung: luật nền, chính sách làm việc, cách kết thúc, môi trường (ngày hiện tại). | Plugin, row `fox-harness-core`. Hook `agent/request`, `agent/pre-step`, `ctx.systemPrompt.section/variable`. | Chỗ đặt "chính sách sản phẩm" chung cho mọi flow, không nhét vào vòng lặp. |
+Ba dòng đầu là **một package `agent-core`** (core agent duy nhất), gồm ba plugin nạp theo thứ tự policy → loop →
+transport. Trước 2026-10-05 chúng là ba package `core`, `agent-driver`, `transport` (cộng `contracts`).
+
+| **`agent-core` / `transport`** (`src/transport`) | WebSocket server **trong** runtime (chỉ loopback, bắt buộc secret). Nhận kết nối gateway chuyển vào, đọc `flow/model/cwd/user/role`, **tạo mới hoặc khôi phục** agent, gắn agent vào preset của flow, gửi snapshot log rồi đẩy event trực tiếp, giải phóng session lâu không dùng. Đăng ký **workspace guard** cho mọi agent (gồm subagent). | Row `fox-harness-transport` (`@fox-harness/dsh-agent-core/transport`). Dùng `ctx.agents.create/resume` với hook `setup`. | dsh không có cổng nhận "nhiều session của nhiều người" vào một process. Flow là preset (`flows.ts`), và guard chặn tool đọc/ghi ra ngoài workspace của chính session. |
+| **`agent-core` / `loop`** (`src/loop`) | Vòng lặp agent: lượt → bước → gọi LLM → chạy tool → lặp. Hành vi giống vòng lặp gốc của dsh (kiểm bằng `api/scripts/agent-loop-parity.mjs`). | Tắt row `agent-loop` gốc, thêm row `fox-harness-agent-loop` (`@fox-harness/dsh-agent-core/loop`). Đăng ký làm agent factory. | Vòng lặp gốc chưa cho mỗi agent **một scope riêng** và **hook `setup`** để gắn preset lúc tạo agent, nên không thể chạy nhiều flow, nhiều người trong một process. Ngoài hai điểm đó, driver chép theo bản gốc. Khác biệt duy nhất còn lại: tool chạy lần lượt thay vì song song. |
+| **`agent-core` / `policy`** (`src/policy`) | (1) Chọn model cho từng agent: model của session, hoặc mặc định `OPENAI_MODEL_ID`, luôn qua `openai-compat`; không có model thì báo lỗi. (2) Quota token mỗi session (`SESSION_TOKEN_BUDGET`), tính từ log. (3) Đoạn prompt chung: luật nền, chính sách làm việc, cách kết thúc, môi trường (ngày hiện tại). | Row `fox-harness-core` (`@fox-harness/dsh-agent-core/policy`). Hook `agent/request`, `agent/pre-step`, `ctx.systemPrompt.section/variable`. | Chỗ đặt "chính sách sản phẩm" chung cho mọi flow, không nhét vào vòng lặp. |
 | **`packages/llm/openai-compat`** | Adapter LLM cho mọi endpoint chuẩn OpenAI (`POST {OPENAI_BASE_URL}/chat/completions`, stream SSE). Đổi định dạng qua lại, phát hiện LLM treo (`LLM_IDLE_TIMEOUT_MS`), map lỗi. | Plugin, `ctx.llm.registerAdapter`, provider tên `openai-compat`. | dsh chỉ có adapter DeepSeek. Hệ thống dùng proxy LLM nội bộ (vLLM, Qwen…). |
 | **`packages/tool/python-repl`** | Tool `python`: mỗi hội thoại một kernel Python giữ biến giữa các lần gọi, chạy trong sandbox (không mạng, chỉ thấy workspace). Có thông báo danh sách biến cho model. | Plugin, nằm trong preset `data-analysis`. | Flow phân tích dữ liệu cần trạng thái liên tục (DataFrame), điều `bash` không có. |
 | **`packages/tool/data-studio-agent`** | Tool `analyze_data`: chuyển câu hỏi cho **pipeline Python** (`python/`) chạy trong pool worker. Pipeline tìm bảng (Meilisearch), dựng SQL (LLM qua Agno), kiểm SQL theo role, chạy trên Dremio, trả bảng, chart, giải thích. Truyền **role của chủ session** xuống (đi ngược tới agent gốc nếu là subagent). | Plugin, nằm trong preset `default` và `data-studio`. | Pipeline có sẵn bằng Python, nên chạy nó như process con thay vì viết lại. Phân quyền dữ liệu (`python/src/security/role.py`) nằm ở đây vì Dremio OSS không có policy. |
@@ -75,14 +78,13 @@ telemetry gửi về DeepSeek, các adapter gọi DeepSeek, và adapter đa nhà
 | **`packages/flow/data-analysis`** | Luật riêng của flow phân tích dữ liệu: đoạn prompt nghiệp vụ, giới hạn số bước và thời gian mỗi lượt, cách nén hội thoại kiểu riêng, gom ghi chú của plugin theo bước. | Plugin trong preset `data-analysis`. | Flow này cần kỷ luật chặt hơn chat thường. |
 | **`packages/profile-template`** | `runtime/template/`: **profile duy nhất** (`profile.package.json` liệt kê bundle, `cordis.patch.yml` chỉnh row). `presets/<flow>/`: preset của từng flow (persona + tool riêng). | Gateway chép profile vào `<data>/dsh-home` mỗi lần khởi động, và link thư mục preset. | Một process phục vụ mọi flow. Khác biệt giữa flow nằm ở preset, không phải ở profile. |
 | **`packages/skills`**, `flow/data-analysis/skills` | Skill dựng sẵn (markdown): `report-writing`, `web-research`… và skill cho phân tích dữ liệu. | Plugin `skill-filesystem` của dsh đọc các thư mục này. Cả hai thư mục khai ở **profile chung**, nên mọi flow đều thấy cả hai bộ skill. | Skill là hướng dẫn cho model, không phải code. |
-| **`packages/contracts`** | Kiểu TypeScript dùng chung giữa gateway và transport. | Chỉ là type. | Gateway không import plugin dsh nào, nhưng cần cùng định nghĩa dữ liệu. FE tự chép lại kiểu, không import. |
 
 Folder `packages/tool/duckduckgo-web-search` trên máy chỉ còn `lib/` và `node_modules/` cũ, **không có trong git và
 không được dùng**: nguồn tìm kiếm cũ trước khi đổi sang Serper. Xoá được.
 
 ### 2.3 Ba flow khác nhau ở đâu
 
-| Flow | Preset (`profile-template/presets/<flow>/agent.cordis.yml`) | Tool global bị ẩn (`transport/src/flows.ts`) |
+| Flow | Preset (`profile-template/presets/<flow>/agent.cordis.yml`) | Tool global bị ẩn (`agent-core/src/transport/flows.ts`) |
 |---|---|---|
 | `default` | persona chung + `analyze_data` | không ẩn gì (thấy mọi tool của dsh) |
 | `data-analysis` | persona phân tích + `python` + luật `flow-data-analysis` | ẩn `bash`, subagent, goal, `todo_write`… |
@@ -117,7 +119,7 @@ FE ──WS /sessions/<id>?token──► nginx ──► gateway
         setup(agent): gia nhập preset của flow + ẩn tool global theo flow
         gửi snapshot (toàn bộ event của log) cho FE
 FE gửi {"type":"followup","text":"..."}
-  ──► agent-driver: mở lượt (turn/start)
+  ──► agent-core loop: mở lượt (turn/start)
         lặp từng bước:
           ① ghép system prompt (persona, prompt của core/flow, mô tả tool, skill…) + runtime context
           ② hook agent/pre-step (core: quota; flow: giới hạn bước)
@@ -133,7 +135,7 @@ FE gửi {"type":"followup","text":"..."}
 | Lớp | Ở đâu | Chặn gì |
 |---|---|---|
 | Phân quyền | gateway | Mở hoặc xem session, file, project của người khác (trừ admin) |
-| Workspace guard | `transport/src/workspace-guard.ts` | Tool có tham số đường dẫn trỏ ra ngoài workspace của session (kể cả qua symlink, kể cả subagent) |
+| Workspace guard | `agent-core/src/transport/workspace-guard.ts` | Tool có tham số đường dẫn trỏ ra ngoài workspace của session (kể cả qua symlink, kể cả subagent) |
 | Sandbox | `api/docker/fox-confine.sh` (bubblewrap) | `bash`/`python` chỉ thấy workspace của mình; không mạng; không capability; env sạch |
 | Quyền dữ liệu | `data-studio-agent/python/src/security/role.py` | Bảng/cột không được phép cho role, cột PII; kiểm SQL trước khi gửi Dremio |
 
@@ -165,7 +167,7 @@ Thao tác quản trị Data Studio (sync Dremio, reindex, profiling) **không** 
    agent. Nâng cấp dsh sau này vẫn khả thi, kiểm bằng `agent-loop-parity.mjs`.
 2. **Một runtime phục vụ nhiều session** (không phải một container mỗi session). Phương án orchestrator mỗi session
    một container đã không được duyệt vì không scale và cần quyền Docker. Một process phục vụ nhiều agent cần đúng
-   hai thứ mà vòng lặp gốc thiếu (scope riêng, hook `setup`), đó là lý do có `agent-driver`.
+   hai thứ mà vòng lặp gốc thiếu (scope riêng, hook `setup`), đó là lý do có vòng lặp riêng trong `agent-core`.
 3. **Flow là preset, không phải profile.** Trước đây mỗi flow là một profile, tức một process riêng. Gộp về một
    profile và để mỗi agent gia nhập preset của flow mình, thì một process chạy được mọi flow.
 4. **Gateway tách khỏi runtime và không import dsh.** Mọi thông tin người dùng (tài khoản, quyền, quota, khoá DB)
@@ -185,11 +187,11 @@ Thao tác quản trị Data Studio (sync Dremio, reindex, profiling) **không** 
 | Việc | Sửa ở |
 |---|---|
 | Thêm tool cho một flow | Package mới `api/packages/tool/<tên>` (mẫu: `create-skill`) → `api/package.json` → `api/tsconfig.json` → một dòng trong `profile-template/presets/<flow>/agent.cordis.yml`. Rebuild image. (Đã thử thật: `docs/core-readiness-review-2026-10-05.md` mục 5.) |
-| Thêm tool cho mọi flow | Như trên, nhưng khai bundle trong `profile-template/runtime/template/profile.package.json`. Ẩn ở `data-analysis` thì thêm tên vào `FLOW_TOOL_MASK` (`transport/src/flows.ts`). |
+| Thêm tool cho mọi flow | Như trên, nhưng khai bundle trong `profile-template/runtime/template/profile.package.json`. Ẩn ở `data-analysis` thì thêm tên vào `FLOW_TOOL_MASK` (`agent-core/src/transport/flows.ts`). |
 | Thêm skill dựng sẵn | `api/packages/skills/<tên>/SKILL.md` |
-| Đổi persona hay prompt của một flow | `profile-template/presets/<flow>/agent.cordis.yml` (persona); `core/src/prompt.ts` (chung); `flow/data-analysis/src/index.ts` (riêng flow phân tích) |
-| Thêm flow mới | Folder `profile-template/presets/<flow>/`; thêm tên vào object `flows` trong `services/gateway/src/config.ts` (kèm `workspace: true/false`); (tuỳ chọn) mask tool trong `transport/src/flows.ts` |
-| Đổi cách chọn model | `core/src/index.ts` (hook `agent/request`) |
+| Đổi persona hay prompt của một flow | `profile-template/presets/<flow>/agent.cordis.yml` (persona); `agent-core/src/policy/prompt.ts` (chung); `flow/data-analysis/src/index.ts` (riêng flow phân tích) |
+| Thêm flow mới | Folder `profile-template/presets/<flow>/`; thêm tên vào object `flows` trong `services/gateway/src/config.ts` (kèm `workspace: true/false`); (tuỳ chọn) mask tool trong `agent-core/src/transport/flows.ts` |
+| Đổi cách chọn model | `agent-core/src/policy/index.ts` (hook `agent/request`) |
 | Đổi LLM endpoint | Chỉ đổi env `OPENAI_BASE_URL` / `OPENAI_MODEL_ID`. Endpoint không chuẩn OpenAI thì viết adapter mới cạnh `llm/openai-compat` |
 | Đổi luật phân quyền dữ liệu | `data-studio-agent/python/src/security/role.py`, `crud_mongo/*`, `services/sql_validator.py` |
 | Đổi phân quyền API | `services/gateway/src/index.ts` (`adminGate`, `needsAdmin`) |

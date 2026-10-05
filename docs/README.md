@@ -15,6 +15,8 @@ layout from before the split:
 |---|---|
 | `apps/web/` | `app/` |
 | `services/gateway/`, `packages/…` | `api/services/gateway/`, `api/packages/…` |
+| `packages/agent-driver`, `packages/core`, `packages/transport` | `api/packages/agent-core/src/{loop,policy,transport}` (one package since 2026-10-05) |
+| `packages/contracts` | removed; the gateway's own `api/services/gateway/src/api-types.ts` |
 | `infra/docker/backend/Dockerfile`, `infra/docker/backend/fox-confine.sh` | `api/Dockerfile`, `api/docker/fox-confine.sh` |
 | `infra/docker/web/Dockerfile`, `nginx.conf.template` | `app/Dockerfile`, `app/nginx.conf.template` |
 | `infra/migrations/` | `api/migrations/` |

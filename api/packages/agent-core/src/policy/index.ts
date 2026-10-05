@@ -18,7 +18,7 @@ export function apply(ctx: Context) {
   // control which provider/model is used, no cordis.patch.yml edits needed
   // for a normal deploy). This is a real extension point, not a guess: the
   // `agent/request` waterfall is dispatched by our own agent-driver
-  // (packages/agent-driver/src/agent.ts) precisely so other plugins can
+  // (packages/agent-core/src/loop/agent.ts) precisely so other plugins can
   // override the call config here rather than the driver hardcoding it —
   // registering via `ctx.on()` at root scope (not agent-scoped) means every
   // agent gets this override, matching "agent-scoped listeners receive only
@@ -26,7 +26,7 @@ export function apply(ctx: Context) {
   ctx.on('agent/request', async (payload) => {
     // One runtime hosts many sessions (docs/single-backend-architecture-plan.md),
     // so the model is chosen PER AGENT (`agentOptions.model`, set at create/resume
-    // by packages/transport from what the gateway read out of the sessions row);
+    // by packages/agent-core (transport) from what the gateway read out of the sessions row);
     // the process-wide env value is only the default for an agent that has none.
     // No model at all is a configuration error, never a reason to fall through to another provider.
     const model = payload.agent.options.model ?? launchEnvironmentOf(ctx).get('OPENAI_MODEL_ID')?.value

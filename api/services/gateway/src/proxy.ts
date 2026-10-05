@@ -1,9 +1,9 @@
 /**
- * Transparent WS↔WS relay to the agent runtime's `packages/transport`
+ * Transparent WS↔WS relay to the agent runtime's `packages/agent-core (transport)`
  * endpoint (runtime/supervisor.ts picks which runtime process serves a
  * session; the URL carries the per-session flow/model/cwd). Frames are
  * relayed verbatim (opaque strings) — the gateway does not parse or
- * understand `packages/transport`'s wire protocol, keeping the two
+ * understand `packages/agent-core (transport)`'s wire protocol, keeping the two
  * decoupled. This also means log-before-fanout needs no new work here: it's
  * already guaranteed on the worker side (docs/code-rules.md §15), and a
  * transparent relay can't reorder or race that.

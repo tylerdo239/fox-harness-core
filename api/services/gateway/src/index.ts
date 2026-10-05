@@ -1,9 +1,8 @@
 // Auth, token issuance, routing + affinity, streaming fan-out (roadmap
-// §1.2). MUST NOT import from any `@fox-harness/dsh-*`
-// package — only @fox-harness/contracts (docs/code-rules.md §1). Must never
-// run agent logic itself: this process only issues tokens and relays raw WS
-// frames to packages/transport (see proxy.ts) — packages/transport has no
-// auth of its own and expects to sit behind exactly this.
+// §1.2). MUST NOT import from any `@fox-harness/dsh-*` package (docs/code-rules.md
+// §1). Must never run agent logic itself: this process only issues tokens and
+// relays raw WS frames to the core's transport (packages/agent-core/src/transport,
+// see proxy.ts) — which has no auth of its own and expects to sit behind exactly this.
 //
 // Phase 7: real accounts + 2 roles (admin, user), replacing the single
 // shared-operator-secret model Phase 2-6 used. Gateway is the SOLE
@@ -107,7 +106,7 @@ import { loadBuiltinSkills, MAX_SKILLS_PER_USER, validateSkill } from './skills.
 
 // Phase 6 checklist item 2: cross-layer telemetry, tagged with sessionId.
 // Same structured-JSON-to-stdout convention duplicated in
-// the runtime (see packages/transport/src/server.ts: this isn't a
+// the runtime (see packages/agent-core/src/transport/server.ts: this isn't a
 // shared import).
 function log(event: string, fields: Record<string, unknown> = {}): void {
   console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'gateway', event, ...fields }))
@@ -254,7 +253,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 // Every route below except /auth/register, /auth/login, /auth/logout,
 // /models, and OPTIONS needs a real identity. Browsers can't set custom
 // headers on a WS upgrade or a
-// dynamically-`import()`-ed module (packages/transport/README.md's Phase 5
+// dynamically-`import()`-ed module (packages/agent-core (transport)/README.md's Phase 5
 // note already established this for the WS case) — both fall back to a
 // `?token=` query param, matching the one already-solved shape rather than
 // inventing a second one. A normal `fetch()`-based route (manifest, plugin
@@ -1401,7 +1400,7 @@ const server = createServer((req, res) => {
 // Performance fix 2026-09-09 (docs/security-performance-review-2026-09-09.md
 // finding #8, found while designing that fix): the browser-facing socket
 // had no `maxPayload` either — same gap already closed on the worker-facing
-// side (packages/transport/src/server.ts's own `MAX_FRAME_BYTES`), same
+// side (packages/agent-core/src/transport/server.ts's own `MAX_FRAME_BYTES`), same
 // value, mirrored here rather than imported (services/* never import each
 // other's internals, docs/code-rules.md §1 — this is the same class of
 // bound, not shared state).
