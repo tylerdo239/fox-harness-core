@@ -434,6 +434,27 @@ const tests = {
     return { ok: !rawInRedis && works && revoked, detail: `raw token in redis=${rawInRedis}, token works=${works}, logout revokes=${revoked}` }
   },
 
+  // Vietnamese and emoji round-trip through the gateway and MariaDB (the e2e database defaults to latin1), and an
+  // over-long email is a 400, not a database error.
+  async unicodeText() {
+    const { a } = await users()
+    const text = 'Phân tích doanh thu quý 3 của Đức — ưu tiên 📊'
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    c.send('MARK-UNI hi'); await c.turnEnds(1)
+    const id = c.sessionId; c.close()
+    const rename = await api('PATCH', `/sessions/${id}`, a.token, { title: text })
+    const mine = await api('GET', '/sessions/mine', a.token)
+    const row = (Array.isArray(mine.json) ? mine.json : mine.json?.sessions ?? []).find((s) => (s.sessionId ?? s.session_id ?? s.id) === id)
+    const project = await api('POST', '/projects', a.token, { name: 'Dự án Báo cáo — tháng 9 ✍️' })
+    const projects = await api('GET', '/projects', a.token)
+    const projectBack = JSON.stringify(projects.json).includes('Dự án Báo cáo — tháng 9 ✍️')
+    const longEmail = await api('POST', '/users', await admin(), { email: `${'x'.repeat(250)}@e2e.test`, password: 'correct-horse-battery' })
+    return {
+      ok: rename.status === 204 && row?.title === text && project.status === 201 && projectBack && longEmail.status === 400,
+      detail: `rename=${rename.status} title back=${JSON.stringify(row?.title)} project=${project.status} name back=${projectBack} email>255=${longEmail.status}`,
+    }
+  },
+
   async purge() {
     const { a } = await users()
     const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()

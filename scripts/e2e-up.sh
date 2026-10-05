@@ -13,7 +13,10 @@ pkill -f "scripts/mock-llm.mjs" 2>/dev/null || true
 MOCK_BIND=0.0.0.0 nohup node scripts/mock-llm.mjs 4999 >/tmp/foxe2e-mock.log 2>&1 &
 
 docker run -d --name foxe2e-mariadb --network $NET -e MARIADB_ROOT_PASSWORD=x -e MARIADB_DATABASE=discovery-agent \
-  -v "$PWD/infra/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro" mariadb:10.11 >/dev/null
+  -v "$PWD/infra/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro" mariadb:10.11 \
+  --character-set-server=latin1 --collation-server=latin1_swedish_ci >/dev/null
+# ^ latin1 on purpose: the worst default a provisioned MariaDB can have. 001_init.sql must declare utf8mb4 per table
+# (measured: without it a Vietnamese/emoji title fails with ERROR 1366); the unicodeText test proves it does.
 docker run -d --name foxe2e-redis --network $NET redis:7-alpine >/dev/null
 docker run -d --name foxe2e-minio --network $NET -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin123 minio/minio server /data >/dev/null
 

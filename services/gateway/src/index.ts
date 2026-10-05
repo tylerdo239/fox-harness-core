@@ -371,10 +371,11 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         res.end(JSON.stringify({ error: 'invalid JSON body', code: 'invalid_json' }))
         return
       }
-      if (typeof body.email !== 'string' || typeof body.password !== 'string' || body.password.length < 8) {
+      // email <= 255: discovery_users.email is varchar(255); a longer one must be a 400, not a database error.
+      if (typeof body.email !== 'string' || body.email.length > 255 || typeof body.password !== 'string' || body.password.length < 8) {
         res.writeHead(400, { 'content-type': 'application/json' })
         res.end(
-          JSON.stringify({ error: 'email and a password of at least 8 characters are required', code: 'invalid_registration_input' }),
+          JSON.stringify({ error: 'an email (at most 255 characters) and a password of at least 8 characters are required', code: 'invalid_registration_input' }),
         )
         return
       }
