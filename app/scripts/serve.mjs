@@ -1,10 +1,10 @@
 // Real fix for a recurring real problem: `python3 -m http.server` (what this
-// project's dev workflow had been using ad hoc to serve `apps/web/public/`)
+// project's dev workflow had been using ad hoc to serve `app/public/`)
 // sends NO `Cache-Control` header at all, so browsers apply their own
 // heuristic caching on `main.js`/`style.css` — a normal reload can keep
 // showing OLD content even though the server is genuinely serving the NEW
 // file (confirmed via `curl` more than once). This project never had an
-// official "serve apps/web" script of its own at all; this is that script,
+// official "serve app" script of its own at all; this is that script,
 // with the one property that actually matters here: every response is
 // `Cache-Control: no-store`, so the browser can never serve a stale copy —
 // appropriate for a dev-scope project like this one (docs/code-rules.md's
@@ -17,7 +17,7 @@ import { createServer } from 'node:http'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const ROOT = fileURLToPath(new URL('../apps/web/public', import.meta.url))
+const ROOT = fileURLToPath(new URL('../public', import.meta.url))
 const PORT = Number(process.env.PORT ?? 5173)
 
 const CONTENT_TYPES = {

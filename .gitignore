@@ -26,3 +26,6 @@ packages/tool/data-studio-agent/python/debug/
 # with `node scripts/bench/fetch-fixtures.mjs`, so neither belongs in the repo.
 /scripts/bench/reports/
 /scripts/bench/fixtures/
+
+# app/: the esbuild bundle is build output (app/Dockerfile builds it)
+/app/public/main.js

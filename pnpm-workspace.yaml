@@ -8,7 +8,6 @@ packages:
   # packages/<name> (docs/code-rules.md §1 default, unchanged for those).
   - packages/*/*
   - services/*
-  - apps/*
 
 # Confirmed the hard way: pnpm's default strict/symlinked node_modules hides
 # transitive deps (e.g. @deepseek-ai/dsh-llm, a dep of dsh-base) from the

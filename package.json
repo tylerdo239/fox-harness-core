@@ -8,14 +8,12 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "build": "tsc -b tsconfig.json && node scripts/build-web.mjs",
-    "typecheck": "tsc -b tsconfig.json && node scripts/build-web.mjs",
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json",
     "clean": "tsc -b tsconfig.json --clean"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.1-rc.2",
-    "esbuild": "^0.24.0",
-    "jsdom": "^25.0.1",
     "typescript": "^5.6.0"
   },
   "dependencies": {
