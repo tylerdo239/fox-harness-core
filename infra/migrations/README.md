@@ -27,7 +27,19 @@ create table if not exists discovery_projects (
   created_at datetime not null default current_timestamp,
   updated_at datetime not null default current_timestamp,
   index projects_owner_id_idx (owner_id)
-) engine=innodb;
+) engine=innodb default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+```
+
+Since 2026-10-05 every table declares `utf8mb4` (before, it inherited the server default; on a `latin1` server a
+Vietnamese or emoji title failed with `ERROR 1366`). `create table if not exists` does not change a table that
+already exists, so on a database whose tables are not `utf8mb4` yet (check with
+`select table_name, table_collation from information_schema.tables where table_name like 'discovery_%'`), run once:
+
+```sql
+alter table discovery_users convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table discovery_sessions convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table discovery_projects convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table discovery_custom_skills convert to character set utf8mb4 collate utf8mb4_unicode_ci;
 ```
 
 Prod's DB server is MariaDB. This repo ran Postgres from Phase 5 through

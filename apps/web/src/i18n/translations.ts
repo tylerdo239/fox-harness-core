@@ -19,23 +19,14 @@ export type Locale = "vi" | "en";
 export const vi = {
   // Auth screen (components/features/auth/ConnectForm.tsx)
   "auth.loginTitle": "Đăng nhập để tiếp tục",
-  "auth.registerTitle": "Tạo tài khoản để bắt đầu",
   "auth.email": "Email",
   "auth.password": "Mật khẩu",
-  "auth.confirmPassword": "Xác nhận mật khẩu",
   "auth.pleaseWait": "Vui lòng đợi…",
   "auth.login": "Đăng nhập",
-  "auth.createAccount": "Tạo tài khoản",
-  "auth.switchToRegister": "Chưa có tài khoản? Đăng ký",
-  "auth.switchToLogin": "Đã có tài khoản? Đăng nhập",
-  "auth.registerSuccess": "Tạo tài khoản thành công — đăng nhập để tiếp tục",
-  // Client-side register validation (2026-09-10) — 3 distinct messages
-  // instead of the old single combined server message ("email và mật
-  // khẩu tối thiểu 8 ký tự"), checked in the FE before ever calling the
-  // server, so the right one shows immediately per case.
+  // Client-side validation of Settings > Users' create form (was the old
+  // self-register form's, which is gone — accounts are admin-created now).
   "auth.emailRequired": "Vui lòng nhập email",
   "auth.passwordTooShort": "Mật khẩu phải có ít nhất 8 ký tự",
-  "auth.passwordMismatch": "Mật khẩu xác nhận không khớp",
 
   // Gateway auth error `code`s (services/gateway/src/index.ts's
   // `/auth/register`+`/auth/login` — the only 2 routes whose errors are
@@ -56,6 +47,11 @@ export const vi = {
   "error.invalid_skill_description": "Cần mô tả, tối đa 280 ký tự",
   "error.invalid_skill_content": "Cần nội dung, tối đa 64 KB",
   "error.skill_not_found": "Không tìm thấy skill",
+  // Settings > Users (admin) and the role gate (services/gateway).
+  "error.invalid_password": "Mật khẩu phải có ít nhất 8 ký tự",
+  "error.invalid_role": "Vai trò không hợp lệ",
+  "error.self_demote": "Bạn không thể tự gỡ vai trò quản trị của mình",
+  "error.forbidden": "Bạn không có quyền thực hiện thao tác này",
 
   // App shell (App.tsx)
   "app.logout": "Đăng xuất",
@@ -111,6 +107,9 @@ export const vi = {
   "dataStudio.colSynonyms": "Từ đồng nghĩa",
   "dataStudio.colExposed": "Hiển thị",
   "dataStudio.colPii": "Dữ liệu nhạy cảm (PII)",
+  "dataStudio.colAllowUser": "Cho phép role user",
+  "dataStudio.piiNeverVisible": "Cột PII không bao giờ hiển thị cho role user",
+  "dataStudio.allowUserFailed": "Không cập nhật được quyền của role user",
   "dataStudio.colRole": "Vai trò",
   "dataStudio.colSemanticType": "Kiểu ngữ nghĩa",
   "dataStudio.colAggregation": "Phép tổng hợp",
@@ -301,6 +300,7 @@ export const vi = {
   "dsx.dashboardsSubtitle": "Báo cáo tổng hợp từ các biểu đồ đã ghim.",
   "dsx.newDashboard": "Dashboard mới",
   "dsx.noDashboardsHint": "Chưa có dashboard nào. Ghim biểu đồ từ hội thoại hoặc tạo mới.",
+  "dsx.noDashboardsReadOnly": "Chưa có dashboard nào được chia sẻ.",
   "dsx.deleteDashboard": "Xoá dashboard",
   "dsx.confirmDelete": "Xoá dashboard \"{name}\"?",
   "dsx.back": "Quay lại",
@@ -427,6 +427,29 @@ export const vi = {
   "settings.themeDark": "Tối",
   "settings.language": "Ngôn ngữ",
   "settings.profileEmail": "Địa chỉ email",
+  "settings.usersTab": "Người dùng",
+
+  // Settings > Users (admin only — SettingsDialog.tsx's UsersTab).
+  "users.listTitle": "Danh sách người dùng",
+  "users.createTitle": "Tạo người dùng",
+  "users.role": "Vai trò",
+  "users.roleAdmin": "Quản trị viên (admin)",
+  "users.roleUser": "Người dùng (user)",
+  "users.create": "Tạo",
+  "users.creating": "Đang tạo…",
+  "users.created": "Đã tạo người dùng {email}",
+  "users.roleChanged": "Đã đổi vai trò của {email}",
+  "users.resetPassword": "Đặt lại mật khẩu",
+  "users.newPassword": "Mật khẩu mới (tối thiểu 8 ký tự)",
+  "users.passwordReset": "Đã đặt lại mật khẩu cho {email}",
+  "users.save": "Lưu",
+  "users.cancel": "Huỷ",
+  "users.loading": "Đang tải…",
+  "users.loadFailed": "Không tải được danh sách người dùng",
+  "users.empty": "Chưa có người dùng nào",
+  "users.you": "bạn",
+  "users.createdAt": "Tạo ngày {date}",
+  "users.actionFailed": "Thao tác thất bại",
 
   // SkillsDialog.tsx + the "/" menu (conversation/SkillMenu.tsx).
   "skills.title": "Kỹ năng",
@@ -461,19 +484,12 @@ export type TranslationKey = keyof typeof vi;
 
 export const en: Record<TranslationKey, string> = {
   "auth.loginTitle": "Log in to continue",
-  "auth.registerTitle": "Create an account to get started",
   "auth.email": "Email",
   "auth.password": "Password",
-  "auth.confirmPassword": "Confirm password",
   "auth.pleaseWait": "Please wait…",
   "auth.login": "Log in",
-  "auth.createAccount": "Create account",
-  "auth.switchToRegister": "Don't have an account? Register",
-  "auth.switchToLogin": "Already have an account? Log in",
-  "auth.registerSuccess": "Account created — log in to continue",
   "auth.emailRequired": "Email is required",
   "auth.passwordTooShort": "Password must be at least 8 characters",
-  "auth.passwordMismatch": "Passwords do not match",
 
   "error.rate_limited": "Too many attempts, try again shortly",
   "error.invalid_json": "Invalid request",
@@ -489,6 +505,10 @@ export const en: Record<TranslationKey, string> = {
   "error.invalid_skill_description": "Description is required, at most 280 characters",
   "error.invalid_skill_content": "Content is required, at most 64 KB",
   "error.skill_not_found": "Skill not found",
+  "error.invalid_password": "Password must be at least 8 characters",
+  "error.invalid_role": "Invalid role",
+  "error.self_demote": "You cannot remove your own admin role",
+  "error.forbidden": "You don't have permission to do this",
 
   "app.logout": "Logout",
   "app.sessionExpired": "Session expired — please log in again",
@@ -531,6 +551,9 @@ export const en: Record<TranslationKey, string> = {
   "dataStudio.colSynonyms": "Synonyms",
   "dataStudio.colExposed": "Exposed",
   "dataStudio.colPii": "PII",
+  "dataStudio.colAllowUser": "Allow role user",
+  "dataStudio.piiNeverVisible": "PII columns are never visible to role user",
+  "dataStudio.allowUserFailed": "Couldn't update role user access",
   "dataStudio.colRole": "Role",
   "dataStudio.colSemanticType": "Semantic type",
   "dataStudio.colAggregation": "Aggregation",
@@ -670,6 +693,7 @@ export const en: Record<TranslationKey, string> = {
   "dsx.dashboardsSubtitle": "Reports built from pinned charts.",
   "dsx.newDashboard": "New dashboard",
   "dsx.noDashboardsHint": "No dashboards yet. Pin a chart from a conversation or create one.",
+  "dsx.noDashboardsReadOnly": "No dashboards have been shared yet.",
   "dsx.deleteDashboard": "Delete dashboard",
   "dsx.confirmDelete": "Delete dashboard \"{name}\"?",
   "dsx.back": "Back",
@@ -776,6 +800,28 @@ export const en: Record<TranslationKey, string> = {
   "settings.themeDark": "Dark",
   "settings.language": "Language",
   "settings.profileEmail": "Email address",
+  "settings.usersTab": "Users",
+
+  "users.listTitle": "Users",
+  "users.createTitle": "Create user",
+  "users.role": "Role",
+  "users.roleAdmin": "Administrator (admin)",
+  "users.roleUser": "User (user)",
+  "users.create": "Create",
+  "users.creating": "Creating…",
+  "users.created": "Created user {email}",
+  "users.roleChanged": "Changed the role of {email}",
+  "users.resetPassword": "Reset password",
+  "users.newPassword": "New password (at least 8 characters)",
+  "users.passwordReset": "Password reset for {email}",
+  "users.save": "Save",
+  "users.cancel": "Cancel",
+  "users.loading": "Loading…",
+  "users.loadFailed": "Couldn't load users",
+  "users.empty": "No users yet",
+  "users.you": "you",
+  "users.createdAt": "Created {date}",
+  "users.actionFailed": "Action failed",
 
   "skills.title": "Skills",
   "skills.new": "New skill",

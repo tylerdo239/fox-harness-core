@@ -192,6 +192,7 @@ export function EditColorsDialog({
   );
 }
 
+// Admin only (creating a dashboard / pinning are admin-only routes) — callers already gate on the role.
 export function AddToDashboardDialog({ open, onClose, chartId }: { open: boolean; onClose: () => void; chartId: string }) {
   const { t } = useLocale();
   const runtime = useRuntime();
@@ -201,8 +202,10 @@ export function AddToDashboardDialog({ open, onClose, chartId }: { open: boolean
   const [done, setDone] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
 
+  const isAdmin = runtime.userRole === "admin";
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || !isAdmin) return;
     setDone(null);
     setNewTitle("");
     setLoading(true);
@@ -211,7 +214,7 @@ export function AddToDashboardDialog({ open, onClose, chartId }: { open: boolean
       .then(setDashboards)
       .catch(() => setDashboards([]))
       .finally(() => setLoading(false));
-  }, [open, runtime]);
+  }, [open, runtime, isAdmin]);
 
   async function pinTo(dashboardId: string, name: string): Promise<void> {
     setBusy(true);
@@ -238,6 +241,7 @@ export function AddToDashboardDialog({ open, onClose, chartId }: { open: boolean
     }
   }
 
+  if (!isAdmin) return null;
   return (
     <Modal
       open={open}

@@ -26,8 +26,10 @@ Open `http://<host>:8080`. Create the first admin with
 
 ## The backend container
 
-- **`cap_add: SYS_ADMIN` is required.** Bubblewrap — the per-session sandbox for model-run `bash`/`python` —
-  creates PID and mount namespaces. In production (`NODE_ENV=production`, set by the image) the gateway
+- **`cap_add: SYS_ADMIN, NET_ADMIN` are required.** Bubblewrap — the per-session sandbox for model-run
+  `bash`/`python` — creates PID, mount and network namespaces (`NET_ADMIN` brings up the loopback of the namespace
+  that cuts model-run code off the network). Both are bwrap's own: the command it runs keeps no capability
+  (`--cap-drop ALL`). In production (`NODE_ENV=production`, set by the image) the gateway
   **refuses to start** without a working sandbox, because without it any user's code can read every other
   user's files. If your platform forbids `SYS_ADMIN`, the alternatives are a seccomp/AppArmor profile that
   allows unprivileged user namespaces for this container, or a sandboxed runtime (gVisor/Kata) — then the
@@ -60,6 +62,6 @@ the same session. Scale **up** first (`FOX_RUNTIME_COUNT`).
 ## Kubernetes
 
 Two Deployments (`web`, `backend` with `replicas: 1`, `strategy: Recreate`), a Service/Ingress to `web`, a PVC
-mounted at `/data`, secrets from your secret manager. The backend pod needs the `SYS_ADMIN` capability (see
+mounted at `/data`, secrets from your secret manager. The backend pod needs the `SYS_ADMIN` and `NET_ADMIN` capabilities (see
 above) but **no** Docker socket, no pod-creation RBAC, and no node access — the reason the previous
 orchestrator design could not run there.

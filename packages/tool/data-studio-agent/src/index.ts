@@ -1,10 +1,12 @@
 import type { Context } from '@deepseek-ai/cordis'
+import '@deepseek-ai/dsh-agent'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
 import { DataStudioPool } from './pool.ts'
 
 export const name = 'fox-harness-tool-data-studio-agent'
-export const inject = ['tools']
+export const inject = ['tools', 'agents']
 
 // pipeline_v3 (packages/tool/data-studio-agent/python) runs a 12-step multi-agent
 // SQL pipeline (many sequential LLM calls: retrieval, worker/parser x2, compile
@@ -17,6 +19,24 @@ export const inject = ['tools']
 // `kernel.ts` correctly reporting "ran longer than N seconds" (not a hang, just
 // too short a budget). Raised with real margin above the measured worst case.
 const TIMEOUT_MS = 600_000
+
+/**
+ * The role (admin|user) of the conversation's owner, which decides what business data this question may touch
+ * (python/src/security/role.py). It arrives on the agent's options from packages/transport (the gateway reads it
+ * from the owner's account; never from the model). A subagent does NOT inherit custom options (dsh-subagent
+ * copies only provider/model/maxTokens), so walk up `parentSession` to the agent that has it. Anything else —
+ * no agent, a parent that is no longer live — is `user`: the narrowest view, never the widest.
+ */
+function roleOf(ctx: Context, agent: Agent | undefined): 'admin' | 'user' {
+  let current = agent
+  for (let hops = 0; current && hops < 16; hops += 1) {
+    const role = (current.options as { role?: unknown }).role
+    if (role === 'admin' || role === 'user') return role
+    const parent = current.session.header.parentSession
+    current = parent ? ctx.agents.get(parent) : undefined
+  }
+  return 'user'
+}
 
 export function apply(ctx: Context) {
   // A pool, not one kernel: one runtime serves many sessions (see pool.ts).
@@ -94,7 +114,7 @@ export function apply(ctx: Context) {
         }),
       },
       async execute(args, exec) {
-        const reply = await pool.ask(args.question, TIMEOUT_MS, exec.signal)
+        const reply = await pool.ask(args.question, roleOf(ctx, exec.agent), TIMEOUT_MS, exec.signal)
         if (!reply.ok) throw new Error(reply.error ?? 'analyze_data: unknown error')
         return {
           answer: reply.answer ?? '',

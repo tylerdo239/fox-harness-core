@@ -1,16 +1,28 @@
 from src.crud_mongo._shared import new_id, utcnow
 from src.database.mongodb import AttrDatabase, AttrDict
+from src.security import role
 
 RELATIONSHIP_COLLECTION = "relationships"
 COLUMN_PAIR_COLLECTION = "relationship_column_pairs"
 
 
+def _visible(db: AttrDatabase, docs: list) -> list:
+    """A relationship is visible to a non-admin only if BOTH tables are: a join through a hidden table
+    would let a query reach it."""
+    docs = [d for d in docs if d is not None]
+    if role.is_admin() or not docs:
+        return docs
+    entities = role.visible_entity_ids(db) or set()
+    return [d for d in docs if d.get("from_entity_id") in entities and d.get("to_entity_id") in entities]
+
+
 def list_all(db: AttrDatabase) -> list[AttrDict]:
-    return list(db[RELATIONSHIP_COLLECTION].find({}))
+    return _visible(db, list(db[RELATIONSHIP_COLLECTION].find({})))
 
 
 def get_by_id(db: AttrDatabase, relationship_id: str) -> AttrDict | None:
-    return db[RELATIONSHIP_COLLECTION].find_one({"_id": relationship_id})
+    kept = _visible(db, [db[RELATIONSHIP_COLLECTION].find_one({"_id": relationship_id})])
+    return kept[0] if kept else None
 
 
 def create(
@@ -57,22 +69,22 @@ def list_column_pairs(db: AttrDatabase, relationship_id: str) -> list[AttrDict]:
 def list_by_entity_ids(db: AttrDatabase, entity_ids: list[str]) -> list[AttrDict]:
     """Relationships where BOTH sides are in entity_ids — used to find join keys strictly between
     a fixed candidate set."""
-    return list(db[RELATIONSHIP_COLLECTION].find({
+    return _visible(db, list(db[RELATIONSHIP_COLLECTION].find({
         "from_entity_id": {"$in": entity_ids},
         "to_entity_id": {"$in": entity_ids},
-    }))
+    })))
 
 
 def list_touching_entity_ids(db: AttrDatabase, entity_ids: list[str]) -> list[AttrDict]:
     """Relationships where EITHER side is in entity_ids (OR, not AND) — used to find neighbor
     entities reachable from a selected set (unlike list_by_entity_ids, which requires both sides
     already in the set)."""
-    return list(db[RELATIONSHIP_COLLECTION].find({
+    return _visible(db, list(db[RELATIONSHIP_COLLECTION].find({
         "$or": [
             {"from_entity_id": {"$in": entity_ids}},
             {"to_entity_id": {"$in": entity_ids}},
         ]
-    }))
+    })))
 
 
 def list_column_pairs_by_relationship_ids(db: AttrDatabase, relationship_ids: list[str]) -> list[AttrDict]:

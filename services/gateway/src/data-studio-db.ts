@@ -77,6 +77,8 @@ export interface EntityRow {
   grain_description: string | null
   is_exposed: 0 | 1
   is_pii: 0 | 1
+  /** Role `user` may query this table (allowed_roles contains 'user'; python/src/security/role.py). Admin always may. */
+  allow_user: 0 | 1
   row_count_est: number | null
 }
 
@@ -94,6 +96,7 @@ function toEntityRow(d: Doc): EntityRow {
     grain_description: d.grain_description ?? null,
     is_exposed: flag(d.is_exposed),
     is_pii: flag(d.is_pii),
+    allow_user: flag(allowsUser(d)),
     row_count_est: d.row_count_est ?? null,
   }
 }
@@ -107,6 +110,16 @@ export async function getEntity(id: string): Promise<EntityRow | undefined> {
   return doc ? toEntityRow(doc) : undefined
 }
 
+// What role `user` may query is decided per table and per column by `allowed_roles`; a document without it is
+// admin-only (python/src/security/role.py). The admin UI only ever toggles 'user' on or off.
+function allowsUser(d: Doc): boolean {
+  return Array.isArray(d.allowed_roles) && d.allowed_roles.includes('user')
+}
+
+function rolesFor(allowUser: boolean): string[] {
+  return allowUser ? ['admin', 'user'] : ['admin']
+}
+
 export interface EntityUpdateInput {
   display_name?: string
   description?: string | null
@@ -114,6 +127,10 @@ export interface EntityUpdateInput {
   grain_description?: string | null
   is_exposed?: boolean
   is_pii?: boolean
+  /** Let role `user` query this table. */
+  allow_user?: boolean
+  /** Also apply `allow_user` to every non-PII column of the table (one switch to open a whole table). */
+  allow_user_columns?: boolean
 }
 
 const ENTITY_UPDATABLE_FIELDS = ['display_name', 'description', 'synonyms', 'grain_description', 'is_exposed', 'is_pii'] as const
@@ -131,7 +148,13 @@ function pickFields(input: object, allowed: readonly string[], arrayFields: Read
 
 export async function updateEntity(id: string, input: EntityUpdateInput): Promise<EntityRow | undefined> {
   const fields = pickFields(input, ENTITY_UPDATABLE_FIELDS, new Set(['synonyms']), new Set(['is_exposed', 'is_pii']))
+  if (typeof input.allow_user === 'boolean') fields.allowed_roles = rolesFor(input.allow_user)
   if (Object.keys(fields).length > 0) await col('entities').updateOne({ _id: id }, { $set: { ...fields, updated_at: now() } })
+  if (typeof input.allow_user === 'boolean' && input.allow_user_columns) {
+    // PII columns never open to role user (the pipeline would refuse them anyway); closing applies to all.
+    const target = input.allow_user ? { entity_id: id, is_pii: { $ne: true } } : { entity_id: id }
+    await col('entity_columns').updateMany(target, { $set: { allowed_roles: rolesFor(input.allow_user), updated_at: now() } })
+  }
   return getEntity(id)
 }
 
@@ -155,6 +178,8 @@ export interface EntityColumnRow {
   is_exposed: 0 | 1
   is_pii: 0 | 1
   is_default_select: 0 | 1
+  /** Role `user` may read this column (it also needs its table opened, and is never PII). */
+  allow_user: 0 | 1
   distinct_count: number | null
   sample_values: string
   min_val: string | null
@@ -181,6 +206,7 @@ function toColumnRow(d: Doc): EntityColumnRow {
     is_exposed: flag(d.is_exposed),
     is_pii: flag(d.is_pii),
     is_default_select: flag(d.is_default_select),
+    allow_user: flag(allowsUser(d)),
     distinct_count: d.distinct_count ?? null,
     sample_values: json(d.sample_values),
     min_val: d.min_val ?? null,
@@ -208,6 +234,8 @@ export interface EntityColumnUpdateInput {
   is_exposed?: boolean
   is_pii?: boolean
   is_default_select?: boolean
+  /** Let role `user` read this column. */
+  allow_user?: boolean
 }
 
 const COLUMN_UPDATABLE_FIELDS = [
@@ -222,6 +250,7 @@ export async function updateEntityColumn(id: string, input: EntityColumnUpdateIn
   for (const field of ['role', 'semantic_type', 'default_aggregation'] as const) {
     if (fields[field] === '') fields[field] = null
   }
+  if (typeof input.allow_user === 'boolean') fields.allowed_roles = rolesFor(input.allow_user)
   if (Object.keys(fields).length > 0) await col('entity_columns').updateOne({ _id: id }, { $set: { ...fields, updated_at: now() } })
   return getEntityColumn(id)
 }

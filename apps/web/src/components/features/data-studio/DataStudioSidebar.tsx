@@ -21,6 +21,7 @@ import {
 } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
+import { useRuntime } from "../../../runtime.ts";
 import { Button } from "../../primitives/Button.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
 import { MenuItem } from "../../primitives/MenuItem.tsx";
@@ -40,13 +41,15 @@ export type DataStudioSection =
 // Glossary") since both describe how entities relate/are named, mirroring
 // example-data-studio-agent's own route set (src/apis/routes/relationships.py,
 // a real route this nav had missed).
-const SECTIONS: { key: DataStudioSection; icon: typeof MessageSquareIcon; labelKey: TranslationKey }[] = [
+// `adminOnly`: the semantic-layer admin sections — services/gateway 403s their /data-studio/* routes for role
+// `user`, who only gets Chat and the read-only Dashboards.
+const SECTIONS: { key: DataStudioSection; icon: typeof MessageSquareIcon; labelKey: TranslationKey; adminOnly?: boolean }[] = [
   { key: "chat", icon: MessageSquareIcon, labelKey: "dataStudio.sectionChat" },
   { key: "dashboards", icon: DashboardsIcon, labelKey: "dataStudio.sectionDashboards" },
-  { key: "data-sources", icon: DataSourcesIcon, labelKey: "dataStudio.sectionDataSources" },
-  { key: "glossary", icon: GlossaryIcon, labelKey: "dataStudio.sectionGlossary" },
-  { key: "relationships", icon: RelationshipsIcon, labelKey: "dataStudio.sectionRelationships" },
-  { key: "metrics", icon: MetricsIcon, labelKey: "dataStudio.sectionMetrics" },
+  { key: "data-sources", icon: DataSourcesIcon, labelKey: "dataStudio.sectionDataSources", adminOnly: true },
+  { key: "glossary", icon: GlossaryIcon, labelKey: "dataStudio.sectionGlossary", adminOnly: true },
+  { key: "relationships", icon: RelationshipsIcon, labelKey: "dataStudio.sectionRelationships", adminOnly: true },
+  { key: "metrics", icon: MetricsIcon, labelKey: "dataStudio.sectionMetrics", adminOnly: true },
 ];
 
 export function DataStudioSidebar({
@@ -67,6 +70,8 @@ export function DataStudioSidebar({
   onBackToMain: () => void;
 }) {
   const { t } = useLocale();
+  const { userRole } = useRuntime();
+  const sections = SECTIONS.filter((section) => userRole === "admin" || !section.adminOnly);
 
   return (
     <div
@@ -114,7 +119,7 @@ export function DataStudioSidebar({
         <span className="fh-sidebar-new-session-label">{t("sidebar.newSession")}</span>
       </Button>
 
-      {SECTIONS.map(({ key, icon: Icon, labelKey }) => (
+      {sections.map(({ key, icon: Icon, labelKey }) => (
         <MenuItem
           key={key}
           variant="nav"

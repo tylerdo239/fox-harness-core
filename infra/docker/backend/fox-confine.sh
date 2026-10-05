@@ -23,13 +23,20 @@ while [ $# -gt 0 ]; do
     --tmpfs) write=1; shift 2 ;;
     --ro-bind) shift 3 ;;
     --dev | --proc) shift 2 ;;
-    --unshare-pid | --die-with-parent) shift ;;
+    --unshare-pid | --unshare-net | --die-with-parent) shift ;;
     *) echo "fox-confine: unexpected sandbox argument: $1" >&2; exit 125 ;;
   esac
 done
 if [ $# -eq 0 ]; then echo "fox-confine: no command" >&2; exit 125; fi
 
-args=(--unshare-pid --unshare-ipc --unshare-uts --die-with-parent
+# --unshare-net: the command gets its own network namespace with only a loopback. Without it, model-run code
+# reaches every service the backend can (Redis holding login tokens, Mongo, MariaDB, the runtime's own port, the
+# internet). Nothing in here needs the network: the python tool talks over stdin/stdout, web search runs in the runtime.
+# --cap-drop ALL: bwrap runs as root in this container, and a root bwrap keeps every capability for the command by
+# default (measured: CapEff included CAP_SYS_ADMIN). The command keeps none. (--unshare-user would be cleaner but
+# cannot mount a fresh /proc under Docker's masked /proc.) Setting up the network namespace's loopback needs the
+# container to have CAP_NET_ADMIN — bwrap's own, dropped before the command runs.
+args=(--unshare-pid --unshare-ipc --unshare-uts --unshare-net --cap-drop ALL --die-with-parent
   --tmpfs /
   --ro-bind /usr /usr
   --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64

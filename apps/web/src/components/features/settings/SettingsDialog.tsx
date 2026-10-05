@@ -19,11 +19,10 @@
 // the real email, plus a real Logout action (reuses App.tsx's own
 // `handleLogout`, the exact same one AccountMenu's popup already calls —
 // a second real entry point to the same real action, not a duplicate
-// fake one). Immediate follow-up fix (same day): the Role row this tab
-// briefly had is removed — `runtime.userRole` and the `/auth/login`
-// `role`-capture that fed it are reverted along with it in App.tsx/
-// runtime.ts, since nothing else ever read that field once the row was
-// gone (matches this project's own dead-code discipline elsewhere).
+// fake one). The Role row this tab briefly had stays removed;
+// `runtime.userRole` is back (role-based authz: services/gateway enforces
+// `admin`/`user`) and gates the third tab, Users (UsersTab.tsx), which
+// only admins see.
 //
 // `PluginInventory` (the live Cordis Loader diagnostic) is REMOVED from
 // here the same day it was added — user asked for it gone from Settings
@@ -38,7 +37,7 @@
 import { useState } from 'react'
 
 import { useLocale } from '../../../i18n/locale.tsx'
-import { CloseIcon, GearIcon, LogOutIcon, MoonIcon, ProfileIcon, SunIcon } from '../../../icons.tsx'
+import { CloseIcon, GearIcon, LogOutIcon, MoonIcon, ProfileIcon, SunIcon, UsersIcon } from '../../../icons.tsx'
 import { useRuntime } from '../../../runtime.ts'
 import { useTheme } from '../../../useTheme.ts'
 import { Button } from '../../primitives/Button.tsx'
@@ -46,14 +45,20 @@ import { IconButton } from '../../primitives/IconButton.tsx'
 import { MenuItem } from '../../primitives/MenuItem.tsx'
 import { SelectableCard } from '../../primitives/SelectableCard.tsx'
 import { LanguageSelect } from '../LanguageSelect.tsx'
+import { UsersTab } from './UsersTab.tsx'
 
-type Tab = 'general' | 'profile'
+type Tab = 'general' | 'profile' | 'users'
 
 export function SettingsDialog({ open, onClose, onLogout }: { open: boolean; onClose: () => void; onLogout: () => void }) {
   const { t } = useLocale()
   const { theme, setTheme } = useTheme()
   const runtime = useRuntime()
-  const [tab, setTab] = useState<Tab>('general')
+  const [tabState, setTabState] = useState<Tab>('general')
+
+  const isAdmin = runtime.userRole === 'admin'
+  // 'users' left over from an admin login on this tab falls back to General for a user.
+  const tab: Tab = tabState === 'users' && !isAdmin ? 'general' : tabState
+  const setTab = setTabState
 
   if (!open) return null
 
@@ -77,6 +82,12 @@ export function SettingsDialog({ open, onClose, onLogout }: { open: boolean; onC
               <ProfileIcon size={16} />
               {t('settings.profileTab')}
             </MenuItem>
+            {isAdmin && (
+              <MenuItem variant="nav" active={tab === 'users'} onClick={() => setTab('users')}>
+                <UsersIcon size={16} />
+                {t('settings.usersTab')}
+              </MenuItem>
+            )}
           </div>
 
           <div id="settings-content" className="fh-settings-content">
@@ -126,6 +137,8 @@ export function SettingsDialog({ open, onClose, onLogout }: { open: boolean; onC
                 </div>
               </>
             )}
+
+            {tab === 'users' && isAdmin && <UsersTab onClose={onClose} />}
           </div>
         </div>
       </div>

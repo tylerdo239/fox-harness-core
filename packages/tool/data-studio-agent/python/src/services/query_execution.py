@@ -1,9 +1,12 @@
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
 from src.crud_mongo import entity as entity_crud
+from src.crud_mongo import entity as _entity_crud
+from src.security import role as role_mod
 from src.crud_mongo import entity_column as entity_column_crud
 from src.database.mongodb import AttrDatabase
 from src.services.dremio_client import DremioClient, DremioQueryError
@@ -36,6 +39,24 @@ class ExecutionResult:
     sanity_flags: list[SanityFlag] = field(default_factory=list)
 
 
+def _forbidden_table_in(db: AttrDatabase, sql: str) -> str | None:
+    """The physical path of a table the current role may not query, if the SQL text names one."""
+    if role_mod.is_admin():
+        return None
+    with role_mod.as_role(role_mod.ADMIN):
+        entities = _entity_crud.list_active(db)
+    lowered = sql.lower()
+    for e in entities:
+        if role_mod.doc_allowed(e):
+            continue
+        parts = e.physical_path.split(".")
+        variants = {e.physical_path.lower(), ".".join(f'"{p}"' for p in parts).lower()}
+        # whole identifier only: `x.y.workflow` must not match inside `x.y.workflows`
+        if any(re.search(r'(?<![\w."])' + re.escape(v) + r'(?![\w"])', lowered) for v in variants):
+            return e.physical_path
+    return None
+
+
 def execute_and_check(
     db: AttrDatabase,
     client: DremioClient,
@@ -45,6 +66,12 @@ def execute_and_check(
     timeout_sec: float = 60,
 ) -> ExecutionResult:
     started_at = datetime.now()
+
+    # Last line before Dremio (sql_validator.py already decided; this is the belt to its braces): for a
+    # non-admin role, no table the role may not query may appear in the final SQL text at all.
+    forbidden = _forbidden_table_in(db, sql)
+    if forbidden:
+        return ExecutionResult(success=False, error=f"access denied: table '{forbidden}' is not available to role '{role_mod.current()}'", latency_ms=0)
 
     try:
         result = client.run_sql_with_meta(sql, timeout_sec=timeout_sec, fetch_limit=fetch_limit)

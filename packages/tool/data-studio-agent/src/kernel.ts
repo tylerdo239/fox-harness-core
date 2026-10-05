@@ -67,7 +67,8 @@ export class DataStudioKernel {
   private reply: ((reply: AnalyzeReply | undefined) => void) | undefined
   private stderrTail = ''
 
-  async ask(question: string, timeoutMs: number, signal: AbortSignal): Promise<AnalyzeReply> {
+  /** `role` is the conversation owner's role (admin|user); the Python side limits the catalog and the SQL to it. */
+  async ask(question: string, role: 'admin' | 'user', timeoutMs: number, signal: AbortSignal): Promise<AnalyzeReply> {
     const process = this.process ?? this.start()
 
     const reply = await new Promise<AnalyzeReply | 'timeout' | 'aborted' | undefined>((resolve) => {
@@ -79,7 +80,7 @@ export class DataStudioKernel {
         signal.removeEventListener('abort', onAbort)
         resolve(value)
       }
-      process.stdin.write(JSON.stringify({ question }) + '\n')
+      process.stdin.write(JSON.stringify({ question, role }) + '\n')
     })
     this.reply = undefined
 

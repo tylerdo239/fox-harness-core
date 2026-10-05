@@ -1,6 +1,7 @@
 from typing import Any
 
 from src.crud_mongo import business_glossary as glossary_crud
+from src.security import role as role_mod
 from src.crud_mongo import entity as entity_crud
 from src.crud_mongo import entity_column as entity_column_crud
 from src.crud_mongo import metric as metric_crud
@@ -56,7 +57,7 @@ def glossary_term_embed_text(term: AttrDict) -> str:
     return " | ".join(parts)
 
 
-async def reindex_all(
+async def _reindex_all_impl(
     db: AttrDatabase, embedding_client: EmbeddingClient, vector_store: VectorStore
 ) -> dict[str, int]:
     summary = {}
@@ -163,3 +164,11 @@ async def _index_rows(
         indexed += len(batch)
 
     return indexed
+
+
+async def reindex_all(
+    db: AttrDatabase, embedding_client: EmbeddingClient, vector_store: VectorStore
+) -> dict[str, int]:
+    """Admin operation: always sees the FULL catalog, whoever calls it (src/security/role.py)."""
+    with role_mod.as_role(role_mod.ADMIN):
+        return await _reindex_all_impl(db, embedding_client, vector_store)

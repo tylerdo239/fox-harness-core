@@ -36,13 +36,22 @@ async function api(method, path, token, body, raw = false) {
   return { status: res.status, json, text }
 }
 
-async function newUser(label) {
+// Self-registration is gone: accounts are created by an admin (scripts/e2e-up.sh bootstraps one).
+const ADMIN = { email: 'admin@e2e.test', password: 'admin-e2e-password' }
+let adminToken
+async function admin() {
+  if (!adminToken) adminToken = (await api('POST', '/auth/login', undefined, ADMIN)).json?.token
+  if (!adminToken) throw new Error('admin login failed — did scripts/e2e-up.sh create the admin?')
+  return adminToken
+}
+
+async function newUser(label, role = 'user') {
   const email = `${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@e2e.test`
   const password = 'correct-horse-battery'
-  const reg = await api('POST', '/auth/register', undefined, { email, password })
-  if (reg.status !== 201) throw new Error(`register failed: ${reg.status} ${reg.text}`)
+  const reg = await api('POST', '/users', await admin(), { email, password, role })
+  if (reg.status !== 201) throw new Error(`create user failed: ${reg.status} ${reg.text}`)
   const login = await api('POST', '/auth/login', undefined, { email, password })
-  return { email, token: login.json.token, id: login.json.userId }
+  return { email, password, token: login.json.token, id: reg.json.id, role: login.json.role }
 }
 
 /** One chat connection through the full path. `events` = snapshot + live events. */
@@ -171,7 +180,8 @@ const tests = {
       ['grep data root', 'grep', { pattern: 'SECRET-B', path: '/data', output_mode: 'content' }, 'SECRET-B-CANARY'],
       ['bash cat other user', 'bash', { command: `cat ${bDir}/secret.txt`, description: 'cat' }, 'SECRET-B-CANARY'],
       ['bash cat host file', 'bash', { command: 'cat /data/canary-outside.txt', description: 'cat' }, 'HOSTFILE-CANARY'],
-      ['bash list users dir', 'bash', { command: 'ls /data/users', description: 'ls' }, bId],
+      // each entry printed as USERDIR:<name>:END so a short id like `2` cannot match digits elsewhere in the result
+      ['bash list users dir', 'bash', { command: "ls /data/users | sed 's/.*/USERDIR:&:END/'", description: 'ls' }, `USERDIR:${bId}:END`],
       ['bash /proc/1/environ', 'bash', { command: "cat /proc/1/environ | tr '\\0' '\\n'", description: 'p' }, 'DATABASE_URL'],
       ['bash env', 'bash', { command: 'env', description: 'env' }, 'S3_SECRET'],
     ]
@@ -190,6 +200,29 @@ const tests = {
     ca.close()
     const leaks = rows.filter(([, ok]) => !ok).map(([l]) => l)
     return { ok: leaks.length === 0 && control, detail: `${rows.length} vectors, leaks=${JSON.stringify(leaks)}, own-workspace control=${control}` }
+  },
+
+  // A subagent has its own scope (joined to the parent's preset, not the parent's agent scope), so a guard on
+  // the parent's scope did not cover it: measured, a subagent's `read` returned another user's file. The child
+  // runs in the background, so what its tool returned is read from the mock LLM's record of the child's request.
+  async subagentIsolation() {
+    const { a, b } = await users()
+    const bDir = workspaceOf(world.bobSession)
+    dx('sh', '-c', `echo SECRET-B-CANARY > ${bDir}/secret.txt`)
+    await clearMock()
+    const ca = chat(a.token, { params: { flow: 'default' } }); await ca.opened; await ca.ready()
+    const probes = [`${bDir}/secret.txt`, '/proc/self/environ']
+    let n = 0
+    for (const path of probes) {
+      ca.send(`CALL subagent ${JSON.stringify({ description: 'probe', prompt: `CALL read ${JSON.stringify({ file_path: path })}` })}`); n += 1
+      await ca.turnEnds(n, 60000).catch(() => {})
+    }
+    await sleep(8000) // the children finish in the background
+    const seen = (await mock()).map((r) => r.lastTool ?? '').filter(Boolean)
+    const childSawRead = seen.filter((t) => t.includes('workspace guard') || t.includes('<content>'))
+    const leaked = seen.some((t) => t.includes('SECRET-B-CANARY') || t.includes('OPENAI_API_KEY') || t.includes('FOX_INTERNAL_SECRET'))
+    ca.close()
+    return { ok: childSawRead.length >= 2 && !leaked, detail: `child read results=${childSawRead.length} (must be refused), leaked=${leaked}: ${childSawRead.map((t) => t.slice(0, 70)).join(' | ')}` }
   },
 
   async pythonAndFiles() {
@@ -298,6 +331,128 @@ const tests = {
     again.send('after the stop'); await again.turnEnds(3, 40000)
     again.close()
     return { ok: ends[0] === 'completed' && ends.length === 2 && ends[1] !== 'completed' && JSON.stringify(turnsOf(again.events)) === '[1,2,3]' && firstKept, detail: `turn ends after restart=${JSON.stringify(ends)} (completed turn kept, interrupted one closed), next turns=${JSON.stringify(turnsOf(again.events))}` }
+  },
+
+  // Two roles. user: chats + own data + Data Studio dashboards read-only. admin: everything (src/index.ts adminGate).
+  async roleGate() {
+    const { a } = await users()
+    const adm = await admin()
+    const rows = []
+    const expect = async (label, token, method, path, body, want) => {
+      const r = await api(method, path, token, body)
+      rows.push([label, r.status, want])
+    }
+    // no self-registration
+    await expect('register, anonymous', undefined, 'POST', '/auth/register', { email: `x${Date.now()}@e2e.test`, password: 'xxxxxxxxxx' }, 401)
+    await expect('register, as user', a.token, 'POST', '/auth/register', { email: `y${Date.now()}@e2e.test`, password: 'xxxxxxxxxx' }, 403)
+    await expect('create user, as user', a.token, 'POST', '/users', { email: `z${Date.now()}@e2e.test`, password: 'xxxxxxxxxx' }, 403)
+    await expect('list users, as user', a.token, 'GET', '/users', undefined, 403)
+    await expect('change a role, as user', a.token, 'PATCH', `/users/${a.id}`, { role: 'admin' }, 403)
+    // Data Studio: admin-only except reading dashboards
+    for (const [method, path, body] of [
+      ['GET', '/data-studio/sources'], ['PATCH', '/data-studio/sources/x', {}], ['GET', '/data-studio/glossary'],
+      ['POST', '/data-studio/glossary', {}], ['GET', '/data-studio/metrics'], ['GET', '/data-studio/relationships'],
+      ['POST', '/data-studio/dremio/sync', {}], ['POST', '/data-studio/dremio/browse', {}], ['PATCH', '/data-studio/entities/x', { allow_user: true }],
+      ['PATCH', '/data-studio/charts/x', {}], ['POST', '/data-studio/dashboards', { title: 't' }], ['GET', '/data-studio/dashboards/meta/available-charts'],
+    ]) await expect(`${method} ${path}, as user`, a.token, method, path, body, 403)
+    const dashUser = await api('GET', '/data-studio/dashboards', a.token)
+    rows.push(['GET dashboards, as user (read-only allowed)', dashUser.status === 403 ? 403 : 'not 403', 'not 403'])
+    const srcAdmin = await api('GET', '/data-studio/sources', adm)
+    rows.push(['GET sources, as admin', srcAdmin.status === 403 || srcAdmin.status === 401 ? srcAdmin.status : 'allowed', 'allowed'])
+    // an admin cannot demote themselves
+    const list = await api('GET', '/users', adm)
+    const me = Array.isArray(list.json) ? list.json.find((u) => u.email === ADMIN.email) : undefined
+    if (!me) return { ok: false, detail: `GET /users as admin -> ${list.status}, admin not listed` }
+    await expect('admin demotes self', adm, 'PATCH', `/users/${me.id}`, { role: 'user' }, 400)
+    // promoting a user revokes their old token; their next login carries the new role
+    const c = await newUser('carol')
+    await expect('promote carol, as admin', adm, 'PATCH', `/users/${c.id}`, { role: 'admin' }, 204)
+    await expect("carol's old token after the role change", c.token, 'GET', '/sessions/mine', undefined, 401)
+    const relog = await api('POST', '/auth/login', undefined, { email: c.email, password: c.password })
+    rows.push(["carol's new login role", relog.json?.role, 'admin'])
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks` }
+  },
+
+  // The OWNER's role reaches the runtime with every connect (it is what analyze_data limits data by).
+  async roleReachesRuntime() {
+    const { a } = await users()
+    const adm = await admin()
+    const cu = chat(a.token, { params: { flow: 'default' } }); await cu.opened; await cu.ready()
+    const ca = chat(adm, { params: { flow: 'default' } }); await ca.opened; await ca.ready()
+    await sleep(500)
+    const logs = execFileSync('docker', ['logs', BACKEND], { encoding: 'utf8' })
+    const roleOf = (id) => (logs.match(new RegExp(`"ws_connect","sessionId":"${id}"[^\\n]*"role":"(\\w+)"`)) ?? [])[1]
+    const ru = roleOf(cu.sessionId), ra = roleOf(ca.sessionId)
+    // an admin opening the USER's session still runs it with the owner's role
+    const view = chat(adm, { session: cu.sessionId }); await view.opened; await view.ready(); await sleep(300)
+    const logs2 = execFileSync('docker', ['logs', BACKEND], { encoding: 'utf8' })
+    const viewRoles = [...logs2.matchAll(new RegExp(`"ws_connect","sessionId":"${cu.sessionId}"[^\\n]*"role":"(\\w+)"`, 'g'))].map((m) => m[1])
+    cu.close(); ca.close(); view.close()
+    return { ok: ru === 'user' && ra === 'admin' && viewRoles.every((r) => r === 'user'), detail: `user session role=${ru}, admin session role=${ra}, admin viewing the user's session -> ${JSON.stringify(viewRoles)}` }
+  },
+
+  // Model-run bash/python get their own network namespace (fox-confine.sh --unshare-net): measured before the fix,
+  // confined code reached the gateway's Redis (login tokens) without a password, Mongo, MariaDB and the internet.
+  async sandboxNoNetwork() {
+    const { a } = await users()
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    const targets = [['foxe2e-redis', 6379], ['foxe2e-mariadb', 3306], ['127.0.0.1', 4000], ['foxe2e-backend', 4000], ['host.docker.internal', 4999], ['example.com', 443]]
+    const rows = []
+    let n = 0
+    for (const [host, port] of targets) {
+      c.send(`CALL bash ${JSON.stringify({ command: `timeout 5 bash -c 'exec 3<>/dev/tcp/${host}/${port}' 2>/dev/null && echo NET-OPEN-${port} || echo NET-CLOSED`, description: 'net' })}`); n += 1
+      await c.turnEnds(n, 40000).catch(() => {})
+      rows.push([`bash -> ${host}:${port}`, toolText(c.events).includes(`NET-OPEN-${port}`)])
+      const code = `import socket\ntry:\n    socket.create_connection((${JSON.stringify(host)}, ${port}), 5); print('NET-OPEN-${port}')\nexcept Exception as e:\n    print('NET-CLOSED', type(e).__name__)`
+      c.send(`CALL python ${JSON.stringify({ code })}`); n += 1
+      await c.turnEnds(n, 90000).catch(() => {})
+      rows.push([`python -> ${host}:${port}`, toolText(c.events).includes(`NET-OPEN-${port}`)])
+    }
+    // no capability left (a root bwrap keeps them all by default; measured: CAP_SYS_ADMIN before --cap-drop ALL)
+    c.send(`CALL bash ${JSON.stringify({ command: "grep CapEff /proc/self/status | sed 's/.*:\\s*/CAPS:/'", description: 'caps' })}`); n += 1
+    await c.turnEnds(n, 40000).catch(() => {})
+    const caps = (toolText(c.events).match(/CAPS:([0-9a-f]+)/) ?? [])[1]
+    // control: the sandbox still runs code
+    c.send(`CALL bash ${JSON.stringify({ command: 'echo SANDBOX-RUNS', description: 'ok' })}`); n += 1
+    await c.turnEnds(n, 40000).catch(() => {})
+    const control = toolText(c.events).includes('SANDBOX-RUNS')
+    c.close()
+    const open = rows.filter(([, reached]) => reached).map(([l]) => l)
+    return { ok: open.length === 0 && /^0+$/.test(caps ?? '') && control, detail: `${rows.length} probes, reachable=${JSON.stringify(open)}, CapEff=${caps}, control=${control}` }
+  },
+
+  // Redis holds only SHA-256 hashes of login tokens: a Redis dump or a reader on the network gets nothing to log in with.
+  async tokensHashedInRedis() {
+    const u = await newUser('dave')
+    const keys = execFileSync('docker', ['exec', 'foxe2e-redis', 'redis-cli', '--scan', '--pattern', 'fh:*'], { encoding: 'utf8' })
+    const members = execFileSync('docker', ['exec', 'foxe2e-redis', 'redis-cli', 'smembers', `fh:gwuser:${u.id}`], { encoding: 'utf8' })
+    const rawInRedis = keys.includes(u.token) || members.includes(u.token)
+    const works = (await api('GET', '/sessions/mine', u.token)).status === 200
+    await api('POST', '/auth/logout', u.token)
+    const revoked = (await api('GET', '/sessions/mine', u.token)).status === 401
+    return { ok: !rawInRedis && works && revoked, detail: `raw token in redis=${rawInRedis}, token works=${works}, logout revokes=${revoked}` }
+  },
+
+  // Vietnamese and emoji round-trip through the gateway and MariaDB (the e2e database defaults to latin1), and an
+  // over-long email is a 400, not a database error.
+  async unicodeText() {
+    const { a } = await users()
+    const text = 'Phân tích doanh thu quý 3 của Đức — ưu tiên 📊'
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    c.send('MARK-UNI hi'); await c.turnEnds(1)
+    const id = c.sessionId; c.close()
+    const rename = await api('PATCH', `/sessions/${id}`, a.token, { title: text })
+    const mine = await api('GET', '/sessions/mine', a.token)
+    const row = (Array.isArray(mine.json) ? mine.json : mine.json?.sessions ?? []).find((s) => (s.sessionId ?? s.session_id ?? s.id) === id)
+    const project = await api('POST', '/projects', a.token, { name: 'Dự án Báo cáo — tháng 9 ✍️' })
+    const projects = await api('GET', '/projects', a.token)
+    const projectBack = JSON.stringify(projects.json).includes('Dự án Báo cáo — tháng 9 ✍️')
+    const longEmail = await api('POST', '/users', await admin(), { email: `${'x'.repeat(250)}@e2e.test`, password: 'correct-horse-battery' })
+    return {
+      ok: rename.status === 204 && row?.title === text && project.status === 201 && projectBack && longEmail.status === 400,
+      detail: `rename=${rename.status} title back=${JSON.stringify(row?.title)} project=${project.status} name back=${projectBack} email>255=${longEmail.status}`,
+    }
   },
 
   async purge() {

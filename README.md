@@ -64,9 +64,30 @@ container boundary:
 3. **Strict sandbox for `bash` and `python`** (`infra/docker/backend/fox-confine.sh`)
    — bubblewrap with an empty root: only a minimal read-only system, the
    session's own workspace and a private `/tmp`. The environment is allow-listed
-   (`env -i`) so the runtime's credentials never reach model-run code.
+   (`env -i`) so the runtime's credentials never reach model-run code, and the
+   network is cut (`--unshare-net`: only a loopback), so it cannot reach Redis,
+   Mongo, MariaDB, the runtime or the internet. The boot self-test checks both.
 4. **Runtime secret** — the gateway generates a per-boot secret; runtimes refuse
    any connection without it (loopback alone is not a boundary).
+
+### Role-based data access
+
+Two roles, `admin` and `user`. Admins create accounts, manage the semantic layer and dashboards; users chat, own
+their files/projects/skills and read dashboards. Dremio is OSS (no row/column policies), and `analyze_data` runs one
+shared Dremio account, so the data boundary is ours, in the Python pipeline
+(`packages/tool/data-studio-agent/python/src/security/role.py`):
+
+- The role comes from the gateway (session owner's role) → `agentOptions.role` → `analyze_data` (a subagent uses its
+  root agent's role) → the worker. Missing anywhere ⇒ `user`. The model never sets it.
+- Tables and columns carry `allowed_roles`; missing ⇒ admin only, and Dremio sync creates new ones admin-only. A
+  `user` sees a table/column only if an admin opened it (Data Studio → Data sources, "allow user"), and never an
+  `is_pii` one. Metrics, glossary terms and relationships touching a hidden table/column are hidden too.
+- Filtered in the Mongo crud layer (every pipeline step reads through it), then enforced on the SQL:
+  `sql_validator` refuses hidden tables/columns (aliases resolved, `SELECT *` and raw fragments refused for `user`),
+  and `query_execution` re-checks the final SQL's tables right before Dremio.
+
+Test: `packages/tool/data-studio-agent/python/tests/role_authz_test.py` (real Mongo) and the `roleGate` /
+`roleReachesRuntime` e2e tests.
 
 In production the gateway **refuses to start** without the sandbox
 (`FOX_REQUIRE_SANDBOX`, on when `NODE_ENV=production`). The guard is a policy
@@ -181,7 +202,10 @@ containers). Required: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`,
 
 - **Database**: `infra/migrations/001_init.sql` is the whole schema. A new schema
   change is a new numbered file, written with `if not exists`; there is no migration runner.
-- **First admin**: `node scripts/create-admin.mjs <email> <password>` — never over HTTP.
+- **First admin**: `node scripts/create-admin.mjs <email> <password>` — never over HTTP. Further accounts: an
+  admin creates them in Settings → Users (`POST /users`); there is no self-registration.
+- **Giving users data**: after a Dremio sync every new table is admin-only; open the ones users may query in
+  Data Studio → Data sources.
 - **Adding a capability** (tool, LLM adapter, …): a package under `packages/`,
   listed in `packages/profile-template/runtime/template/profile.package.json`
   (global) or in a flow's preset (that flow only), and in the root

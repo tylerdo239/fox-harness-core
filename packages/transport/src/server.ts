@@ -97,9 +97,15 @@ class Hub {
     const live = this.ctx.sessions.get(sessionId)
     // Defence in depth behind the gateway's own ownership check: a session already live in this
     // process remembers who opened it, and another user's connect is refused outright.
-    const owner = (this.ctx.agents.get(sessionId)?.options as { userId?: string } | undefined)?.userId
-    if (live && owner !== undefined && opts.userId !== undefined && owner !== opts.userId) {
+    const liveOptions = this.ctx.agents.get(sessionId)?.options as { userId?: string; role?: string } | undefined
+    if (live && liveOptions?.userId !== undefined && opts.userId !== undefined && liveOptions.userId !== opts.userId) {
       return Promise.reject(new Error('session belongs to another user'))
+    }
+    // The role was fixed when the agent was opened (tools read it from agent.options). A different role for the
+    // same live session — the owner was promoted/demoted meanwhile — must not silently keep the old one: refuse,
+    // and let the session be reopened once nobody is attached (idle disposal) with the new role.
+    if (live && liveOptions?.role !== undefined && liveOptions.role !== opts.role) {
+      return Promise.reject(new Error('session is open with a different role; reconnect later'))
     }
     if (live && !opts.isNew) return Promise.resolve(live)
     const pending = this.inflight.get(sessionId)
@@ -118,6 +124,7 @@ class Hub {
     const agentOptions = {
       ...(opts.model !== undefined ? { model: opts.model } : {}),
       ...(opts.userId !== undefined ? { userId: opts.userId } : {}),
+      role: opts.role,
       ...(opts.outputDir !== undefined ? { outputDir: opts.outputDir } : {}),
     }
     const setup = (agentCtx: Context) => joinFlow(ctx, agentCtx, opts.flow)
@@ -217,6 +224,8 @@ interface ConnectionParams {
   cwd: string
   /** The gateway's user id of the owner; only used to refuse a different user on a live session. */
   userId: string | undefined
+  /** The owner's role; tools that gate data on it (analyze_data) read it from agent.options. Default `user`. */
+  role: 'admin' | 'user'
   /** Folder (relative to cwd) the python tool writes figures/artifacts to; a project chat's own subfolder. */
   outputDir: string | undefined
 }
@@ -234,23 +243,29 @@ function parseParams(url: URL): ConnectionParams | { error: string } {
 
   const userId = url.searchParams.get('user') ?? undefined
   if (userId !== undefined && !/^[0-9]{1,12}$/.test(userId)) return { error: 'invalid user' }
+  const roleParam = url.searchParams.get('role') ?? 'user'
+  if (roleParam !== 'admin' && roleParam !== 'user') return { error: 'invalid role' }
+  const role: 'admin' | 'user' = roleParam
   const outputDir = url.searchParams.get('output') ?? undefined
   // a relative path that cannot climb out of the session's folder
   if (outputDir !== undefined && !/^(?!\/)(?!.*(^|\/)\.\.(\/|$))[A-Za-z0-9._/-]{1,200}$/.test(outputDir)) return { error: 'invalid output' }
 
   const requestedCwd = url.searchParams.get('cwd')
-  if (requestedCwd === null) return { flow, model, userId, outputDir, cwd: process.env.FOX_SESSION_CWD ?? process.cwd() }
+  if (requestedCwd === null) return { flow, model, userId, role, outputDir, cwd: process.env.FOX_SESSION_CWD ?? process.cwd() }
   const root = process.env.FOX_DATA_DIR
   if (!root) return { error: 'cwd was supplied but FOX_DATA_DIR is not configured' }
   const base = resolve(root)
   const cwd = resolve(requestedCwd)
   if (cwd === base || !cwd.startsWith(base + sep)) return { error: 'cwd is outside FOX_DATA_DIR' }
-  return { flow, model, userId, outputDir, cwd }
+  return { flow, model, userId, role, outputDir, cwd }
 }
 
 function internalSecretOk(req: IncomingMessage): boolean {
   const expected = process.env.FOX_INTERNAL_SECRET
-  if (!expected) return true // not configured: loopback-only bind is the boundary (container mode)
+  // Not configured: allowed only in the old one-session-per-container mode, where the loopback bind is the
+  // boundary. A runtime shared by many users (FOX_DATA_DIR set by the gateway) must never run without it:
+  // `role=admin` on the URL would otherwise be anyone's for the asking.
+  if (!expected) return !process.env.FOX_DATA_DIR
   const given = req.headers['x-fox-harness-internal-secret']
   if (typeof given !== 'string') return false
   const a = Buffer.from(given)
@@ -337,7 +352,7 @@ async function handleConnection(ctx: Context, hub: Hub, ws: WebSocket, req: Inco
   if (closed) return // the client left while the session was being set up
   if (isNew) send(ws, { type: 'session', sessionId })
 
-  log('ws_connect', { sessionId, flow: params.flow })
+  log('ws_connect', { sessionId, flow: params.flow, role: params.role })
 
   // Snapshot first — everything durable so far, verbatim, exactly as it would
   // read from disk — then subscribe, with NO await between the two so no event

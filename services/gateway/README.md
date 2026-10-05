@@ -14,7 +14,7 @@ started as a program. The chat protocol between a runtime and a browser is relay
 | File | Role |
 |---|---|
 | `src/index.ts` | HTTP routes, the WebSocket upgrade, start-up/shutdown. |
-| `src/auth.ts`, `password.ts`, `redis.ts` | Accounts (scrypt), login tokens (Redis, sliding TTL, instantly revocable), rate limits. |
+| `src/auth.ts`, `password.ts`, `redis.ts` | Accounts (scrypt), login tokens (Redis stores only their SHA-256; sliding TTL, instantly revocable), rate limits. |
 | `src/db.ts` | MariaDB: `discovery_users`, `discovery_sessions`, `discovery_projects`, `discovery_custom_skills` (`infra/migrations/001_init.sql`). |
 | `src/runtime/supervisor.ts` | Starts `FOX_RUNTIME_COUNT` runtimes, readiness probe (a real WebSocket handshake), restart with backoff, shard routing `hash(sessionId) % N`, the per-boot secret, graceful stop. |
 | `src/runtime/materialize.ts` | Writes the ONE dsh profile at start-up (`packages/profile-template/runtime/template`), links the flow presets. |
@@ -31,7 +31,9 @@ started as a program. The chat protocol between a runtime and a browser is relay
 All routes except `/auth/*`, `/models` and the probes need a token: `Authorization: Bearer <token>` (the WebSocket
 takes `?token=` — browsers cannot set headers on an upgrade).
 
-- `POST /auth/register` `{email, password≥8}` → `201` (always role `user`; admins only via `scripts/create-admin.mjs`).
+- Accounts are created by an admin only: `POST /users` (alias `POST /auth/register`) `{email, password≥8, role?}` →
+  `201`; `GET /users`; `PATCH /users/:id` `{role?, password?}` → `204` (revokes every token of that user; an admin
+  cannot demote themselves). The first admin comes from `scripts/create-admin.mjs`.
   `POST /auth/login` → `{token, userId, email, role}`. `POST /auth/logout` revokes the token. Rate limited.
 - `GET /healthz` (process answers) · `GET /readyz` (the gateway and every runtime can take a chat; `503` otherwise).
 - `GET /models` — the model allow-list (no token: the login screen needs it).
@@ -45,7 +47,16 @@ takes `?token=` — browsers cannot set headers on an upgrade).
 - `GET /sessions/:id/files`, `POST /sessions/:id/files?name=`, `GET /sessions/:id/files/<path>` — and the same under
   `/projects/:id/files`. Hidden paths are never listed or served; a path cannot leave the working directory.
 - `GET /skills`, `GET|POST /custom-skills`, `PUT|DELETE /custom-skills/:name`.
-- `/data-studio/*` — the semantic-layer admin API.
+- `/data-studio/*` — the semantic-layer admin API. Admin only, except `GET /data-studio/dashboards` and
+  `GET /data-studio/dashboards/:id` (role `user` reads dashboards). `PATCH /data-studio/entities/:id` and
+  `/data-studio/columns/:id` take `allow_user` (and, on an entity, `allow_user_columns` to apply it to its non-PII columns).
+
+## Roles
+
+Two roles, `admin` and `user` (`discovery_users.role`). `adminGate` in `src/index.ts` refuses the admin-only routes
+before routing. The session OWNER's role is sent to the runtime on every connect (`role=`, next to `user=`); there it
+limits `analyze_data` (see the root README, "Role-based data access"). Every async route runs through `handle()`: a
+failing dependency (an unreachable Mongo, say) answers that request with `500` and never takes the process down.
 
 ## How a connection is routed
 
@@ -55,7 +66,7 @@ takes `?token=` — browsers cannot set headers on an upgrade).
    URL cannot change them.
 3. Quota (`MAX_CONCURRENT_SESSIONS`, `MAX_SESSIONS_PER_USER`, counted over sessions with a browser attached).
 4. Create the workspace directory, write the user's skills into it, pick the shard, and (new session) insert the row.
-5. Open the upstream connection with the secret header and `?flow=&model=&cwd=&user=&output=` and relay.
+5. Open the upstream connection with the secret header and `?flow=&model=&cwd=&user=&output=&role=` and relay.
    Every client frame renews the sliding login token; the first marks the session as real (it then shows in the sidebar).
 
 ## Isolation
@@ -83,4 +94,4 @@ session log; `FOX_SHUTDOWN_GRACE_MS`, default 20 s, then `SIGKILL`).
 ## Logs
 
 JSON lines to stdout with `sessionId`: `ws_connect`/`ws_disconnect`/`ws_*_rejected`, `purge_ok`, `skills_sync_*`,
-`runtime_started`/`runtime_exited`. Runtime output is relayed prefixed `[runtime-N]`.
+`runtime_started`/`runtime_exited`, `admin_gate_denied`, `route_failed`, `unhandled_rejection`. Runtime output is relayed prefixed `[runtime-N]`.

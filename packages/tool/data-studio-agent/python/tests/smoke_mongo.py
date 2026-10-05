@@ -96,6 +96,11 @@ class FakeStore:
 
 
 def main() -> None:
+    # This smoke test exercises the pipeline's machinery over the whole catalog, so it runs as admin;
+    # what role `user` may see is covered by tests/role_authz_test.py.
+    from src.security import role as role_mod
+
+    role_mod.set_role(role_mod.ADMIN)
     db = get_mongo_db()
     dremio = FakeDremio()
 

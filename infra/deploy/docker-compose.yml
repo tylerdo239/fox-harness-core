@@ -26,10 +26,13 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/backend/Dockerfile
-    # bubblewrap (the per-session sandbox) needs to create PID/mount namespaces. Without this the gateway
-    # refuses to start (FOX_REQUIRE_SANDBOX is on in production): bash/python would see every user's files.
+    # bubblewrap (the per-session sandbox) needs SYS_ADMIN to create its namespaces and NET_ADMIN to bring up the
+    # loopback of the network namespace that cuts model-run code off the network. Both are bwrap's own: the command
+    # it runs keeps no capability (--cap-drop ALL). Without them the gateway refuses to start (FOX_REQUIRE_SANDBOX
+    # is on in production).
     cap_add:
       - SYS_ADMIN
+      - NET_ADMIN
     env_file:
       - ${ENV_FILE:-.env}
     environment:

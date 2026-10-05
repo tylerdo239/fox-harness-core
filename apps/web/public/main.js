@@ -1089,7 +1089,7 @@
             }
             return dispatcher.useContext(Context);
           }
-          function useState38(initialState15) {
+          function useState39(initialState15) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useState(initialState15);
           }
@@ -1101,7 +1101,7 @@
             var dispatcher = resolveDispatcher();
             return dispatcher.useRef(initialValue);
           }
-          function useEffect42(create2, deps) {
+          function useEffect43(create2, deps) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useEffect(create2, deps);
           }
@@ -1113,7 +1113,7 @@
             var dispatcher = resolveDispatcher();
             return dispatcher.useLayoutEffect(create2, deps);
           }
-          function useCallback16(callback, deps) {
+          function useCallback17(callback, deps) {
             var dispatcher = resolveDispatcher();
             return dispatcher.useCallback(callback, deps);
           }
@@ -1880,11 +1880,11 @@
           exports.memo = memo16;
           exports.startTransition = startTransition;
           exports.unstable_act = act;
-          exports.useCallback = useCallback16;
+          exports.useCallback = useCallback17;
           exports.useContext = useContext17;
           exports.useDebugValue = useDebugValue2;
           exports.useDeferredValue = useDeferredValue;
-          exports.useEffect = useEffect42;
+          exports.useEffect = useEffect43;
           exports.useId = useId2;
           exports.useImperativeHandle = useImperativeHandle3;
           exports.useInsertionEffect = useInsertionEffect;
@@ -1892,7 +1892,7 @@
           exports.useMemo = useMemo22;
           exports.useReducer = useReducer;
           exports.useRef = useRef36;
-          exports.useState = useState38;
+          exports.useState = useState39;
           exports.useSyncExternalStore = useSyncExternalStore2;
           exports.useTransition = useTransition;
           exports.version = ReactVersion;
@@ -2439,7 +2439,7 @@
           var HostPortal = 4;
           var HostComponent = 5;
           var HostText = 6;
-          var Fragment25 = 7;
+          var Fragment26 = 7;
           var Mode = 8;
           var ContextConsumer = 9;
           var ContextProvider = 10;
@@ -3596,7 +3596,7 @@
                 return "DehydratedFragment";
               case ForwardRef2:
                 return getWrappedName$1(type, type.render, "ForwardRef");
-              case Fragment25:
+              case Fragment26:
                 return "Fragment";
               case HostComponent:
                 return type;
@@ -12025,7 +12025,7 @@
               }
             }
             function updateFragment2(returnFiber, current4, fragment, lanes, key) {
-              if (current4 === null || current4.tag !== Fragment25) {
+              if (current4 === null || current4.tag !== Fragment26) {
                 var created = createFiberFromFragment(fragment, returnFiber.mode, lanes, key);
                 created.return = returnFiber;
                 return created;
@@ -12428,7 +12428,7 @@
                 if (child.key === key) {
                   var elementType = element4.type;
                   if (elementType === REACT_FRAGMENT_TYPE) {
-                    if (child.tag === Fragment25) {
+                    if (child.tag === Fragment26) {
                       deleteRemainingChildren(returnFiber, child.sibling);
                       var existing = useFiber(child, element4.props.children);
                       existing.return = returnFiber;
@@ -17904,7 +17904,7 @@
                 var _resolvedProps2 = workInProgress2.elementType === type ? _unresolvedProps2 : resolveDefaultProps2(type, _unresolvedProps2);
                 return updateForwardRef(current4, workInProgress2, type, _resolvedProps2, renderLanes2);
               }
-              case Fragment25:
+              case Fragment26:
                 return updateFragment(current4, workInProgress2, renderLanes2);
               case Mode:
                 return updateMode(current4, workInProgress2, renderLanes2);
@@ -18176,7 +18176,7 @@
               case SimpleMemoComponent:
               case FunctionComponent:
               case ForwardRef2:
-              case Fragment25:
+              case Fragment26:
               case Mode:
               case Profiler:
               case ContextConsumer:
@@ -22437,7 +22437,7 @@
             return fiber;
           }
           function createFiberFromFragment(elements, mode, lanes, key) {
-            var fiber = createFiber(Fragment25, elements, key, mode);
+            var fiber = createFiber(Fragment26, elements, key, mode);
             fiber.lanes = lanes;
             return fiber;
           }
@@ -24469,11 +24469,11 @@
               return jsxWithValidation(type, props, key, false);
             }
           }
-          var jsx36 = jsxWithValidationDynamic;
-          var jsxs28 = jsxWithValidationStatic;
+          var jsx37 = jsxWithValidationDynamic;
+          var jsxs29 = jsxWithValidationStatic;
           exports.Fragment = REACT_FRAGMENT_TYPE;
-          exports.jsx = jsx36;
-          exports.jsxs = jsxs28;
+          exports.jsx = jsx37;
+          exports.jsxs = jsxs29;
         })();
       }
     }
@@ -24510,7 +24510,7 @@
               "The result of getSnapshot should be cached to avoid an infinite loop"
             ), didWarnUncachedGetSnapshot = true);
           }
-          cachedValue = useState38({
+          cachedValue = useState39({
             inst: { value, getSnapshot }
           });
           var inst = cachedValue[0].inst, forceUpdate = cachedValue[1];
@@ -24522,7 +24522,7 @@
             },
             [subscribe, value, getSnapshot]
           );
-          useEffect42(
+          useEffect43(
             function() {
               checkIfSnapshotChanged(inst) && forceUpdate({ inst });
               return subscribe(function() {
@@ -24548,7 +24548,7 @@
           return getSnapshot();
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var React58 = require_react(), objectIs = "function" === typeof Object.is ? Object.is : is6, useState38 = React58.useState, useEffect42 = React58.useEffect, useLayoutEffect11 = React58.useLayoutEffect, useDebugValue2 = React58.useDebugValue, didWarnOld18Alpha = false, didWarnUncachedGetSnapshot = false, shim = "undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement ? useSyncExternalStore$1 : useSyncExternalStore$2;
+        var React58 = require_react(), objectIs = "function" === typeof Object.is ? Object.is : is6, useState39 = React58.useState, useEffect43 = React58.useEffect, useLayoutEffect11 = React58.useLayoutEffect, useDebugValue2 = React58.useDebugValue, didWarnOld18Alpha = false, didWarnUncachedGetSnapshot = false, shim = "undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement ? useSyncExternalStore$1 : useSyncExternalStore$2;
         exports.useSyncExternalStore = void 0 !== React58.useSyncExternalStore ? React58.useSyncExternalStore : shim;
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop(Error());
       })();
@@ -24576,7 +24576,7 @@
           return x2 === y2 && (0 !== x2 || 1 / x2 === 1 / y2) || x2 !== x2 && y2 !== y2;
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var React58 = require_react(), shim = require_shim(), objectIs = "function" === typeof Object.is ? Object.is : is6, useSyncExternalStore2 = shim.useSyncExternalStore, useRef36 = React58.useRef, useEffect42 = React58.useEffect, useMemo22 = React58.useMemo, useDebugValue2 = React58.useDebugValue;
+        var React58 = require_react(), shim = require_shim(), objectIs = "function" === typeof Object.is ? Object.is : is6, useSyncExternalStore2 = shim.useSyncExternalStore, useRef36 = React58.useRef, useEffect43 = React58.useEffect, useMemo22 = React58.useMemo, useDebugValue2 = React58.useDebugValue;
         exports.useSyncExternalStoreWithSelector = function(subscribe, getSnapshot, getServerSnapshot, selector, isEqual2) {
           var instRef = useRef36(null);
           if (null === instRef.current) {
@@ -24619,7 +24619,7 @@
             [getSnapshot, getServerSnapshot, selector, isEqual2]
           );
           var value = useSyncExternalStore2(subscribe, instRef[0], instRef[1]);
-          useEffect42(
+          useEffect43(
             function() {
               inst.hasValue = true;
               inst.value = value;
@@ -24655,7 +24655,7 @@
           return x2 === y2 && (0 !== x2 || 1 / x2 === 1 / y2) || x2 !== x2 && y2 !== y2;
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var React58 = require_react(), objectIs = "function" === typeof Object.is ? Object.is : is6, useSyncExternalStore2 = React58.useSyncExternalStore, useRef36 = React58.useRef, useEffect42 = React58.useEffect, useMemo22 = React58.useMemo, useDebugValue2 = React58.useDebugValue;
+        var React58 = require_react(), objectIs = "function" === typeof Object.is ? Object.is : is6, useSyncExternalStore2 = React58.useSyncExternalStore, useRef36 = React58.useRef, useEffect43 = React58.useEffect, useMemo22 = React58.useMemo, useDebugValue2 = React58.useDebugValue;
         exports.useSyncExternalStoreWithSelector = function(subscribe, getSnapshot, getServerSnapshot, selector, isEqual2) {
           var instRef = useRef36(null);
           if (null === instRef.current) {
@@ -24698,7 +24698,7 @@
             [getSnapshot, getServerSnapshot, selector, isEqual2]
           );
           var value = useSyncExternalStore2(subscribe, instRef[0], instRef[1]);
-          useEffect42(
+          useEffect43(
             function() {
               inst.hasValue = true;
               inst.value = value;
@@ -25958,7 +25958,7 @@
           var ContextProvider = REACT_PROVIDER_TYPE;
           var Element = REACT_ELEMENT_TYPE;
           var ForwardRef2 = REACT_FORWARD_REF_TYPE2;
-          var Fragment25 = REACT_FRAGMENT_TYPE;
+          var Fragment26 = REACT_FRAGMENT_TYPE;
           var Lazy = REACT_LAZY_TYPE;
           var Memo2 = REACT_MEMO_TYPE2;
           var Portal = REACT_PORTAL_TYPE;
@@ -26026,7 +26026,7 @@
           exports.ContextProvider = ContextProvider;
           exports.Element = Element;
           exports.ForwardRef = ForwardRef2;
-          exports.Fragment = Fragment25;
+          exports.Fragment = Fragment26;
           exports.Lazy = Lazy;
           exports.Memo = Memo2;
           exports.Portal = Portal;
@@ -28372,7 +28372,7 @@
   var import_client = __toESM(require_client(), 1);
 
   // apps/web/src/App.tsx
-  var import_react97 = __toESM(require_react(), 1);
+  var import_react98 = __toESM(require_react(), 1);
 
   // node_modules/sonner/dist/index.mjs
   var import_react = __toESM(require_react(), 1);
@@ -28759,11 +28759,11 @@
           });
         }
       };
-      this.custom = (jsx36, data) => {
+      this.custom = (jsx37, data) => {
         const id2 = getToastId(data);
         this.create({
           ...data,
-          jsx: jsx36(id2),
+          jsx: jsx37(id2),
           id: id2,
           type: void 0
         });
@@ -29510,23 +29510,14 @@
   var vi = {
     // Auth screen (components/features/auth/ConnectForm.tsx)
     "auth.loginTitle": "\u0110\u0103ng nh\u1EADp \u0111\u1EC3 ti\u1EBFp t\u1EE5c",
-    "auth.registerTitle": "T\u1EA1o t\xE0i kho\u1EA3n \u0111\u1EC3 b\u1EAFt \u0111\u1EA7u",
     "auth.email": "Email",
     "auth.password": "M\u1EADt kh\u1EA9u",
-    "auth.confirmPassword": "X\xE1c nh\u1EADn m\u1EADt kh\u1EA9u",
     "auth.pleaseWait": "Vui l\xF2ng \u0111\u1EE3i\u2026",
     "auth.login": "\u0110\u0103ng nh\u1EADp",
-    "auth.createAccount": "T\u1EA1o t\xE0i kho\u1EA3n",
-    "auth.switchToRegister": "Ch\u01B0a c\xF3 t\xE0i kho\u1EA3n? \u0110\u0103ng k\xFD",
-    "auth.switchToLogin": "\u0110\xE3 c\xF3 t\xE0i kho\u1EA3n? \u0110\u0103ng nh\u1EADp",
-    "auth.registerSuccess": "T\u1EA1o t\xE0i kho\u1EA3n th\xE0nh c\xF4ng \u2014 \u0111\u0103ng nh\u1EADp \u0111\u1EC3 ti\u1EBFp t\u1EE5c",
-    // Client-side register validation (2026-09-10) — 3 distinct messages
-    // instead of the old single combined server message ("email và mật
-    // khẩu tối thiểu 8 ký tự"), checked in the FE before ever calling the
-    // server, so the right one shows immediately per case.
+    // Client-side validation of Settings > Users' create form (was the old
+    // self-register form's, which is gone — accounts are admin-created now).
     "auth.emailRequired": "Vui l\xF2ng nh\u1EADp email",
     "auth.passwordTooShort": "M\u1EADt kh\u1EA9u ph\u1EA3i c\xF3 \xEDt nh\u1EA5t 8 k\xFD t\u1EF1",
-    "auth.passwordMismatch": "M\u1EADt kh\u1EA9u x\xE1c nh\u1EADn kh\xF4ng kh\u1EDBp",
     // Gateway auth error `code`s (services/gateway/src/index.ts's
     // `/auth/register`+`/auth/login` — the only 2 routes whose errors are
     // actually shown to a user today). Fallback to the raw `error` string
@@ -29546,6 +29537,11 @@
     "error.invalid_skill_description": "C\u1EA7n m\xF4 t\u1EA3, t\u1ED1i \u0111a 280 k\xFD t\u1EF1",
     "error.invalid_skill_content": "C\u1EA7n n\u1ED9i dung, t\u1ED1i \u0111a 64 KB",
     "error.skill_not_found": "Kh\xF4ng t\xECm th\u1EA5y skill",
+    // Settings > Users (admin) and the role gate (services/gateway).
+    "error.invalid_password": "M\u1EADt kh\u1EA9u ph\u1EA3i c\xF3 \xEDt nh\u1EA5t 8 k\xFD t\u1EF1",
+    "error.invalid_role": "Vai tr\xF2 kh\xF4ng h\u1EE3p l\u1EC7",
+    "error.self_demote": "B\u1EA1n kh\xF4ng th\u1EC3 t\u1EF1 g\u1EE1 vai tr\xF2 qu\u1EA3n tr\u1ECB c\u1EE7a m\xECnh",
+    "error.forbidden": "B\u1EA1n kh\xF4ng c\xF3 quy\u1EC1n th\u1EF1c hi\u1EC7n thao t\xE1c n\xE0y",
     // App shell (App.tsx)
     "app.logout": "\u0110\u0103ng xu\u1EA5t",
     "app.sessionExpired": "Phi\xEAn \u0111\u0103ng nh\u1EADp \u0111\xE3 h\u1EBFt h\u1EA1n \u2014 vui l\xF2ng \u0111\u0103ng nh\u1EADp l\u1EA1i",
@@ -29597,6 +29593,9 @@
     "dataStudio.colSynonyms": "T\u1EEB \u0111\u1ED3ng ngh\u0129a",
     "dataStudio.colExposed": "Hi\u1EC3n th\u1ECB",
     "dataStudio.colPii": "D\u1EEF li\u1EC7u nh\u1EA1y c\u1EA3m (PII)",
+    "dataStudio.colAllowUser": "Cho ph\xE9p role user",
+    "dataStudio.piiNeverVisible": "C\u1ED9t PII kh\xF4ng bao gi\u1EDD hi\u1EC3n th\u1ECB cho role user",
+    "dataStudio.allowUserFailed": "Kh\xF4ng c\u1EADp nh\u1EADt \u0111\u01B0\u1EE3c quy\u1EC1n c\u1EE7a role user",
     "dataStudio.colRole": "Vai tr\xF2",
     "dataStudio.colSemanticType": "Ki\u1EC3u ng\u1EEF ngh\u0129a",
     "dataStudio.colAggregation": "Ph\xE9p t\u1ED5ng h\u1EE3p",
@@ -29785,6 +29784,7 @@
     "dsx.dashboardsSubtitle": "B\xE1o c\xE1o t\u1ED5ng h\u1EE3p t\u1EEB c\xE1c bi\u1EC3u \u0111\u1ED3 \u0111\xE3 ghim.",
     "dsx.newDashboard": "Dashboard m\u1EDBi",
     "dsx.noDashboardsHint": "Ch\u01B0a c\xF3 dashboard n\xE0o. Ghim bi\u1EC3u \u0111\u1ED3 t\u1EEB h\u1ED9i tho\u1EA1i ho\u1EB7c t\u1EA1o m\u1EDBi.",
+    "dsx.noDashboardsReadOnly": "Ch\u01B0a c\xF3 dashboard n\xE0o \u0111\u01B0\u1EE3c chia s\u1EBB.",
     "dsx.deleteDashboard": "Xo\xE1 dashboard",
     "dsx.confirmDelete": 'Xo\xE1 dashboard "{name}"?',
     "dsx.back": "Quay l\u1EA1i",
@@ -29908,6 +29908,28 @@
     "settings.themeDark": "T\u1ED1i",
     "settings.language": "Ng\xF4n ng\u1EEF",
     "settings.profileEmail": "\u0110\u1ECBa ch\u1EC9 email",
+    "settings.usersTab": "Ng\u01B0\u1EDDi d\xF9ng",
+    // Settings > Users (admin only — SettingsDialog.tsx's UsersTab).
+    "users.listTitle": "Danh s\xE1ch ng\u01B0\u1EDDi d\xF9ng",
+    "users.createTitle": "T\u1EA1o ng\u01B0\u1EDDi d\xF9ng",
+    "users.role": "Vai tr\xF2",
+    "users.roleAdmin": "Qu\u1EA3n tr\u1ECB vi\xEAn (admin)",
+    "users.roleUser": "Ng\u01B0\u1EDDi d\xF9ng (user)",
+    "users.create": "T\u1EA1o",
+    "users.creating": "\u0110ang t\u1EA1o\u2026",
+    "users.created": "\u0110\xE3 t\u1EA1o ng\u01B0\u1EDDi d\xF9ng {email}",
+    "users.roleChanged": "\u0110\xE3 \u0111\u1ED5i vai tr\xF2 c\u1EE7a {email}",
+    "users.resetPassword": "\u0110\u1EB7t l\u1EA1i m\u1EADt kh\u1EA9u",
+    "users.newPassword": "M\u1EADt kh\u1EA9u m\u1EDBi (t\u1ED1i thi\u1EC3u 8 k\xFD t\u1EF1)",
+    "users.passwordReset": "\u0110\xE3 \u0111\u1EB7t l\u1EA1i m\u1EADt kh\u1EA9u cho {email}",
+    "users.save": "L\u01B0u",
+    "users.cancel": "Hu\u1EF7",
+    "users.loading": "\u0110ang t\u1EA3i\u2026",
+    "users.loadFailed": "Kh\xF4ng t\u1EA3i \u0111\u01B0\u1EE3c danh s\xE1ch ng\u01B0\u1EDDi d\xF9ng",
+    "users.empty": "Ch\u01B0a c\xF3 ng\u01B0\u1EDDi d\xF9ng n\xE0o",
+    "users.you": "b\u1EA1n",
+    "users.createdAt": "T\u1EA1o ng\xE0y {date}",
+    "users.actionFailed": "Thao t\xE1c th\u1EA5t b\u1EA1i",
     // SkillsDialog.tsx + the "/" menu (conversation/SkillMenu.tsx).
     "skills.title": "K\u1EF9 n\u0103ng",
     "skills.new": "T\u1EA1o skill m\u1EDBi",
@@ -29937,19 +29959,12 @@
   };
   var en = {
     "auth.loginTitle": "Log in to continue",
-    "auth.registerTitle": "Create an account to get started",
     "auth.email": "Email",
     "auth.password": "Password",
-    "auth.confirmPassword": "Confirm password",
     "auth.pleaseWait": "Please wait\u2026",
     "auth.login": "Log in",
-    "auth.createAccount": "Create account",
-    "auth.switchToRegister": "Don't have an account? Register",
-    "auth.switchToLogin": "Already have an account? Log in",
-    "auth.registerSuccess": "Account created \u2014 log in to continue",
     "auth.emailRequired": "Email is required",
     "auth.passwordTooShort": "Password must be at least 8 characters",
-    "auth.passwordMismatch": "Passwords do not match",
     "error.rate_limited": "Too many attempts, try again shortly",
     "error.invalid_json": "Invalid request",
     "error.invalid_registration_input": "Email and a password of at least 8 characters are required",
@@ -29963,6 +29978,10 @@
     "error.invalid_skill_description": "Description is required, at most 280 characters",
     "error.invalid_skill_content": "Content is required, at most 64 KB",
     "error.skill_not_found": "Skill not found",
+    "error.invalid_password": "Password must be at least 8 characters",
+    "error.invalid_role": "Invalid role",
+    "error.self_demote": "You cannot remove your own admin role",
+    "error.forbidden": "You don't have permission to do this",
     "app.logout": "Logout",
     "app.sessionExpired": "Session expired \u2014 please log in again",
     "app.sessionGoneStartedNew": "Previous session is no longer available \u2014 started a new one",
@@ -30001,6 +30020,9 @@
     "dataStudio.colSynonyms": "Synonyms",
     "dataStudio.colExposed": "Exposed",
     "dataStudio.colPii": "PII",
+    "dataStudio.colAllowUser": "Allow role user",
+    "dataStudio.piiNeverVisible": "PII columns are never visible to role user",
+    "dataStudio.allowUserFailed": "Couldn't update role user access",
     "dataStudio.colRole": "Role",
     "dataStudio.colSemanticType": "Semantic type",
     "dataStudio.colAggregation": "Aggregation",
@@ -30138,6 +30160,7 @@
     "dsx.dashboardsSubtitle": "Reports built from pinned charts.",
     "dsx.newDashboard": "New dashboard",
     "dsx.noDashboardsHint": "No dashboards yet. Pin a chart from a conversation or create one.",
+    "dsx.noDashboardsReadOnly": "No dashboards have been shared yet.",
     "dsx.deleteDashboard": "Delete dashboard",
     "dsx.confirmDelete": 'Delete dashboard "{name}"?',
     "dsx.back": "Back",
@@ -30242,6 +30265,27 @@
     "settings.themeDark": "Dark",
     "settings.language": "Language",
     "settings.profileEmail": "Email address",
+    "settings.usersTab": "Users",
+    "users.listTitle": "Users",
+    "users.createTitle": "Create user",
+    "users.role": "Role",
+    "users.roleAdmin": "Administrator (admin)",
+    "users.roleUser": "User (user)",
+    "users.create": "Create",
+    "users.creating": "Creating\u2026",
+    "users.created": "Created user {email}",
+    "users.roleChanged": "Changed the role of {email}",
+    "users.resetPassword": "Reset password",
+    "users.newPassword": "New password (at least 8 characters)",
+    "users.passwordReset": "Password reset for {email}",
+    "users.save": "Save",
+    "users.cancel": "Cancel",
+    "users.loading": "Loading\u2026",
+    "users.loadFailed": "Couldn't load users",
+    "users.empty": "No users yet",
+    "users.you": "you",
+    "users.createdAt": "Created {date}",
+    "users.actionFailed": "Action failed",
     "skills.title": "Skills",
     "skills.new": "New skill",
     "skills.mine": "My skills",
@@ -30337,50 +30381,15 @@
   function ConnectForm({
     error,
     connecting,
-    onLogin,
-    onRegister
+    onLogin
   }) {
     const { t } = useLocale();
-    const [mode, setMode] = (0, import_react4.useState)("login");
     const [email, setEmail] = (0, import_react4.useState)("");
     const [password, setPassword] = (0, import_react4.useState)("");
-    const [confirmPassword, setConfirmPassword] = (0, import_react4.useState)("");
-    const [registering, setRegistering] = (0, import_react4.useState)(false);
-    const [validationError, setValidationError] = (0, import_react4.useState)(null);
-    async function handleSubmit() {
-      if (mode === "login") {
-        onLogin(email, password);
-        return;
-      }
-      setValidationError(null);
-      if (!email.trim()) {
-        setValidationError(t("auth.emailRequired"));
-        return;
-      }
-      if (password.length < 8) {
-        setValidationError(t("auth.passwordTooShort"));
-        return;
-      }
-      if (password !== confirmPassword) {
-        setValidationError(t("auth.passwordMismatch"));
-        return;
-      }
-      setRegistering(true);
-      const ok3 = await onRegister(email, password);
-      setRegistering(false);
-      if (ok3) {
-        setMode("login");
-        setPassword("");
-        setConfirmPassword("");
-        toast.success(t("auth.registerSuccess"));
-      }
-    }
-    const busy = connecting || registering;
-    const displayError = validationError ?? error;
     return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "fh-auth-card", children: [
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "fh-auth-brand", children: [
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h1", { children: "Fox Harness" }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { children: mode === "login" ? t("auth.loginTitle") : t("auth.registerTitle") })
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { children: t("auth.loginTitle") })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
         "form",
@@ -30388,7 +30397,7 @@
           id: "connect-form",
           onSubmit: (event) => {
             event.preventDefault();
-            void handleSubmit();
+            onLogin(email, password);
           },
           children: [
             /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
@@ -30409,20 +30418,9 @@
                 id: "password-input",
                 label: t("auth.password"),
                 type: "password",
-                autoComplete: mode === "login" ? "current-password" : "new-password",
+                autoComplete: "current-password",
                 value: password,
                 onChange: (event) => setPassword(event.target.value)
-              }
-            ),
-            mode === "register" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-              Input,
-              {
-                id: "confirm-password-input",
-                label: t("auth.confirmPassword"),
-                type: "password",
-                autoComplete: "new-password",
-                value: confirmPassword,
-                onChange: (event) => setConfirmPassword(event.target.value)
               }
             ),
             /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
@@ -30431,25 +30429,12 @@
                 id: "connect-submit",
                 variant: "primary",
                 type: "submit",
-                disabled: busy,
-                children: busy ? t("auth.pleaseWait") : mode === "login" ? t("auth.login") : t("auth.createAccount")
+                disabled: connecting,
+                children: connecting ? t("auth.pleaseWait") : t("auth.login")
               }
             ),
-            displayError && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { id: "connect-error", className: "error", children: displayError })
+            error && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { id: "connect-error", className: "error", children: error })
           ]
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-        Button,
-        {
-          id: "register-button",
-          variant: "link",
-          className: "fh-auth-switch",
-          onClick: () => {
-            setMode((m) => m === "login" ? "register" : "login");
-            setValidationError(null);
-          },
-          children: mode === "login" ? t("auth.switchToRegister") : t("auth.switchToLogin")
         }
       )
     ] });
@@ -30880,6 +30865,14 @@
   var User = createLucideIcon("User", [
     ["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", key: "975kel" }],
     ["circle", { cx: "12", cy: "7", r: "4", key: "17ys0d" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/users.js
+  var Users = createLucideIcon("Users", [
+    ["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", key: "1yyitq" }],
+    ["circle", { cx: "9", cy: "7", r: "4", key: "nufk8" }],
+    ["path", { d: "M22 21v-2a4 4 0 0 0-3-3.87", key: "kshegd" }],
+    ["path", { d: "M16 3.13a4 4 0 0 1 0 7.75", key: "1da9ce" }]
   ]);
 
   // node_modules/lucide-react/dist/esm/icons/waypoints.js
@@ -80283,13 +80276,14 @@ ${JSON.stringify(results, void 0, 2)}`);
     const [busy, setBusy] = (0, import_react77.useState)(false);
     const [done, setDone] = (0, import_react77.useState)(null);
     const [newTitle, setNewTitle] = (0, import_react77.useState)("");
+    const isAdmin = runtime.userRole === "admin";
     (0, import_react77.useEffect)(() => {
-      if (!open) return;
+      if (!open || !isAdmin) return;
       setDone(null);
       setNewTitle("");
       setLoading(true);
       dsApi.listDashboards(runtime).then(setDashboards).catch(() => setDashboards([])).finally(() => setLoading(false));
-    }, [open, runtime]);
+    }, [open, runtime, isAdmin]);
     async function pinTo(dashboardId, name2) {
       setBusy(true);
       try {
@@ -80313,6 +80307,7 @@ ${JSON.stringify(results, void 0, 2)}`);
         setBusy(false);
       }
     }
+    if (!isAdmin) return null;
     return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
       Modal,
       {
@@ -81979,11 +81974,11 @@ ${JSON.stringify(results, void 0, 2)}`);
       }
     }
   }
-  function productionCreate(_, jsx36, jsxs28) {
+  function productionCreate(_, jsx37, jsxs29) {
     return create2;
     function create2(_2, type, props, key) {
       const isStaticChildren = Array.isArray(props.children);
-      const fn = isStaticChildren ? jsxs28 : jsx36;
+      const fn = isStaticChildren ? jsxs29 : jsx37;
       return key ? fn(type, props, key) : fn(type, props);
     }
   }
@@ -103743,13 +103738,13 @@ ${JSON.stringify(results, void 0, 2)}`);
   function createLowlight(grammars2) {
     const high = core_default.newInstance();
     if (grammars2) {
-      register2(grammars2);
+      register(grammars2);
     }
     return {
       highlight,
       highlightAuto,
       listLanguages,
-      register: register2,
+      register,
       registerAlias,
       registered
     };
@@ -103805,7 +103800,7 @@ ${JSON.stringify(results, void 0, 2)}`);
     function listLanguages() {
       return high.listLanguages();
     }
-    function register2(grammarsOrName, grammar2) {
+    function register(grammarsOrName, grammar2) {
       if (typeof grammarsOrName === "string") {
         ok(grammar2 !== void 0, "expected `grammar`");
         high.registerLanguage(grammarsOrName, grammar2);
@@ -107241,6 +107236,8 @@ ${JSON.stringify(results, void 0, 2)}`);
   var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
   function PinToDashboardButton({ chartId, t }) {
     const [open, setOpen] = (0, import_react80.useState)(false);
+    const { userRole } = useRuntime();
+    if (userRole !== "admin") return null;
     return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(Button, { variant: "outline", onClick: () => setOpen(true), children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Pin, { size: 13 }),
@@ -107313,6 +107310,7 @@ ${JSON.stringify(results, void 0, 2)}`);
     const [active, setActive] = (0, import_react80.useState)(0);
     const [editing, setEditing] = (0, import_react80.useState)(null);
     const runtime = useRuntime();
+    const isAdmin = runtime.userRole === "admin";
     const sql3 = (0, import_react80.useMemo)(() => entry.sql ? prettySql(entry.sql) : "", [entry.sql]);
     const plottable = (c3) => {
       const type = (c3.type ?? "bar").toLowerCase();
@@ -107371,7 +107369,7 @@ ${sql3}
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "ds-views", children: [
           /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "ds-views-head", children: [
             /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "ds-section-label", children: t("conversation.dsVisualizations") }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "ds-toolbar", children: [
+            isAdmin && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "ds-toolbar", children: [
               activeChart?.chart_id && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(Button, { variant: "outline", onClick: () => setEditing("dashboard"), children: [
                 /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LayoutDashboard, { size: 13 }),
                 " ",
@@ -107429,7 +107427,7 @@ ${sql3}
           ] })
         ] })
       ] }),
-      activeChart && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+      isAdmin && activeChart && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
           EditFieldsDialog,
           {
@@ -109163,7 +109161,7 @@ ${entry.sql}
   }
 
   // apps/web/src/components/features/settings/SettingsDialog.tsx
-  var import_react87 = __toESM(require_react(), 1);
+  var import_react88 = __toESM(require_react(), 1);
 
   // apps/web/src/components/primitives/SelectableCard.tsx
   var import_jsx_runtime20 = __toESM(require_jsx_runtime(), 1);
@@ -109182,58 +109180,268 @@ ${entry.sql}
     );
   }
 
-  // apps/web/src/components/features/settings/SettingsDialog.tsx
+  // apps/web/src/components/features/settings/UsersTab.tsx
+  var import_react87 = __toESM(require_react(), 1);
   var import_jsx_runtime21 = __toESM(require_jsx_runtime(), 1);
+  function UsersTab({ onClose }) {
+    const runtime = useRuntime();
+    const { t, locale: locale3 } = useLocale();
+    const [users, setUsers] = (0, import_react87.useState)([]);
+    const [loading, setLoading] = (0, import_react87.useState)(true);
+    const [email, setEmail] = (0, import_react87.useState)("");
+    const [password, setPassword] = (0, import_react87.useState)("");
+    const [role, setRole] = (0, import_react87.useState)("user");
+    const [creating, setCreating] = (0, import_react87.useState)(false);
+    const [validationError, setValidationError] = (0, import_react87.useState)(null);
+    const [resetId, setResetId] = (0, import_react87.useState)(null);
+    const [newPassword, setNewPassword] = (0, import_react87.useState)("");
+    const [busyId, setBusyId] = (0, import_react87.useState)(null);
+    const load = (0, import_react87.useCallback)(async () => {
+      const res = await runtime.authedFetch("/users");
+      if (res.ok) setUsers(await res.json());
+      else if (res.status !== 401) toast.error(t("users.loadFailed"));
+      setLoading(false);
+    }, [runtime]);
+    (0, import_react87.useEffect)(() => {
+      void load();
+    }, [load]);
+    async function showError(res) {
+      if (res.status === 401) return;
+      const body = await res.json().catch(() => ({}));
+      toast.error(translateErrorCode(t, body.code, body.error ?? t("users.actionFailed")));
+    }
+    async function createUser() {
+      setValidationError(null);
+      if (!email.trim()) return setValidationError(t("auth.emailRequired"));
+      if (password.length < 8) return setValidationError(t("auth.passwordTooShort"));
+      setCreating(true);
+      try {
+        const res = await runtime.authedFetch("/users", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: email.trim(), password, role })
+        });
+        if (!res.ok) return await showError(res);
+        toast.success(t("users.created", { email: email.trim() }));
+        setEmail("");
+        setPassword("");
+        setRole("user");
+        await load();
+      } finally {
+        setCreating(false);
+      }
+    }
+    async function patchUser(user, patch2) {
+      setBusyId(user.id);
+      try {
+        const res = await runtime.authedFetch(`/users/${user.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(patch2)
+        });
+        if (!res.ok) {
+          await showError(res);
+          return false;
+        }
+        return true;
+      } finally {
+        setBusyId(null);
+      }
+    }
+    async function changeRole(user, next) {
+      if (await patchUser(user, { role: next })) toast.success(t("users.roleChanged", { email: user.email }));
+      await load();
+    }
+    async function resetPassword(user) {
+      if (newPassword.length < 8) {
+        toast.error(t("auth.passwordTooShort"));
+        return;
+      }
+      if (!await patchUser(user, { password: newPassword })) return;
+      toast.success(t("users.passwordReset", { email: user.email }));
+      setResetId(null);
+      setNewPassword("");
+      if (user.email === runtime.userEmail) onClose();
+      await load();
+    }
+    const dateLocale = locale3 === "vi" ? "vi-VN" : "en-US";
+    return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-field-group", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fh-settings-section-title", children: t("users.createTitle") }),
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+          "form",
+          {
+            className: "ds-form",
+            onSubmit: (event) => {
+              event.preventDefault();
+              void createUser();
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                Input,
+                {
+                  label: t("auth.email"),
+                  type: "email",
+                  autoComplete: "off",
+                  value: email,
+                  onChange: (event) => setEmail(event.target.value)
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                Input,
+                {
+                  label: t("auth.password"),
+                  type: "password",
+                  autoComplete: "new-password",
+                  value: password,
+                  onChange: (event) => setPassword(event.target.value)
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("label", { className: "ds-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: t("users.role") }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("select", { value: role, onChange: (event) => setRole(event.target.value), children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("option", { value: "user", children: t("users.roleUser") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("option", { value: "admin", children: t("users.roleAdmin") })
+                ] })
+              ] }),
+              validationError && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "error", children: validationError }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fh-settings-profile-actions", children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Button, { variant: "primary", type: "submit", disabled: creating, children: creating ? t("users.creating") : t("users.create") }) })
+            ]
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-field-group", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fh-settings-section-title", children: t("users.listTitle") }),
+        loading ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "ds-muted", children: t("users.loading") }) : users.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "ds-muted", children: t("users.empty") }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fh-settings-profile-rows", children: users.map((user) => {
+          const isSelf = user.email === runtime.userEmail;
+          return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "ds-form fh-settings-profile-row", style: { alignItems: "stretch", gap: 8 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "ds-field-row", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("span", { children: [
+                user.email,
+                isSelf && /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("span", { className: "ds-muted", children: [
+                  " (",
+                  t("users.you"),
+                  ")"
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("br", {}),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "ds-muted", children: t("users.createdAt", { date: new Date(user.createdAt).toLocaleDateString(dateLocale) }) })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+                "select",
+                {
+                  "aria-label": t("users.role"),
+                  value: user.role,
+                  disabled: busyId === user.id,
+                  onChange: (event) => void changeRole(user, event.target.value),
+                  style: { flex: "none" },
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("option", { value: "user", children: t("users.roleUser") }),
+                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("option", { value: "admin", children: t("users.roleAdmin") })
+                  ]
+                }
+              ),
+              resetId !== user.id && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                Button,
+                {
+                  variant: "outline",
+                  onClick: () => {
+                    setResetId(user.id);
+                    setNewPassword("");
+                  },
+                  children: t("users.resetPassword")
+                }
+              )
+            ] }),
+            resetId === user.id && /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+              "form",
+              {
+                className: "ds-field-row",
+                onSubmit: (event) => {
+                  event.preventDefault();
+                  void resetPassword(user);
+                },
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                    Input,
+                    {
+                      type: "password",
+                      autoComplete: "new-password",
+                      autoFocus: true,
+                      placeholder: t("users.newPassword"),
+                      value: newPassword,
+                      onChange: (event) => setNewPassword(event.target.value)
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Button, { variant: "primary", type: "submit", disabled: busyId === user.id, children: t("users.save") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Button, { variant: "outline", onClick: () => setResetId(null), children: t("users.cancel") })
+                ]
+              }
+            )
+          ] }, user.id);
+        }) })
+      ] })
+    ] });
+  }
+
+  // apps/web/src/components/features/settings/SettingsDialog.tsx
+  var import_jsx_runtime22 = __toESM(require_jsx_runtime(), 1);
   function SettingsDialog({ open, onClose, onLogout }) {
     const { t } = useLocale();
     const { theme, setTheme } = useTheme();
     const runtime = useRuntime();
-    const [tab2, setTab] = (0, import_react87.useState)("general");
+    const [tabState, setTabState] = (0, import_react88.useState)("general");
+    const isAdmin = runtime.userRole === "admin";
+    const tab2 = tabState === "users" && !isAdmin ? "general" : tabState;
+    const setTab = setTabState;
     if (!open) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { id: "settings-dialog", className: "fh-settings-dialog", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
-      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-panel", role: "dialog", "aria-label": t("settings.title"), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-panel-header", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("h2", { children: t("settings.title") }),
-          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(IconButton, { id: "settings-close", variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(X, { size: 14 }) })
+    return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { id: "settings-dialog", className: "fh-settings-dialog", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
+      /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-panel", role: "dialog", "aria-label": t("settings.title"), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-panel-header", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("h2", { children: t("settings.title") }),
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconButton, { id: "settings-close", variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(X, { size: 14 }) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-body", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-nav", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(MenuItem, { variant: "nav", active: tab2 === "general", onClick: () => setTab("general"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Settings, { size: 16 }),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-nav", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(MenuItem, { variant: "nav", active: tab2 === "general", onClick: () => setTab("general"), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Settings, { size: 16 }),
               t("settings.generalTab")
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(MenuItem, { variant: "nav", active: tab2 === "profile", onClick: () => setTab("profile"), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(User, { size: 16 }),
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(MenuItem, { variant: "nav", active: tab2 === "profile", onClick: () => setTab("profile"), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(User, { size: 16 }),
               t("settings.profileTab")
+            ] }),
+            isAdmin && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(MenuItem, { variant: "nav", active: tab2 === "users", onClick: () => setTab("users"), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Users, { size: 16 }),
+              t("settings.usersTab")
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { id: "settings-content", className: "fh-settings-content", children: [
-            tab2 === "general" && /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-field-group", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fh-settings-section-title", children: t("settings.theme") }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-theme-options", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(SelectableCard, { active: theme === "light", onClick: () => setTheme("light"), children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Sun, { size: 18 }),
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { id: "settings-content", className: "fh-settings-content", children: [
+            tab2 === "general" && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-field-group", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "fh-settings-section-title", children: t("settings.theme") }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-theme-options", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(SelectableCard, { active: theme === "light", onClick: () => setTheme("light"), children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Sun, { size: 18 }),
                     t("settings.themeLight")
                   ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(SelectableCard, { active: theme === "dark", onClick: () => setTheme("dark"), children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Moon, { size: 18 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(SelectableCard, { active: theme === "dark", onClick: () => setTheme("dark"), children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Moon, { size: 18 }),
                     t("settings.themeDark")
                   ] })
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-field-group", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fh-settings-section-title", children: t("settings.language") }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(LanguageSelect, {})
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-field-group", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "fh-settings-section-title", children: t("settings.language") }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(LanguageSelect, {})
               ] })
             ] }),
-            tab2 === "profile" && /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fh-settings-profile-rows", children: /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "fh-settings-profile-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: t("settings.profileEmail") }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "fh-settings-profile-value", children: runtime.userEmail })
+            tab2 === "profile" && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "fh-settings-profile-rows", children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-profile-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { children: t("settings.profileEmail") }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "fh-settings-profile-value", children: runtime.userEmail })
               ] }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "fh-settings-profile-actions", children: /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "fh-settings-profile-actions", children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
                 Button,
                 {
                   variant: "outline",
@@ -109243,12 +109451,13 @@ ${entry.sql}
                     onLogout();
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(LogOut, { size: 15 }),
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(LogOut, { size: 15 }),
                     t("app.logout")
                   ]
                 }
               ) })
-            ] })
+            ] }),
+            tab2 === "users" && isAdmin && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(UsersTab, { onClose })
           ] })
         ] })
       ] })
@@ -109256,19 +109465,19 @@ ${entry.sql}
   }
 
   // apps/web/src/components/features/skills/SkillsDialog.tsx
-  var import_react88 = __toESM(require_react(), 1);
-  var import_jsx_runtime22 = __toESM(require_jsx_runtime(), 1);
+  var import_react89 = __toESM(require_react(), 1);
+  var import_jsx_runtime23 = __toESM(require_jsx_runtime(), 1);
   var EMPTY_DRAFT = { name: "", description: "", content: "" };
   var DESCRIPTION_MAX = 280;
   function SkillsDialog({ open, onClose }) {
     const { t } = useLocale();
     const runtime = useRuntime();
     const menu = useSkillMenu(runtime);
-    const [skills, setSkills] = (0, import_react88.useState)([]);
-    const [selection, setSelection] = (0, import_react88.useState)({ kind: "new" });
-    const [draft, setDraft] = (0, import_react88.useState)(EMPTY_DRAFT);
-    const [saving, setSaving] = (0, import_react88.useState)(false);
-    const [expanded, setExpanded] = (0, import_react88.useState)(false);
+    const [skills, setSkills] = (0, import_react89.useState)([]);
+    const [selection, setSelection] = (0, import_react89.useState)({ kind: "new" });
+    const [draft, setDraft] = (0, import_react89.useState)(EMPTY_DRAFT);
+    const [saving, setSaving] = (0, import_react89.useState)(false);
+    const [expanded, setExpanded] = (0, import_react89.useState)(false);
     function pick(next, list4 = skills) {
       setSelection(next);
       setExpanded(false);
@@ -109316,10 +109525,10 @@ ${entry.sql}
         showError(error);
       }
     }
-    (0, import_react88.useEffect)(() => {
+    (0, import_react89.useEffect)(() => {
       if (open) void reload();
     }, [open]);
-    (0, import_react88.useEffect)(() => {
+    (0, import_react89.useEffect)(() => {
       if (!open) return;
       function onKeyDown(event) {
         if (event.key !== "Escape") return;
@@ -109332,60 +109541,60 @@ ${entry.sql}
     if (!open) return null;
     const builtin = menu.filter((item) => item.source === "builtin");
     const builtinSelected = selection.kind === "builtin" ? builtin.find((item) => item.name === selection.name) : void 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-dialog", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
-      /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-panel fh-skills-panel", role: "dialog", "aria-label": t("skills.title"), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-panel-header", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("h2", { children: t("skills.title") }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconButton, { variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(X, { size: 14 }) })
+    return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "fh-settings-dialog", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "fh-settings-mask", onClick: onClose }),
+      /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "fh-settings-panel fh-skills-panel", role: "dialog", "aria-label": t("skills.title"), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "fh-settings-panel-header", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("h2", { children: t("skills.title") }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(IconButton, { variant: "plain", className: "fh-settings-close", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(X, { size: 14 }) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-body", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-settings-nav fh-skills-list", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(MenuItem, { variant: "nav", active: selection.kind === "new", onClick: () => pick({ kind: "new" }), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Plus, { size: 16 }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "fh-settings-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "fh-settings-nav fh-skills-list", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(MenuItem, { variant: "nav", active: selection.kind === "new", onClick: () => pick({ kind: "new" }), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Plus, { size: 16 }),
               t("skills.new")
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "fh-skills-list-title", children: t("skills.mine") }),
-            skills.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "fh-skills-list-empty", children: t("skills.emptyMine") }),
-            skills.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "fh-skills-list-title", children: t("skills.mine") }),
+            skills.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "fh-skills-list-empty", children: t("skills.emptyMine") }),
+            skills.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
               MenuItem,
               {
                 variant: "nav",
                 active: selection.kind === "custom" && selection.name === skill.name,
                 onClick: () => pick({ kind: "custom", name: skill.name }),
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Sparkles, { size: 15 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
+                  /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Sparkles, { size: 15 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
                 ]
               },
               skill.name
             )),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "fh-skills-list-title", children: t("skills.builtin") }),
-            builtin.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "fh-skills-list-title", children: t("skills.builtin") }),
+            builtin.map((skill) => /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
               MenuItem,
               {
                 variant: "nav",
                 active: selection.kind === "builtin" && selection.name === skill.name,
                 onClick: () => pick({ kind: "builtin", name: skill.name }),
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Sparkles, { size: 15 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
+                  /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Sparkles, { size: 15 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { className: "fh-skills-item-name", children: skill.name })
                 ]
               },
               skill.name
             ))
           ] }),
-          builtinSelected ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-skills-form", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("h3", { className: "fh-skills-readonly-name", children: [
+          builtinSelected ? /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "fh-skills-form", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("h3", { className: "fh-skills-readonly-name", children: [
               "/",
               builtinSelected.name
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("p", { className: "fh-skills-readonly-desc", children: builtinSelected.description }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("p", { className: "fh-skills-field-hint", children: t("skills.builtinReadonly", { name: builtinSelected.name }) })
-          ] }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-skills-form", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("label", { className: "fh-skills-field", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "fh-skills-field-label", children: t("skills.name") }),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("p", { className: "fh-skills-readonly-desc", children: builtinSelected.description }),
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("p", { className: "fh-skills-field-hint", children: t("skills.builtinReadonly", { name: builtinSelected.name }) })
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "fh-skills-form", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("label", { className: "fh-skills-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { className: "fh-skills-field-label", children: t("skills.name") }),
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
                 "input",
                 {
                   type: "text",
@@ -109395,18 +109604,18 @@ ${entry.sql}
                   onChange: (event) => setDraft({ ...draft, name: event.target.value.toLowerCase().replace(/\s+/g, "-") })
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "fh-skills-field-hint", children: t("skills.nameHint") })
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { className: "fh-skills-field-hint", children: t("skills.nameHint") })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("label", { className: "fh-skills-field", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("span", { className: "fh-skills-field-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "fh-skills-field-label", children: t("skills.description") }),
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("span", { className: "fh-skills-field-hint", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("label", { className: "fh-skills-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("span", { className: "fh-skills-field-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { className: "fh-skills-field-label", children: t("skills.description") }),
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("span", { className: "fh-skills-field-hint", children: [
                   draft.description.length,
                   "/",
                   DESCRIPTION_MAX
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
                 "textarea",
                 {
                   className: "fh-skills-textarea fh-skills-description",
@@ -109417,15 +109626,15 @@ ${entry.sql}
                 }
               )
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: `fh-skills-field fh-skills-content${expanded ? " fh-skills-content-expanded" : ""}`, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("span", { className: "fh-skills-field-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "fh-skills-field-label", children: t("skills.content") }),
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(Button, { variant: "link", onClick: () => setExpanded(!expanded), children: [
-                  expanded ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Minimize2, { size: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Maximize2, { size: 14 }),
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: `fh-skills-field fh-skills-content${expanded ? " fh-skills-content-expanded" : ""}`, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("span", { className: "fh-skills-field-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { className: "fh-skills-field-label", children: t("skills.content") }),
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(Button, { variant: "link", onClick: () => setExpanded(!expanded), children: [
+                  expanded ? /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Minimize2, { size: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Maximize2, { size: 14 }),
                   expanded ? t("skills.collapse") : t("skills.expand")
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
                 "textarea",
                 {
                   className: "fh-skills-textarea",
@@ -109435,12 +109644,12 @@ ${entry.sql}
                 }
               )
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "fh-skills-actions", children: [
-              selection.kind === "custom" && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(Button, { variant: "outline", onClick: () => void remove(), disabled: saving, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Trash2, { size: 14 }),
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "fh-skills-actions", children: [
+              selection.kind === "custom" && /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(Button, { variant: "outline", onClick: () => void remove(), disabled: saving, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Trash2, { size: 14 }),
                 t("skills.delete")
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Button, { variant: "primary", onClick: () => void save(), disabled: saving, children: saving ? t("skills.saving") : t("skills.save") })
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Button, { variant: "primary", onClick: () => void save(), disabled: saving, children: saving ? t("skills.saving") : t("skills.save") })
             ] })
           ] })
         ] })
@@ -109449,38 +109658,38 @@ ${entry.sql}
   }
 
   // apps/web/src/components/features/data-studio/DataStudioDashboards.tsx
-  var import_react89 = __toESM(require_react(), 1);
+  var import_react90 = __toESM(require_react(), 1);
 
   // apps/web/src/components/features/data-studio/DashboardHeader.tsx
-  var import_jsx_runtime23 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime24 = __toESM(require_jsx_runtime(), 1);
   function DashboardHeader({ title, description, variant, banner }) {
     if (variant === "gradient") {
-      return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "ds-dash-header ds-dash-header-gradient", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "ds-dash-header-inner", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("h1", { children: title }),
-        description && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("p", { children: description })
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-header ds-dash-header-gradient", children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-header-inner", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("h1", { children: title }),
+        description && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("p", { children: description })
       ] }) });
     }
     if (variant === "two-tone") {
-      return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "ds-dash-header ds-dash-header-two-tone", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "ds-dash-header-inner", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("h1", { children: title }),
-        description && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("p", { children: description })
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-header ds-dash-header-two-tone", children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-header-inner", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("h1", { children: title }),
+        description && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("p", { children: description })
       ] }) });
     }
     if (variant === "minimal") {
-      return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "ds-dash-header ds-dash-header-minimal", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "ds-dash-header-inner", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("h1", { children: title }),
-        description && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("p", { children: description })
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-header ds-dash-header-minimal", children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-header-inner", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("h1", { children: title }),
+        description && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("p", { children: description })
       ] }) });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "ds-dash-header ds-dash-header-kpi", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "ds-dash-header-inner", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "ds-dash-header-eyebrow", children: banner }),
-      /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("h1", { children: title }),
-      description && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("p", { children: description })
+    return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-header ds-dash-header-kpi", children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-header-inner", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-header-eyebrow", children: banner }),
+      /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("h1", { children: title }),
+      description && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("p", { children: description })
     ] }) });
   }
 
   // apps/web/src/components/features/data-studio/DataStudioDashboards.tsx
-  var import_jsx_runtime24 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime25 = __toESM(require_jsx_runtime(), 1);
   var COLS = 12;
   var ROW_H = 70;
   var GAP2 = 14;
@@ -109513,20 +109722,21 @@ ${entry.sql}
     };
   }
   function Spinner({ label }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-status ds-dash-pad", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { className: "ds-spinner", "aria-hidden": true }),
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-status ds-dash-pad", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { className: "ds-spinner", "aria-hidden": true }),
       " ",
       label
     ] });
   }
   function DashboardList({ onOpen }) {
     const runtime = useRuntime();
+    const isAdmin = runtime.userRole === "admin";
     const { t, locale: locale3 } = useLocale();
-    const [dashboards, setDashboards] = (0, import_react89.useState)([]);
-    const [loading, setLoading] = (0, import_react89.useState)(true);
-    const [creating, setCreating] = (0, import_react89.useState)(false);
-    const [confirmId, setConfirmId] = (0, import_react89.useState)(null);
-    const load = (0, import_react89.useCallback)(async () => {
+    const [dashboards, setDashboards] = (0, import_react90.useState)([]);
+    const [loading, setLoading] = (0, import_react90.useState)(true);
+    const [creating, setCreating] = (0, import_react90.useState)(false);
+    const [confirmId, setConfirmId] = (0, import_react90.useState)(null);
+    const load = (0, import_react90.useCallback)(async () => {
       try {
         setDashboards(await dsApi.listDashboards(runtime));
       } catch {
@@ -109534,7 +109744,7 @@ ${entry.sql}
       }
       setLoading(false);
     }, [runtime]);
-    (0, import_react89.useEffect)(() => {
+    (0, import_react90.useEffect)(() => {
       void load();
     }, [load]);
     async function create2() {
@@ -109557,61 +109767,61 @@ ${entry.sql}
         toast.error(t("dsx.saveFailed"));
       }
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "fh-data-studio-admin", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "fh-data-studio-admin-header ds-dash-list-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("h2", { children: t("dsx.dashboardsTitle") }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("p", { className: "ds-muted", children: t("dsx.dashboardsSubtitle") })
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "fh-data-studio-admin", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "fh-data-studio-admin-header ds-dash-list-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("h2", { children: t("dsx.dashboardsTitle") }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("p", { className: "ds-muted", children: t("dsx.dashboardsSubtitle") })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(Button, { variant: "primary", onClick: () => void create2(), disabled: creating, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Plus, { size: 14 }),
+        isAdmin && /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(Button, { variant: "primary", onClick: () => void create2(), disabled: creating, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Plus, { size: 14 }),
           " ",
           t("dsx.newDashboard")
         ] })
       ] }),
-      loading ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("p", { className: "fh-data-studio-loading", children: t("dataStudio.loading") }) : dashboards.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-empty", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(LayoutDashboard, { size: 28 }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("p", { children: t("dsx.noDashboardsHint") })
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-cards", children: dashboards.map((d) => /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("button", { type: "button", className: "ds-dash-card-main", onClick: () => onOpen(d.id), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { className: "ds-dash-card-title", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(LayoutDashboard, { size: 15 }),
+      loading ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("p", { className: "fh-data-studio-loading", children: t("dataStudio.loading") }) : dashboards.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-dash-empty", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(LayoutDashboard, { size: 28 }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("p", { children: isAdmin ? t("dsx.noDashboardsHint") : t("dsx.noDashboardsReadOnly") })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-cards", children: dashboards.map((d) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-dash-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("button", { type: "button", className: "ds-dash-card-main", onClick: () => onOpen(d.id), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("span", { className: "ds-dash-card-title", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(LayoutDashboard, { size: 15 }),
             " ",
             d.title
           ] }),
-          d.description && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { className: "ds-dash-card-desc", children: d.description }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { className: "ds-muted ds-dash-card-meta", children: [
+          d.description && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { className: "ds-dash-card-desc", children: d.description }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("span", { className: "ds-muted ds-dash-card-meta", children: [
             t("dsx.chartsCount", { n: String(d.widget_count) }),
             " \xB7 ",
             new Date(d.updated_at).toLocaleDateString(locale3 === "vi" ? "vi-VN" : "en-US")
           ] })
         ] }),
-        confirmId === d.id ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-confirm", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { children: t("dsx.confirmDelete", { name: d.title }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Button, { variant: "primary", onClick: () => void remove(d.id), children: t("dsx.deleteDashboard") }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Button, { variant: "outline", onClick: () => setConfirmId(null), children: t("dsx.cancel") })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(IconButton, { className: "ds-dash-card-delete", onClick: () => setConfirmId(d.id), title: t("dsx.deleteDashboard"), children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Trash2, { size: 14 }) })
+        !isAdmin ? null : confirmId === d.id ? /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-dash-confirm", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { children: t("dsx.confirmDelete", { name: d.title }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Button, { variant: "primary", onClick: () => void remove(d.id), children: t("dsx.deleteDashboard") }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Button, { variant: "outline", onClick: () => setConfirmId(null), children: t("dsx.cancel") })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(IconButton, { className: "ds-dash-card-delete", onClick: () => setConfirmId(d.id), title: t("dsx.deleteDashboard"), children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Trash2, { size: 14 }) })
       ] }, d.id)) })
     ] });
   }
   function WidgetBody({ widget, look }) {
     const { t } = useLocale();
     if (widget.kind === "text") {
-      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-text", style: { color: look.theme.ink3 }, children: widget.text });
+      return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-text", style: { color: look.theme.ink3 }, children: widget.text });
     }
-    if (!widget.chart) return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-muted ds-dash-center", children: t("dsx.deletedChart") });
+    if (!widget.chart) return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-muted ds-dash-center", children: t("dsx.deletedChart") });
     const spec = chartOutToSpec(widget.chart, widget.title_override);
-    return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-widget-title", children: widget.title_override || widget.chart.title_override || widget.chart.title }),
-      /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-widget-plot", children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(ChartView, { chart: spec, height: "100%", chromeless: true }) })
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(import_jsx_runtime25.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-widget-title", children: widget.title_override || widget.chart.title_override || widget.chart.title }),
+      /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-widget-plot", children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(ChartView, { chart: spec, height: "100%", chromeless: true }) })
     ] });
   }
   function DashboardReport({ id: id2, onBack, onEdit }) {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [dash2, setDash] = (0, import_react89.useState)(null);
-    const [loading, setLoading] = (0, import_react89.useState)(true);
-    (0, import_react89.useEffect)(() => {
+    const [dash2, setDash] = (0, import_react90.useState)(null);
+    const [loading, setLoading] = (0, import_react90.useState)(true);
+    (0, import_react90.useEffect)(() => {
       let cancelled2 = false;
       dsApi.getDashboard(runtime, id2).then((d) => !cancelled2 && setDash(d)).catch(() => !cancelled2 && setDash(null)).finally(() => !cancelled2 && setLoading(false));
       return () => {
@@ -109631,24 +109841,24 @@ ${entry.sql}
       window.addEventListener("afterprint", done);
       window.print();
     }
-    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Spinner, { label: t("dataStudio.loading") });
-    if (!dash2) return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-pad ds-muted", children: t("dsx.notFound") });
+    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Spinner, { label: t("dataStudio.loading") });
+    if (!dash2) return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-pad ds-muted", children: t("dsx.notFound") });
     const look = appearanceOf(dash2.appearance);
-    return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-page", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-topbar", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("button", { type: "button", className: "ds-dash-back", onClick: onBack, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(ArrowLeft, { size: 15 }),
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-dash-page", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-dash-topbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("button", { type: "button", className: "ds-dash-back", onClick: onBack, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(ArrowLeft, { size: 15 }),
           " ",
           t("dsx.back")
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-toolbar", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Button, { variant: "outline", onClick: savePdf, children: t("dsx.savePdf") }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Button, { variant: "primary", onClick: onEdit, children: t("dsx.edit") })
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-toolbar", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Button, { variant: "outline", onClick: savePdf, children: t("dsx.savePdf") }),
+          onEdit && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Button, { variant: "primary", onClick: onEdit, children: t("dsx.edit") })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-scroll ds-report", style: { background: look.theme.bg, color: look.theme.ink }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(DashboardHeader, { title: dash2.title, description: dash2.description, variant: look.header, banner: t("dsx.reportBanner") }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-body", children: dash2.widgets.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-empty", children: t("dsx.noCharts") }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-grid", style: { gap: look.gap }, children: dash2.widgets.map((w) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-widget", style: cardStyleFor(w, look), children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(WidgetBody, { widget: w, look }) }, w.id)) }) })
+      /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-dash-scroll ds-report", style: { background: look.theme.bg, color: look.theme.ink }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(DashboardHeader, { title: dash2.title, description: dash2.description, variant: look.header, banner: t("dsx.reportBanner") }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-body", children: dash2.widgets.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-empty", children: t("dsx.noCharts") }) : /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-grid", style: { gap: look.gap }, children: dash2.widgets.map((w) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-widget", style: cardStyleFor(w, look), children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(WidgetBody, { widget: w, look }) }, w.id)) }) })
       ] })
     ] });
   }
@@ -109656,16 +109866,16 @@ ${entry.sql}
   function DashboardBuilder({ id: id2, onBack, onPreview }) {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [dash2, setDash] = (0, import_react89.useState)(null);
-    const [widgets, setWidgets] = (0, import_react89.useState)([]);
-    const [appearance, setAppearance] = (0, import_react89.useState)({});
-    const [available, setAvailable] = (0, import_react89.useState)([]);
-    const [title, setTitle] = (0, import_react89.useState)("");
-    const [selected, setSelected] = (0, import_react89.useState)(null);
-    const [loading, setLoading] = (0, import_react89.useState)(true);
-    const [saving, setSaving] = (0, import_react89.useState)(false);
-    const gridRef = (0, import_react89.useRef)(null);
-    (0, import_react89.useEffect)(() => {
+    const [dash2, setDash] = (0, import_react90.useState)(null);
+    const [widgets, setWidgets] = (0, import_react90.useState)([]);
+    const [appearance, setAppearance] = (0, import_react90.useState)({});
+    const [available, setAvailable] = (0, import_react90.useState)([]);
+    const [title, setTitle] = (0, import_react90.useState)("");
+    const [selected, setSelected] = (0, import_react90.useState)(null);
+    const [loading, setLoading] = (0, import_react90.useState)(true);
+    const [saving, setSaving] = (0, import_react90.useState)(false);
+    const gridRef = (0, import_react90.useRef)(null);
+    (0, import_react90.useEffect)(() => {
       let cancelled2 = false;
       Promise.all([dsApi.getDashboard(runtime, id2), dsApi.availableCharts(runtime)]).then(([d, charts]) => {
         if (cancelled2) return;
@@ -109681,11 +109891,11 @@ ${entry.sql}
     }, [runtime, id2]);
     const look = appearanceOf(appearance);
     const setAp = (key, value) => setAppearance((prev) => ({ ...prev, [key]: value }));
-    const totalRows = (0, import_react89.useMemo)(() => Math.max(6, ...widgets.map((w) => w.y + w.h)) + 1, [widgets]);
-    const patchWidget = (0, import_react89.useCallback)((key, patch2) => {
+    const totalRows = (0, import_react90.useMemo)(() => Math.max(6, ...widgets.map((w) => w.y + w.h)) + 1, [widgets]);
+    const patchWidget = (0, import_react90.useCallback)((key, patch2) => {
       setWidgets((prev) => prev.map((w) => w.key === key ? { ...w, ...patch2 } : w));
     }, []);
-    const cellSize = (0, import_react89.useCallback)(() => {
+    const cellSize = (0, import_react90.useCallback)(() => {
       const width = gridRef.current ? gridRef.current.clientWidth : 1200;
       const colW = (width - look.gap * (COLS - 1)) / COLS;
       return { colW: colW + look.gap, rowH: ROW_H + look.gap };
@@ -109801,8 +110011,8 @@ ${entry.sql}
       const fresh = await dsApi.getDashboard(runtime, id2);
       setWidgets(fresh.widgets.map(fromServer));
     }
-    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Spinner, { label: t("dataStudio.loading") });
-    if (!dash2) return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-dash-pad ds-muted", children: t("dsx.notFound") });
+    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Spinner, { label: t("dataStudio.loading") });
+    if (!dash2) return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-dash-pad ds-muted", children: t("dsx.notFound") });
     const presets = [
       { key: "two-col", label: t("dsx.layoutTwoCol"), w: 6 },
       { key: "three-col", label: t("dsx.layoutThreeCol"), w: 4 },
@@ -109831,43 +110041,43 @@ ${entry.sql}
       { key: "gradient", label: t("dsx.headerGradient"), note: t("dsx.headerGradientNote") },
       { key: "two-tone", label: t("dsx.headerTwoTone"), note: t("dsx.headerTwoToneNote") }
     ];
-    return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-page", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-topbar", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("button", { type: "button", className: "ds-dash-back", onClick: onBack, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(ArrowLeft, { size: 15 }),
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-dash-page", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-dash-topbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("button", { type: "button", className: "ds-dash-back", onClick: onBack, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(ArrowLeft, { size: 15 }),
           " ",
           t("dsx.builderTitle")
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-toolbar", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Button, { variant: "outline", disabled: saving, onClick: () => void save().then((ok3) => ok3 && onPreview()), children: t("dsx.preview") }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(Button, { variant: "primary", disabled: saving, onClick: () => void publish(), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Check, { size: 14 }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-toolbar", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Button, { variant: "outline", disabled: saving, onClick: () => void save().then((ok3) => ok3 && onPreview()), children: t("dsx.preview") }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(Button, { variant: "primary", disabled: saving, onClick: () => void publish(), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Check, { size: 14 }),
             " ",
             t("dsx.publish")
           ] })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-builder", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("aside", { className: "ds-builder-side", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-section-label", children: t("dsx.fromChats") }),
-          available.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("p", { className: "ds-muted", children: t("dsx.noSavedCharts") }) : available.map((c3) => /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("button", { type: "button", className: "ds-builder-chart", onClick: () => addChart(c3), title: c3.conversation_title ?? void 0, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { className: "ds-builder-chart-title", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(ChartColumn, { size: 13 }),
+      /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-builder", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("aside", { className: "ds-builder-side", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-section-label", children: t("dsx.fromChats") }),
+          available.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("p", { className: "ds-muted", children: t("dsx.noSavedCharts") }) : available.map((c3) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("button", { type: "button", className: "ds-builder-chart", onClick: () => addChart(c3), title: c3.conversation_title ?? void 0, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("span", { className: "ds-builder-chart-title", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(ChartColumn, { size: 13 }),
               " ",
               c3.title || c3.type
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { className: "ds-muted", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("span", { className: "ds-muted", children: [
               c3.type,
               c3.conversation_title ? ` \xB7 ${c3.conversation_title}` : ""
             ] })
           ] }, c3.chart_id)),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-section-label ds-builder-divider", children: t("dsx.addWidget") }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("button", { type: "button", className: "ds-builder-chart", onClick: addText, children: t("dsx.textWidget") })
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-section-label ds-builder-divider", children: t("dsx.addWidget") }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("button", { type: "button", className: "ds-builder-chart", onClick: addText, children: t("dsx.textWidget") })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("main", { className: "ds-dash-scroll", style: { background: look.theme.bg, color: look.theme.ink }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-builder-preview-header", children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(DashboardHeader, { title: title || t("dsx.dashboardTitlePh"), description: dash2.description, variant: look.header, banner: t("dsx.reportBanner") }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-dash-body", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("main", { className: "ds-dash-scroll", style: { background: look.theme.bg, color: look.theme.ink }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-builder-preview-header", children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(DashboardHeader, { title: title || t("dsx.dashboardTitlePh"), description: dash2.description, variant: look.header, banner: t("dsx.reportBanner") }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-dash-body", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
               "input",
               {
                 className: "ds-builder-title",
@@ -109877,8 +110087,8 @@ ${entry.sql}
                 style: { color: look.theme.ink }
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("p", { className: "ds-muted ds-builder-hint", children: t("dsx.dragHint") }),
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("p", { className: "ds-muted ds-builder-hint", children: t("dsx.dragHint") }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
               "div",
               {
                 ref: gridRef,
@@ -109886,14 +110096,14 @@ ${entry.sql}
                 style: { gap: look.gap, minHeight: totalRows * (ROW_H + look.gap) },
                 children: widgets.map((w) => {
                   const isSelected = selected === w.key;
-                  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+                  return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
                     "div",
                     {
                       className: `ds-dash-widget ds-builder-widget${isSelected ? " selected" : ""}`,
                       style: { ...cardStyleFor(w, look), ...isSelected ? { border: "1px solid var(--accent)" } : {} },
                       onPointerDown: (e) => startPointer(e, w, "move"),
                       children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+                        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
                           "button",
                           {
                             type: "button",
@@ -109904,10 +110114,10 @@ ${entry.sql}
                               e.stopPropagation();
                               removeWidget(w.key);
                             },
-                            children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(Trash2, { size: 13 })
+                            children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Trash2, { size: 13 })
                           }
                         ),
-                        w.kind === "text" ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+                        w.kind === "text" ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
                           "textarea",
                           {
                             className: "ds-builder-textarea",
@@ -109916,8 +110126,8 @@ ${entry.sql}
                             onPointerDown: (e) => e.stopPropagation(),
                             onChange: (e) => patchWidget(w.key, { text: e.target.value })
                           }
-                        ) : /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-builder-widget-inner", children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(WidgetBody, { widget: w, look }) }),
-                        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-builder-resize", onPointerDown: (e) => startPointer(e, w, "resize") })
+                        ) : /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-builder-widget-inner", children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(WidgetBody, { widget: w, look }) }),
+                        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-builder-resize", onPointerDown: (e) => startPointer(e, w, "resize") })
                       ]
                     },
                     w.key
@@ -109927,10 +110137,10 @@ ${entry.sql}
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("aside", { className: "ds-builder-side ds-builder-panel", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(PanelSection, { title: t("dsx.layout"), children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-panel-grid ds-panel-grid-2", children: presets.map((p2) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(PanelBtn, { active: look.ap("layout", "") === p2.key, onClick: () => applyPreset(p2.key, p2.w), children: p2.label }, p2.key)) }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(PanelSection, { title: t("dsx.density"), children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-panel-grid ds-panel-grid-3", children: densities.map((d) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(PanelBtn, { active: look.density === d.key, onClick: () => setAp("density", d.key), children: d.label }, d.key)) }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(PanelSection, { title: t("dsx.themeSection"), children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-panel-grid ds-panel-grid-4", children: themes.map((th) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("aside", { className: "ds-builder-side ds-builder-panel", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(PanelSection, { title: t("dsx.layout"), children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-panel-grid ds-panel-grid-2", children: presets.map((p2) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(PanelBtn, { active: look.ap("layout", "") === p2.key, onClick: () => applyPreset(p2.key, p2.w), children: p2.label }, p2.key)) }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(PanelSection, { title: t("dsx.density"), children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-panel-grid ds-panel-grid-3", children: densities.map((d) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(PanelBtn, { active: look.density === d.key, onClick: () => setAp("density", d.key), children: d.label }, d.key)) }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(PanelSection, { title: t("dsx.themeSection"), children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-panel-grid ds-panel-grid-4", children: themes.map((th) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
             "button",
             {
               type: "button",
@@ -109941,16 +110151,16 @@ ${entry.sql}
             },
             th.key
           )) }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(PanelSection, { title: t("dsx.cardStyle"), children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-panel-grid ds-panel-grid-3", children: cardStyles.map((c3) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(PanelBtn, { active: look.cardStyle === c3.key, onClick: () => setAp("cardStyle", c3.key), children: c3.label }, c3.key)) }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(PanelSection, { title: t("dsx.headerSection"), children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-panel-stack", children: headers.map((h) => /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(PanelSection, { title: t("dsx.cardStyle"), children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-panel-grid ds-panel-grid-3", children: cardStyles.map((c3) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(PanelBtn, { active: look.cardStyle === c3.key, onClick: () => setAp("cardStyle", c3.key), children: c3.label }, c3.key)) }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(PanelSection, { title: t("dsx.headerSection"), children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-panel-stack", children: headers.map((h) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
             "button",
             {
               type: "button",
               className: `ds-panel-option${look.header === h.key ? " active" : ""}`,
               onClick: () => setAp("header", h.key),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { className: "ds-panel-option-title", children: h.label }),
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { className: "ds-muted", children: h.note })
+                /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { className: "ds-panel-option-title", children: h.label }),
+                /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { className: "ds-muted", children: h.note })
               ]
             },
             h.key
@@ -109960,28 +110170,39 @@ ${entry.sql}
     ] });
   }
   function PanelSection({ title, children }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "ds-panel-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "ds-section-label", children: title }),
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "ds-panel-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "ds-section-label", children: title }),
       children
     ] });
   }
   function PanelBtn({ active, onClick, children }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("button", { type: "button", className: `ds-panel-btn${active ? " active" : ""}`, onClick, children });
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("button", { type: "button", className: `ds-panel-btn${active ? " active" : ""}`, onClick, children });
   }
   function DataStudioDashboards() {
-    const [state, setState] = (0, import_react89.useState)({ mode: "list" });
-    if (state.mode === "report") {
-      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(DashboardReport, { id: state.id, onBack: () => setState({ mode: "list" }), onEdit: () => setState({ mode: "edit", id: state.id }) }, state.id);
+    const { userRole } = useRuntime();
+    const isAdmin = userRole === "admin";
+    const [state, setState] = (0, import_react90.useState)({ mode: "list" });
+    if (state.mode === "report" || state.mode === "edit" && !isAdmin) {
+      const id2 = state.id;
+      return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        DashboardReport,
+        {
+          id: id2,
+          onBack: () => setState({ mode: "list" }),
+          onEdit: isAdmin ? () => setState({ mode: "edit", id: id2 }) : void 0
+        },
+        id2
+      );
     }
     if (state.mode === "edit") {
-      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(DashboardBuilder, { id: state.id, onBack: () => setState({ mode: "report", id: state.id }), onPreview: () => setState({ mode: "report", id: state.id }) }, state.id);
+      return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(DashboardBuilder, { id: state.id, onBack: () => setState({ mode: "report", id: state.id }), onPreview: () => setState({ mode: "report", id: state.id }) }, state.id);
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(DashboardList, { onOpen: (id2) => setState({ mode: "report", id: id2 }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(DashboardList, { onOpen: (id2) => setState({ mode: "report", id: id2 }) });
   }
 
   // apps/web/src/components/features/data-studio/DataStudioDataSources.tsx
-  var import_react90 = __toESM(require_react(), 1);
-  var import_jsx_runtime25 = __toESM(require_jsx_runtime(), 1);
+  var import_react91 = __toESM(require_react(), 1);
+  var import_jsx_runtime26 = __toESM(require_jsx_runtime(), 1);
   var ROLE_OPTIONS = ["", "dimension", "measure", "key"];
   var SEMANTIC_TYPE_OPTIONS = ["", "currency", "date", "datetime", "category", "id", "percent", "count", "text", "pii", "boolean"];
   var AGGREGATION_OPTIONS = ["", "sum", "avg", "count", "count_distinct", "min", "max"];
@@ -109996,36 +110217,36 @@ ${entry.sql}
   function DataStudioDataSources() {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [sources, setSources] = (0, import_react90.useState)([]);
-    const [loading, setLoading] = (0, import_react90.useState)(true);
-    const [selectedSourceId, setSelectedSourceId] = (0, import_react90.useState)(null);
-    const [entities, setEntities] = (0, import_react90.useState)([]);
-    const [selectedEntityId, setSelectedEntityId] = (0, import_react90.useState)(null);
-    const [columns, setColumns] = (0, import_react90.useState)([]);
-    const [browsing, setBrowsing] = (0, import_react90.useState)(false);
-    const [browseResults, setBrowseResults] = (0, import_react90.useState)(null);
-    const [browseError, setBrowseError] = (0, import_react90.useState)(null);
-    const [selectedDremioNames, setSelectedDremioNames] = (0, import_react90.useState)(/* @__PURE__ */ new Set());
-    const [syncing, setSyncing] = (0, import_react90.useState)(false);
-    const [syncSummary, setSyncSummary] = (0, import_react90.useState)(null);
-    const [reindexSummary, setReindexSummary] = (0, import_react90.useState)(null);
-    const loadSources = (0, import_react90.useCallback)(async () => {
+    const [sources, setSources] = (0, import_react91.useState)([]);
+    const [loading, setLoading] = (0, import_react91.useState)(true);
+    const [selectedSourceId, setSelectedSourceId] = (0, import_react91.useState)(null);
+    const [entities, setEntities] = (0, import_react91.useState)([]);
+    const [selectedEntityId, setSelectedEntityId] = (0, import_react91.useState)(null);
+    const [columns, setColumns] = (0, import_react91.useState)([]);
+    const [browsing, setBrowsing] = (0, import_react91.useState)(false);
+    const [browseResults, setBrowseResults] = (0, import_react91.useState)(null);
+    const [browseError, setBrowseError] = (0, import_react91.useState)(null);
+    const [selectedDremioNames, setSelectedDremioNames] = (0, import_react91.useState)(/* @__PURE__ */ new Set());
+    const [syncing, setSyncing] = (0, import_react91.useState)(false);
+    const [syncSummary, setSyncSummary] = (0, import_react91.useState)(null);
+    const [reindexSummary, setReindexSummary] = (0, import_react91.useState)(null);
+    const loadSources = (0, import_react91.useCallback)(async () => {
       setLoading(true);
       const res = await runtime.authedFetch("/data-studio/sources");
       if (res.ok) setSources(await res.json());
       setLoading(false);
     }, [runtime]);
-    (0, import_react90.useEffect)(() => {
+    (0, import_react91.useEffect)(() => {
       void loadSources();
     }, [loadSources]);
-    const loadEntities = (0, import_react90.useCallback)(
+    const loadEntities = (0, import_react91.useCallback)(
       async (sourceId) => {
         const res = await runtime.authedFetch(`/data-studio/sources/${sourceId}/entities`);
         if (res.ok) setEntities(await res.json());
       },
       [runtime]
     );
-    const loadColumns = (0, import_react90.useCallback)(
+    const loadColumns = (0, import_react91.useCallback)(
       async (entityId) => {
         const res = await runtime.authedFetch(`/data-studio/entities/${entityId}/columns`);
         if (res.ok) setColumns(await res.json());
@@ -110065,6 +110286,24 @@ ${entry.sql}
       });
       if (res.ok) await loadColumns(column.entity_id);
     }
+    async function setEntityAllowUser(entity, allow) {
+      const res = await runtime.authedFetch(`/data-studio/entities/${entity.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ allow_user: allow, allow_user_columns: true })
+      });
+      if (!res.ok) toast.error(t("dataStudio.allowUserFailed"));
+      await loadEntities(entity.data_source_id);
+    }
+    async function setColumnAllowUser(column, allow) {
+      const res = await runtime.authedFetch(`/data-studio/columns/${column.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ allow_user: allow })
+      });
+      if (!res.ok) toast.error(t("dataStudio.allowUserFailed"));
+      await loadColumns(column.entity_id);
+    }
     async function browseDremio() {
       setBrowsing(true);
       setBrowseError(null);
@@ -110100,10 +110339,10 @@ ${entry.sql}
       await loadSources();
     }
     const selectedEntity = entities.find((e) => e.id === selectedEntityId) ?? null;
-    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "fh-data-studio-loading", children: t("dataStudio.loading") });
+    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "fh-data-studio-loading", children: t("dataStudio.loading") });
     if (selectedEntity) {
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "fh-data-studio-admin", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+      return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "fh-data-studio-admin", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
           "button",
           {
             type: "button",
@@ -110113,65 +110352,66 @@ ${entry.sql}
               setColumns([]);
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(ArrowLeft, { size: 14 }),
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(ArrowLeft, { size: 14 }),
               " ",
               selectedEntity.display_name || selectedEntity.physical_name
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("table", { className: "fh-data-studio-table", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tr", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colPhysical") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colDisplayName") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colDescription") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colRole") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colSemanticType") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colAggregation") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colExposed") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colPii") })
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("table", { className: "fh-data-studio-table", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tr", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colPhysical") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colDisplayName") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colDescription") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colRole") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colSemanticType") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colAggregation") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colExposed") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colPii") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colAllowUser") })
           ] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tbody", { children: [
-            columns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tr", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { className: "fh-data-studio-mono", children: column.physical_name }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tbody", { children: [
+            columns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { className: "fh-data-studio-mono", children: column.physical_name }),
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 Input,
                 {
                   defaultValue: column.display_name,
                   onBlur: (e) => e.target.value !== column.display_name && saveColumn(column, { display_name: e.target.value })
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 Input,
                 {
                   defaultValue: column.description ?? "",
                   onBlur: (e) => e.target.value !== (column.description ?? "") && saveColumn(column, { description: e.target.value || null })
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 "select",
                 {
                   defaultValue: column.role ?? "",
                   onChange: (e) => saveColumn(column, { role: e.target.value || null }),
-                  children: ROLE_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: opt, children: opt || "\u2014" }, opt))
+                  children: ROLE_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: opt, children: opt || "\u2014" }, opt))
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 "select",
                 {
                   defaultValue: column.semantic_type ?? "",
                   onChange: (e) => saveColumn(column, { semantic_type: e.target.value || null }),
-                  children: SEMANTIC_TYPE_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: opt, children: opt || "\u2014" }, opt))
+                  children: SEMANTIC_TYPE_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: opt, children: opt || "\u2014" }, opt))
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 "select",
                 {
                   defaultValue: column.default_aggregation ?? "",
                   onChange: (e) => saveColumn(column, { default_aggregation: e.target.value || null }),
-                  children: AGGREGATION_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: opt, children: opt || "\u2014" }, opt))
+                  children: AGGREGATION_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: opt, children: opt || "\u2014" }, opt))
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 "input",
                 {
                   type: "checkbox",
@@ -110179,23 +110419,36 @@ ${entry.sql}
                   onChange: (e) => saveColumn(column, { is_exposed: e.target.checked ? 1 : 0 })
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 "input",
                 {
                   type: "checkbox",
                   defaultChecked: !!column.is_pii,
                   onChange: (e) => saveColumn(column, { is_pii: e.target.checked ? 1 : 0 })
                 }
+              ) }),
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+                "input",
+                {
+                  type: "checkbox",
+                  role: "switch",
+                  "aria-label": t("dataStudio.colAllowUser"),
+                  checked: !column.is_pii && !!column.allow_user,
+                  disabled: !!column.is_pii,
+                  title: column.is_pii ? t("dataStudio.piiNeverVisible") : void 0,
+                  onChange: (e) => void setColumnAllowUser(column, e.target.checked)
+                }
               ) })
             ] }, column.id)),
-            columns.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { colSpan: 8, className: "fh-data-studio-empty", children: t("dataStudio.noColumns") }) })
+            columns.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { colSpan: 9, className: "fh-data-studio-empty", children: t("dataStudio.noColumns") }) })
           ] })
-        ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("p", { className: "ds-muted", children: t("dataStudio.piiNeverVisible") })
       ] });
     }
     if (selectedSourceId !== null) {
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "fh-data-studio-admin", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+      return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "fh-data-studio-admin", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
           "button",
           {
             type: "button",
@@ -110205,40 +110458,41 @@ ${entry.sql}
               setEntities([]);
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(ArrowLeft, { size: 14 }),
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(ArrowLeft, { size: 14 }),
               " ",
               sources.find((s2) => s2.id === selectedSourceId)?.name
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("table", { className: "fh-data-studio-table", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tr", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colPhysical") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colDisplayName") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colDescription") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colSynonyms") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colExposed") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colPii") }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", {})
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("table", { className: "fh-data-studio-table", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tr", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colPhysical") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colDisplayName") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colDescription") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colSynonyms") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colExposed") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colPii") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colAllowUser") }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", {})
           ] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tbody", { children: [
-            entities.map((entity) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tr", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { className: "fh-data-studio-mono", children: entity.physical_name }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tbody", { children: [
+            entities.map((entity) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tr", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { className: "fh-data-studio-mono", children: entity.physical_name }),
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 Input,
                 {
                   defaultValue: entity.display_name,
                   onBlur: (e) => e.target.value !== entity.display_name && saveEntity(entity, { display_name: e.target.value })
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 Input,
                 {
                   defaultValue: entity.description ?? "",
                   onBlur: (e) => e.target.value !== (entity.description ?? "") && saveEntity(entity, { description: e.target.value || null })
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 Input,
                 {
                   defaultValue: parseJsonArray(entity.synonyms).join(", "),
@@ -110246,7 +110500,7 @@ ${entry.sql}
                   onBlur: (e) => saveEntity(entity, { synonyms: JSON.stringify(e.target.value.split(",").map((s2) => s2.trim()).filter(Boolean)) })
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 "input",
                 {
                   type: "checkbox",
@@ -110254,7 +110508,7 @@ ${entry.sql}
                   onChange: (e) => saveEntity(entity, { is_exposed: e.target.checked ? 1 : 0 })
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 "input",
                 {
                   type: "checkbox",
@@ -110262,7 +110516,17 @@ ${entry.sql}
                   onChange: (e) => saveEntity(entity, { is_pii: e.target.checked ? 1 : 0 })
                 }
               ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+                "input",
+                {
+                  type: "checkbox",
+                  role: "switch",
+                  "aria-label": t("dataStudio.colAllowUser"),
+                  checked: !!entity.allow_user,
+                  onChange: (e) => void setEntityAllowUser(entity, e.target.checked)
+                }
+              ) }),
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                 Button,
                 {
                   variant: "link",
@@ -110274,31 +110538,31 @@ ${entry.sql}
                 }
               ) })
             ] }, entity.id)),
-            entities.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { colSpan: 7, className: "fh-data-studio-empty", children: t("dataStudio.noEntities") }) })
+            entities.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { colSpan: 8, className: "fh-data-studio-empty", children: t("dataStudio.noEntities") }) })
           ] })
         ] })
       ] });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "fh-data-studio-admin", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "fh-data-studio-admin-header fh-data-studio-admin-header-row", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("h2", { children: t("dataStudio.sectionDataSources") }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Button, { variant: "outline", onClick: browseDremio, disabled: browsing, children: t("dataStudio.importFromDremio") })
+    return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "fh-data-studio-admin", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "fh-data-studio-admin-header fh-data-studio-admin-header-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("h2", { children: t("dataStudio.sectionDataSources") }),
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(Button, { variant: "outline", onClick: browseDremio, disabled: browsing, children: t("dataStudio.importFromDremio") })
       ] }),
-      browseError && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "data-studio-error", children: browseError }),
-      syncSummary && /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "fh-data-studio-sync-summary", children: [
+      browseError && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "data-studio-error", children: browseError }),
+      syncSummary && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "fh-data-studio-sync-summary", children: [
         t("dataStudio.syncSummary", {
           sources: String(syncSummary.sources ?? 0),
           entities: String(syncSummary.entities_added ?? 0),
           columns: String(syncSummary.columns_synced ?? 0)
         }),
-        reindexSummary && /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(import_jsx_runtime25.Fragment, { children: [
+        reindexSummary && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(import_jsx_runtime26.Fragment, { children: [
           " ",
           t("dataStudio.reindexSummary", { entities: String(reindexSummary.entities ?? 0) })
         ] })
       ] }),
-      browseResults && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "fh-data-studio-dremio-browse", children: browseResults.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("p", { className: "fh-data-studio-empty", children: t("dataStudio.noDremioSources") }) : /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(import_jsx_runtime25.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("ul", { className: "fh-data-studio-dremio-list", children: browseResults.map((source2) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("label", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+      browseResults && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "fh-data-studio-dremio-browse", children: browseResults.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("p", { className: "fh-data-studio-empty", children: t("dataStudio.noDremioSources") }) : /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(import_jsx_runtime26.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("ul", { className: "fh-data-studio-dremio-list", children: browseResults.map((source2) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("label", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
             "input",
             {
               type: "checkbox",
@@ -110313,30 +110577,30 @@ ${entry.sql}
           ),
           source2.name,
           " ",
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("span", { className: "fh-data-studio-mono", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("span", { className: "fh-data-studio-mono", children: [
             "(",
             source2.type,
             ")"
           ] })
         ] }) }, source2.name)) }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Button, { variant: "primary", onClick: syncSelected, disabled: syncing || selectedDremioNames.size === 0, children: syncing ? t("dataStudio.syncing") : t("dataStudio.syncSelected") })
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(Button, { variant: "primary", onClick: syncSelected, disabled: syncing || selectedDremioNames.size === 0, children: syncing ? t("dataStudio.syncing") : t("dataStudio.syncSelected") })
       ] }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("table", { className: "fh-data-studio-table", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tr", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colName") }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colType") }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colDremioPath") }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colStatus") }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", { children: t("dataStudio.colExposedToAgent") }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("th", {})
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("table", { className: "fh-data-studio-table", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colName") }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colType") }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colDremioPath") }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colStatus") }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colExposedToAgent") }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", {})
         ] }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tbody", { children: [
-          sources.map((source2) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tr", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: source2.name }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: source2.source_type }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { className: "fh-data-studio-mono", children: source2.dremio_path }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: source2.status }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tbody", { children: [
+          sources.map((source2) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tr", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: source2.name }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: source2.source_type }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { className: "fh-data-studio-mono", children: source2.dremio_path }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: source2.status }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "input",
               {
                 type: "checkbox",
@@ -110344,7 +110608,7 @@ ${entry.sql}
                 onChange: () => void toggleSourceExposed(source2)
               }
             ) }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               Button,
               {
                 variant: "link",
@@ -110356,15 +110620,15 @@ ${entry.sql}
               }
             ) })
           ] }, source2.id)),
-          sources.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { colSpan: 6, className: "fh-data-studio-empty", children: t("dataStudio.noSources") }) })
+          sources.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { colSpan: 6, className: "fh-data-studio-empty", children: t("dataStudio.noSources") }) })
         ] })
       ] })
     ] });
   }
 
   // apps/web/src/components/features/data-studio/DataStudioGlossary.tsx
-  var import_react91 = __toESM(require_react(), 1);
-  var import_jsx_runtime26 = __toESM(require_jsx_runtime(), 1);
+  var import_react92 = __toESM(require_react(), 1);
+  var import_jsx_runtime27 = __toESM(require_jsx_runtime(), 1);
   function parseJsonArray2(raw) {
     try {
       const value = JSON.parse(raw);
@@ -110377,17 +110641,17 @@ ${entry.sql}
   function DataStudioGlossary() {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [terms, setTerms] = (0, import_react91.useState)([]);
-    const [loading, setLoading] = (0, import_react91.useState)(true);
-    const [draft, setDraft] = (0, import_react91.useState)(EMPTY_DRAFT2);
-    const [saving, setSaving] = (0, import_react91.useState)(false);
-    const load = (0, import_react91.useCallback)(async () => {
+    const [terms, setTerms] = (0, import_react92.useState)([]);
+    const [loading, setLoading] = (0, import_react92.useState)(true);
+    const [draft, setDraft] = (0, import_react92.useState)(EMPTY_DRAFT2);
+    const [saving, setSaving] = (0, import_react92.useState)(false);
+    const load = (0, import_react92.useCallback)(async () => {
       setLoading(true);
       const res = await runtime.authedFetch("/data-studio/glossary");
       if (res.ok) setTerms(await res.json());
       setLoading(false);
     }, [runtime]);
-    (0, import_react91.useEffect)(() => {
+    (0, import_react92.useEffect)(() => {
       void load();
     }, [load]);
     async function createTerm() {
@@ -110422,11 +110686,11 @@ ${entry.sql}
       const res = await runtime.authedFetch(`/data-studio/glossary/${term.id}`, { method: "DELETE" });
       if (res.ok) await load();
     }
-    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "fh-data-studio-loading", children: t("dataStudio.loading") });
-    return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "fh-data-studio-admin", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "fh-data-studio-admin-header", children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("h2", { children: t("dataStudio.sectionGlossary") }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "fh-data-studio-add-form", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className: "fh-data-studio-loading", children: t("dataStudio.loading") });
+    return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "fh-data-studio-admin", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className: "fh-data-studio-admin-header", children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("h2", { children: t("dataStudio.sectionGlossary") }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "fh-data-studio-add-form", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           Input,
           {
             placeholder: t("dataStudio.termPlaceholder"),
@@ -110434,7 +110698,7 @@ ${entry.sql}
             onChange: (e) => setDraft((prev) => ({ ...prev, term: e.target.value }))
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           Input,
           {
             placeholder: t("dataStudio.definitionPlaceholder"),
@@ -110442,7 +110706,7 @@ ${entry.sql}
             onChange: (e) => setDraft((prev) => ({ ...prev, definition_text: e.target.value }))
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           Input,
           {
             placeholder: t("dataStudio.synonymsPlaceholder"),
@@ -110450,54 +110714,54 @@ ${entry.sql}
             onChange: (e) => setDraft((prev) => ({ ...prev, synonyms: e.target.value }))
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(Button, { variant: "primary", onClick: createTerm, disabled: saving || !draft.term.trim() || !draft.definition_text.trim(), children: t("dataStudio.addTerm") })
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(Button, { variant: "primary", onClick: createTerm, disabled: saving || !draft.term.trim() || !draft.definition_text.trim(), children: t("dataStudio.addTerm") })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("table", { className: "fh-data-studio-table", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tr", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colTerm") }),
-          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colDefinition") }),
-          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", { children: t("dataStudio.colSynonyms") }),
-          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("th", {})
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("table", { className: "fh-data-studio-table", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("th", { children: t("dataStudio.colTerm") }),
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("th", { children: t("dataStudio.colDefinition") }),
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("th", { children: t("dataStudio.colSynonyms") }),
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("th", {})
         ] }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tbody", { children: [
-          terms.map((term) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tr", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(Input, { defaultValue: term.term, onBlur: (e) => e.target.value !== term.term && saveTerm(term, { term: e.target.value }) }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("tbody", { children: [
+          terms.map((term) => /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("tr", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(Input, { defaultValue: term.term, onBlur: (e) => e.target.value !== term.term && saveTerm(term, { term: e.target.value }) }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
               Input,
               {
                 defaultValue: term.definition_text,
                 onBlur: (e) => e.target.value !== term.definition_text && saveTerm(term, { definition_text: e.target.value })
               }
             ) }),
-            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
               Input,
               {
                 defaultValue: parseJsonArray2(term.synonyms).join(", "),
                 onBlur: (e) => saveTerm(term, { synonyms: JSON.stringify(e.target.value.split(",").map((s2) => s2.trim()).filter(Boolean)) })
               }
             ) }),
-            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconButton, { onClick: () => deleteTerm(term), title: t("dataStudio.deleteTerm"), children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(Trash2, { size: 14 }) }) })
+            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(IconButton, { onClick: () => deleteTerm(term), title: t("dataStudio.deleteTerm"), children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(Trash2, { size: 14 }) }) })
           ] }, term.id)),
-          terms.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { colSpan: 4, className: "fh-data-studio-empty", children: t("dataStudio.noGlossaryTerms") }) })
+          terms.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { colSpan: 4, className: "fh-data-studio-empty", children: t("dataStudio.noGlossaryTerms") }) })
         ] })
       ] })
     ] });
   }
 
   // apps/web/src/components/features/data-studio/DataStudioMetrics.tsx
-  var import_react92 = __toESM(require_react(), 1);
-  var import_jsx_runtime27 = __toESM(require_jsx_runtime(), 1);
+  var import_react93 = __toESM(require_react(), 1);
+  var import_jsx_runtime28 = __toESM(require_jsx_runtime(), 1);
   var AGGREGATION_OPTIONS2 = ["sum", "avg", "count", "count_distinct", "min", "max"];
   var EMPTY_DRAFT3 = { name: "", description: "", baseEntityId: "", measureColumnId: "", aggregation: AGGREGATION_OPTIONS2[0] };
   function DataStudioMetrics() {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [entities, setEntities] = (0, import_react92.useState)([]);
-    const [metrics, setMetrics] = (0, import_react92.useState)([]);
-    const [loading, setLoading] = (0, import_react92.useState)(true);
-    const [draft, setDraft] = (0, import_react92.useState)(EMPTY_DRAFT3);
-    const [saving, setSaving] = (0, import_react92.useState)(false);
-    const load = (0, import_react92.useCallback)(async () => {
+    const [entities, setEntities] = (0, import_react93.useState)([]);
+    const [metrics, setMetrics] = (0, import_react93.useState)([]);
+    const [loading, setLoading] = (0, import_react93.useState)(true);
+    const [draft, setDraft] = (0, import_react93.useState)(EMPTY_DRAFT3);
+    const [saving, setSaving] = (0, import_react93.useState)(false);
+    const load = (0, import_react93.useCallback)(async () => {
       setLoading(true);
       const [entitiesRes, metricsRes] = await Promise.all([
         runtime.authedFetch("/data-studio/browse-entities"),
@@ -110507,10 +110771,10 @@ ${entry.sql}
       if (metricsRes.ok) setMetrics(await metricsRes.json());
       setLoading(false);
     }, [runtime]);
-    (0, import_react92.useEffect)(() => {
+    (0, import_react93.useEffect)(() => {
       void load();
     }, [load]);
-    const measureColumns = (0, import_react92.useMemo)(() => entities.find((e) => e.id === draft.baseEntityId)?.columns ?? [], [entities, draft.baseEntityId]);
+    const measureColumns = (0, import_react93.useMemo)(() => entities.find((e) => e.id === draft.baseEntityId)?.columns ?? [], [entities, draft.baseEntityId]);
     const canCreate = draft.name.trim() && draft.baseEntityId !== "" && draft.measureColumnId !== "";
     async function createMetric() {
       if (!canCreate) return;
@@ -110544,11 +110808,11 @@ ${entry.sql}
       const res = await runtime.authedFetch(`/data-studio/metrics/${metric.id}`, { method: "DELETE" });
       if (res.ok) await load();
     }
-    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className: "fh-data-studio-loading", children: t("dataStudio.loading") });
-    return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "fh-data-studio-admin", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className: "fh-data-studio-admin-header", children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("h2", { children: t("dataStudio.sectionMetrics") }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "fh-data-studio-relationship-form", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { className: "fh-data-studio-loading", children: t("dataStudio.loading") });
+    return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { className: "fh-data-studio-admin", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { className: "fh-data-studio-admin-header", children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("h2", { children: t("dataStudio.sectionMetrics") }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { className: "fh-data-studio-relationship-form", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
           Input,
           {
             placeholder: t("dataStudio.metricNamePlaceholder"),
@@ -110556,77 +110820,77 @@ ${entry.sql}
             onChange: (e) => setDraft((prev) => ({ ...prev, name: e.target.value }))
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(
           "select",
           {
             value: draft.baseEntityId,
             onChange: (e) => setDraft((prev) => ({ ...prev, baseEntityId: e.target.value, measureColumnId: "" })),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("option", { value: "", children: t("dataStudio.fromEntity") }),
-              entities.map((entity) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("option", { value: entity.id, children: entity.display_name }, entity.id))
+              /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: "", children: t("dataStudio.fromEntity") }),
+              entities.map((entity) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: entity.id, children: entity.display_name }, entity.id))
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(
           "select",
           {
             value: draft.measureColumnId,
             onChange: (e) => setDraft((prev) => ({ ...prev, measureColumnId: e.target.value })),
             disabled: !measureColumns.length,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("option", { value: "", children: t("dataStudio.measureColumn") }),
-              measureColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("option", { value: column.id, children: column.display_name }, column.id))
+              /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: "", children: t("dataStudio.measureColumn") }),
+              measureColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: column.id, children: column.display_name }, column.id))
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("select", { value: draft.aggregation, onChange: (e) => setDraft((prev) => ({ ...prev, aggregation: e.target.value })), children: AGGREGATION_OPTIONS2.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("option", { value: opt, children: opt }, opt)) }),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(Button, { variant: "primary", onClick: createMetric, disabled: !canCreate || saving, children: t("dataStudio.addMetric") })
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("select", { value: draft.aggregation, onChange: (e) => setDraft((prev) => ({ ...prev, aggregation: e.target.value })), children: AGGREGATION_OPTIONS2.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: opt, children: opt }, opt)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(Button, { variant: "primary", onClick: createMetric, disabled: !canCreate || saving, children: t("dataStudio.addMetric") })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("table", { className: "fh-data-studio-table", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("tr", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("th", { children: t("dataStudio.colName") }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("th", { children: t("dataStudio.measureColumn") }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("th", { children: t("dataStudio.colAggregation") }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("th", { children: t("dataStudio.colVerified") }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("th", {})
+      /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("table", { className: "fh-data-studio-table", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", { children: t("dataStudio.colName") }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", { children: t("dataStudio.measureColumn") }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", { children: t("dataStudio.colAggregation") }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", { children: t("dataStudio.colVerified") }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", {})
         ] }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("tbody", { children: [
-          metrics.map((metric) => /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("tr", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { children: metric.name }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("td", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("tbody", { children: [
+          metrics.map((metric) => /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("tr", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("td", { children: metric.name }),
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("td", { children: [
               metric.base_entity_name,
               ".",
               metric.measure_column_name
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { children: metric.aggregation }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("input", { type: "checkbox", checked: !!metric.is_verified, onChange: () => void toggleVerified(metric) }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(IconButton, { onClick: () => deleteMetric(metric), title: t("dataStudio.deleteMetric"), children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(Trash2, { size: 14 }) }) })
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("td", { children: metric.aggregation }),
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("input", { type: "checkbox", checked: !!metric.is_verified, onChange: () => void toggleVerified(metric) }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(IconButton, { onClick: () => deleteMetric(metric), title: t("dataStudio.deleteMetric"), children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(Trash2, { size: 14 }) }) })
           ] }, metric.id)),
-          metrics.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("td", { colSpan: 5, className: "fh-data-studio-empty", children: t("dataStudio.noMetrics") }) })
+          metrics.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("td", { colSpan: 5, className: "fh-data-studio-empty", children: t("dataStudio.noMetrics") }) })
         ] })
       ] })
     ] });
   }
 
   // apps/web/src/components/features/data-studio/DataStudioRelationships.tsx
-  var import_react93 = __toESM(require_react(), 1);
-  var import_jsx_runtime28 = __toESM(require_jsx_runtime(), 1);
+  var import_react94 = __toESM(require_react(), 1);
+  var import_jsx_runtime29 = __toESM(require_jsx_runtime(), 1);
   var CARDINALITY_OPTIONS = ["1:1", "1:N", "N:N"];
   var JOIN_TYPE_OPTIONS = ["left", "inner"];
   function DataStudioRelationships() {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [entities, setEntities] = (0, import_react93.useState)([]);
-    const [relationships, setRelationships] = (0, import_react93.useState)([]);
-    const [loading, setLoading] = (0, import_react93.useState)(true);
-    const [fromEntityId, setFromEntityId] = (0, import_react93.useState)("");
-    const [toEntityId, setToEntityId] = (0, import_react93.useState)("");
-    const [fromColumnId, setFromColumnId] = (0, import_react93.useState)("");
-    const [toColumnId, setToColumnId] = (0, import_react93.useState)("");
-    const [cardinality, setCardinality] = (0, import_react93.useState)(CARDINALITY_OPTIONS[1]);
-    const [joinType, setJoinType] = (0, import_react93.useState)(JOIN_TYPE_OPTIONS[0]);
-    const [saving, setSaving] = (0, import_react93.useState)(false);
-    const load = (0, import_react93.useCallback)(async () => {
+    const [entities, setEntities] = (0, import_react94.useState)([]);
+    const [relationships, setRelationships] = (0, import_react94.useState)([]);
+    const [loading, setLoading] = (0, import_react94.useState)(true);
+    const [fromEntityId, setFromEntityId] = (0, import_react94.useState)("");
+    const [toEntityId, setToEntityId] = (0, import_react94.useState)("");
+    const [fromColumnId, setFromColumnId] = (0, import_react94.useState)("");
+    const [toColumnId, setToColumnId] = (0, import_react94.useState)("");
+    const [cardinality, setCardinality] = (0, import_react94.useState)(CARDINALITY_OPTIONS[1]);
+    const [joinType, setJoinType] = (0, import_react94.useState)(JOIN_TYPE_OPTIONS[0]);
+    const [saving, setSaving] = (0, import_react94.useState)(false);
+    const load = (0, import_react94.useCallback)(async () => {
       setLoading(true);
       const [entitiesRes, relationshipsRes] = await Promise.all([
         runtime.authedFetch("/data-studio/browse-entities"),
@@ -110636,11 +110900,11 @@ ${entry.sql}
       if (relationshipsRes.ok) setRelationships(await relationshipsRes.json());
       setLoading(false);
     }, [runtime]);
-    (0, import_react93.useEffect)(() => {
+    (0, import_react94.useEffect)(() => {
       void load();
     }, [load]);
-    const fromColumns = (0, import_react93.useMemo)(() => entities.find((e) => e.id === fromEntityId)?.columns ?? [], [entities, fromEntityId]);
-    const toColumns = (0, import_react93.useMemo)(() => entities.find((e) => e.id === toEntityId)?.columns ?? [], [entities, toEntityId]);
+    const fromColumns = (0, import_react94.useMemo)(() => entities.find((e) => e.id === fromEntityId)?.columns ?? [], [entities, fromEntityId]);
+    const toColumns = (0, import_react94.useMemo)(() => entities.find((e) => e.id === toEntityId)?.columns ?? [], [entities, toEntityId]);
     const canCreate = fromEntityId !== "" && toEntityId !== "" && fromColumnId !== "" && toColumnId !== "";
     async function createRelationship() {
       if (!canCreate) return;
@@ -110669,71 +110933,71 @@ ${entry.sql}
       const res = await runtime.authedFetch(`/data-studio/relationships/${relationship.id}`, { method: "DELETE" });
       if (res.ok) await load();
     }
-    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { className: "fh-data-studio-loading", children: t("dataStudio.loading") });
-    return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { className: "fh-data-studio-admin", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { className: "fh-data-studio-admin-header", children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("h2", { children: t("dataStudio.sectionRelationships") }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { className: "fh-data-studio-relationship-form", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("select", { value: fromEntityId, onChange: (e) => {
+    if (loading) return /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("div", { className: "fh-data-studio-loading", children: t("dataStudio.loading") });
+    return /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("div", { className: "fh-data-studio-admin", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("div", { className: "fh-data-studio-admin-header", children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("h2", { children: t("dataStudio.sectionRelationships") }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("div", { className: "fh-data-studio-relationship-form", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("select", { value: fromEntityId, onChange: (e) => {
           setFromEntityId(e.target.value);
           setFromColumnId("");
         }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: "", children: t("dataStudio.fromEntity") }),
-          entities.map((entity) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: entity.id, children: entity.display_name }, entity.id))
+          /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: "", children: t("dataStudio.fromEntity") }),
+          entities.map((entity) => /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: entity.id, children: entity.display_name }, entity.id))
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("select", { value: fromColumnId, onChange: (e) => setFromColumnId(e.target.value), disabled: !fromColumns.length, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: "", children: t("dataStudio.fromColumn") }),
-          fromColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: column.id, children: column.display_name }, column.id))
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("select", { value: fromColumnId, onChange: (e) => setFromColumnId(e.target.value), disabled: !fromColumns.length, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: "", children: t("dataStudio.fromColumn") }),
+          fromColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: column.id, children: column.display_name }, column.id))
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { className: "fh-data-studio-relationship-arrow", children: "\u2192" }),
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("select", { value: toEntityId, onChange: (e) => {
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("span", { className: "fh-data-studio-relationship-arrow", children: "\u2192" }),
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("select", { value: toEntityId, onChange: (e) => {
           setToEntityId(e.target.value);
           setToColumnId("");
         }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: "", children: t("dataStudio.toEntity") }),
-          entities.map((entity) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: entity.id, children: entity.display_name }, entity.id))
+          /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: "", children: t("dataStudio.toEntity") }),
+          entities.map((entity) => /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: entity.id, children: entity.display_name }, entity.id))
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("select", { value: toColumnId, onChange: (e) => setToColumnId(e.target.value), disabled: !toColumns.length, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: "", children: t("dataStudio.toColumn") }),
-          toColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: column.id, children: column.display_name }, column.id))
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("select", { value: toColumnId, onChange: (e) => setToColumnId(e.target.value), disabled: !toColumns.length, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: "", children: t("dataStudio.toColumn") }),
+          toColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: column.id, children: column.display_name }, column.id))
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("select", { value: cardinality, onChange: (e) => setCardinality(e.target.value), children: CARDINALITY_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: opt, children: opt }, opt)) }),
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("select", { value: joinType, onChange: (e) => setJoinType(e.target.value), children: JOIN_TYPE_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("option", { value: opt, children: opt }, opt)) }),
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(Button, { variant: "primary", onClick: createRelationship, disabled: !canCreate || saving, children: t("dataStudio.addRelationship") })
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("select", { value: cardinality, onChange: (e) => setCardinality(e.target.value), children: CARDINALITY_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: opt, children: opt }, opt)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("select", { value: joinType, onChange: (e) => setJoinType(e.target.value), children: JOIN_TYPE_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("option", { value: opt, children: opt }, opt)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(Button, { variant: "primary", onClick: createRelationship, disabled: !canCreate || saving, children: t("dataStudio.addRelationship") })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("table", { className: "fh-data-studio-table", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("tr", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", { children: t("dataStudio.colFrom") }),
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", { children: t("dataStudio.colTo") }),
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", { children: t("dataStudio.colCardinality") }),
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", { children: t("dataStudio.colJoinType") }),
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("th", {})
+      /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("table", { className: "fh-data-studio-table", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("th", { children: t("dataStudio.colFrom") }),
+          /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("th", { children: t("dataStudio.colTo") }),
+          /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("th", { children: t("dataStudio.colCardinality") }),
+          /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("th", { children: t("dataStudio.colJoinType") }),
+          /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("th", {})
         ] }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("tbody", { children: [
-          relationships.map((rel) => /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("tr", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("td", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("tbody", { children: [
+          relationships.map((rel) => /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("tr", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("td", { children: [
               rel.from_entity_name,
               ".",
               rel.column_pairs[0]?.from_column_name
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("td", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("td", { children: [
               rel.to_entity_name,
               ".",
               rel.column_pairs[0]?.to_column_name
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("td", { children: rel.cardinality }),
-            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("td", { children: rel.join_type_default }),
-            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(IconButton, { onClick: () => deleteRelationship(rel), title: t("dataStudio.deleteRelationship"), children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(Trash2, { size: 14 }) }) })
+            /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("td", { children: rel.cardinality }),
+            /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("td", { children: rel.join_type_default }),
+            /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(IconButton, { onClick: () => deleteRelationship(rel), title: t("dataStudio.deleteRelationship"), children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(Trash2, { size: 14 }) }) })
           ] }, rel.id)),
-          relationships.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("td", { colSpan: 5, className: "fh-data-studio-empty", children: t("dataStudio.noRelationships") }) })
+          relationships.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("td", { colSpan: 5, className: "fh-data-studio-empty", children: t("dataStudio.noRelationships") }) })
         ] })
       ] })
     ] });
   }
 
   // apps/web/src/components/features/sidebar/HistoryChat.tsx
-  var import_react94 = __toESM(require_react(), 1);
+  var import_react95 = __toESM(require_react(), 1);
   var import_react_dom6 = __toESM(require_react_dom(), 1);
-  var import_jsx_runtime29 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime30 = __toESM(require_jsx_runtime(), 1);
   var TITLE_MAX_LENGTH2 = 255;
   function rowLabel(row2, t) {
     return row2.title ?? t("historyChat.untitled", { id: row2.sessionId.slice(0, 8) });
@@ -110768,14 +111032,14 @@ ${entry.sql}
   }) {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [rows, setRows] = (0, import_react94.useState)([]);
-    const [menuRow, setMenuRow] = (0, import_react94.useState)(null);
-    const [menuPosition, setMenuPosition] = (0, import_react94.useState)(null);
-    const menuTriggerRef = (0, import_react94.useRef)(null);
-    const menuPopupRef = (0, import_react94.useRef)(null);
-    const [renamingRow, setRenamingRow] = (0, import_react94.useState)(null);
-    const [renameValue, setRenameValue] = (0, import_react94.useState)("");
-    const renameInputRef = (0, import_react94.useRef)(null);
+    const [rows, setRows] = (0, import_react95.useState)([]);
+    const [menuRow, setMenuRow] = (0, import_react95.useState)(null);
+    const [menuPosition, setMenuPosition] = (0, import_react95.useState)(null);
+    const menuTriggerRef = (0, import_react95.useRef)(null);
+    const menuPopupRef = (0, import_react95.useRef)(null);
+    const [renamingRow, setRenamingRow] = (0, import_react95.useState)(null);
+    const [renameValue, setRenameValue] = (0, import_react95.useState)("");
+    const renameInputRef = (0, import_react95.useRef)(null);
     async function refresh() {
       const res = await runtime.authedFetch("/sessions/mine");
       if (!res.ok) return;
@@ -110784,7 +111048,7 @@ ${entry.sql}
       const active = list4.find((row2) => row2.sessionId === runtime.sessionId);
       runtime.setSessionTitle(active?.title ?? void 0);
     }
-    const sessionIdRef = (0, import_react94.useRef)(runtime.sessionId);
+    const sessionIdRef = (0, import_react95.useRef)(runtime.sessionId);
     sessionIdRef.current = runtime.sessionId;
     async function applyAutoTitle(sessionId, title, source2) {
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -110802,7 +111066,7 @@ ${entry.sql}
         await new Promise((resolve) => setTimeout(resolve, 600));
       }
     }
-    (0, import_react94.useEffect)(() => {
+    (0, import_react95.useEffect)(() => {
       return runtime.onFrame((frame) => {
         if (frame.type !== "event" || frame.event.type !== "session/title") return;
         const data = frame.event.data;
@@ -110812,10 +111076,10 @@ ${entry.sql}
         }
       });
     }, []);
-    (0, import_react94.useEffect)(() => {
+    (0, import_react95.useEffect)(() => {
       void refresh();
     }, [runtime.sessionId, runtime.sessionsVersion]);
-    const groups = (0, import_react94.useMemo)(() => {
+    const groups = (0, import_react95.useMemo)(() => {
       const q = query.trim().toLowerCase();
       const own5 = rows.filter(
         (row2) => row2.flow !== "data-analysis" && !row2.projectId && (flowFilter ? row2.flow === flowFilter : row2.flow !== "data-studio")
@@ -110835,7 +111099,7 @@ ${entry.sql}
         rows: byGroup.get(key) ?? []
       })).filter((g) => g.rows.length > 0);
     }, [rows, query, t, flowFilter]);
-    (0, import_react94.useEffect)(() => {
+    (0, import_react95.useEffect)(() => {
       if (!menuRow) return;
       function onPointerDown(event) {
         const target = event.target;
@@ -110863,7 +111127,7 @@ ${entry.sql}
       setRenameValue(row2.title ?? "");
       setRenamingRow(row2);
     }
-    (0, import_react94.useEffect)(() => {
+    (0, import_react95.useEffect)(() => {
       if (!renamingRow) return;
       renameInputRef.current?.focus();
       renameInputRef.current?.select();
@@ -110894,11 +111158,11 @@ ${entry.sql}
       if (row2.sessionId === runtime.sessionId) runtime.newSession();
       await refresh();
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("div", { id: "fh-history-chat-list", children: [
-      groups.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(import_jsx_runtime29.Fragment, {}),
-      groups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)("div", { className: "fh-history-chat-group", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("div", { className: "fh-history-chat-group-label", children: group.label }),
-        group.rows.map((row2) => /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { id: "fh-history-chat-list", children: [
+      groups.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_jsx_runtime30.Fragment, {}),
+      groups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "fh-history-chat-group", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("div", { className: "fh-history-chat-group-label", children: group.label }),
+        group.rows.map((row2) => /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
           "div",
           {
             className: `fh-history-chat-row${row2.sessionId === runtime.sessionId ? " active" : ""}${menuRow?.sessionId === row2.sessionId ? " menu-open" : ""}`,
@@ -110908,7 +111172,7 @@ ${entry.sql}
                 runtime.switchSession(row2.sessionId);
             },
             children: [
-              renamingRow?.sessionId === row2.sessionId ? /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
+              renamingRow?.sessionId === row2.sessionId ? /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
                 Input,
                 {
                   ref: renameInputRef,
@@ -110928,8 +111192,8 @@ ${entry.sql}
                   },
                   onBlur: () => setRenamingRow(null)
                 }
-              ) : /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(import_jsx_runtime29.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("span", { className: "fh-history-chat-row-title", children: rowLabel(row2, t) }) }),
-              renamingRow?.sessionId !== row2.sessionId && /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
+              ) : /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_jsx_runtime30.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "fh-history-chat-row-title", children: rowLabel(row2, t) }) }),
+              renamingRow?.sessionId !== row2.sessionId && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
                 IconButton,
                 {
                   size: "sm",
@@ -110941,7 +111205,7 @@ ${entry.sql}
                     if (menuRow?.sessionId === row2.sessionId) setMenuRow(null);
                     else openRowMenu(row2, event.currentTarget);
                   },
-                  children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(Ellipsis, { size: 14 })
+                  children: /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(Ellipsis, { size: 14 })
                 }
               )
             ]
@@ -110950,14 +111214,14 @@ ${entry.sql}
         ))
       ] }, group.key)),
       menuRow && menuPosition && (0, import_react_dom6.createPortal)(
-        /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
           "div",
           {
             ref: menuPopupRef,
             className: "fh-history-chat-row-menu-popup",
             style: { top: menuPosition.top, left: menuPosition.left },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
                 MenuItem,
                 {
                   variant: "popup",
@@ -110967,12 +111231,12 @@ ${entry.sql}
                     startRename(row2);
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(Pencil, { size: 15 }),
+                    /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(Pencil, { size: 15 }),
                     t("historyChat.rename")
                   ]
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
                 MenuItem,
                 {
                   variant: "popup",
@@ -110983,7 +111247,7 @@ ${entry.sql}
                     void remove(row2);
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(Trash2, { size: 15 }),
+                    /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(Trash2, { size: 15 }),
                     t("historyChat.delete")
                   ]
                 }
@@ -110997,14 +111261,14 @@ ${entry.sql}
   }
 
   // apps/web/src/components/features/data-studio/DataStudioSidebar.tsx
-  var import_jsx_runtime30 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime31 = __toESM(require_jsx_runtime(), 1);
   var SECTIONS = [
     { key: "chat", icon: MessageSquare, labelKey: "dataStudio.sectionChat" },
     { key: "dashboards", icon: LayoutDashboard, labelKey: "dataStudio.sectionDashboards" },
-    { key: "data-sources", icon: Server, labelKey: "dataStudio.sectionDataSources" },
-    { key: "glossary", icon: BookOpen, labelKey: "dataStudio.sectionGlossary" },
-    { key: "relationships", icon: Waypoints, labelKey: "dataStudio.sectionRelationships" },
-    { key: "metrics", icon: Gauge, labelKey: "dataStudio.sectionMetrics" }
+    { key: "data-sources", icon: Server, labelKey: "dataStudio.sectionDataSources", adminOnly: true },
+    { key: "glossary", icon: BookOpen, labelKey: "dataStudio.sectionGlossary", adminOnly: true },
+    { key: "relationships", icon: Waypoints, labelKey: "dataStudio.sectionRelationships", adminOnly: true },
+    { key: "metrics", icon: Gauge, labelKey: "dataStudio.sectionMetrics", adminOnly: true }
   ];
   function DataStudioSidebar({
     collapsed,
@@ -111016,37 +111280,39 @@ ${entry.sql}
     onBackToMain
   }) {
     const { t } = useLocale();
-    return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+    const { userRole } = useRuntime();
+    const sections = SECTIONS.filter((section) => userRole === "admin" || !section.adminOnly);
+    return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
       "div",
       {
         id: "sidebar-col",
         className: `fh-sidebar-col fh-data-studio-sidebar${collapsed ? " fh-sidebar-rail" : ""}`,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "fh-sidebar-logo-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "fh-sidebar-logo-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
               IconButton,
               {
                 className: "fh-data-studio-back",
                 onClick: onBackToMain,
                 title: t("dataStudio.backToMain"),
-                children: /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(ArrowLeft, { size: 16 })
+                children: /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(ArrowLeft, { size: 16 })
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "fh-sidebar-brand", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "fh-sidebar-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(Database, { size: 22 }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "fh-sidebar-brand-name", children: t("dataStudio.title") })
+            /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "fh-sidebar-brand", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "fh-sidebar-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(Database, { size: 22 }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "fh-sidebar-brand-name", children: t("dataStudio.title") })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
               IconButton,
               {
                 className: "fh-sidebar-collapse-toggle",
                 onClick: onToggleCollapse,
                 title: collapsed ? t("sidebar.expandSidebar") : t("sidebar.collapseSidebar"),
-                children: collapsed ? /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(PanelLeftOpen, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(PanelLeftClose, { size: 16 })
+                children: collapsed ? /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(PanelLeftOpen, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(PanelLeftClose, { size: 16 })
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
             Button,
             {
               variant: "raised",
@@ -111054,12 +111320,12 @@ ${entry.sql}
               onClick: onNewChat,
               disabled: newChatDisabled,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(Plus, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "fh-sidebar-new-session-label", children: t("sidebar.newSession") })
+                /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(Plus, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "fh-sidebar-new-session-label", children: t("sidebar.newSession") })
               ]
             }
           ),
-          SECTIONS.map(({ key, icon: Icon3, labelKey }) => /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+          sections.map(({ key, icon: Icon3, labelKey }) => /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
             MenuItem,
             {
               variant: "nav",
@@ -111068,39 +111334,39 @@ ${entry.sql}
               onClick: () => onSelectSection(key),
               title: t(labelKey),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(Icon3, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "fh-data-studio-nav-label", children: t(labelKey) })
+                /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(Icon3, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "fh-data-studio-nav-label", children: t(labelKey) })
               ]
             },
             key
           )),
-          activeSection === "chat" && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("div", { className: "fh-sidebar-region", children: /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(HistoryChat, { query: "", flowFilter: "data-studio" }) })
+          activeSection === "chat" && /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { className: "fh-sidebar-region", children: /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(HistoryChat, { query: "", flowFilter: "data-studio" }) })
         ]
       }
     );
   }
 
   // apps/web/src/components/features/sidebar/Sidebar.tsx
-  var import_react96 = __toESM(require_react(), 1);
+  var import_react97 = __toESM(require_react(), 1);
 
   // apps/web/src/components/features/sidebar/AccountMenu.tsx
-  var import_react95 = __toESM(require_react(), 1);
+  var import_react96 = __toESM(require_react(), 1);
   var import_react_dom7 = __toESM(require_react_dom(), 1);
-  var import_jsx_runtime31 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime32 = __toESM(require_jsx_runtime(), 1);
   function AccountMenu({ onOpenSettings, onLogout }) {
     const runtime = useRuntime();
     const { t } = useLocale();
-    const [open, setOpen] = (0, import_react95.useState)(false);
-    const [position3, setPosition] = (0, import_react95.useState)(null);
-    const triggerRef = (0, import_react95.useRef)(null);
-    const popupRef = (0, import_react95.useRef)(null);
+    const [open, setOpen] = (0, import_react96.useState)(false);
+    const [position3, setPosition] = (0, import_react96.useState)(null);
+    const triggerRef = (0, import_react96.useRef)(null);
+    const popupRef = (0, import_react96.useRef)(null);
     function openMenu() {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
       setPosition({ left: rect.left, bottom: window.innerHeight - rect.top + 8 });
       setOpen(true);
     }
-    (0, import_react95.useEffect)(() => {
+    (0, import_react96.useEffect)(() => {
       if (!open) return;
       function onPointerDown(event) {
         const target = event.target;
@@ -111118,8 +111384,8 @@ ${entry.sql}
       };
     }, [open]);
     const initial = (runtime.userEmail || "?").charAt(0).toUpperCase();
-    return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(import_jsx_runtime31.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(import_jsx_runtime32.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
         "button",
         {
           id: "account-menu-trigger",
@@ -111129,15 +111395,15 @@ ${entry.sql}
           onClick: () => open ? setOpen(false) : openMenu(),
           title: t("sidebar.accountMenu"),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "fh-sidebar-account-avatar", children: initial }),
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "fh-sidebar-account-email", children: runtime.userEmail || t("sidebar.account") }),
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(Ellipsis, { size: 16, className: "fh-sidebar-account-more" })
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "fh-sidebar-account-avatar", children: initial }),
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "fh-sidebar-account-email", children: runtime.userEmail || t("sidebar.account") }),
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Ellipsis, { size: 16, className: "fh-sidebar-account-more" })
           ]
         }
       ),
       open && position3 && (0, import_react_dom7.createPortal)(
-        /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { ref: popupRef, className: "fh-account-menu-popup", style: { left: position3.left, bottom: position3.bottom }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", { ref: popupRef, className: "fh-account-menu-popup", style: { left: position3.left, bottom: position3.bottom }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
             MenuItem,
             {
               variant: "popup",
@@ -111146,12 +111412,12 @@ ${entry.sql}
                 onOpenSettings();
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(Settings, { size: 15 }),
+                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Settings, { size: 15 }),
                 t("sidebar.settings")
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
             MenuItem,
             {
               variant: "popup",
@@ -111160,7 +111426,7 @@ ${entry.sql}
                 onLogout();
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(LogOut, { size: 15 }),
+                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(LogOut, { size: 15 }),
                 t("app.logout")
               ]
             }
@@ -111172,7 +111438,7 @@ ${entry.sql}
   }
 
   // apps/web/src/components/features/sidebar/Sidebar.tsx
-  var import_jsx_runtime32 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime33 = __toESM(require_jsx_runtime(), 1);
   function Sidebar({
     collapsed,
     onToggleCollapse,
@@ -111186,21 +111452,21 @@ ${entry.sql}
     onLogout
   }) {
     const { t } = useLocale();
-    const [searchOpen, setSearchOpen] = (0, import_react96.useState)(false);
-    const [query, setQuery] = (0, import_react96.useState)("");
-    const searchInputRef = (0, import_react96.useRef)(null);
-    return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
+    const [searchOpen, setSearchOpen] = (0, import_react97.useState)(false);
+    const [query, setQuery] = (0, import_react97.useState)("");
+    const searchInputRef = (0, import_react97.useRef)(null);
+    return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
       "div",
       {
         id: "sidebar-col",
         className: `fh-sidebar-col${collapsed ? " fh-sidebar-rail" : ""}`,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", { className: "fh-sidebar-logo-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", { className: "fh-sidebar-brand", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "fh-sidebar-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Bot, { size: 24 }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "fh-sidebar-brand-name", children: "Fox Harness" })
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className: "fh-sidebar-logo-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className: "fh-sidebar-brand", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "fh-sidebar-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Bot, { size: 24 }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "fh-sidebar-brand-name", children: "Fox Harness" })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
               IconButton,
               {
                 className: "fh-sidebar-search-toggle",
@@ -111209,20 +111475,20 @@ ${entry.sql}
                   setTimeout(() => searchInputRef.current?.focus(), 0);
                 },
                 title: t("sidebar.searchSessions"),
-                children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Search, { size: 14 })
+                children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Search, { size: 14 })
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
               IconButton,
               {
                 className: "fh-sidebar-collapse-toggle",
                 onClick: onToggleCollapse,
                 title: collapsed ? t("sidebar.expandSidebar") : t("sidebar.collapseSidebar"),
-                children: collapsed ? /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(PanelLeftOpen, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(PanelLeftClose, { size: 16 })
+                children: collapsed ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(PanelLeftOpen, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(PanelLeftClose, { size: 16 })
               }
             )
           ] }),
-          searchOpen && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { className: "fh-sidebar-search-row", children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
+          searchOpen && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "fh-sidebar-search-row", children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
             Input,
             {
               ref: searchInputRef,
@@ -111237,7 +111503,7 @@ ${entry.sql}
               }
             }
           ) }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
             Button,
             {
               variant: "raised",
@@ -111245,12 +111511,12 @@ ${entry.sql}
               onClick: onNewSession,
               disabled: newSessionDisabled,
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Plus, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "fh-sidebar-new-session-label", children: t("sidebar.newSession") })
+                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Plus, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "fh-sidebar-new-session-label", children: t("sidebar.newSession") })
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
             MenuItem,
             {
               variant: "nav",
@@ -111258,12 +111524,12 @@ ${entry.sql}
               onClick: onOpenSkills,
               title: t("sidebar.skills"),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Sparkles, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "fh-sidebar-skills-label", children: t("sidebar.skills") })
+                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Sparkles, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "fh-sidebar-skills-label", children: t("sidebar.skills") })
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
             MenuItem,
             {
               variant: "nav",
@@ -111272,12 +111538,12 @@ ${entry.sql}
               onClick: onOpenDataAnalysis,
               title: t("sidebar.dataAnalysis"),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(ChartColumn, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "fh-sidebar-data-analysis-label", children: t("sidebar.dataAnalysis") })
+                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(ChartColumn, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "fh-sidebar-data-analysis-label", children: t("sidebar.dataAnalysis") })
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
             MenuItem,
             {
               variant: "nav",
@@ -111285,24 +111551,28 @@ ${entry.sql}
               onClick: onOpenDataStudio,
               title: t("sidebar.dataStudio"),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(Database, { size: 16 }),
-                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "fh-sidebar-data-studio-label", children: t("sidebar.dataStudio") })
+                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Database, { size: 16 }),
+                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "fh-sidebar-data-studio-label", children: t("sidebar.dataStudio") })
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { className: "fh-sidebar-region", children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(HistoryChat, { query }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { className: "fh-sidebar-foot", children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(AccountMenu, { onOpenSettings, onLogout }) })
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "fh-sidebar-region", children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(HistoryChat, { query }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "fh-sidebar-foot", children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(AccountMenu, { onOpenSettings, onLogout }) })
         ]
       }
     );
   }
 
   // apps/web/src/App.tsx
-  var import_jsx_runtime33 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime34 = __toESM(require_jsx_runtime(), 1);
   var STORAGE_TOKEN = "fox-harness/token";
   var STORAGE_GATEWAY = "fox-harness/gatewayUrl";
   var STORAGE_SIDEBAR_COLLAPSED = "fox-harness/sidebarCollapsed";
   var STORAGE_EMAIL = "fox-harness/email";
+  var STORAGE_ROLE = "fox-harness/role";
+  function storedRole() {
+    return localStorage.getItem(STORAGE_ROLE) === "admin" ? "admin" : "user";
+  }
   var SIDEBAR_AUTO_COLLAPSE = 1024;
   var SIDEBAR_RAIL_WIDTH = 56;
   var SIDEBAR_EXPANDED_WIDTH = 280;
@@ -111395,21 +111665,7 @@ ${entry.sql}
       );
     }
     const body = await res.json();
-    return body;
-  }
-  async function register(httpBase, email, password) {
-    const res = await fetch(`${httpBase}/auth/register`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new AuthError(
-        body.error ?? `register failed: HTTP ${res.status}`,
-        body.code
-      );
-    }
+    return { token: body.token, email: body.email, role: body.role === "admin" ? "admin" : "user" };
   }
   async function logoutRequest(httpBase, token) {
     await fetch(`${httpBase}/auth/logout`, {
@@ -111420,54 +111676,55 @@ ${entry.sql}
     });
   }
   function App() {
-    return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(LocaleProvider, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(AppInner, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Toaster, { theme: "light", position: "top-right", closeButton: true, richColors: true })
+    return /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)(LocaleProvider, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(AppInner, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(Toaster, { theme: "light", position: "top-right", closeButton: true, richColors: true })
     ] });
   }
   function AppInner() {
     const { t } = useLocale();
-    const [status, setStatus] = (0, import_react97.useState)("disconnected");
-    const [authenticated, setAuthenticated] = (0, import_react97.useState)(false);
-    const [authCheckPending, setAuthCheckPending] = (0, import_react97.useState)(
+    const [status, setStatus] = (0, import_react98.useState)("disconnected");
+    const [authenticated, setAuthenticated] = (0, import_react98.useState)(false);
+    const [authCheckPending, setAuthCheckPending] = (0, import_react98.useState)(
       () => !!localStorage.getItem(STORAGE_TOKEN)
     );
-    const [sessionId, setSessionId] = (0, import_react97.useState)("");
-    const [sessionTitle, setSessionTitle] = (0, import_react97.useState)(
+    const [sessionId, setSessionId] = (0, import_react98.useState)("");
+    const [sessionTitle, setSessionTitle] = (0, import_react98.useState)(
       void 0
     );
-    const [sessionsVersion, setSessionsVersion] = (0, import_react97.useState)(0);
-    const [connectError, setConnectError] = (0, import_react97.useState)(null);
-    const [gatewayUrl] = (0, import_react97.useState)(defaultGatewayUrl());
-    const [selectedModel, setSelectedModel] = (0, import_react97.useState)("");
-    const [settingsOpen, setSettingsOpen] = (0, import_react97.useState)(false);
-    const [skillsOpen, setSkillsOpen] = (0, import_react97.useState)(false);
-    const [projectView, setProjectView] = (0, import_react97.useState)(null);
-    const [dataStudioMode, setDataStudioMode] = (0, import_react97.useState)(() => isDataStudioUrl());
-    const [dataStudioSection, setDataStudioSection] = (0, import_react97.useState)("chat");
-    const chatPlaceRef = (0, import_react97.useRef)({ area: "chat" });
-    const [chatInDataArea, setChatInDataArea] = (0, import_react97.useState)(false);
+    const [sessionsVersion, setSessionsVersion] = (0, import_react98.useState)(0);
+    const [connectError, setConnectError] = (0, import_react98.useState)(null);
+    const [gatewayUrl] = (0, import_react98.useState)(defaultGatewayUrl());
+    const [selectedModel, setSelectedModel] = (0, import_react98.useState)("");
+    const [settingsOpen, setSettingsOpen] = (0, import_react98.useState)(false);
+    const [skillsOpen, setSkillsOpen] = (0, import_react98.useState)(false);
+    const [projectView, setProjectView] = (0, import_react98.useState)(null);
+    const [dataStudioMode, setDataStudioMode] = (0, import_react98.useState)(() => isDataStudioUrl());
+    const [dataStudioSection, setDataStudioSection] = (0, import_react98.useState)("chat");
+    const chatPlaceRef = (0, import_react98.useRef)({ area: "chat" });
+    const [chatInDataArea, setChatInDataArea] = (0, import_react98.useState)(false);
     function setChatPlace(place) {
       chatPlaceRef.current = place;
       setChatInDataArea(place.area === "data");
     }
-    const pendingFirstMessageRef = (0, import_react97.useRef)(null);
-    const [viewportWidth, setViewportWidth] = (0, import_react97.useState)(0);
-    const [sidebarManuallyExpanded, setSidebarManuallyExpanded] = (0, import_react97.useState)(false);
-    const [sidebarPinnedCollapsed, setSidebarPinnedCollapsed] = (0, import_react97.useState)(
+    const pendingFirstMessageRef = (0, import_react98.useRef)(null);
+    const [viewportWidth, setViewportWidth] = (0, import_react98.useState)(0);
+    const [sidebarManuallyExpanded, setSidebarManuallyExpanded] = (0, import_react98.useState)(false);
+    const [sidebarPinnedCollapsed, setSidebarPinnedCollapsed] = (0, import_react98.useState)(
       () => localStorage.getItem(STORAGE_SIDEBAR_COLLAPSED) === "1"
     );
-    const [userEmail, setUserEmail] = (0, import_react97.useState)(
+    const [userEmail, setUserEmail] = (0, import_react98.useState)(
       () => localStorage.getItem(STORAGE_EMAIL) ?? ""
     );
-    const [hasChatted, setHasChatted] = (0, import_react97.useState)(
+    const [userRole, setUserRole] = (0, import_react98.useState)(storedRole);
+    const [hasChatted, setHasChatted] = (0, import_react98.useState)(
       () => !!sessionIdFromUrl()
     );
-    const frameRef = (0, import_react97.useRef)(null);
-    const wsRef = (0, import_react97.useRef)(null);
-    const gatewayHttpBaseRef = (0, import_react97.useRef)("");
-    const frameHistoryRef = (0, import_react97.useRef)([]);
-    const frameListenersRef = (0, import_react97.useRef)(/* @__PURE__ */ new Set());
+    const frameRef = (0, import_react98.useRef)(null);
+    const wsRef = (0, import_react98.useRef)(null);
+    const gatewayHttpBaseRef = (0, import_react98.useRef)("");
+    const frameHistoryRef = (0, import_react98.useRef)([]);
+    const frameListenersRef = (0, import_react98.useRef)(/* @__PURE__ */ new Set());
     function publishFrame(frame) {
       if (frame.type === "snapshot") frameHistoryRef.current = [frame];
       else frameHistoryRef.current.push(frame);
@@ -111475,6 +111732,8 @@ ${entry.sql}
     }
     function handleAuthExpired() {
       localStorage.removeItem(STORAGE_TOKEN);
+      localStorage.removeItem(STORAGE_ROLE);
+      setUserRole("user");
       wsRef.current?.close();
       wsRef.current = null;
       setStatus("disconnected");
@@ -111631,10 +111890,11 @@ ${entry.sql}
       setChatPlace(place);
       if (sessionIdFromUrl() === id2 && location.pathname !== chatPath(id2, place)) replaceUrl(chatPath(id2, place));
     }
-    const runtime = (0, import_react97.useMemo)(
+    const runtime = (0, import_react98.useMemo)(
       () => ({
         sessionId,
         userEmail,
+        userRole,
         connected: status === "connected",
         apiUrl: (path3) => `${gatewayHttpBaseRef.current}${path3}`,
         authHeaders: () => {
@@ -111688,7 +111948,7 @@ ${entry.sql}
         bumpSessionsVersion: () => setSessionsVersion((v) => v + 1)
       }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [sessionId, userEmail, status, hasChatted, sessionTitle, sessionsVersion, dataStudioMode]
+      [sessionId, userEmail, userRole, status, hasChatted, sessionTitle, sessionsVersion, dataStudioMode]
     );
     function handleLogin(email, password) {
       setConnectError(null);
@@ -111697,7 +111957,9 @@ ${entry.sql}
         try {
           const result = await login(httpBase, email, password);
           localStorage.setItem(STORAGE_EMAIL, result.email);
+          localStorage.setItem(STORAGE_ROLE, result.role);
           setUserEmail(result.email);
+          setUserRole(result.role);
           applyRoute(routeFromUrl());
           {
             const target = initialSessionTarget();
@@ -111710,19 +111972,6 @@ ${entry.sql}
         }
       })();
     }
-    async function handleRegister(email, password) {
-      setConnectError(null);
-      const httpBase = gatewayUrl.trim().replace(/\/$/, "");
-      try {
-        await register(httpBase, email, password);
-        return true;
-      } catch (error) {
-        setConnectError(
-          error instanceof AuthError ? translateErrorCode(t, error.code, error.message) : error instanceof Error ? error.message : String(error)
-        );
-        return false;
-      }
-    }
     function handleLogout() {
       const httpBase = gatewayHttpBaseRef.current;
       const token = localStorage.getItem(STORAGE_TOKEN);
@@ -111731,7 +111980,9 @@ ${entry.sql}
       setStatus("disconnected");
       localStorage.removeItem(STORAGE_TOKEN);
       localStorage.removeItem(STORAGE_EMAIL);
+      localStorage.removeItem(STORAGE_ROLE);
       setUserEmail("");
+      setUserRole("user");
       setAuthenticated(false);
       replaceUrl("/");
       setProjectView(null);
@@ -111739,7 +111990,7 @@ ${entry.sql}
       setHasChatted(false);
       if (httpBase && token) void logoutRequest(httpBase, token);
     }
-    (0, import_react97.useEffect)(() => {
+    (0, import_react98.useEffect)(() => {
       const storedToken = localStorage.getItem(STORAGE_TOKEN);
       const storedGateway = localStorage.getItem(STORAGE_GATEWAY);
       applyRoute(routeFromUrl());
@@ -111748,7 +111999,7 @@ ${entry.sql}
         connect(storedGateway, storedToken, target.path, target.flow);
       }
     }, []);
-    (0, import_react97.useEffect)(() => {
+    (0, import_react98.useEffect)(() => {
       function onPopState() {
         const token = localStorage.getItem(STORAGE_TOKEN);
         if (!token || !gatewayHttpBaseRef.current) return;
@@ -111762,10 +112013,10 @@ ${entry.sql}
       window.addEventListener("popstate", onPopState);
       return () => window.removeEventListener("popstate", onPopState);
     }, []);
-    (0, import_react97.useEffect)(() => {
+    (0, import_react98.useEffect)(() => {
       void pickDefaultModel(gatewayUrl.trim().replace(/\/$/, ""));
     }, []);
-    (0, import_react97.useEffect)(() => {
+    (0, import_react98.useEffect)(() => {
       const el = frameRef.current;
       if (!el) return;
       const observer = new ResizeObserver(
@@ -111788,6 +112039,7 @@ ${entry.sql}
         return next;
       });
     }
+    const visibleDataStudioSection = userRole === "admin" || dataStudioSection === "chat" || dataStudioSection === "dashboards" ? dataStudioSection : "chat";
     const cols = computeColumns(
       viewportWidth,
       sidebarCollapsed ? 0 : SIDEBAR_EXPANDED_WIDTH,
@@ -111796,26 +112048,25 @@ ${entry.sql}
     const gridTemplateColumns = `${cols.sidebar}px ${cols.center}px`;
     if (!authenticated) {
       if (authCheckPending) {
-        return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "fh-auth-screen", children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "fh-auth-loading", children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "fh-spinner" }) }) });
+        return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("div", { className: "fh-auth-screen", children: /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("div", { className: "fh-auth-loading", children: /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("div", { className: "fh-spinner" }) }) });
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className: "fh-auth-screen", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className: "fh-auth-screen-controls", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(LanguageSelect, {}),
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(ThemeToggle, {})
+      return /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("div", { className: "fh-auth-screen", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("div", { className: "fh-auth-screen-controls", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(LanguageSelect, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(ThemeToggle, {})
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(
           ConnectForm,
           {
             error: connectError,
             connecting: status === "connecting",
-            onLogin: handleLogin,
-            onRegister: handleRegister
+            onLogin: handleLogin
           }
         )
       ] });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(RuntimeContext.Provider, { value: runtime, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)(RuntimeContext.Provider, { value: runtime, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)(
         "div",
         {
           id: "app",
@@ -111823,12 +112074,12 @@ ${entry.sql}
           ref: frameRef,
           style: { gridTemplateColumns },
           children: [
-            dataStudioMode ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+            dataStudioMode ? /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(
               DataStudioSidebar,
               {
                 collapsed: sidebarCollapsed,
                 onToggleCollapse: toggleSidebarCollapse,
-                activeSection: dataStudioSection,
+                activeSection: visibleDataStudioSection,
                 onSelectSection: setDataStudioSection,
                 onNewChat: () => {
                   setDataStudioSection("chat");
@@ -111837,7 +112088,7 @@ ${entry.sql}
                 newChatDisabled: !hasChatted,
                 onBackToMain: () => startNewSession("default")
               }
-            ) : /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+            ) : /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(
               Sidebar,
               {
                 collapsed: sidebarCollapsed,
@@ -111859,10 +112110,10 @@ ${entry.sql}
                 onLogout: handleLogout
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { id: "center-col", className: "fh-center-col", children: dataStudioMode ? dataStudioSection === "chat" ? /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-              sessionId && hasChatted && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(SessionTitleBar, {}),
-              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Conversation, { variant: "data-studio" })
-            ] }) : dataStudioSection === "data-sources" ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(DataStudioDataSources, {}) : dataStudioSection === "glossary" ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(DataStudioGlossary, {}) : dataStudioSection === "relationships" ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(DataStudioRelationships, {}) : dataStudioSection === "metrics" ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(DataStudioMetrics, {}) : /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(DataStudioDashboards, {}) : projectView ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("div", { id: "center-col", className: "fh-center-col", children: dataStudioMode ? visibleDataStudioSection === "chat" ? /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)(import_jsx_runtime34.Fragment, { children: [
+              sessionId && hasChatted && /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(SessionTitleBar, {}),
+              /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(Conversation, { variant: "data-studio" })
+            ] }) : visibleDataStudioSection === "data-sources" ? /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(DataStudioDataSources, {}) : visibleDataStudioSection === "glossary" ? /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(DataStudioGlossary, {}) : visibleDataStudioSection === "relationships" ? /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(DataStudioRelationships, {}) : visibleDataStudioSection === "metrics" ? /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(DataStudioMetrics, {}) : /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(DataStudioDashboards, {}) : projectView ? /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(
               ProjectHub,
               {
                 projectId: projectView.projectId,
@@ -111870,15 +112121,15 @@ ${entry.sql}
                 onStartChat: (projectId, message) => startNewSession("data-analysis", projectId, message)
               },
               projectView.projectId ?? "project-list"
-            ) : /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-              sessionId && hasChatted && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(SessionTitleBar, {}),
-              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(ProjectChatBar, { onOpenProject: openDataView, onChatPlace: reconcileChatPlace }),
-              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(Conversation, {})
+            ) : /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)(import_jsx_runtime34.Fragment, { children: [
+              sessionId && hasChatted && /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(SessionTitleBar, {}),
+              /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(ProjectChatBar, { onOpenProject: openDataView, onChatPlace: reconcileChatPlace }),
+              /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(Conversation, {})
             ] }) })
           ]
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(
         SettingsDialog,
         {
           open: settingsOpen,
@@ -111886,14 +112137,14 @@ ${entry.sql}
           onLogout: handleLogout
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(SkillsDialog, { open: skillsOpen, onClose: () => setSkillsOpen(false) })
+      /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(SkillsDialog, { open: skillsOpen, onClose: () => setSkillsOpen(false) })
     ] });
   }
 
   // apps/web/src/ErrorBoundary.tsx
-  var import_react98 = __toESM(require_react(), 1);
-  var import_jsx_runtime34 = __toESM(require_jsx_runtime(), 1);
-  var ErrorBoundary = class extends import_react98.Component {
+  var import_react99 = __toESM(require_react(), 1);
+  var import_jsx_runtime35 = __toESM(require_jsx_runtime(), 1);
+  var ErrorBoundary = class extends import_react99.Component {
     state = { error: null };
     static getDerivedStateFromError(error) {
       return { error: error instanceof Error ? error : new Error(String(error)) };
@@ -111904,11 +112155,11 @@ ${entry.sql}
     render() {
       const { error } = this.state;
       if (!error) return this.props.children;
-      return /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("div", { style: { maxWidth: 640, margin: "4em auto", padding: "0 1.5em", fontFamily: "system-ui, sans-serif", color: "#1a1a1a" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("h1", { style: { fontSize: "1.3em" }, children: "Something went wrong" }),
-        /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("p", { children: error.message }),
-        error.stack && /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("pre", { style: { whiteSpace: "pre-wrap", fontSize: "0.75em", opacity: 0.7, overflowX: "auto" }, children: error.stack }),
-        /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime35.jsxs)("div", { style: { maxWidth: 640, margin: "4em auto", padding: "0 1.5em", fontFamily: "system-ui, sans-serif", color: "#1a1a1a" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("h1", { style: { fontSize: "1.3em" }, children: "Something went wrong" }),
+        /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("p", { children: error.message }),
+        error.stack && /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("pre", { style: { whiteSpace: "pre-wrap", fontSize: "0.75em", opacity: 0.7, overflowX: "auto" }, children: error.stack }),
+        /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(
           "button",
           {
             type: "button",
@@ -111922,11 +112173,11 @@ ${entry.sql}
   };
 
   // apps/web/src/main.tsx
-  var import_jsx_runtime35 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime36 = __toESM(require_jsx_runtime(), 1);
   var container = document.getElementById("root");
   if (!container) throw new Error("fox-harness-web: missing #root in index.html");
   (0, import_client.createRoot)(container).render(
-    /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(ErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(App, {}) })
+    /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(ErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(App, {}) })
   );
 })();
 /*! Bundled license information:
@@ -112404,6 +112655,14 @@ lucide-react/dist/esm/icons/trash-2.js:
    *)
 
 lucide-react/dist/esm/icons/user.js:
+  (**
+   * @license lucide-react v0.469.0 - ISC
+   *
+   * This source code is licensed under the ISC license.
+   * See the LICENSE file in the root directory of this source tree.
+   *)
+
+lucide-react/dist/esm/icons/users.js:
   (**
    * @license lucide-react v0.469.0 - ISC
    *

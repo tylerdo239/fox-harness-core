@@ -18,6 +18,11 @@ in `infra/migrations/README.md` (app repo).
   as a plain path segment in the connection string below.
 - **1 user** with `CREATE`, `ALTER`, `INDEX`, `INSERT`/`SELECT`/`UPDATE`/
   `DELETE` on that database — no instance-wide/admin privileges needed.
+- **Character set:** every table declares `utf8mb4` / `utf8mb4_unicode_ci`
+  itself, so the server's default does not matter. (Measured on a `latin1`
+  server before this was declared: a Vietnamese or emoji session title
+  failed with `ERROR 1366`.) The e2e stack runs its MariaDB with a `latin1`
+  default on purpose to keep proving this.
 
 ## Tables
 
