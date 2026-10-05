@@ -21,4 +21,5 @@ layout from before the split:
 | `infra/deploy/README.md` | `docs/deploy.md` |
 | root `package.json`, `pnpm-*.yaml`, `tsconfig*.json`, `.env.example` | `api/…` (and `app/` has its own) |
 | `scripts/build-web.mjs`, `scripts/serve-web.mjs` | `app/scripts/build.mjs`, `app/scripts/serve.mjs` |
-| `scripts/create-admin.mjs`, `spike-*`, `upstream-smoke-test.mjs`, `bench/` | `api/scripts/…` |
+| `scripts/create-admin.mjs`, `spike-*`, `bench/` | `api/scripts/…` |
+| `scripts/upstream-smoke-test.mjs` (broken since the single-runtime migration) | replaced by `api/scripts/agent-loop-parity.mjs` |

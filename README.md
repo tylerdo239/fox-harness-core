@@ -17,8 +17,8 @@ fox-harness-core does not fork dsh. It depends on it as a real npm package
 (pinned at `0.1.1-rc.2`) and runs it through dsh's own Cordis plugin runtime,
 replacing exactly one piece — `core/agent-loop` (the turn/step/tool-call loop) —
 with `packages/agent-driver`, a hand-written driver that mirrors
-dsh-agent-loop's behaviour (a session-log diff between the two is
-event-for-event identical) and adds what one-process-many-sessions needs: a
+dsh-agent-loop's behaviour (`api/scripts/agent-loop-parity.mjs` checks every
+LLM request is identical; tool calls run one at a time instead of in parallel) and adds what one-process-many-sessions needs: a
 scope per agent and the `setup` hook that joins an agent preset. Every other dsh
 subsystem runs unmodified.
 
@@ -205,7 +205,7 @@ overrides for the local compose (ports, local passwords). Required: `OPENAI_API_
   listed in `api/packages/profile-template/runtime/template/profile.package.json`
   (global) or in a flow's preset (that flow only), and in `api/package.json`'s
   `dependencies` and `api/tsconfig.json`'s references. Rebuild the backend image.
-- **Upstream (`dsh`) upgrades**: `api/scripts/upstream-smoke-test.mjs` +
+- **Upstream (`dsh`) upgrades**: `api/scripts/agent-loop-parity.mjs` (agent-driver vs dsh's own loop) +
   `docs/upstream-upgrade-policy.md`. Newer dsh moves presets into plugin bundles
   and changes the log format — treat an upgrade as its own project.
 - **Debugging a session**: log lines carry `sessionId` through the gateway and the
@@ -219,6 +219,8 @@ overrides for the local compose (ports, local passwords). Required: `OPENAI_API_
   end to end on a throwaway stack (:18080): real nginx → gateway → runtimes, mock LLM, real users, roles,
   isolation, sandbox, restart, purge. `scripts/e2e-down.sh` removes it.
 - `api/packages/tool/data-studio-agent/python/tests/role_authz_test.py` — role-based data access against a real Mongo.
+- `cd api && node scripts/agent-loop-parity.mjs` — the same scripted conversations through dsh's own agent loop and
+  through `agent-driver`; every LLM request must be identical (run it around every dsh version bump).
 - `api/scripts/spike-single-runtime.mjs`, `api/scripts/spike-load.mjs` — runtime-level isolation and load
   harnesses (need a running runtime).
 

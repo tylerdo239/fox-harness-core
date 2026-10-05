@@ -22,10 +22,12 @@ function textOf(content) {
   return ''
 }
 
-// The runtime also appends plugin-sourced user messages (`<system-reminder>`: skill catalog, ...);
-// the human's message is the last user message that is not one of those.
+// The runtime also appends plugin-sourced user messages (`<system-reminder>`: skill catalog, ...; the
+// "Current runtime context" snapshot of dsh-system-prompt's contexts); the human's message is the last user
+// message that is not one of those.
+const PLUGIN_USER = /^(<system-reminder>|Current runtime context)/
 function humanUser(messages) {
-  return [...(messages ?? [])].reverse().find((m) => m.role === 'user' && !textOf(m.content).startsWith('<system-reminder>'))
+  return [...(messages ?? [])].reverse().find((m) => m.role === 'user' && !PLUGIN_USER.test(textOf(m.content)))
 }
 
 function sse(res, chunks) {
@@ -103,6 +105,8 @@ createServer((req, res) => {
           .filter((m) => m.role === 'user' && textOf(m.content).includes('<available_skills>'))
           .flatMap((m) => [...textOf(m.content).matchAll(/^- `([^`]+)`/gm)].map((x) => x[1])),
         lastUser: textOf(humanUser(body.messages)?.content).slice(0, 200),
+        // the shape of the whole conversation sent (role + first characters), for parity comparisons
+        messages: (body.messages ?? []).map((m) => `${m.role}:${textOf(m.content).replace(/\s+/g, ' ').slice(0, 60)}${m.tool_calls ? ` [tool_calls:${m.tool_calls.map((c) => c.function?.name).join(',')}]` : ''}`),
         // the tool result this request answers, if any (lets a test see what a tool returned, e.g. inside a subagent)
         lastTool: (() => { const m = body.messages?.[body.messages.length - 1]; return m?.role === 'tool' ? textOf(m.content).slice(0, 400) : undefined })(),
       })

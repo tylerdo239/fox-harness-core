@@ -22,7 +22,7 @@ import {
   type UserMessage,
 } from '@deepseek-ai/dsh-session'
 import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
-import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
+import { joinContextSections, renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import {
   BlockAssembler,
   createAssistantMessage,
@@ -34,6 +34,8 @@ import {
   type LlmCallConfig,
   type PreparedLlmCall,
 } from '@deepseek-ai/dsh-llm'
+
+import { RuntimeContextProjection } from './runtime-context.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
@@ -90,6 +92,7 @@ export class FoxHarnessAgent implements Agent {
   private readonly dispatch: AgentEventDispatch
   private turnSeq: number
   private requestHeaderLogged = false
+  private readonly runtimeContext: RuntimeContextProjection
   private driving = false
   private currentAbort: AbortController | undefined
   private idleWaiters: Array<() => void> = []
@@ -114,6 +117,7 @@ export class FoxHarnessAgent implements Agent {
     this.dispatch = agentEvents(loopCtx, this)
     this.scope = createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
+    this.runtimeContext = new RuntimeContextProjection(this.ctx, session)
     this.inbox = new Inbox(session, {
       inserted: (message) => this.dispatch.emit('agent/inbox/inserted', { message }),
       discarded: (message) => this.dispatch.emit('agent/inbox/discarded', { message }),
@@ -232,10 +236,19 @@ export class FoxHarnessAgent implements Agent {
               ? [...this.inbox.claim('next-turn', turn), ...this.inbox.claim('next-step', turn)]
               : this.inbox.claim('next-step', turn)
 
+          // As dsh-agent-loop's preStep(): assemble the prompt once per step; its dynamic contexts go to the model
+          // as a "Current runtime context" message when they changed (runtime-context.ts).
+          const assembly = await this.ctx.systemPrompt.assemble(assembleContextFor(this, abort.signal))
+          abort.signal.throwIfAborted()
+          const sections = renderContextSections(assembly)
+          const context = this.runtimeContext.project(joinContextSections(sections), sections)
           const decision = await this.dispatch.waterfall(
             'agent/pre-step',
             { messages: claimed, turn, step, signal: abort.signal },
-            async (): Promise<PreStepDecision> => ({ kind: 'enter', messages: claimed }),
+            async (): Promise<PreStepDecision> => ({
+              kind: 'enter',
+              messages: context === undefined ? claimed : [...claimed, context as UserMessage],
+            }),
           )
 
           if (decision.kind === 'reject') {
@@ -249,7 +262,7 @@ export class FoxHarnessAgent implements Agent {
             for (const message of decision.messages) {
               this.session.append('user/message', message, { surfaceOp: 'append' })
             }
-            const outcome = await this.runStep(turn, step, abort.signal)
+            const outcome = await this.runStep(turn, step, assembly, abort.signal)
             closed = outcome.concludesTurn || !outcome.hasToolCalls
           } finally {
             this.session.append('step/end', { turn, step })
@@ -282,9 +295,9 @@ export class FoxHarnessAgent implements Agent {
   private async runStep(
     turn: number,
     step: number,
+    assembly: Awaited<ReturnType<Context['systemPrompt']['assemble']>>,
     signal: AbortSignal,
   ): Promise<{ concludesTurn: boolean; hasToolCalls: boolean }> {
-    const assembly = await this.ctx.systemPrompt.assemble(assembleContextFor(this, signal))
     const system = renderPrompt(assembly)
     const { assembler, config } = await this.callModel(turn, step, system, assembly.tools, signal)
 
@@ -435,7 +448,13 @@ export class FoxHarnessAgent implements Agent {
     // from the `agent/request` waterfall (packages/core) or the agent's own options, otherwise the call fails.
     const defaultConfig = (): LlmCallConfig => {
       if (!this.options.model) throw new Error('no model configured for this agent (OPENAI_MODEL_ID is unset)')
-      return { provider: this.options.provider ?? 'openai-compat', model: this.options.model, maxTokens: this.options.maxTokens }
+      // Only defined keys, like dsh-agent-loop's seed config: the session log rejects `maxTokens: undefined`
+      // ("request/header carries non-JSON-serializable data") — measured with an agent created without maxTokens.
+      return {
+        provider: this.options.provider ?? 'openai-compat',
+        model: this.options.model,
+        ...(this.options.maxTokens === undefined ? {} : { maxTokens: this.options.maxTokens }),
+      }
     }
 
     for (;;) {
