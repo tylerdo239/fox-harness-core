@@ -1,6 +1,7 @@
 # docs
 
 Current:
+- `core-architecture.md` — START HERE: every component of `api/`, how a chat turn runs, and why.
 - `deploy.md` — deploying the two images (`app/`, `api/`).
 - `core-readiness-review-2026-10-05.md` — what is ready, what is not, verified results.
 - `single-backend-architecture-plan.md` — why the orchestrator was removed; measured results (§13).
