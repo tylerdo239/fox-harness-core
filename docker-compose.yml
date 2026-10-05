@@ -1,0 +1,145 @@
+# LOCAL DEVELOPMENT ONLY — the whole system on one machine. Production builds and deploys the two images
+# separately (app/Dockerfile, api/Dockerfile) against real infrastructure: see docs/deploy.md.
+#
+#   docker compose up -d --build                  everything; open http://127.0.0.1:8080
+#   docker compose up -d mariadb redis minio mongo meilisearch dremio mysql
+#                                                 only the infrastructure, then run the code directly:
+#                                                 `cd api && pnpm dev` (gateway :4000) and `cd app && pnpm dev` (:5173)
+#
+# Secrets (OPENAI_*, SERPER_API_KEY, EMBEDDING_*, DREMIO_*, ...) come from api/.env (copy api/.env.example).
+# That file uses 127.0.0.1 addresses for running the code directly; the `backend` service below overrides them
+# with the service names. Infrastructure ports are published on 127.0.0.1 only.
+
+name: fox-harness
+
+services:
+  web:
+    build: ./app
+    image: fox-harness-web:dev
+    environment:
+      BACKEND_URL: http://backend:4000
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    build: ./api
+    image: fox-harness-backend:dev
+    # bubblewrap (the per-session sandbox): SYS_ADMIN for its namespaces, NET_ADMIN for the loopback of the network
+    # namespace that cuts model-run code off the network. The sandboxed command itself keeps neither.
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+    env_file:
+      - ./api/.env
+    environment:
+      GATEWAY_PORT: '4000'
+      GATEWAY_DATA_DIR: /data
+      DATABASE_URL: mariadb://fox_harness:${LOCAL_DB_PASSWORD:-fox_harness_dev}@mariadb:3306/discovery-agent
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      MONGODB_URL: mongodb://mongo:27017
+      DREMIO_URL: http://dremio:9047
+      MEILISEARCH_URL: http://meilisearch:7700
+    volumes:
+      - backend-data:/data
+    depends_on:
+      - mariadb
+      - redis
+      - minio
+      - mongo
+      - meilisearch
+    stop_grace_period: 40s
+
+  mariadb:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: ${LOCAL_DB_ROOT_PASSWORD:-fox_root_dev}
+      MARIADB_DATABASE: discovery-agent
+      MARIADB_USER: fox_harness
+      MARIADB_PASSWORD: ${LOCAL_DB_PASSWORD:-fox_harness_dev}
+    ports:
+      - '127.0.0.1:3307:3306'
+    volumes:
+      - mariadb-data:/var/lib/mysql
+      - ./api/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis-data:/data
+
+  # S3-compatible object storage (custom skills). Console: http://127.0.0.1:9001
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${LOCAL_S3_KEY:-fox_harness}
+      MINIO_ROOT_PASSWORD: ${LOCAL_S3_SECRET:-fox_harness_dev}
+    ports:
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
+    volumes:
+      - minio-data:/data
+
+  # Data Studio's semantic layer, chat history and dashboards.
+  mongo:
+    image: mongo:7
+    ports:
+      - '127.0.0.1:27017:27017'
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Data Studio's catalog search (hybrid keyword + vector). Rebuilt by an admin's "Sync Dremio".
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    environment:
+      MEILI_NO_ANALYTICS: 'true'
+    ports:
+      - '127.0.0.1:7700:7700'
+    volumes:
+      - meilisearch-data:/meili_data
+
+  # Query engine Data Studio runs its SQL through (OSS: no row/column policies — roles are enforced in api/).
+  dremio:
+    image: dremio/dremio-oss
+    ports:
+      - '127.0.0.1:9047:9047'
+    volumes:
+      - dremio-data:/opt/dremio/data
+
+  # Sample source database behind Dremio (workflows_db, ...). Dremio's sources reach it as host `dummy-mysql`.
+  mysql:
+    image: mysql:8.4
+    # Dremio's MySQL connector logs in with mysql_native_password, which MySQL 8.4 no longer loads by default
+    # (without this: "Plugin 'mysql_native_password' is not loaded", every source on it unavailable).
+    command: --mysql-native-password=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOCAL_MYSQL_ROOT_PASSWORD:-fox_mysql_dev}
+    ports:
+      - '127.0.0.1:3308:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      default:
+        aliases:
+          - dummy-mysql
+
+volumes:
+  backend-data:
+  mariadb-data:
+  redis-data:
+  minio-data:
+  mongodb-data:
+  meilisearch-data:
+  dremio-data:
+  mysql-data:

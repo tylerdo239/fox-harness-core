@@ -1,5 +1,5 @@
 /**
- * Top-level app (2026-09-08 follow-up — replaces apps/web/src/main.ts's
+ * Top-level app (2026-09-08 follow-up — replaces app/src/main.ts's
  * imperative shell). One single React app shared by every user, no more
  * per-session dynamically-composed UI plugins: the user decided the whole
  * manifest/module-loader/slots delivery mechanism (Phase 4-12) wasn't worth
@@ -106,7 +106,7 @@ function wsBaseFor(httpBase: string): string {
 
 // Real `/chat/<id>` URL routing (2026-09-09), hidden until a session
 // actually has content — mirrors the backend's own `sessions.first_message_at`
-// rule (infra/migrations/001_init.sql, services/gateway/src/db.ts) that
+// rule (api/migrations/001_init.sql, services/gateway/src/db.ts) that
 // already keeps an unchated session out of `GET /sessions/mine`: nothing
 // session-specific shows anywhere (URL included) until a real message has
 // been sent. Replaces the old `localStorage`-based `STORAGE_SESSION_ID` —
@@ -115,7 +115,7 @@ function wsBaseFor(httpBase: string): string {
 // `localStorage` does, a real latent bug the old approach had).
 //
 // Mirrors services/gateway/src/index.ts's own `SESSION_ID_RE` shape — not
-// imported, services/*/apps/web don't share runtime code (this repo's
+// imported, services/*/app don't share runtime code (this repo's
 // established boundary).
 const SESSION_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

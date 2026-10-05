@@ -1,6 +1,6 @@
 // Files in a working directory (docs/rlm-transfer-plan.md giai đoạn 4, 9.1):
 // a data-analysis chat's (`base` = `/sessions/<id>`) or a project's
-// (`/projects/<id>`). Mirrors services/gateway's …/files shapes — apps/web
+// (`/projects/<id>`). Mirrors services/gateway's …/files shapes — app
 // doesn't import @fox-harness/contracts, same "mirrored, not imported" rule as wire.ts.
 
 import type { Runtime } from "../../../runtime.ts";

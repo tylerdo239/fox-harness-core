@@ -5,7 +5,7 @@
 // .d.ts files). Used to live duplicated across separate packages ("mirrored,
 // not imported" — each bundle was independently loaded from a different
 // origin and couldn't share a module graph); now that the whole per-session
-// UI-plugin delivery mechanism is gone (2026-09-08 — see apps/web/README.md)
+// UI-plugin delivery mechanism is gone (2026-09-08 — see app/README.md)
 // and this is a single normally-built app, one shared file is simply
 // correct, not a compromise.
 

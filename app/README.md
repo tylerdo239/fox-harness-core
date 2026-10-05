@@ -1,4 +1,7 @@
-# apps/web
+# app
+
+The web UI — its own pnpm project, deployed on its own: `docker build ./app` (nginx serves `public/` and
+forwards the API + chat WebSocket to `BACKEND_URL`). It imports nothing from `api/`.
 
 **One single, normally-built React app, shared by every user (2026-09-08).**
 Not a plugin host, not a manifest-driven shell — just an ordinary React SPA.
@@ -220,7 +223,7 @@ real dsh research behind them is preserved for the historical record in
   `public/style.css` pointed at this app's own tokens, not sonner's
   built-in palette — `public/sonner.css` (sonner's own real compiled
   stylesheet) is copied from `node_modules` on every build by
-  `scripts/build-web.mjs`, never hand-maintained, so it can't drift out of
+  `scripts/build.mjs`, never hand-maintained, so it can't drift out of
   sync with whatever version is actually installed.
 - **`public/theme.css`** — design tokens (`--fh-*`), a real static
   stylesheet now (used to be a UI plugin that injected a `<style>` tag at
@@ -245,30 +248,28 @@ and `{followup|steer}` commands. See `services/gateway/README.md` and
 ## Build
 
 ```
-pnpm run build   # from the repo root: tsc -b (typecheck) then
-                  # scripts/build-web.mjs (esbuild — one IIFE bundle,
+cd app && pnpm install && pnpm run build   # tsc --noEmit (typecheck) then
+                  # scripts/build.mjs (esbuild — one IIFE bundle,
                   # React embedded normally, no external/module-loader
                   # tricks needed since there's only one bundle now)
 ```
 
-`tsc -b`'s own `.js`/`.d.ts` output goes to `lib/` (gitignored, same
-convention every other package in this repo uses) — it's pure type-check
-byproduct, thrown away, not what actually ships. `public/` holds only the 5
+Type checking emits nothing (`noEmit`); `public/` holds only the 5
 real files the app needs: `index.html`, `main.js` (the real esbuild
 bundle), `theme.css`, `sonner.css`, `style.css`. (2026-09-08 fix,
-`docs/code-rules.md` §44 — `apps/web/tsconfig.json` used to point `outDir`
+`docs/code-rules.md` §44 — `app/tsconfig.json` used to point `outDir`
 at `public` itself, so every `tsc -b` run dumped 19 stray, genuinely
 HTTP-servable files — `App.js`, `components/*.js`, `.tsbuildinfo`, ... —
-straight into the same directory `scripts/serve-web.mjs` serves live.)
+straight into the same directory `scripts/serve.mjs` serves live.)
 
-Then serve `public/` — **`node scripts/serve-web.mjs`** (repo root, port
+Then serve `public/` — **`pnpm dev`** (bundles, then `scripts/serve.mjs`; port
 5173 by default, `PORT=` to override), not a generic static server. Real
 reason this matters, not just a preference: a plain `python3 -m
 http.server` sends no `Cache-Control` header at all, so browsers apply
 their own heuristic caching and can keep showing an OLD `main.js`/`style.css`
 after a rebuild even on a normal reload — confirmed twice in this project
 (`curl` proved the server was serving fresh bytes both times; the browser
-just wasn't asking for them). `scripts/serve-web.mjs` sends
+just wasn't asking for them). `scripts/serve.mjs` sends
 `Cache-Control: no-store` on every response specifically to make that whole
 class of problem impossible — see `docs/code-rules.md` §29.
 

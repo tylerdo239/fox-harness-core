@@ -27,12 +27,13 @@ Browser ──► web (nginx + bundle React)  ──►  backend (gateway + N ru
 
 | Container | Vai trò | Ghi chú deploy |
 |---|---|---|
-| `web` | nginx phục vụ SPA, chuyển `/auth`, `/sessions` (cả WebSocket), `/users`, `/data-studio`… sang backend | Không giữ state |
-| `backend` | gateway (auth, phân quyền, REST, proxy WS, quota) **và** `FOX_RUNTIME_COUNT` process runtime dsh, mỗi process phục vụ nhiều session | Cần `cap_add: SYS_ADMIN, NET_ADMIN` (cho bubblewrap) và một volume cố định `/data` |
+| `web` (build từ `app/`) | nginx phục vụ SPA, chuyển `/auth`, `/sessions` (cả WebSocket), `/users`, `/data-studio`… sang backend | Không giữ state |
+| `backend` (build từ `api/`) | gateway (auth, phân quyền, REST, proxy WS, quota) **và** `FOX_RUNTIME_COUNT` process runtime dsh, mỗi process phục vụ nhiều session | Cần `cap_add: SYS_ADMIN, NET_ADMIN` (cho bubblewrap) và một volume cố định `/data` |
 
 - Không còn orchestrator và không còn container riêng cho từng session.
-- `infra/deploy/docker-compose.yml` có profile `local-deps` để dựng nhanh MariaDB, Redis, MinIO và Mongo khi
-  chạy local. Trên môi trường thật, đây là các dịch vụ do hạ tầng cung cấp.
+- `docker-compose.yml` ở gốc repo **chỉ dùng cho dev local**: chạy cả hai service cùng MariaDB, Redis, MinIO,
+  MongoDB, Meilisearch, Dremio và MySQL mẫu trên một máy. Trên môi trường thật, mỗi image build từ folder riêng
+  (`docker build ./app`, `docker build ./api`) và dùng hạ tầng do bên hạ tầng cung cấp (`docs/deploy.md`).
 - Hiện chỉ chạy được **1 replica** backend: chạy nhiều replica cần sticky routing theo session id và một thư mục
   dữ liệu dùng chung.
 - Gateway **từ chối khởi động** trên production nếu sandbox không hoạt động. Self-test lúc boot kiểm tra ba điều:
@@ -129,7 +130,7 @@ Hai việc cần lưu ý từ đợt test này:
 
 Trong một worktree tạm, mình thêm đúng như một dev sẽ thêm:
 - Package mới `@fox-harness/dsh-tool-probe-echo` (tool `probe_echo`), khai báo trong preset của flow `default`.
-- Skill built-in mới `packages/skills/probe-skill/SKILL.md`.
+- Skill built-in mới `api/packages/skills/probe-skill/SKILL.md`.
 
 Sau đó build image, dựng stack e2e và chạy:
 
@@ -147,22 +148,22 @@ Worktree và image thử nghiệm đã xóa; repo không bị thay đổi.
 ### 5.2 Cách thêm (đã kiểm chứng)
 
 **Tool cho một flow** (khuyến nghị):
-1. Tạo package `packages/tool/<tên>` theo mẫu `packages/tool/create-skill`. Package export `name`, `inject`,
+1. Tạo package `api/packages/tool/<tên>` theo mẫu `api/packages/tool/create-skill`. Package export `name`, `inject`,
    `apply(ctx)` và gọi `ctx.tools.register(defineTool({...}))`. Lưu ý: `defineTool` bắt buộc khai báo `output`
    (schema + render) nếu tool trả về giá trị.
-2. Thêm một dòng vào `packages/profile-template/presets/<flow>/agent.cordis.yml`.
+2. Thêm một dòng vào `api/packages/profile-template/presets/<flow>/agent.cordis.yml`.
 3. Thêm package vào `dependencies` trong `package.json` ở root và vào `references` trong `tsconfig.json`; chạy
    `pnpm install` để cập nhật lockfile.
 4. Build lại image backend và deploy. Session đang mở sẽ resume từ log sau khi restart.
 
-**Tool global** (mọi flow): khai báo bundle trong `packages/profile-template/runtime/template/profile.package.json`.
+**Tool global** (mọi flow): khai báo bundle trong `api/packages/profile-template/runtime/template/profile.package.json`.
 Lưu ý: mask của flow `data-analysis` là **deny-list**, nên một tool global mới sẽ hiện ở cả `default` lẫn
 `data-analysis`. Chỉ `data-studio` ẩn hết tool global. Muốn ẩn ở `data-analysis` thì thêm tên tool vào
-`FLOW_TOOL_MASK` trong `packages/transport/src/flows.ts`.
+`FLOW_TOOL_MASK` trong `api/packages/transport/src/flows.ts`.
 
 **Skill:**
-- Built-in cho mọi user: thư mục `packages/skills/<tên>/SKILL.md` (frontmatter có `name` và `description`).
-- Riêng flow data-analysis: `packages/flow/data-analysis/skills/`.
+- Built-in cho mọi user: thư mục `api/packages/skills/<tên>/SKILL.md` (frontmatter có `name` và `description`).
+- Riêng flow data-analysis: `api/packages/flow/data-analysis/skills/`.
 - Riêng từng user: user tự tạo ở tab Skills, hoặc agent gọi tool `create_skill`. Skill lưu trên S3 và được ghi vào
   `.dsh/skills` của workspace mỗi lần kết nối; user khác không thấy.
 
@@ -192,7 +193,7 @@ Lưu ý: mask của flow `data-analysis` là **deny-list**, nên một tool glob
 - [x] Schema MariaDB đầy đủ, khai báo `utf8mb4`
 - [ ] Sync lại catalog Dremio; admin bật các bảng cho user
 
-## 7. Database (`infra/migrations/001_init.sql`)
+## 7. Database (`api/migrations/001_init.sql`)
 
 4 bảng: `discovery_users`, `discovery_sessions`, `discovery_projects`, `discovery_custom_skills`. Không có foreign key.
 
@@ -206,7 +207,7 @@ Lưu ý: mask của flow `data-analysis` là **deny-list**, nên một tool glob
 | **Charset** | **Lỗi, đã sửa.** File chưa khai báo charset nên bảng lấy theo mặc định của server. Trên server `latin1`, ghi tiêu đề tiếng Việt hoặc emoji lỗi `ERROR 1366`. Giờ mỗi bảng khai báo `utf8mb4` / `utf8mb4_unicode_ci`, và DB của stack e2e cố tình chạy với mặc định `latin1` để luôn kiểm chứng điều này. |
 
 DB nào đã tạo bảng từ bản cũ trên một server không phải `utf8mb4` thì chạy các lệnh `alter table ... convert to
-character set utf8mb4` trong `infra/migrations/README.md`. Stack local hiện tại đã là `utf8mb4` nên không cần.
+character set utf8mb4` trong `api/migrations/README.md`. Stack local hiện tại đã là `utf8mb4` nên không cần.
 Schema MongoDB của Data Studio có thêm trường `allowed_roles` nhưng không cần migration: thiếu trường này nghĩa
 là chỉ admin thấy.
 
@@ -221,7 +222,7 @@ Bắt kết nối thật trong container backend khi chạy cả 3 flow, các do
 
 Đã chặn vĩnh viễn (code nằm trong package dsh, nhưng plugin không bao giờ được nạp):
 - `https://harness-telemetry.deepseeksvc.com`: dòng `session-telemetry-otel` bị tắt, runtime chạy với `DSH_TELEMETRY_DISABLED=1`.
-- `https://api.deepseek.com`: dòng `llm-deepseek` và `web-search-deepseek` bị tắt. Agent-driver và `packages/core` không còn mặc định `deepseek-official`; không có model thì báo lỗi.
+- `https://api.deepseek.com`: dòng `llm-deepseek` và `web-search-deepseek` bị tắt. Agent-driver và `api/packages/core` không còn mặc định `deepseek-official`; không có model thì báo lỗi.
 - Adapter đa nhà cung cấp `llm-pi-ai` cũng bị tắt.
 - `https://os-api.agno.com`: telemetry của Agno (framework gọi LLM trong worker Data Studio), trước đây gửi sau mỗi
   lần agent chạy, chặn luồng khoảng 0,8 giây mỗi lần, khoảng 19 lần mỗi câu hỏi. Giờ cả hai entrypoint của worker
@@ -233,10 +234,10 @@ Dremio. Meilisearch phải chạy container riêng, có master key và `MEILI_NO
 ## 9. Chạy lại để kiểm chứng
 
 ```bash
-docker build -f infra/docker/backend/Dockerfile -t fox-harness-backend:dev .
-docker build -f infra/docker/web/Dockerfile -t fox-harness-web:dev .
+docker compose build                           # hoặc: docker build ./api và docker build ./app
+cd scripts && pnpm install && cd ..             # lần đầu: package ws cho e2e
 sh scripts/e2e-up.sh                           # tự khởi động mock LLM (cổng 4999); web ở :18080
 node scripts/e2e-backend.mjs                   # 19 test
 sh scripts/e2e-down.sh
-cd packages/tool/data-studio-agent/python && MONGODB_URL=mongodb://127.0.0.1:27017 uv run python tests/role_authz_test.py
+cd api/packages/tool/data-studio-agent/python && MONGODB_URL=mongodb://127.0.0.1:27017 uv run python tests/role_authz_test.py
 ```

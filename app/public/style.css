@@ -90,7 +90,7 @@ body {
 }
 
 /* Real 2-column frame (sidebar | center — a `details` column exists in the
- * algorithm apps/web/src/App.tsx runs but nothing occupies it yet, so it's
+ * algorithm app/src/App.tsx runs but nothing occupies it yet, so it's
  * never rendered here at all). Reimplements dsh's real `dsh-client-ui-layout`
  * breakpoint/collapse algorithm (docs/code-rules.md's Phase 10 entry) — same
  * 1024px breakpoint, same 56px rail width — as a deliberately smaller v1:
@@ -232,7 +232,7 @@ body {
 }
 
 /* Phase 13: real per-session backend-plugin-contributed UI (a fixed,
- * hand-written set — apps/web/src/pluginUi.tsx — not dynamically loaded
+ * hand-written set — app/src/pluginUi.tsx — not dynamically loaded
  * code; see that file's own comment). */
 #sidebar-plugin-ui {
   display: flex;
@@ -560,7 +560,7 @@ input[type="text"].fh-history-chat-row-rename-input {
   width: 100%;
 }
 
-/* apps/web/src/components/Conversation.tsx's root — the only child of
+/* app/src/components/Conversation.tsx's root — the only child of
  * #center-col that needs to actually grow (everything else, header/
  * connect-form/session-bar, is a fixed-height row). Every element in this
  * flex-fill chain needs BOTH `flex:1` (grow) AND `min-height:0` (override
@@ -685,7 +685,7 @@ input[type="text"].fh-session-title-bar-input {
 
 /* ============================================================
  * Real primitives (2026-09-10, docs/code-rules.md §67) —
- * apps/web/src/components/primitives/{IconButton,Button,MenuItem,
+ * app/src/components/primitives/{IconButton,Button,MenuItem,
  * SelectableCard}.tsx. Consolidates what used to be ~10 separate
  * hand-rolled button classes scattered across this file (.fh-theme-toggle,
  * .fh-sidebar-collapse-toggle, .fh-sidebar-search-toggle,
@@ -1134,7 +1134,7 @@ button:disabled {
  * hand-rolled .fh-toast-* version above; user asked for a real library with
  * real animation instead). `sonner.css` (its own compiled stylesheet, see
  * index.html — copied from node_modules on every build by
- * scripts/build-web.mjs so it can never silently drift out of sync with the
+ * app/scripts/build.mjs so it can never silently drift out of sync with the
  * installed version) supplies the actual toast markup/animation/gesture
  * behavior; this block ONLY overrides its color variables to reuse THIS
  * app's own tokens instead of sonner's built-in palette. Selector matches

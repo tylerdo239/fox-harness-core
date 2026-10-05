@@ -3,7 +3,7 @@
 // `navigator.language`/`prefers-color-scheme`-style OS detection like
 // `useTheme.ts` does for its own default — a deliberate product choice,
 // see `locale.tsx`'s own comment for why locale can't reuse that hook's
-// pattern at all). No i18n library — `apps/web/package.json` had exactly 4
+// pattern at all). No i18n library — `app/package.json` had exactly 4
 // dependencies before this (`lucide-react`, `react`, `react-dom`,
 // `sonner`); ~50 short keys, no pluralization/date-formatting complexity
 // (HistoryChat's day-bucketing is already hand-rolled) doesn't justify

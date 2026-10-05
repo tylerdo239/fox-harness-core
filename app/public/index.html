@@ -7,7 +7,7 @@
     <!-- Real root-cause bug fixed 2026-09-10 — every asset href/src below is
        an ABSOLUTE path (`/theme.css`, not `./theme.css`). This exact file
        is served unchanged for every real route (`/`, `/chat/<id>`, ...) by
-       `scripts/serve-web.mjs`'s SPA fallback — but a RELATIVE path resolves
+       `app/scripts/serve.mjs`'s SPA fallback — but a RELATIVE path resolves
        against whatever the browser's address bar currently shows, not
        where the HTML came from. `./theme.css` on `/chat/<uuid>` resolves
        to `/chat/theme.css` (the browser drops everything after the last
@@ -20,7 +20,7 @@
        HTML document alone never caught this — the document itself was
        always byte-for-byte correct; only a browser actually resolving the
        hrefs against a non-root address bar path exposes it. -->
-    <!-- Applies a stored light/dark override (apps/web/src/useTheme.ts)
+    <!-- Applies a stored light/dark override (app/src/useTheme.ts)
        BEFORE the stylesheets below paint anything — without this, a user
        who chose "light" while their OS is in dark mode would see a dark
        flash on every reload (theme.css's dark block applies automatically
@@ -42,7 +42,7 @@
     <link rel="stylesheet" href="/theme.css" />
     <!-- `sonner`'s own compiled stylesheet (2026-09-08 — real toast library,
        replacing a hand-rolled one). Copied from node_modules on every build
-       by scripts/build-web.mjs, so it can't silently drift out of sync with
+       by app/scripts/build.mjs, so it can't silently drift out of sync with
        the installed version. Loaded BEFORE style.css so style.css's
        `[data-sonner-toaster][data-sonner-theme]` color overrides win their
        specificity tie by source order, no `!important` needed. -->
@@ -50,7 +50,7 @@
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <!-- The entire app is one real React tree (apps/web/src/App.tsx,
+    <!-- The entire app is one real React tree (app/src/App.tsx,
        2026-09-08 follow-up) — no more server-composed per-session manifest,
        no more separately-loaded plugin bundles. #root is the only element
        this file owns; everything else (the #app grid frame, #sidebar-col,

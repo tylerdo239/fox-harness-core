@@ -7,8 +7,9 @@ tool registry, the durable session/event log, the Cordis plugin system). This
 repo adds the layer dsh doesn't have: real multi-user accounts, per-user
 isolation of one shared agent runtime, and a web UI.
 
-**Two deployable services:** `web` (nginx + React bundle) and `backend`
-(gateway + the agent runtime it starts). Nothing else is deployed by us.
+**Two deployable services, two folders:** `app/` (the web UI: nginx + React bundle) and `api/` (the backend:
+gateway + the agent runtime it starts). Each has its own Dockerfile and builds from its own folder. Nothing else
+is deployed by us. The root `docker-compose.yml` runs everything on one machine for local development only.
 
 ## Design principle: thin fork, not a clone
 
@@ -28,10 +29,10 @@ another user's files is ours (see "Isolation" below).
 ## Architecture
 
 ```
-Browser ──HTTPS──► web (nginx: static React bundle; forwards API + chat WebSocket)
+Browser ──HTTPS──► web — app/ (nginx: static React bundle; forwards API + chat WebSocket)
                      │
                      ▼
-                  backend (one container)
+                  backend — api/ (one container)
                   ├─ services/gateway   auth (MariaDB users + Redis sliding-TTL tokens), REST, authorization
                   │                     by user id, WebSocket proxy, per-user files/skills, quota
                   └─ N × `dsh` runtime  started and supervised by the gateway; each hosts MANY sessions.
@@ -58,10 +59,10 @@ container boundary:
 1. **Authorization** — the gateway checks the caller owns the session/project
    before touching anything; paths are built from ids that passed that check
    (`users/<userId>/<sessionId>`), never from client input.
-2. **Tool guard** (`packages/transport/src/workspace-guard.ts`) — every tool call
+2. **Tool guard** (`api/packages/transport/src/workspace-guard.ts`) — every tool call
    whose path argument leaves the session's own working directory (after
    following symlinks) is refused. dsh's own fs sandbox only fences *writes*.
-3. **Strict sandbox for `bash` and `python`** (`infra/docker/backend/fox-confine.sh`)
+3. **Strict sandbox for `bash` and `python`** (`api/docker/fox-confine.sh`)
    — bubblewrap with an empty root: only a minimal read-only system, the
    session's own workspace and a private `/tmp`. The environment is allow-listed
    (`env -i`) so the runtime's credentials never reach model-run code, and the
@@ -75,7 +76,7 @@ container boundary:
 Two roles, `admin` and `user`. Admins create accounts, manage the semantic layer and dashboards; users chat, own
 their files/projects/skills and read dashboards. Dremio is OSS (no row/column policies), and `analyze_data` runs one
 shared Dremio account, so the data boundary is ours, in the Python pipeline
-(`packages/tool/data-studio-agent/python/src/security/role.py`):
+(`api/packages/tool/data-studio-agent/python/src/security/role.py`):
 
 - The role comes from the gateway (session owner's role) → `agentOptions.role` → `analyze_data` (a subagent uses its
   root agent's role) → the worker. Missing anywhere ⇒ `user`. The model never sets it.
@@ -86,7 +87,7 @@ shared Dremio account, so the data boundary is ours, in the Python pipeline
   `sql_validator` refuses hidden tables/columns (aliases resolved, `SELECT *` and raw fragments refused for `user`),
   and `query_execution` re-checks the final SQL's tables right before Dremio.
 
-Test: `packages/tool/data-studio-agent/python/tests/role_authz_test.py` (real Mongo) and the `roleGate` /
+Test: `api/packages/tool/data-studio-agent/python/tests/role_authz_test.py` (real Mongo) and the `roleGate` /
 `roleReachesRuntime` e2e tests.
 
 In production the gateway **refuses to start** without the sandbox
@@ -99,19 +100,18 @@ line; the sandbox is the real boundary for `bash`/`python`. Measured results:
 
 | Path | Responsibility |
 |---|---|
-| `apps/web` | One static React SPA (esbuild IIFE bundle), URL-routed (`/`, `/chat/<id>`), i18n (vi/en), light/dark. Talks only to the gateway's REST/WS API. |
-| `services/gateway` | Auth, REST, WebSocket proxy, user-id authorization, per-user skills/files/projects, quota, and the **runtime supervisor** (`src/runtime/`): materializes the dsh profile, starts/restarts the runtimes, routes sessions to a shard. Never imports a `dsh-*` package. |
-| `packages/agent-driver` | Replacement turn/step/tool-call state machine (`core/agent-loop`'s job), with per-agent scope and `setup` hook. |
-| `packages/core` | Per-agent model routing (`agent/request`) and per-session token budget (`agent/pre-step`, rebuilt from the log). |
-| `packages/transport` | The WebSocket server inside each runtime: snapshot-then-live protocol, one fan-out listener, idle disposal, flow join, tool guard. Loopback + secret only. |
-| `packages/llm/openai-compat` | Generic `LlmAdapter` for any OpenAI-compatible `/chat/completions` SSE endpoint. |
-| `packages/tool/*` | `serper-web-search`, `create-skill`, `python-repl` (one kernel per conversation), `data-studio-agent` (`analyze_data`, a pool of workers). |
-| `packages/flow/data-analysis` | The data-analysis flow's working rules. |
-| `packages/profile-template` | `runtime/template` (the ONE dsh profile every runtime boots) and `presets/` (one directory per flow). |
-| `packages/contracts` | Type-only definitions shared by the gateway and the web app. |
-| `infra/docker/{backend,web}` | The two images. |
-| `infra/deploy` | `docker-compose.yml` for the two services (+ optional throwaway dependencies). |
-| `infra/migrations` | MariaDB schema (one file). |
+| `app/` | The web UI: one static React SPA (esbuild IIFE bundle), URL-routed (`/`, `/chat/<id>`), i18n (vi/en), light/dark; nginx config + Dockerfile. Talks only to the gateway's REST/WS API; imports nothing from `api/`. |
+| `api/services/gateway` | Auth, REST, WebSocket proxy, user-id authorization, per-user skills/files/projects, quota, and the **runtime supervisor** (`src/runtime/`): materializes the dsh profile, starts/restarts the runtimes, routes sessions to a shard. Never imports a `dsh-*` package. |
+| `api/packages/agent-driver` | Replacement turn/step/tool-call state machine (`core/agent-loop`'s job), with per-agent scope and `setup` hook. |
+| `api/packages/core` | Per-agent model routing (`agent/request`) and per-session token budget (`agent/pre-step`, rebuilt from the log). |
+| `api/packages/transport` | The WebSocket server inside each runtime: snapshot-then-live protocol, one fan-out listener, idle disposal, flow join, tool guard. Loopback + secret only. |
+| `api/packages/llm/openai-compat` | Generic `LlmAdapter` for any OpenAI-compatible `/chat/completions` SSE endpoint. |
+| `api/packages/tool/*` | `serper-web-search`, `create-skill`, `python-repl` (one kernel per conversation), `data-studio-agent` (`analyze_data`, a pool of workers). |
+| `api/packages/flow/data-analysis` | The data-analysis flow's working rules. |
+| `api/packages/profile-template` | `runtime/template` (the ONE dsh profile every runtime boots) and `presets/` (one directory per flow). |
+| `api/packages/contracts` | Type-only definitions shared inside the backend. |
+| `api/docker/fox-confine.sh` | The strict sandbox runner for model-run `bash`/`python`. |
+| `api/migrations` | MariaDB schema (one file). |
 
 ## Request lifecycle (one chat turn)
 
@@ -129,88 +129,82 @@ line; the sandbox is the real boundary for `bash`/`python`. Measured results:
 ## Repository layout
 
 ```
-apps/web/                  the one shared frontend
-services/gateway/          auth + REST + proxy + runtime supervisor
-packages/agent-driver/     dsh core/agent-loop replacement
-packages/core/             model routing + quota
-packages/llm/openai-compat/
-packages/tool/             serper-web-search, create-skill, python-repl, data-studio-agent
-packages/flow/data-analysis/
-packages/transport/        in-runtime WS server, flow join, tool guard
-packages/contracts/        shared types
-packages/profile-template/ runtime profile + flow presets
-infra/docker/backend/      backend image (+ fox-confine.sh, the strict sandbox runner)
-infra/docker/web/          nginx image
-infra/deploy/              docker-compose for the two services
-infra/docker/docker-compose.dev.yml   local MariaDB/Redis/MinIO/Dremio/Meilisearch/Mongo
-infra/migrations/          MariaDB schema (canonical)
-docs/                      architecture, decision log, strategy docs
-scripts/                   build, dev-serve, admin bootstrap, e2e + spike harnesses, upstream smoke test
+docker-compose.yml         LOCAL DEVELOPMENT ONLY: web + backend + MariaDB, Redis, MinIO, MongoDB, Meilisearch, Dremio, MySQL
+app/                       the web UI — its own pnpm project, Dockerfile, nginx config (docker build ./app)
+api/                       the backend — its own pnpm workspace and Dockerfile (docker build ./api)
+  services/gateway/          auth + REST + proxy + runtime supervisor
+  packages/                  agent-driver, core, transport, contracts, llm/, tool/, flow/, profile-template/, skills/
+  docker/fox-confine.sh      the strict sandbox runner
+  migrations/                MariaDB schema (canonical)
+  scripts/                   create-admin, smoke tests, spike/load harnesses, upstream smoke test, bench
+scripts/                   end-to-end tests of the two images together (+ the mock LLM they use)
+docs/                      architecture, decision log, deployment (docs/deploy.md), schema handoff
 ```
 
 ## Deploying
 
 ```bash
-docker build -f infra/docker/backend/Dockerfile -t fox-harness-backend:dev .
-docker build -f infra/docker/web/Dockerfile     -t fox-harness-web:dev .
-cp infra/deploy/.env.example infra/deploy/.env       # fill in
-docker compose -f infra/deploy/docker-compose.yml --env-file infra/deploy/.env up -d
+docker build -t fox-harness-web:<tag>     ./app
+docker build -t fox-harness-backend:<tag> ./api
 ```
 
-Details, sizing and the cluster notes: `infra/deploy/README.md`.
+Each image is deployed on its own against real infrastructure: what to provide, the backend's capabilities,
+environment, sizing and Kubernetes notes are in `docs/deploy.md`.
 
 ## Running locally (dev)
 
-Requires the Node version pinned in `.nvmrc`, pnpm `11.7.0` (via corepack) and,
-for the dependencies, Docker.
+Requires Docker, the Node version pinned in `.nvmrc` and pnpm `11.7.0` (via corepack).
 
 ```bash
-cp .env.example .env                    # fill in OPENAI_*
-pnpm install
-docker compose -f infra/docker/docker-compose.dev.yml up -d      # MariaDB, Redis, MinIO, ...
-docker exec -i docker-mariadb-1 mariadb -u fox_harness -pfox_harness_dev fox_harness \
-  < infra/migrations/001_init.sql
-pnpm run build
-pnpm --filter @fox-harness/gateway dev  # starts the gateway AND its agent runtime
-node scripts/serve-web.mjs              # http://127.0.0.1:5173
-node scripts/create-admin.mjs <email> <password>
+cp api/.env.example api/.env               # fill in OPENAI_*, EMBEDDING_*, SERPER_API_KEY, DREMIO_*
+docker compose up -d --build               # everything; open http://127.0.0.1:8080
+docker compose exec backend node scripts/create-admin.mjs <email> <password>
+```
+
+To edit code with instant reload, run only the infrastructure in Docker and the code directly:
+
+```bash
+docker compose up -d mariadb redis minio mongo meilisearch dremio mysql
+cd api && pnpm install && pnpm run build && pnpm dev      # gateway + runtimes on :4000
+cd app && pnpm install && pnpm dev                         # UI on http://127.0.0.1:5173 (talks to :4000)
 ```
 
 On macOS the strict sandbox is unavailable (bubblewrap is Linux-only), so
 `bash`/`python` run **unconfined** there — fine on your own machine, never for
-real users. To exercise the sandbox locally, run the backend image.
+real users. The full Docker stack (`docker compose up`) runs the real sandbox.
 
 ### Backing up local data
 
-Everything lives in the gateway's data directory (`GATEWAY_DATA_DIR`, default
-`~/.fox-harness/data`: every session's log, workspace and project) plus the
-MariaDB database. Dump the database before anything risky:
+Everything lives in the compose project's volumes (`fox-harness_*`): `backend-data` (every session's log,
+workspace and project), `mariadb-data`, `minio-data`, `mongodb-data`, `meilisearch-data`, `dremio-data`,
+`mysql-data`. Dump the databases before anything risky:
 
 ```bash
-docker exec docker-mariadb-1 mariadb-dump -u fox_harness -pfox_harness_dev fox_harness > backup.sql
+docker compose exec mariadb sh -c 'mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" --databases discovery-agent' > backup.sql
+docker compose exec mongo mongodump --archive --gzip > mongo.archive.gz
 ```
 
 Redis holds only login tokens and rate-limit counters; it is not worth backing up.
 
 ## Configuration reference
 
-Full list with defaults: `.env.example` (and `infra/deploy/.env.example` for the
-containers). Required: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`,
-`DATABASE_URL`, `S3_*`.
+Full list with defaults: `api/.env.example` (the web container needs none). The root `.env.example` only holds
+overrides for the local compose (ports, local passwords). Required: `OPENAI_API_KEY`, `OPENAI_BASE_URL`,
+`OPENAI_MODEL_ID`, `DATABASE_URL`, `REDIS_URL`, `S3_*`.
 
 ## Operations & maintenance
 
-- **Database**: `infra/migrations/001_init.sql` is the whole schema. A new schema
+- **Database**: `api/migrations/001_init.sql` is the whole schema. A new schema
   change is a new numbered file, written with `if not exists`; there is no migration runner.
-- **First admin**: `node scripts/create-admin.mjs <email> <password>` — never over HTTP. Further accounts: an
+- **First admin**: `node scripts/create-admin.mjs <email> <password>` from `api/` (or `docker compose exec backend ...`) — never over HTTP. Further accounts: an
   admin creates them in Settings → Users (`POST /users`); there is no self-registration.
 - **Giving users data**: after a Dremio sync every new table is admin-only; open the ones users may query in
   Data Studio → Data sources.
-- **Adding a capability** (tool, LLM adapter, …): a package under `packages/`,
-  listed in `packages/profile-template/runtime/template/profile.package.json`
-  (global) or in a flow's preset (that flow only), and in the root
-  `package.json`'s `dependencies`. Rebuild the backend image.
-- **Upstream (`dsh`) upgrades**: `scripts/upstream-smoke-test.mjs` +
+- **Adding a capability** (tool, LLM adapter, …): a package under `api/packages/`,
+  listed in `api/packages/profile-template/runtime/template/profile.package.json`
+  (global) or in a flow's preset (that flow only), and in `api/package.json`'s
+  `dependencies` and `api/tsconfig.json`'s references. Rebuild the backend image.
+- **Upstream (`dsh`) upgrades**: `api/scripts/upstream-smoke-test.mjs` +
   `docs/upstream-upgrade-policy.md`. Newer dsh moves presets into plugin bundles
   and changes the log format — treat an upgrade as its own project.
 - **Debugging a session**: log lines carry `sessionId` through the gateway and the
@@ -220,11 +214,12 @@ containers). Required: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`,
 
 ## Testing
 
-- `scripts/e2e-up.sh` + `node scripts/e2e-backend.mjs` — the two-container stack
-  end to end (real nginx → gateway → runtimes, mock LLM, two real users, isolation,
-  restart, purge). `scripts/e2e-down.sh` removes it.
-- `scripts/spike-single-runtime.mjs`, `scripts/spike-load.mjs` — runtime-level
-  isolation and load harnesses (need a running runtime).
+- `cd scripts && pnpm install` once, then `scripts/e2e-up.sh` + `node scripts/e2e-backend.mjs` — the two images
+  end to end on a throwaway stack (:18080): real nginx → gateway → runtimes, mock LLM, real users, roles,
+  isolation, sandbox, restart, purge. `scripts/e2e-down.sh` removes it.
+- `api/packages/tool/data-studio-agent/python/tests/role_authz_test.py` — role-based data access against a real Mongo.
+- `api/scripts/spike-single-runtime.mjs`, `api/scripts/spike-load.mjs` — runtime-level isolation and load
+  harnesses (need a running runtime).
 
 ## Further reading
 
@@ -232,3 +227,4 @@ containers). Required: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`,
 - `docs/core-overview.md` — component-by-component snapshot.
 - `docs/agent-core-architecture-roadmap.md`, `docs/code-rules.md` — original design plan and the chronological bug log.
 - `docs/schema/` — the database schema handoff for whoever provisions MariaDB.
+- `docs/deploy.md` — deploying the two images.

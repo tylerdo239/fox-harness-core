@@ -1,9 +1,9 @@
 // Chat log + composer + command palette. Was `packages/client-ui-conversation`,
 // a separately-loaded UI plugin bundle (Phase 4-12); now just a component in
-// the one shared app (2026-09-08 follow-up — see apps/web/README.md for why).
+// the one shared app (2026-09-08 follow-up — see app/README.md for why).
 // Behavior is unchanged from the pre-2026-09-08 version — only the delivery
 // mechanism (separate bundle + `window.__FOX_HARNESS__`) is gone, replaced
-// by `useRuntime()` (a normal React Context, apps/web/src/runtime.ts).
+// by `useRuntime()` (a normal React Context, app/src/runtime.ts).
 //
 // Dropped in this move: `registerNodeRenderer`/`getNodeRenderer` — a
 // registry that let a THIRD-PARTY UI plugin contribute a custom
