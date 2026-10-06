@@ -199,6 +199,7 @@ def ensure_indexes(db: AttrDatabase | None = None) -> None:
         ("charts", [("query_result_id", 1)], {}),
         ("dashboards", [("updated_at", -1)], {}),
         ("dashboard_widgets", [("dashboard_id", 1), ("seq", 1)], {}),
+        ("sql_audit", [("at", -1)], {}),
     ]
     # Replaced 2026-10-06 by the unique (data_source_id, physical_path) above; left in place it would still refuse a
     # table name repeated in two schemas of one source. Already gone = fine. Same in services/gateway/src/mongo.ts.

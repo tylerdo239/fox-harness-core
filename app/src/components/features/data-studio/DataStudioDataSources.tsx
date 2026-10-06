@@ -66,6 +66,14 @@ function parseJsonArray(raw: string): string[] {
   }
 }
 
+interface DremioDataset {
+  path: string[];
+  schema_name: string;
+  name: string;
+  type: string;
+  imported: boolean;
+}
+
 export function DataStudioDataSources() {
   const runtime = useRuntime();
   const { t } = useLocale();
@@ -82,6 +90,10 @@ export function DataStudioDataSources() {
   const [syncing, setSyncing] = useState(false);
   const [syncSummary, setSyncSummary] = useState<Record<string, number> | null>(null);
   const [reindexSummary, setReindexSummary] = useState<Record<string, number> | null>(null);
+  // Dataset picker: the tables of one Dremio source, imported one by one instead of the whole source.
+  const [datasetSource, setDatasetSource] = useState<string | null>(null);
+  const [datasets, setDatasets] = useState<DremioDataset[] | null>(null);
+  const [pickedDatasets, setPickedDatasets] = useState<Set<string>>(new Set());
 
   const loadSources = useCallback(async () => {
     setLoading(true);
@@ -181,6 +193,55 @@ export function DataStudioDataSources() {
     }
     setBrowseResults(body.sources ?? []);
     setSelectedDremioNames(new Set());
+  }
+
+  async function openDatasets(sourceName: string): Promise<void> {
+    setDatasetSource(sourceName);
+    setDatasets(null);
+    setPickedDatasets(new Set());
+    setBrowseError(null);
+    const res = await runtime.authedFetch(`/data-studio/dremio/sources/${encodeURIComponent(sourceName)}/datasets`);
+    const body = await res.json();
+    if (!res.ok) {
+      setBrowseError(body.error ?? "unknown error");
+      setDatasetSource(null);
+      return;
+    }
+    setDatasets(body.datasets ?? []);
+  }
+
+  async function importDatasets(): Promise<void> {
+    if (!datasets || pickedDatasets.size === 0) return;
+    setSyncing(true);
+    setBrowseError(null);
+    const res = await runtime.authedFetch("/data-studio/dremio/sync", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ datasets: datasets.filter((d) => pickedDatasets.has(d.path.join("."))).map((d) => d.path) }),
+    });
+    const body = await res.json();
+    setSyncing(false);
+    if (!res.ok) {
+      setBrowseError(body.error ?? "unknown error");
+      return;
+    }
+    setSyncSummary(body.summary ?? null);
+    setReindexSummary(body.reindexSummary ?? null);
+    setDatasetSource(null);
+    setDatasets(null);
+    setBrowseResults(null);
+    await loadSources();
+  }
+
+  async function deleteSource(source: DataSource): Promise<void> {
+    if (!window.confirm(t("dataStudio.deleteSourceConfirm", { name: source.name }))) return;
+    const res = await runtime.authedFetch(`/data-studio/sources/${source.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setBrowseError(body.error ?? "unknown error");
+      return;
+    }
+    await loadSources();
   }
 
   async function syncSelected(): Promise<void> {
@@ -478,7 +539,10 @@ export function DataStudioDataSources() {
                         }
                       />
                       {source.name} <span className="fh-data-studio-mono">({source.type})</span>
-                    </label>
+                    </label>{" "}
+                    <Button variant="link" onClick={() => void openDatasets(source.name)}>
+                      {t("dataStudio.pickTables")}
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -487,6 +551,52 @@ export function DataStudioDataSources() {
               </Button>
             </>
           )}
+        </div>
+      )}
+
+      {datasetSource && (
+        <div className="fh-data-studio-dremio-browse">
+          <h3>{t("dataStudio.tablesOf", { name: datasetSource })}</h3>
+          {datasets === null ? (
+            <p className="fh-data-studio-empty">{t("dataStudio.loadingTables")}</p>
+          ) : datasets.length === 0 ? (
+            <p className="fh-data-studio-empty">{t("dataStudio.noTables")}</p>
+          ) : (
+            <>
+              <ul className="fh-data-studio-dremio-list">
+                {datasets.map((d) => {
+                  const key = d.path.join(".");
+                  return (
+                    <li key={key}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={pickedDatasets.has(key)}
+                          onChange={(e) =>
+                            setPickedDatasets((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(key);
+                              else next.delete(key);
+                              return next;
+                            })
+                          }
+                        />
+                        <span className="fh-data-studio-mono">{d.schema_name ? `${d.schema_name}.` : ""}{d.name}</span>{" "}
+                        <span className="fh-data-studio-mono">({d.type})</span>
+                        {d.imported && <> · {t("dataStudio.alreadyImported")}</>}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+              <Button variant="primary" onClick={() => void importDatasets()} disabled={syncing || pickedDatasets.size === 0}>
+                {syncing ? t("dataStudio.syncing") : t("dataStudio.importPickedTables", { count: String(pickedDatasets.size) })}
+              </Button>{" "}
+            </>
+          )}
+          <Button variant="outline" onClick={() => setDatasetSource(null)}>
+            {t("dsx.cancel")}
+          </Button>
         </div>
       )}
 
@@ -524,6 +634,9 @@ export function DataStudioDataSources() {
                   }}
                 >
                   {t("dataStudio.viewEntities")}
+                </Button>{" "}
+                <Button variant="link" onClick={() => void deleteSource(source)}>
+                  {t("dataStudio.deleteSource")}
                 </Button>
               </td>
             </tr>

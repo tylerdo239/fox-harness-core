@@ -52,7 +52,8 @@ function toDataSourceRow(d: Doc): DataSourceRow {
     dremio_path: d.dremio_path,
     status: d.status,
     last_synced_at: iso(d.last_synced_at),
-    is_exposed_to_agent: flag(d.is_exposed_to_agent),
+    // on only when not switched off (disabled_at) — what the agents actually see
+    is_exposed_to_agent: flag(d.is_exposed_to_agent && !d.disabled_at),
   }
 }
 
@@ -67,9 +68,39 @@ export async function getDataSource(id: string): Promise<DataSourceRow | undefin
 
 export async function updateDataSource(id: string, input: { is_exposed_to_agent?: boolean }): Promise<DataSourceRow | undefined> {
   if ('is_exposed_to_agent' in input) {
-    await col('data_sources').updateOne({ _id: id }, { $set: { is_exposed_to_agent: !!input.is_exposed_to_agent, updated_at: now() } })
+    // The agents' "off" switch is `disabled_at` (src/security/role.py begin_question, pipeline v4's catalog);
+    // `is_exposed_to_agent` is kept in step for older readers.
+    const on = !!input.is_exposed_to_agent
+    await col('data_sources').updateOne({ _id: id, ...ACTIVE }, { $set: { is_exposed_to_agent: on, disabled_at: on ? null : now(), updated_at: now() } })
   }
   return getDataSource(id)
+}
+
+// ---- SQL console audit (admin only) ----
+// Every statement an admin runs from the SQL console, kept for review: who, what, and how it went.
+
+export interface SqlRunRow {
+  id: string
+  user_id: number
+  email: string
+  sql: string
+  ok: boolean
+  row_count: number | null
+  elapsed_ms: number | null
+  error: string | null
+  at: string
+}
+
+export async function logSqlRun(entry: Omit<SqlRunRow, 'id' | 'at'>): Promise<void> {
+  await col('sql_audit').insertOne({ _id: randomUUID(), ...entry, at: now() })
+}
+
+export async function listSqlRuns(limit = 50): Promise<SqlRunRow[]> {
+  const docs = await col('sql_audit').find().sort({ at: -1 }).limit(limit).toArray()
+  return docs.map((d) => ({
+    id: d._id, user_id: d.user_id, email: d.email, sql: d.sql, ok: !!d.ok, row_count: d.row_count ?? null,
+    elapsed_ms: d.elapsed_ms ?? null, error: d.error ?? null, at: (d.at as Date).toISOString(),
+  }))
 }
 
 // ---- Entities ----

@@ -30,6 +30,7 @@ import { DataStudioDashboards } from "./components/features/data-studio/DataStud
 import { DataStudioDataSources } from "./components/features/data-studio/DataStudioDataSources.tsx";
 import { DataStudioGlossary } from "./components/features/data-studio/DataStudioGlossary.tsx";
 import { DataStudioMetrics } from "./components/features/data-studio/DataStudioMetrics.tsx";
+import { DataStudioSqlConsole } from "./components/features/data-studio/DataStudioSqlConsole.tsx";
 import { DataStudioRelationships } from "./components/features/data-studio/DataStudioRelationships.tsx";
 import {
   DataStudioSidebar,
@@ -1102,6 +1103,8 @@ function AppInner() {
               <DataStudioRelationships />
             ) : visibleDataStudioSection === "metrics" ? (
               <DataStudioMetrics />
+            ) : visibleDataStudioSection === "sql" ? (
+              <DataStudioSqlConsole />
             ) : (
               <DataStudioDashboards />
             )

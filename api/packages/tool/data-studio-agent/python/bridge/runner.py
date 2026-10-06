@@ -206,7 +206,8 @@ async def main() -> None:
         # The role of the conversation's owner (packages/tool/data-studio-agent/src/index.ts: gateway ->
         # runtime -> tool, never from the model). Set per question: this one process answers every user's
         # questions in turn. Anything unexpected falls back to "user" (least privilege), see src/security/role.py.
-        role_mod.set_role(request.get("role", role_mod.USER))
+        # begin_question also notes which data sources an admin switched off: their tables are out for every role.
+        role_mod.begin_question(get_mongo_db(), request.get("role", role_mod.USER))
         try:
             reply = await handle(request["question"], llm, emb, vs, dremio)
         except Exception as e:  # noqa: BLE001 — surface any crash to the TS side instead of dying

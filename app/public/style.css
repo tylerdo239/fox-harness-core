@@ -2954,6 +2954,25 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.fh-data-studio-sql-editor {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.fh-data-studio-note {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
 .fh-data-studio-relationship-arrow {
   color: var(--muted);
 }

@@ -7,7 +7,7 @@ COLLECTION = "entities"
 
 def _q(query: dict) -> dict:
     """Every read is scoped to what the current role may see (src/security/role.py); admin: unchanged."""
-    return {**query, **role.catalog_filter()}
+    return {**query, **role.entity_filter()}
 
 
 def get_by_id(db: AttrDatabase, entity_id: str) -> AttrDict | None:

@@ -135,6 +135,24 @@ Reference **không có role**. Port nguyên văn sẽ làm mất các phần sau
 4. Bật/tắt nguồn cho agent (`disabled_at`).
 5. **SQL console, chỉ admin:** đi qua `sql_safety` + giới hạn dòng + ghi log ai chạy câu gì.
 - **Kiểm chứng:** e2e mở rộng (user gọi các route mới phải bị `403`), bấm thử UI.
+- **Kết quả (2026-10-06):**
+  - **Bật/tắt nguồn.** Trước đây công tắc chỉ ghi `is_exposed_to_agent` mà pipeline v3 không đọc. Nay công tắc đặt
+    `disabled_at`, và `role.begin_question` ẩn mọi nguồn tắt hoặc đã xoá khi trả lời câu hỏi, với **mọi role**. Các
+    job admin như sync và reindex không bị ảnh hưởng.
+  - **Worker admin chạy liên tục** (`callAdmin`, kéo từ GĐ3 về). Thao tác nhanh mất khoảng 20 ms thay vì 1–2 giây.
+    Các job dài vẫn chạy mỗi lần một process.
+  - **SQL console:** chạy `check_read_only_sql`, trả tối đa 500 dòng. Mọi lần chạy, kể cả lần lỗi, được ghi vào
+    Mongo `sql_audit` (người chạy, câu SQL, kết quả, thời gian) và vào log gateway (`sql_console`).
+  - **Đã kiểm:**
+    - pytest 201;
+    - `role_authz_test` và `smoke_mongo`;
+    - e2e 19/19; `roleGate` có 28 check, gồm 5 route mới;
+    - Dremio thật: `SELECT COUNT(*)` bảng workflows trả 77, `DELETE`/`DROP` bị chặn, liệt kê được 9 dataset, import
+      một bảng không tạo trùng;
+    - xoá nguồn (trên nguồn thử): nguồn và bảng chuyển sang xoá mềm;
+    - bật/tắt nguồn chạy đúng.
+
+    Chưa bấm thử UI trên trình duyệt.
 
 ### GĐ3. Hồ sơ dữ liệu (BE + FE, lớn)
 - **Cách làm đề xuất:** chạy code `data_profile/*` của reference trong Python qua bridge admin (thêm các thao tác

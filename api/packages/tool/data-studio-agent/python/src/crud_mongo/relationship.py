@@ -14,7 +14,7 @@ def _visible(db: AttrDatabase, docs: list) -> list:
     """A relationship is visible to a non-admin only if BOTH tables are: a join through a hidden table
     would let a query reach it."""
     docs = [d for d in docs if d is not None]
-    if role.is_admin() or not docs:
+    if role.unrestricted() or not docs:
         return docs
     entities = role.visible_entity_ids(db) or set()
     return [d for d in docs if d.get("from_entity_id") in entities and d.get("to_entity_id") in entities]

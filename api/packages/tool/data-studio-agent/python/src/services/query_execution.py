@@ -41,7 +41,7 @@ class ExecutionResult:
 
 def _forbidden_table_in(db: AttrDatabase, sql: str) -> str | None:
     """The physical path of a table the current role may not query, if the SQL text names one."""
-    if role_mod.is_admin():
+    if role_mod.unrestricted():
         return None
     with role_mod.as_role(role_mod.ADMIN):
         entities = _entity_crud.list_active(db)

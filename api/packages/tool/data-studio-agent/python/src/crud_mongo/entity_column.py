@@ -14,10 +14,10 @@ def _visible(db: AttrDatabase, docs: list) -> list:
     """A column is visible to a non-admin only if its ENTITY is visible too (a column flag alone is not
     enough: an admin may opt a column in on a table that stays admin-only)."""
     docs = [d for d in docs if d is not None]
-    if role.is_admin() or not docs:
+    if role.unrestricted() or not docs:
         return docs
     entity_ids = list({d.get("entity_id") for d in docs})
-    visible = {e["_id"] for e in db["entities"].find({"_id": {"$in": entity_ids}, **role.catalog_filter()}, {"_id": 1})}
+    visible = {e["_id"] for e in db["entities"].find({"_id": {"$in": entity_ids}, **role.entity_filter()}, {"_id": 1})}
     return [d for d in docs if d.get("entity_id") in visible]
 
 
@@ -39,7 +39,7 @@ def list_by_entity(db: AttrDatabase, entity_id: str) -> list[AttrDict]:
 
 
 def count_by_entity(db: AttrDatabase, entity_id: str) -> int:
-    return len(list_by_entity(db, entity_id)) if not role.is_admin() else db[COLLECTION].count_documents({"entity_id": entity_id, "is_deprecated": False})
+    return len(list_by_entity(db, entity_id)) if not role.unrestricted() else db[COLLECTION].count_documents({"entity_id": entity_id, "is_deprecated": False})
 
 
 def list_by_ids(db: AttrDatabase, column_ids: list[str]) -> list[AttrDict]:
