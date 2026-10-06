@@ -1,0 +1,107 @@
+/* Input of the reference data-profile screens' stylesheet (built to public/ref.css by scripts/build.mjs).
+   Everything is scoped to .fh-ref: the page wrapper (DataStudioProfile.tsx) and the radix portal container
+   (src/ref/shims/portal.ts). Theme variables = the reference's globals.css. */
+/* base: with preflight off this is only Tailwind's --tw-* variable defaults (translate, ring, shadow…),
+   which utilities such as the dialogs' translate-x-[-50%] need */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.fh-ref {
+  --background: 0 0% 100%;
+  --foreground: 20 14% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 14% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14% 12%;
+  --primary: 25 45% 35%;
+  --primary-foreground: 40 30% 98%;
+  --secondary: 30 20% 94%;
+  --secondary-foreground: 20 14% 12%;
+  --muted: 30 20% 94%;
+  --muted-foreground: 25 10% 40%;
+  --accent: 30 25% 90%;
+  --accent-foreground: 20 14% 12%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 40 30% 98%;
+  --border: 30 15% 87%;
+  --input: 30 15% 87%;
+  --ring: 25 45% 35%;
+  --radius: 0.5rem;
+  color: hsl(var(--foreground));
+}
+
+:root[data-theme="dark"] .fh-ref {
+  --background: 20 14% 8%;
+  --foreground: 40 20% 96%;
+  --card: 20 14% 10%;
+  --card-foreground: 40 20% 96%;
+  --popover: 20 14% 10%;
+  --popover-foreground: 40 20% 96%;
+  --primary: 28 50% 55%;
+  --primary-foreground: 20 14% 10%;
+  --secondary: 20 12% 18%;
+  --secondary-foreground: 40 20% 96%;
+  --muted: 20 12% 18%;
+  --muted-foreground: 30 10% 65%;
+  --accent: 20 12% 20%;
+  --accent-foreground: 40 20% 96%;
+  --destructive: 0 62% 42%;
+  --destructive-foreground: 40 20% 96%;
+  --border: 20 12% 20%;
+  --input: 20 12% 20%;
+  --ring: 28 50% 55%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .fh-ref {
+    --background: 20 14% 8%;
+    --foreground: 40 20% 96%;
+    --card: 20 14% 10%;
+    --card-foreground: 40 20% 96%;
+    --popover: 20 14% 10%;
+    --popover-foreground: 40 20% 96%;
+    --primary: 28 50% 55%;
+    --primary-foreground: 20 14% 10%;
+    --secondary: 20 12% 18%;
+    --secondary-foreground: 40 20% 96%;
+    --muted: 20 12% 18%;
+    --muted-foreground: 30 10% 65%;
+    --accent: 20 12% 20%;
+    --accent-foreground: 40 20% 96%;
+    --destructive: 0 62% 42%;
+    --destructive-foreground: 40 20% 96%;
+    --border: 20 12% 20%;
+    --input: 20 12% 20%;
+    --ring: 28 50% 55%;
+  }
+}
+
+/* The parts of Tailwind's preflight these screens rely on, scoped; also undoes the app's global button and
+   input rules (public/style.css). Utilities still win: they are `.fh-ref .x` and come later. */
+.fh-ref *, .fh-ref ::before, .fh-ref ::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: hsl(var(--border));
+}
+.fh-ref button, .fh-ref input, .fh-ref select, .fh-ref textarea {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+  padding: 0;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  transition: none;
+}
+.fh-ref button { cursor: pointer; }
+.fh-ref button:disabled { opacity: 1; cursor: default; }
+.fh-ref input:focus, .fh-ref textarea:focus { outline: none; border-color: hsl(var(--input)); }
+.fh-ref h1, .fh-ref h2, .fh-ref h3, .fh-ref h4, .fh-ref h5, .fh-ref h6 { font-size: inherit; font-weight: inherit; margin: 0; }
+.fh-ref p, .fh-ref blockquote, .fh-ref dl, .fh-ref dd, .fh-ref figure, .fh-ref pre { margin: 0; }
+.fh-ref ol, .fh-ref ul { list-style: none; margin: 0; padding: 0; }
+.fh-ref a { color: inherit; text-decoration: inherit; }
+.fh-ref table { border-collapse: collapse; text-indent: 0; border-color: inherit; }
+.fh-ref img, .fh-ref svg { display: block; vertical-align: middle; }
+.fh-ref textarea { resize: vertical; }
+.fh-ref ::placeholder { color: hsl(var(--muted-foreground)); opacity: 1; }

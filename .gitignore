@@ -29,3 +29,4 @@ api/packages/tool/data-studio-agent/python/debug/
 
 # app/: the esbuild bundle is build output (app/Dockerfile builds it)
 /app/public/main.js
+/app/public/ref.css

@@ -14,7 +14,8 @@
 // either).
 
 import { build } from 'esbuild'
-import { copyFileSync } from 'node:fs'
+import { copyFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -44,3 +45,14 @@ const sonnerCss = join(appRoot, 'node_modules/sonner/dist/styles.css')
 const sonnerCssOut = join(appRoot, 'public/sonner.css')
 copyFileSync(sonnerCss, sonnerCssOut)
 console.log(`[build] copied ${sonnerCss} -> ${sonnerCssOut}`)
+
+// The copied reference data-profile screens (src/ref/) are styled with Tailwind, built here into one stylesheet
+// scoped to .fh-ref (tailwind.ref.config.cjs, src/ref/ref.css).
+const require = createRequire(import.meta.url)
+const postcss = require('postcss')
+const tailwind = require('tailwindcss')
+const refCssIn = join(appRoot, 'src/ref/ref.css')
+const refCssOut = join(appRoot, 'public/ref.css')
+const refCss = await postcss([tailwind(join(appRoot, 'tailwind.ref.config.cjs'))]).process(readFileSync(refCssIn, 'utf8'), { from: refCssIn, to: refCssOut })
+writeFileSync(refCssOut, refCss.css)
+console.log(`[build] tailwind ${refCssIn} -> ${refCssOut}`)

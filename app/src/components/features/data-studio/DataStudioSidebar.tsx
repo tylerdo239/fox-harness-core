@@ -19,6 +19,7 @@ import {
   PlusIcon,
   RelationshipsIcon,
   CodeIcon,
+  DataProfileIcon,
 } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
@@ -35,7 +36,8 @@ export type DataStudioSection =
   | "glossary"
   | "relationships"
   | "metrics"
-  | "sql";
+  | "sql"
+  | "profile";
 
 // Order: Chat first (the real feature), Dashboards right under it (user:
 // "dashboard move lên dưới chat"), then the semantic-layer admin sections —
@@ -49,6 +51,7 @@ const SECTIONS: { key: DataStudioSection; icon: typeof MessageSquareIcon; labelK
   { key: "chat", icon: MessageSquareIcon, labelKey: "dataStudio.sectionChat" },
   { key: "dashboards", icon: DashboardsIcon, labelKey: "dataStudio.sectionDashboards" },
   { key: "data-sources", icon: DataSourcesIcon, labelKey: "dataStudio.sectionDataSources", adminOnly: true },
+  { key: "profile", icon: DataProfileIcon, labelKey: "dataStudio.sectionProfile", adminOnly: true },
   { key: "glossary", icon: GlossaryIcon, labelKey: "dataStudio.sectionGlossary", adminOnly: true },
   { key: "relationships", icon: RelationshipsIcon, labelKey: "dataStudio.sectionRelationships", adminOnly: true },
   { key: "metrics", icon: MetricsIcon, labelKey: "dataStudio.sectionMetrics", adminOnly: true },

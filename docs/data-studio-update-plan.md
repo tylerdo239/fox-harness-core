@@ -170,6 +170,34 @@ Reference **không có role**. Port nguyên văn sẽ làm mất các phần sau
 - **FE:** màn hồ sơ bảng, cột, quan hệ; metric và thuật ngữ kiểu mới; checklist, duyệt, gợi ý AI; xuất/nhập JSON;
   xuất Word. Giữ công tắc "Cho phép role user".
 - **Kiểm chứng:** test Python của reference (`tests/`), e2e cho route mới, nhập thử hồ sơ cho một nguồn thật.
+- **Kết quả (2026-10-06):**
+  - **BE:**
+    - Hai router `data_profile.py` và `profile_transfer.py` của reference được chép nguyên vào `src/apis/routes/`.
+    - `src/apis/deps.py` là của mình: không có JWT, chỉ lấy email admin từ header do gateway gửi.
+    - `src/apis/profile_app.py` gọi các router qua ASGI ngay trong worker admin, không mở cổng nào.
+    - Gateway chuyển `/data-studio/profile/*` sang worker; route này đã nằm sau cổng admin.
+    - Reindex, import, gợi ý AI và Run chạy bằng process riêng, để không làm nghẽn worker.
+    - `suggest.py` từ chối chạy khi thiếu `OPENAI_BASE_URL` (không rơi về api.openai.com).
+    - Thêm gói `fastapi`.
+  - **FE:**
+    - Các màn của reference được chép nguyên vào `app/src/ref/` bằng `app/scripts/sync-ref-profile.mjs`. Script ghi
+      rõ từng patch và báo lỗi nếu reference đổi.
+    - Tailwind chỉ build cho `src/ref/` thành `public/ref.css`, scope `.fh-ref`, không preflight. Dark mode theo
+      `data-theme` của app.
+    - Mục mới **"Hồ sơ dữ liệu"** gồm 4 tab: Bảng, Quan hệ, Chỉ số (hồ sơ), Thuật ngữ (hồ sơ).
+    - Hai mục "Chỉ số" và "Từ điển thuật ngữ" cũ vẫn là của v3, vì v3 đang là mặc định.
+    - Chữ trên các màn reference giữ tiếng Anh như bản gốc.
+  - **Đã kiểm:**
+    - pytest 201;
+    - e2e 19/19; `roleGate` có 32 check;
+    - trên 8080, các thao tác đều chạy được:
+      - danh sách bảng: 21 ms khi worker đã chạy;
+      - chi tiết bảng và checklist;
+      - lưu hồ sơ: index chuyển `ok`, dữ liệu có trong `v4_tables`/`v4_columns`;
+      - xuất Word và JSON;
+      - gợi ý AI qua LLM nội bộ;
+      - Run chỉ số trên Dremio thật: 77.
+    - Chụp UI bằng Chrome headless ở cả sáng và tối: bảng, hồ sơ bảng, quan hệ, chỉ số, dialog, SQL console.
 
 ### GĐ4. Pipeline v4 sau cờ bật/tắt (chỉ khi đã có hồ sơ dữ liệu)
 1. Thêm lọc role vào `catalog.load_catalog` (bảng, cột, quan hệ, `profile_*` theo `allowed_roles` và `is_pii`).

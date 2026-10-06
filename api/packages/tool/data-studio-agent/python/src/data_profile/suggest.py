@@ -73,6 +73,14 @@ class SuggestError(RuntimeError):
     pass
 
 
+def _openai(settings: Settings) -> OpenAI:
+    # Ours: without a base URL the OpenAI SDK silently targets api.openai.com — never allowed here
+    # (same rule as src/services/llm_client.py).
+    if not settings.openai_base_url:
+        raise SuggestError("OPENAI_BASE_URL is not set; refusing to fall back to api.openai.com")
+    return OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
+
+
 def _column_line(c: dict[str, Any]) -> str:
     p = service.column_profile(c)
     parts = [f"- {c['physical_name']} ({c.get('data_type')})"]
@@ -231,7 +239,7 @@ def suggest_field(
     by_name = {c["physical_name"]: c["_id"] for c in columns}
     schema = _structure_schema(field, list(by_name)) if field in STRUCTURE else _schema(field)
 
-    client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
+    client = _openai(settings)
     messages = [
         {"role": "system", "content": _SYSTEM},
         {"role": "user", "content": f"{_context(db, entity, columns)}\n\n{task}"},
@@ -329,7 +337,7 @@ def suggest_value(
         )
     )
 
-    client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
+    client = _openai(settings)
     messages = [
         {"role": "system", "content": _SYSTEM},
         {"role": "user", "content": f"{_context(db, entity, columns)}\n\n{task}"},
@@ -437,7 +445,7 @@ def suggest_metric_field(
     }[field]
     task = "\n".join(lines) + f"\n\nViết trường {field} cho chỉ số này.\n{rule}\nGiá trị hiện tại: {current_text or '(trống)'}"
 
-    client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
+    client = _openai(settings)
     messages = [
         {"role": "system", "content": _SYSTEM},
         {"role": "user", "content": f"{context}\n\n{task}" if context else task},
@@ -526,7 +534,7 @@ def suggest_metric_calculation(
         },
         "required": ["aggregation", "column", "confidence", "note"],
     }
-    client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
+    client = _openai(settings)
     messages = [
         {"role": "system", "content": _SYSTEM},
         {"role": "user", "content": f"{_context(db, entity, columns)}\n\n" + "\n".join(lines) + f"\n\n{task}"},
@@ -635,7 +643,7 @@ def suggest_glossary_field(
     props = {**props, "confidence": {"type": "string", "enum": ["high", "medium", "low"]}, "note": {"type": "string"}}
     schema = {"type": "object", "properties": props, "required": list(props)}
 
-    client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
+    client = _openai(settings)
     messages = [
         {"role": "system", "content": _SYSTEM},
         {"role": "user", "content": f"{context}\n\n{task}" if context else task},

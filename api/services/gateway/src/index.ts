@@ -167,6 +167,8 @@ const DATA_STUDIO_DREMIO_BROWSE_PATH = /^\/data-studio\/dremio\/browse$/
 const DATA_STUDIO_DREMIO_SYNC_PATH = /^\/data-studio\/dremio\/sync$/
 const DATA_STUDIO_DREMIO_DATASETS_PATH = /^\/data-studio\/dremio\/sources\/([^/]+)\/datasets$/
 const DATA_STUDIO_SQL_PATH = /^\/data-studio\/sql$/
+// the reference's data profile (/data-profile/*), served by bridge/admin_runner.py's `data_profile` op
+const DATA_STUDIO_PROFILE_PATH = /^\/data-studio\/profile(\/.*)$/
 const DATA_STUDIO_SQL_HISTORY_PATH = /^\/data-studio\/sql\/history$/
 const DATA_STUDIO_DASHBOARDS_PATH = /^\/data-studio\/dashboards$/
 const DATA_STUDIO_DASHBOARD_PATH = /^\/data-studio\/dashboards\/([^/]+)$/
@@ -1132,6 +1134,51 @@ function route(req: IncomingMessage, res: ServerResponse): void {
 
   // SQL console (admin only, like every /data-studio/* write): read-only SQL on Dremio, every run audited.
   // It bypasses the per-table allow-user rules by design, which is why only admins reach it (needsAdmin).
+  const profileMatch = url.pathname.match(DATA_STUDIO_PROFILE_PATH)
+  if (profileMatch && ['GET', 'POST', 'PUT', 'DELETE'].includes(req.method ?? '')) {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      let body: unknown
+      if (req.method === 'POST' || req.method === 'PUT') {
+        const raw = await readBody(req)
+        if (raw.length > 20_000_000) return sendJson(res, 413, { error: 'body too large' })
+        try {
+          body = raw ? JSON.parse(raw) : undefined
+        } catch {
+          return sendJson(res, 400, { error: 'invalid JSON body' })
+        }
+      }
+      const query: Record<string, string> = {}
+      for (const [key, value] of url.searchParams) if (key !== 'token') query[key] = value
+      const path = profileMatch[1]
+      // Reindex, import (reindexes what it changed), AI suggestions and Run can take minutes: those get a process
+      // of their own, so they never queue the quick reads and saves behind them on the shared worker.
+      const slow = /\/(reindex|import|suggest-[a-z]+|run)$/.test(path)
+      const user = await getUserById(identity.userId)
+      type ProfileReply = {
+        ok: boolean; status?: number; error?: string; json?: unknown
+        body_b64?: string; content_type?: string; content_disposition?: string | null
+      }
+      const request = { op: 'data_profile', method: req.method, path, query, body, user: user?.email ?? `user-${identity.userId}` }
+      const reply: ProfileReply = await (slow ? runAdminBridge(request, 600_000) : callAdmin(request, 60_000)).catch((error: unknown): ProfileReply => ({ ok: false, status: 502, error: String(error) }))
+      if (!reply.ok) return sendJson(res, reply.status ?? 502, { error: reply.error })
+      if (req.method !== 'GET') log('data_profile_write', { userId: identity.userId, method: req.method, path, status: reply.status })
+      if (reply.body_b64 !== undefined) {
+        const headers: Record<string, string> = { 'content-type': reply.content_type || 'application/octet-stream' }
+        if (reply.content_disposition) headers['content-disposition'] = reply.content_disposition
+        res.writeHead(reply.status ?? 200, headers)
+        return res.end(Buffer.from(reply.body_b64, 'base64'))
+      }
+      if (reply.status === 204) {
+        res.writeHead(204)
+        return res.end()
+      }
+      return sendJson(res, reply.status ?? 200, reply.json ?? null)
+    })
+    return
+  }
+
   if (req.method === 'POST' && DATA_STUDIO_SQL_PATH.test(url.pathname)) {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)

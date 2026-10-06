@@ -17,6 +17,8 @@ stdin:  one JSON object per line:
   {"op": "reindex"}
   {"op": "profile", "entity_ids": ["uuid", ...] | null}
   {"op": "delete_source", "source_id": "uuid"}                      soft delete + drop it from the search indexes
+  {"op": "data_profile", "method": "GET", "path": "/entities/<id>", "user": "email", "query": {}, "body": {}}
+                                                                   one reference /data-profile route -> {status, json|body_b64}
   {"op": "sql", "sql": "SELECT ...", "limit": 100}                  the admin SQL console (read-only)
 stdout: one JSON reply per line:
   {"ok": true, ...op specific...}
@@ -101,6 +103,13 @@ async def handle(request: dict, client: DremioClient, emb: EmbeddingClient, vs: 
         # Runs SELECT COUNT/DISTINCT/MIN/MAX per table on Dremio — can be slow on large tables.
         results = profile_all_entities(client, db, request.get("entity_ids"))
         return {"ok": True, "summary": {"entities": len(results), "results": results}}
+    if op == "data_profile":
+        # the reference's /data-profile/* routes, in-process (src/apis/profile_app.py)
+        from src.apis import profile_app
+        return await profile_app.call(
+            request["method"], request["path"], user=request["user"],
+            query=request.get("query"), body=request.get("body"),
+        )
     return {"ok": False, "error": f"unknown op: {op!r}"}
 
 

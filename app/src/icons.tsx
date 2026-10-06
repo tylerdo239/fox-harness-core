@@ -94,6 +94,7 @@ export {
   Table as TableIcon,
   Lightbulb as LightbulbIcon,
   Code2 as CodeIcon,
+  ClipboardList as DataProfileIcon,
   ChevronRight as ChevronRightIcon,
   CornerDownRight as SuggestionIcon,
   Check as CheckIcon,
