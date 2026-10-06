@@ -1,5 +1,5 @@
 // Wire protocol shared by every component in this ONE app (mirrors
-// services/gateway's real relay of packages/transport/src/server.ts's real
+// services/gateway's real relay of packages/agent-core/src/transport/server.ts's real
 // shapes, and the real SessionEvent envelope from @deepseek-ai/dsh-session —
 // see docs/code-rules.md for how these were confirmed against real installed
 // .d.ts files). Used to live duplicated across separate packages ("mirrored,

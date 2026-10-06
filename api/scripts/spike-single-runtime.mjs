@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Spike harness (docs/single-backend-architecture-plan.md, giai đoạn 0).
-// Drives ONE running dsh runtime (packages/transport on SPIKE_URL) the way the
+// Drives ONE running dsh runtime (packages/agent-core (transport) on SPIKE_URL) the way the
 // gateway would, with the mock LLM (scripts/mock-llm.mjs) behind it, and
 // prints a pass/fail table. Start the mock + runtime first (see the plan).
 //

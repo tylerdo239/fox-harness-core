@@ -7,7 +7,7 @@
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import type { SkillFile } from '@fox-harness/contracts'
+import type { SkillFile } from '../api-types.ts'
 
 // This repo has no YAML library. A JSON string is a valid YAML double-quoted
 // scalar, so a `:` or `#` in the description can't break the frontmatter —

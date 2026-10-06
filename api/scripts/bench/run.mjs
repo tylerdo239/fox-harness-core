@@ -99,7 +99,7 @@ async function runCase(token, testCase, run) {
   }
 }
 
-// Speaks the same WebSocket protocol as the browser (packages/transport/src/server.ts):
+// Speaks the same WebSocket protocol as the browser (packages/agent-core/src/transport/server.ts):
 // `{type:'session'}` on connect, `{type:'event'}` per session event, and the
 // client sends `{type:'followup'}`. Resolves at `turn/end`.
 function ask(token, projectId, testCase, started) {

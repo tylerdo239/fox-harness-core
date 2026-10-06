@@ -159,7 +159,7 @@ Worktree và image thử nghiệm đã xóa; repo không bị thay đổi.
 **Tool global** (mọi flow): khai báo bundle trong `api/packages/profile-template/runtime/template/profile.package.json`.
 Lưu ý: mask của flow `data-analysis` là **deny-list**, nên một tool global mới sẽ hiện ở cả `default` lẫn
 `data-analysis`. Chỉ `data-studio` ẩn hết tool global. Muốn ẩn ở `data-analysis` thì thêm tên tool vào
-`FLOW_TOOL_MASK` trong `api/packages/transport/src/flows.ts`.
+`FLOW_TOOL_MASK` trong `api/packages/agent-core/src/transport/flows.ts`.
 
 **Skill:**
 - Built-in cho mọi user: thư mục `api/packages/skills/<tên>/SKILL.md` (frontmatter có `name` và `description`).
@@ -222,7 +222,7 @@ Bắt kết nối thật trong container backend khi chạy cả 3 flow, các do
 
 Đã chặn vĩnh viễn (code nằm trong package dsh, nhưng plugin không bao giờ được nạp):
 - `https://harness-telemetry.deepseeksvc.com`: dòng `session-telemetry-otel` bị tắt, runtime chạy với `DSH_TELEMETRY_DISABLED=1`.
-- `https://api.deepseek.com`: dòng `llm-deepseek` và `web-search-deepseek` bị tắt. Agent-driver và `api/packages/core` không còn mặc định `deepseek-official`; không có model thì báo lỗi.
+- `https://api.deepseek.com`: dòng `llm-deepseek` và `web-search-deepseek` bị tắt. Agent-driver và `api/packages/agent-core (policy)` không còn mặc định `deepseek-official`; không có model thì báo lỗi.
 - Adapter đa nhà cung cấp `llm-pi-ai` cũng bị tắt.
 - `https://os-api.agno.com`: telemetry của Agno (framework gọi LLM trong worker Data Studio), trước đây gửi sau mỗi
   lần agent chạy, chặn luồng khoảng 0,8 giây mỗi lần, khoảng 19 lần mỗi câu hỏi. Giờ cả hai entrypoint của worker

@@ -22,7 +22,7 @@ const TIMEOUT_MS = 600_000
 
 /**
  * The role (admin|user) of the conversation's owner, which decides what business data this question may touch
- * (python/src/security/role.py). It arrives on the agent's options from packages/transport (the gateway reads it
+ * (python/src/security/role.py). It arrives on the agent's options from packages/agent-core (transport) (the gateway reads it
  * from the owner's account; never from the model). A subagent does NOT inherit custom options (dsh-subagent
  * copies only provider/model/maxTokens), so walk up `parentSession` to the agent that has it. Anything else —
  * no agent, a parent that is no longer live — is `user`: the narrowest view, never the widest.

@@ -5,6 +5,7 @@
     "rootDir": "src",
     "tsBuildInfoFile": "lib/.tsbuildinfo"
   },
-  "references": [{ "path": "../contracts" }],
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

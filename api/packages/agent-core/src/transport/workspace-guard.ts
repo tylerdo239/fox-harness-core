@@ -57,7 +57,7 @@ function collectPaths(value: unknown, out: string[], depth = 0): void {
 }
 
 /**
- * Registered GLOBALLY (packages/transport/src/index.ts), not per agent: a subagent gets its own scope
+ * Registered GLOBALLY (packages/agent-core/src/transport/index.ts), not per agent: a subagent gets its own scope
  * (joined to the parent's preset, not to the parent's agent scope), so a guard on the parent's scope
  * did not cover it — measured: a subagent's `read` returned another user's file. Every agent's calls
  * pass here and are judged against THAT agent's session cwd (a subagent shares its parent's cwd).

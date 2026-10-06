@@ -67,7 +67,7 @@ no mocking). The real session log confirms `resolveApiKey()` and
 `baseURL`/`apiKeyEnv` set in any patch file — pure `OPENAI_API_KEY`/
 `OPENAI_BASE_URL`/`OPENAI_MODEL_ID` env vars), and `assistant/message.source`
 shows the exact configured `provider`/`model`. See
-`packages/agent-driver/README.md`'s "Verified end-to-end" section for the
+`packages/agent-core (loop)/README.md`'s "Verified end-to-end" section for the
 full log excerpt.
 
 ## NOT verified
@@ -100,7 +100,7 @@ fields — the example turns Qwen's thinking off on vLLM, whose answers and tool
 calls otherwise often end up inside `reasoning_content`.
 
 `baseURL` falls back to `OPENAI_BASE_URL` (`adapter.ts`'s `resolveBaseURL()`)
-when not set in config; `@fox-harness/dsh-core`'s `agent/request` listener
+when not set in config; `@fox-harness/dsh-agent-core/policy`'s `agent/request` listener
 routes `provider`/`model` from `OPENAI_MODEL_ID` automatically.
 
 **Explicit patch config (still supported, e.g. for a second provider alongside env-driven default):**

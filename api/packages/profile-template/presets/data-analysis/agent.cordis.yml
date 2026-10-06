@@ -1,5 +1,5 @@
 # `data-analysis` flow (was profile-template/data-analysis): persona + the per-conversation
-# `python` tool + the flow's working rules/step limit. packages/transport/src/flows.ts masks
+# `python` tool + the flow's working rules/step limit. packages/agent-core/src/transport/flows.ts masks
 # the global tools this flow never had (bash, subagents, goals, ...).
 - id: persona
   name: '@deepseek-ai/dsh-persona'

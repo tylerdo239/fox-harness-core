@@ -1,5 +1,5 @@
 # `data-studio` flow: persona + the `analyze_data` tool, registered into THIS
-# preset's layer. packages/transport/src/flows.ts additionally masks every
+# preset's layer. packages/agent-core/src/transport/flows.ts additionally masks every
 # global tool for agents of this flow (`tools.restrict`), so the model sees
 # `analyze_data` and nothing else — what profile-template/data-studio did with
 # process-wide `disabled: true` rows.

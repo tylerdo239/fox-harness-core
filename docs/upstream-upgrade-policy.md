@@ -32,23 +32,18 @@ chỉ nâng khi có người chủ động sửa `package.json` rồi chạy l�
 1. **Đọc changelog/release notes thật của package sắp bump** trước khi sửa
    bất cứ gì — không đoán từ số version. Developer preview có thể đổi API
    không theo semver.
-2. **Chạy `scripts/upstream-smoke-test.mjs` TRƯỚC khi bump**, xác nhận cả 4
-   check đều PASS trên version hiện tại (baseline — nếu nó đã fail sẵn thì
-   không biết được lỗi nào là do bump gây ra).
-3. Sửa version trong `package.json` (root + mọi `packages/*/package.json`
-   có khai package đó), `pnpm install` lại.
-4. `pnpm run typecheck` — bump nhiều khả năng vỡ ở đây trước tiên (type
-   mismatch), rẻ hơn hẳn so với phát hiện lúc runtime.
-5. Chạy lại `scripts/upstream-smoke-test.mjs`. Bất kỳ check nào FAIL mà
-   trước đó PASS = breaking change thật cần xử lý trước khi merge, không
-   phải bỏ qua.
-6. Chạy thêm (không tự động, thủ công — script không cover, xem chú thích
-   trong chính file smoke test):
-   - `services/orchestrator/README.md`'s kill -9 + rehydrate test (cần
-     Docker + Redis + MariaDB up) — seam containerization/hibernate không
-     nằm trong smoke test vì cần hạ tầng nặng hơn 1 script nhanh nên có.
-   - `services/plugin-registry/README.md`'s build pipeline (`pnpm add`
-     thật) nếu bump động tới `dsh plugin`/bundle resolution.
+2. **Chạy baseline TRƯỚC khi bump**, trong `api/`:
+   - `node scripts/agent-loop-parity.mjs`: cùng kịch bản chạy qua vòng lặp gốc `dsh-agent-loop` và qua
+     `agent-driver`, so từng request gửi cho LLM (system prompt, danh sách tool, từng message). Phải ra
+     `agent-driver matches dsh-agent-loop`.
+   - e2e: `cd scripts && pnpm install`, rồi `scripts/e2e-up.sh` + `node scripts/e2e-backend.mjs`, đủ 19/19.
+   Nếu baseline đã fail sẵn thì không biết lỗi nào do bump gây ra.
+3. Sửa version trong `api/package.json` và mọi `api/packages/**/package.json` có khai package đó, chạy
+   `pnpm install` trong `api/`.
+4. `pnpm run build` trong `api/`. Bump thường vỡ ở đây trước (lệch type), rẻ hơn phát hiện lúc chạy.
+5. Chạy lại `agent-loop-parity.mjs`. Có `DIFF` nghĩa là vòng lặp gốc đã đổi hành vi mà `agent-driver` chưa
+   theo; sửa driver cho tới khi khớp, **không** bỏ qua.
+6. Build lại image backend và chạy lại e2e 19/19, rồi thử LLM thật trên stack local (3 flow).
 7. Đọc lại `docs/code-rules.md` — mọi hành vi đã "verified against real
    source" ở đó là giả định đang neo vào ĐÚNG version hiện tại. Một section
    nào bị bump này chứng minh sai thì phải sửa ngay, không để tài liệu nói

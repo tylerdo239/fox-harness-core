@@ -2,8 +2,8 @@
 # same as packages/tool/serper-web-search/cordis.patch.yml's own precedent.
 #
 # docs/data-analysis-flow-plan.md: deliberately does NOT touch the `agent-loop`
-# row the way packages/agent-driver/cordis.patch.yml does — this bundle is a
-# companion plugin that hooks the SAME default @fox-harness/dsh-agent-driver
+# row the way packages/agent-core (loop)/cordis.patch.yml does — this bundle is a
+# companion plugin that hooks the SAME default @fox-harness/dsh-agent-core/loop
 # loop's event taxonomy (agent/pre-step, agent/request, tools/pre-execute,
 # ...), not a competing AgentFactory. Only ever listed in
 # @fox-harness/profile-template-data-analysis's `bundles` (never the default

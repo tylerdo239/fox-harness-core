@@ -8,7 +8,7 @@ import { workspaceGuard } from './workspace-guard.ts'
 
 export const name = 'fox-harness-transport'
 // Follow-up (2026-09-08): 'clientManifest' removed — that service
-// (packages/core/src/client-manifest.ts) no longer exists, along with the
+// (packages/agent-core/src/policy/client-manifest.ts) no longer exists, along with the
 // whole per-session UI-plugin delivery mechanism it backed (see
 // app/README.md). Requiring it here would have left this plugin
 // PERMANENTLY pending (Cordis `inject` waits for every named service to

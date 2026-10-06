@@ -14,7 +14,7 @@ import { basename, extname, join, relative, resolve, sep } from 'node:path'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-import type { WorkspaceFile } from '@fox-harness/contracts'
+import type { WorkspaceFile } from '../api-types.ts'
 
 import { config } from '../config.ts'
 

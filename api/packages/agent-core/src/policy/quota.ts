@@ -60,7 +60,7 @@ export function apply(ctx: Context) {
 
   // `agent/pre-step` is the real gate the turn/step machine already exposes
   // for exactly this (roadmap §2.2's `reject | enter(messages)` waterfall,
-  // packages/agent-driver/src/agent.ts's own `turn()` honors it verbatim).
+  // packages/agent-core/src/loop/agent.ts's own `turn()` honors it verbatim).
   // A reject closes the turn with `reason: {kind: 'blocked'}`.
   ctx.on('agent/pre-step', async (payload, next) => {
     if (usedTokens(payload.agent.session) >= budget) return { kind: 'reject' }

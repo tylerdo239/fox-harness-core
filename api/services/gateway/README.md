@@ -5,7 +5,7 @@ request by user id, proxies the chat WebSocket, owns per-user data (skills, work
 quota — and starts, watches and routes to the `dsh` runtime process(es) that run the agents. There is no
 orchestrator and no per-session container: see `docs/single-backend-architecture-plan.md`.
 
-Never imports a `@fox-harness/dsh-*` package (only `@fox-harness/contracts`, docs/code-rules.md §1): `dsh` is
+Never imports a `@fox-harness/dsh-*` package (only `api/services/gateway/src/api-types.ts`, docs/code-rules.md §1): `dsh` is
 started as a program. The chat protocol between a runtime and a browser is relayed byte for byte
 (`src/proxy.ts`); the gateway does not parse it.
 

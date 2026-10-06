@@ -245,7 +245,7 @@ export class PythonKernel {
         MPLBACKEND: 'Agg',
         ...(confine ? { MPLCONFIGDIR: '/tmp/mpl', FOX_CONFINE_RO: dirname(RUNNER), FOX_PYTHON: python } : {}),
         // Output folder for figures and save_artifact(): a project chat's own subfolder. Per
-        // SESSION now (agentOptions.outputDir, set by packages/transport from what the gateway
+        // SESSION now (agentOptions.outputDir, set by packages/agent-core (transport) from what the gateway
         // passes) — the process-wide env var only remains as the fallback for one-session-per-process use.
         ...((outputDir ?? globalThis.process.env.FOX_OUTPUT_DIR) ? { FOX_OUTPUT_DIR: (outputDir ?? globalThis.process.env.FOX_OUTPUT_DIR)! } : {}),
       },

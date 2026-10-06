@@ -1,6 +1,6 @@
 // Per-user skills (docs/skill-transfer-plan.md). Mirrors services/gateway's
 // `GET /skills` + `/custom-skills` JSON shapes — app doesn't import
-// @fox-harness/contracts, same "mirrored, not imported" rule as wire.ts.
+// api/services/gateway/src/api-types.ts, same "mirrored, not imported" rule as wire.ts.
 
 import type { Runtime } from "../../../runtime.ts";
 

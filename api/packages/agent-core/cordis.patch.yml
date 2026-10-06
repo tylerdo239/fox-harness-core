@@ -1,0 +1,30 @@
+# @fox-harness/dsh-agent-core — THE core agent: three plugins of one package, loaded in this order (the order the
+# three former packages had in the profile's bundles): policy, the agent loop, the transport. Row ids are unchanged
+# from when they were separate packages, so presets, profile overrides and session logs are unaffected.
+
+# policy (src/policy): per-agent model routing (agent/request), session token budget, the shared prompt sections.
+- insert:
+    - id: fox-harness-core
+      name: '@fox-harness/dsh-agent-core/policy'
+      config: {}
+
+# loop (src/loop): replaces dsh-base's agent loop.
+# Swaps the default agent-loop row for our driver. `id: agent-loop` is the
+# REAL row id, confirmed 2026-09-03 by installing @deepseek-ai/dsh@0.1.1-rc.2
+# for real and running `dsh --profile web --dump-config`:
+#
+#   # == @deepseek-ai/dsh-base
+#
+- id: agent-loop
+  name: '@deepseek-ai/dsh-agent-loop'
+  disabled: true
+- insert:
+    - id: fox-harness-agent-loop
+      name: '@fox-harness/dsh-agent-core/loop'
+      config: {}
+
+# transport (src/transport): the runtime's entry point — sessions of every user, flow join, workspace guard.
+- insert:
+    - id: fox-harness-transport
+      name: '@fox-harness/dsh-agent-core/transport'
+      config: {}

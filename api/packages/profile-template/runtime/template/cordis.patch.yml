@@ -1,14 +1,14 @@
 # The ONE profile every runtime process boots (services/gateway/src/runtime/materialize.ts copies this
 # to $DSH_HOME/profiles/fox-harness/ at start-up). It replaces the three per-flow profiles
 # (profile-template/default, data-analysis, data-studio): a flow is now an AGENT PRESET
-# (packages/profile-template/presets/<flow>), joined per session by packages/transport, so one process hosts
+# (packages/profile-template/presets/<flow>), joined per session by packages/agent-core (transport), so one process hosts
 # agents of every flow. Per-flow differences that used to be `disabled: true` rows live in
-# packages/transport/src/flows.ts (a per-agent tool mask) and in the presets.
+# packages/agent-core/src/transport/flows.ts (a per-agent tool mask) and in the presets.
 #
 # Top level MUST be a YAML array; `{id, ...fields}` overrides an existing row, `insert:` only adds one
 # (docs/code-rules.md §4). Everything here is process-wide: only things that are the same for every flow.
 
-# Joined per session by packages/transport. profile-boot forces `roots` to upstream's own preset dir,
+# Joined per session by packages/agent-core (transport). profile-boot forces `roots` to upstream's own preset dir,
 # so ours are found through the user root: $DSH_HOME/.agent-presets (a symlink the gateway creates).
 - insert:
     - id: agent-presets
