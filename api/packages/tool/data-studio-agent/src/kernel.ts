@@ -61,17 +61,28 @@ export interface AnalyzeReply {
   truncated?: boolean
 }
 
+/** One step of the running pipeline, as bridge/runner.py's `_Progress` reduces it ({t: step|part|agent|tool|sql|result|error, ...}). */
+export type ProgressItem = Record<string, JsonValue>
+
 // One persistent process per POOL WORKER (pool.ts), started
 // lazily on the first call and reused across turns — avoids paying Python
 // startup + import cost (agno/sqlglot/chromadb) on every question.
 export class DataStudioKernel {
   private process: ChildProcessWithoutNullStreams | undefined
   private reply: ((reply: AnalyzeReply | undefined) => void) | undefined
+  private progress: ((item: ProgressItem) => void) | undefined
   private stderrTail = ''
 
   /** `role` is the conversation owner's role (admin|user); the Python side limits the catalog and the SQL to it. */
-  async ask(question: string, role: 'admin' | 'user', timeoutMs: number, signal: AbortSignal): Promise<AnalyzeReply> {
+  async ask(
+    question: string,
+    role: 'admin' | 'user',
+    timeoutMs: number,
+    signal: AbortSignal,
+    onProgress?: (item: ProgressItem) => void,
+  ): Promise<AnalyzeReply> {
     const process = this.process ?? this.start()
+    this.progress = onProgress
 
     const reply = await new Promise<AnalyzeReply | 'timeout' | 'aborted' | undefined>((resolve) => {
       const timer = setTimeout(() => resolve('timeout'), timeoutMs)
@@ -85,6 +96,7 @@ export class DataStudioKernel {
       process.stdin.write(JSON.stringify({ question, role }) + '\n')
     })
     this.reply = undefined
+    this.progress = undefined
 
     if (reply === 'timeout' || reply === 'aborted') {
       this.stop()
@@ -145,6 +157,16 @@ export class DataStudioKernel {
         reply = parsed as AnalyzeReply
       } catch {
         console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'data-studio-agent', event: 'stdout_noise', line: line.slice(0, 500) }))
+        return
+      }
+      // a {"progress": {...}} line is one step of the running question, not its reply
+      const progress = (reply as { progress?: unknown }).progress
+      if (progress !== null && typeof progress === 'object' && !Array.isArray(progress)) {
+        try {
+          this.progress?.(progress as ProgressItem)
+        } catch (error) {
+          console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'data-studio-agent', event: 'progress_failed', error: String(error) }))
+        }
         return
       }
       this.reply?.(reply)

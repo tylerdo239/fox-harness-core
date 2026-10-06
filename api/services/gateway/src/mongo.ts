@@ -78,7 +78,6 @@ export async function ensureIndexes(): Promise<void> {
     db.collection('charts').createIndex({ query_result_id: 1 }),
     db.collection('dashboards').createIndex({ updated_at: -1 }),
     db.collection('dashboard_widgets').createIndex({ dashboard_id: 1, seq: 1 }),
-    db.collection('sql_audit').createIndex({ at: -1 }),
   ])
   for (const result of results) {
     if (result.status === 'rejected') {

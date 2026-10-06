@@ -77,8 +77,6 @@ import {
   updateChart,
   updateDashboard,
   updateDataSource,
-  logSqlRun,
-  listSqlRuns,
   updateEntity,
   updateEntityColumn,
   updateGlossaryTerm,
@@ -166,10 +164,8 @@ const DATA_STUDIO_METRIC_PATH = /^\/data-studio\/metrics\/([^/]+)$/
 const DATA_STUDIO_DREMIO_BROWSE_PATH = /^\/data-studio\/dremio\/browse$/
 const DATA_STUDIO_DREMIO_SYNC_PATH = /^\/data-studio\/dremio\/sync$/
 const DATA_STUDIO_DREMIO_DATASETS_PATH = /^\/data-studio\/dremio\/sources\/([^/]+)\/datasets$/
-const DATA_STUDIO_SQL_PATH = /^\/data-studio\/sql$/
 // the reference's data profile (/data-profile/*), served by bridge/admin_runner.py's `data_profile` op
 const DATA_STUDIO_PROFILE_PATH = /^\/data-studio\/profile(\/.*)$/
-const DATA_STUDIO_SQL_HISTORY_PATH = /^\/data-studio\/sql\/history$/
 const DATA_STUDIO_DASHBOARDS_PATH = /^\/data-studio\/dashboards$/
 const DATA_STUDIO_DASHBOARD_PATH = /^\/data-studio\/dashboards\/([^/]+)$/
 const DATA_STUDIO_DASHBOARD_WIDGETS_PATH = /^\/data-studio\/dashboards\/([^/]+)\/widgets$/
@@ -1175,49 +1171,6 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         return res.end()
       }
       return sendJson(res, reply.status ?? 200, reply.json ?? null)
-    })
-    return
-  }
-
-  if (req.method === 'POST' && DATA_STUDIO_SQL_PATH.test(url.pathname)) {
-    handle(res, async () => {
-      const identity = await identityFromRequest(req, url)
-      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      let body: { sql?: unknown; limit?: unknown }
-      try {
-        body = JSON.parse(await readBody(req))
-      } catch {
-        return sendJson(res, 400, { error: 'invalid JSON body' })
-      }
-      const sql = typeof body.sql === 'string' ? body.sql.trim() : ''
-      if (!sql || sql.length > 20_000) return sendJson(res, 400, { error: 'sql is required (at most 20,000 characters)' })
-      const limit = Math.min(500, Math.max(1, Number(body.limit) || 100))
-      const user = await getUserById(identity.userId)
-      type SqlReply = { ok: boolean; status?: number; error?: string; columns?: unknown; rows?: unknown; row_count?: number; elapsed_ms?: number }
-      const reply: SqlReply = await callAdmin({ op: 'sql', sql, limit }, 90_000).catch(
-        (error: unknown): SqlReply => ({ ok: false, status: 502, error: String(error) }),
-      )
-      await logSqlRun({
-        user_id: identity.userId,
-        email: user?.email ?? '',
-        sql,
-        ok: reply.ok,
-        row_count: reply.ok ? (reply.row_count ?? null) : null,
-        elapsed_ms: reply.ok ? (reply.elapsed_ms ?? null) : null,
-        error: reply.ok ? null : (reply.error ?? 'failed'),
-      })
-      log('sql_console', { userId: identity.userId, ok: reply.ok, chars: sql.length })
-      if (!reply.ok) return sendJson(res, reply.status ?? 502, { error: reply.error })
-      return sendJson(res, 200, { columns: reply.columns, rows: reply.rows, row_count: reply.row_count, elapsed_ms: reply.elapsed_ms })
-    })
-    return
-  }
-
-  if (req.method === 'GET' && DATA_STUDIO_SQL_HISTORY_PATH.test(url.pathname)) {
-    handle(res, async () => {
-      const identity = await identityFromRequest(req, url)
-      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      return sendJson(res, 200, { runs: await listSqlRuns(Number(url.searchParams.get('limit')) || 50) })
     })
     return
   }

@@ -79,30 +79,6 @@ export async function updateDataSource(id: string, input: { is_exposed_to_agent?
 // ---- SQL console audit (admin only) ----
 // Every statement an admin runs from the SQL console, kept for review: who, what, and how it went.
 
-export interface SqlRunRow {
-  id: string
-  user_id: number
-  email: string
-  sql: string
-  ok: boolean
-  row_count: number | null
-  elapsed_ms: number | null
-  error: string | null
-  at: string
-}
-
-export async function logSqlRun(entry: Omit<SqlRunRow, 'id' | 'at'>): Promise<void> {
-  await col('sql_audit').insertOne({ _id: randomUUID(), ...entry, at: now() })
-}
-
-export async function listSqlRuns(limit = 50): Promise<SqlRunRow[]> {
-  const docs = await col('sql_audit').find().sort({ at: -1 }).limit(limit).toArray()
-  return docs.map((d) => ({
-    id: d._id, user_id: d.user_id, email: d.email, sql: d.sql, ok: !!d.ok, row_count: d.row_count ?? null,
-    elapsed_ms: d.elapsed_ms ?? null, error: d.error ?? null, at: (d.at as Date).toISOString(),
-  }))
-}
-
 // ---- Entities ----
 
 export interface EntityRow {

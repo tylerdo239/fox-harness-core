@@ -4,6 +4,7 @@ Current:
 - `core-architecture.md` — START HERE: every component of `api/`, how a chat turn runs, and why.
 - `deploy.md` — deploying the two images (`app/`, `api/`).
 - `core-readiness-review-2026-10-05.md` — what is ready, what is not, verified results.
+- `multi-user-authz.md` — multi-user isolation and role-based access (admin/user), open issues, how to test.
 - `single-backend-architecture-plan.md` — why the orchestrator was removed; measured results (§13).
 - `schema/` — the MariaDB schema handoff.
 - `data-studio-update-plan.md` — adopting the new reference Data Studio (pipeline v4, data profile), incl. the Mongo schema changes.

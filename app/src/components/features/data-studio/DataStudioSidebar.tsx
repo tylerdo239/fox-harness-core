@@ -18,7 +18,6 @@ import {
   PanelLeftOpenIcon,
   PlusIcon,
   RelationshipsIcon,
-  CodeIcon,
   DataProfileIcon,
 } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
@@ -36,7 +35,6 @@ export type DataStudioSection =
   | "glossary"
   | "relationships"
   | "metrics"
-  | "sql"
   | "profile";
 
 // Order: Chat first (the real feature), Dashboards right under it (user:
@@ -55,7 +53,6 @@ const SECTIONS: { key: DataStudioSection; icon: typeof MessageSquareIcon; labelK
   { key: "glossary", icon: GlossaryIcon, labelKey: "dataStudio.sectionGlossary", adminOnly: true },
   { key: "relationships", icon: RelationshipsIcon, labelKey: "dataStudio.sectionRelationships", adminOnly: true },
   { key: "metrics", icon: MetricsIcon, labelKey: "dataStudio.sectionMetrics", adminOnly: true },
-  { key: "sql", icon: CodeIcon, labelKey: "dataStudio.sectionSql", adminOnly: true },
 ];
 
 export function DataStudioSidebar({

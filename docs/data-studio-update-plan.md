@@ -141,8 +141,8 @@ Reference **không có role**. Port nguyên văn sẽ làm mất các phần sau
     job admin như sync và reindex không bị ảnh hưởng.
   - **Worker admin chạy liên tục** (`callAdmin`, kéo từ GĐ3 về). Thao tác nhanh mất khoảng 20 ms thay vì 1–2 giây.
     Các job dài vẫn chạy mỗi lần một process.
-  - **SQL console:** chạy `check_read_only_sql`, trả tối đa 500 dòng. Mọi lần chạy, kể cả lần lỗi, được ghi vào
-    Mongo `sql_audit` (người chạy, câu SQL, kết quả, thời gian) và vào log gateway (`sql_console`).
+  - **SQL console: đã gỡ (2026-10-06, theo yêu cầu).** Bỏ màn FE, route `/data-studio/sql*`, op `sql`, collection
+    `sql_audit` và index của nó.
   - **Đã kiểm:**
     - pytest 201;
     - `role_authz_test` và `smoke_mongo`;
@@ -247,7 +247,10 @@ Reference **không có role**. Port nguyên văn sẽ làm mất các phần sau
     3. xem lại cách nhóm theo khoá rỗng.
 
     Nguồn `data studio` (bản trùng của `workflows_db`) nên xoá hoặc tắt.
-  - **Chưa làm:** màn xem tiến trình từng bước của v4 trên FE (tuỳ chọn).
+  - **Xem tiến trình từng bước (2026-10-06):** cho cả v3 và v4. `runner.py` `_Progress` rút gọn sự kiện pipeline
+    (step, agent, tool, sql, lỗi) thành dòng `{"progress": …}`; tool `analyze_data` ghi vào session thành sự kiện
+    log-only `fox/data-studio-progress` (model không thấy); FE (`DataStudioProgress.tsx`) hiện liên tục khi đang chạy,
+    gom vào "Các bước phân tích (n)" khi xong; tải lại trang vẫn xem được. Khoảng 40 (v3) / 80 (v4) dòng mỗi câu.
 
 ### Không port
 - Đăng nhập/JWT/Vault của reference.

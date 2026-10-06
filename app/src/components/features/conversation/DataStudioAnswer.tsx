@@ -29,6 +29,7 @@ import { Button } from "../../primitives/Button.tsx";
 import { dsApi, type ChartUpdate } from "../data-studio/dsApi.ts";
 import { AddToDashboardDialog, EditColorsDialog, EditFieldsDialog } from "./ChartDialogs.tsx";
 import { ChartView, EDITABLE_CHART_TYPES, resolveChart, type ChartSpec } from "./ChartView.tsx";
+import { DataStudioProgress, type ProgressItem } from "./DataStudioProgress.tsx";
 import { Markdown } from "./Markdown.tsx";
 
 type T = (key: TranslationKey, params?: Record<string, string>) => string;
@@ -48,6 +49,7 @@ export interface DataStudioAnswerData {
   assumptions: string[];
   followUps: string[];
   truncated: boolean;
+  progress: ProgressItem[];
 }
 
 // "Ghim vào dashboard" for an already-persisted chart (the `charts` document `chartId` references, created by
@@ -169,13 +171,6 @@ export function DataStudioAnswer({
   t: T;
 }) {
   const { locale } = useLocale();
-  const [elapsedMs, setElapsedMs] = useState(() => Date.now() - entry.startedAt);
-  useEffect(() => {
-    if (entry.status !== "running") return;
-    const id = setInterval(() => setElapsedMs(Date.now() - entry.startedAt), 1000);
-    return () => clearInterval(id);
-  }, [entry.status, entry.startedAt]);
-
   const [showSql, setShowSql] = useState(false);
   const [active, setActive] = useState(0);
   const [editing, setEditing] = useState<null | "fields" | "colors" | "dashboard">(null);
@@ -218,16 +213,10 @@ export function DataStudioAnswer({
   }
 
   if (entry.status === "running") {
-    const totalSeconds = Math.floor(elapsedMs / 1000);
-    const elapsed = `${Math.floor(totalSeconds / 60)}:${(totalSeconds % 60).toString().padStart(2, "0")}`;
+    // the chat's own "running a tool…" line is the indicator; here only the live steps
     return (
       <div className="ds-answer">
-        <div className="ds-status">
-          <span className="ds-spinner" aria-hidden />
-          <span>
-            {t("conversation.dataStudioRunning")} ({elapsed})
-          </span>
-        </div>
+        <DataStudioProgress items={entry.progress} live t={t} />
       </div>
     );
   }
@@ -239,12 +228,14 @@ export function DataStudioAnswer({
           <strong>{t("conversation.dataStudioFailed")}</strong>
           {entry.errorText && <div>{entry.errorText}</div>}
         </div>
+        <DataStudioProgress items={entry.progress} live={false} t={t} />
       </div>
     );
   }
 
   return (
     <div className="ds-answer">
+      <DataStudioProgress items={entry.progress} live={false} t={t} />
       {entry.answer && (
         <div className="assistant-text-body">
           <Markdown text={entry.answer} />

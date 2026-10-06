@@ -2974,25 +2974,6 @@ button.fh-data-studio-tab-active {
   background: var(--surface);
 }
 
-.fh-data-studio-sql-editor {
-  width: 100%;
-  box-sizing: border-box;
-  margin-bottom: 8px;
-  padding: 8px;
-  font-family: monospace;
-  font-size: 13px;
-  color: var(--fg);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  resize: vertical;
-}
-
-.fh-data-studio-note {
-  color: var(--muted);
-  margin: 0 0 12px;
-}
-
 .fh-data-studio-relationship-arrow {
   color: var(--muted);
 }
@@ -3113,6 +3094,167 @@ button.fh-data-studio-tab-active {
   gap: 8px;
   color: var(--muted);
   font-size: 0.9em;
+}
+
+/* Data Studio run steps (DataStudioProgress.tsx): live while the question runs, folded after */
+.ds-progress {
+  margin: 6px 0 10px;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.ds-progress-live {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.ds-progress-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+}
+
+.ds-progress-toggle:hover {
+  color: var(--fg);
+}
+
+.ds-progress-body {
+  margin-top: 6px;
+}
+
+.ds-progress-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-progress-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ds-progress-step-started {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.ds-progress-parts,
+.ds-progress-agents,
+.ds-progress-tools {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-progress-parts {
+  margin-bottom: 6px;
+}
+
+.ds-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: auto;
+  padding: 2px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.ds-progress-row:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.ds-progress-agent-started > .ds-progress-row {
+  color: var(--fg);
+}
+
+.ds-progress-label {
+  flex: 0 1 auto;
+}
+
+.ds-progress-part {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+
+.ds-progress-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  font-size: 0.9em;
+}
+
+.ds-progress-tools {
+  margin: 0 0 4px 20px;
+}
+
+.ds-progress-tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+  min-width: 0;
+}
+
+.ds-progress-tool code {
+  font-size: 0.95em;
+  color: var(--fg);
+}
+
+.ds-progress-args {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.ds-progress-mark {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  width: 12px;
+  font-size: 0.9em;
+}
+
+.ds-spinner.ds-progress-mark {
+  width: 10px;
+  height: 10px;
+}
+
+.ds-progress-done {
+  color: var(--accent);
+}
+
+.ds-progress-failed,
+.ds-progress-error {
+  color: #c0392b;
+}
+
+.ds-progress-error {
+  margin: 2px 0 2px 18px;
 }
 
 .ds-spinner {

@@ -104,6 +104,7 @@ import {
 } from "../skills/skillsApi.ts";
 import { ChartView, type ChartSpec } from "./ChartView.tsx";
 import { DataStudioAnswer, PinToDashboardButton } from "./DataStudioAnswer.tsx";
+import type { ProgressItem } from "./DataStudioProgress.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
 import { WorkspacePanel } from "./WorkspacePanel.tsx";
@@ -283,6 +284,8 @@ type LogEntry =
       assumptions: string[];
       followUps: string[];
       truncated: boolean;
+      // the steps of the run so far (`fox/data-studio-progress` events), shown live — see DataStudioProgress.tsx
+      progress: ProgressItem[];
     }
   | { kind: "bubble"; id: string; role: "user" | "assistant"; text: string };
 
@@ -1135,6 +1138,7 @@ export function Conversation({
             assumptions: [],
             followUps: [],
             truncated: false,
+            progress: [],
           });
           break;
         }
@@ -1160,6 +1164,14 @@ export function Conversation({
         if (data.name === CREATE_SKILL_TOOL) {
           skillCallArgsRef.current.set(data.callId, data.arguments);
         }
+        break;
+      }
+      case "fox/data-studio-progress": {
+        // one step of a running analyze_data call (packages/tool/data-studio-agent appends these log-only events)
+        const data = event.data as { callId: string; item: ProgressItem };
+        updateEntry(`tool-${data.callId}`, (entry) =>
+          entry.kind === "data-studio" ? { ...entry, progress: [...entry.progress, data.item] } : entry,
+        );
         break;
       }
       case "tool/result": {
