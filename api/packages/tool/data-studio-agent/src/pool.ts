@@ -1,4 +1,4 @@
-import { DataStudioKernel, type AnalyzeReply } from './kernel.ts'
+import { DataStudioKernel, type AnalyzeReply, type ProgressItem } from './kernel.ts'
 
 // One runtime hosts many users' sessions (docs/single-backend-architecture-plan.md), so
 // `analyze_data` can no longer own "the" subprocess: a DataStudioKernel serves ONE question at a
@@ -42,10 +42,16 @@ export class DataStudioPool {
     return { busy: this.workers.filter((worker) => worker.busy).length, queued: this.waiting.length }
   }
 
-  async ask(question: string, role: 'admin' | 'user', timeoutMs: number, signal: AbortSignal): Promise<AnalyzeReply> {
+  async ask(
+    question: string,
+    role: 'admin' | 'user',
+    timeoutMs: number,
+    signal: AbortSignal,
+    onProgress?: (item: ProgressItem) => void,
+  ): Promise<AnalyzeReply> {
     const worker = await this.acquire(signal)
     try {
-      return await worker.kernel.ask(question, role, timeoutMs, signal)
+      return await worker.kernel.ask(question, role, timeoutMs, signal, onProgress)
     } finally {
       worker.lastUsed = Date.now()
       this.release(worker)

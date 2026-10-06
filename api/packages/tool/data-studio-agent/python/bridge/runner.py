@@ -17,6 +17,7 @@ stdout: one JSON reply per line:
    "chart": {...}|None, "chart_id": str|None, "follow_up_questions": [str], "assumptions": [str],
    "truncated": bool}
   or {"ok": false, "error": str}
+  Before the reply, any number of {"progress": {...}} lines: the steps shown live in the UI (_Progress).
 
 `chart_id` (docs/data-studio-admin-ui-plan.md phase 5 — Dashboards): the ONE
 piece of state this otherwise-stateless bridge persists. `charts_chat` (see
@@ -143,6 +144,7 @@ async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliS
     # progress instead of nothing until the final reply. `agent_delta` is excluded:
     # it's a token-by-token content stream (SSE UI use case), far too noisy for a log.
     async def on_event(event_type: str, payload: dict) -> None:
+        _PROGRESS.emit(event_type, payload)
         if event_type == "agent_delta":
             return
         print(
@@ -195,10 +197,84 @@ async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliS
 
 
 async def _log_event(event_type: str, payload: dict) -> None:
-    """Pipeline progress to stderr (`docker logs`), one JSON line per event; streamed text left out."""
+    """Pipeline progress to stderr (`docker logs`), one JSON line per event; streamed text left out. Also the
+    compact progress line the UI shows live (see _Progress)."""
+    _PROGRESS.emit(event_type, payload)
     if event_type in ("agent_delta", "answer_delta"):
         return
     print(json.dumps({"event": event_type, **payload}, ensure_ascii=False, default=str), file=sys.stderr, flush=True)
+
+
+def _short(value, limit: int = 160) -> str:
+    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+class _Progress:
+    """The steps the UI shows while a question runs (packages/tool/data-studio-agent: kernel.ts reads these
+    stdout lines, index.ts appends them to the session as `fox/data-studio-progress`). v3 and v4 events are
+    reduced to one small shape — {t: step|part|agent|tool|sql|result|error, ...} — and the noisy or heavy ones
+    (streamed text, traces, charts, timings) are left out. One question at a time per process."""
+
+    def __init__(self) -> None:
+        self._tools: dict[tuple, list[str]] = {}
+        self._n = 0
+
+    def reset(self) -> None:
+        self._tools.clear()
+        self._n = 0
+
+    def _id(self) -> str:
+        self._n += 1
+        return f"p{self._n}"
+
+    def emit(self, kind: str, p: dict) -> None:
+        item = self._item(kind, p)
+        if item is not None:
+            item = {k: v for k, v in item.items() if v is not None}
+            print(json.dumps({"progress": item}, ensure_ascii=False, default=str), flush=True)
+
+    def _item(self, kind: str, p: dict) -> dict | None:
+        part = p.get("part") or p.get("sub_id")
+        owner = p.get("run_id") or f"{p.get('step_id')}:{p.get('agent')}"
+        if kind == "step":  # v4: understand / find / plan / run / present
+            return {"t": "step", "name": p.get("step"), "label": p.get("label"), "status": p.get("status"), "part": part}
+        if kind == "decompose":  # v4
+            return {"t": "parts", "parts": [{"id": x.get("id"), "question": x.get("question")} for x in p.get("parts") or []]}
+        if kind == "decomposed":  # v3
+            return {"t": "parts", "parts": [{"id": x.get("id"), "question": x.get("question")} for x in p.get("sub_questions") or []]}
+        if kind in ("sub_started", "sub_done"):  # v3
+            return {"t": "part", "id": p.get("sub_id"), "question": p.get("question"),
+                    "status": "started" if kind == "sub_started" else ("done" if p.get("ok") else "failed")}
+        if kind == "agent_started":
+            return {"t": "agent", "id": owner, "agent": p.get("agent"), "label": p.get("label"), "status": "started", "part": part}
+        if kind == "agent_done":
+            ok = p.get("ok", True)
+            return {"t": "agent", "id": owner, "agent": p.get("agent"), "status": "done" if ok else "failed",
+                    "error": None if ok else _short(p.get("error") or "")}
+        if kind == "tool_started":
+            tid = p.get("call_id") or self._id()
+            self._tools.setdefault((owner, p.get("tool")), []).append(tid)
+            return {"t": "tool", "id": tid, "owner": owner, "tool": p.get("tool"), "args": _short(p.get("args") or {}, 120),
+                    "status": "started", "part": part}
+        if kind == "tool_done":
+            pending = self._tools.get((owner, p.get("tool"))) or []
+            tid = p.get("call_id") or (pending.pop(0) if pending else self._id())
+            return {"t": "tool", "id": tid, "owner": owner, "tool": p.get("tool"), "status": "done",
+                    "result": _short(p.get("result") or "", 160)}
+        if kind == "sql":  # v4
+            return {"t": "sql", "sql": _short(p.get("sql") or "", 2000), "part": part}
+        if kind == "result":
+            if "status" in p:  # v4
+                return {"t": "result", "status": p.get("status"), "rows": p.get("row_count"), "error": p.get("error"), "part": part}
+            return {"t": "sql", "sql": _short(p.get("sql") or "", 2000), "rows": p.get("row_count"), "part": part}  # v3
+        if kind == "error":
+            return {"t": "error", "text": _short(p.get("error") or "", 300), "part": part}
+        return None
+
+
+_PROGRESS = _Progress()
 
 
 def _v4_trace(answer) -> str:
@@ -281,6 +357,7 @@ async def main() -> None:
         # questions in turn. Anything unexpected falls back to "user" (least privilege), see src/security/role.py.
         # begin_question also notes which data sources an admin switched off: their tables are out for every role.
         role_mod.begin_question(get_mongo_db(), request.get("role", role_mod.USER))
+        _PROGRESS.reset()
         try:
             if PIPELINE == "v4":
                 reply = await handle_v4(request["question"])

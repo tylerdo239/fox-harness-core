@@ -8,6 +8,9 @@ sharing convenience, keep both in sync). It replaces the former
 database created from the old `001` alone can be upgraded with the statements
 in `api/migrations/README.md` (app repo).
 
+MongoDB (Data Studio's semantic layer and data profile) is described separately in
+`mongodb-data-studio.md`.
+
 ## Requirements
 
 - **Engine:** MariaDB, version **10.11** (tested against) — 10.5+ should

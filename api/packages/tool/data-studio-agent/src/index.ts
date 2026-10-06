@@ -4,6 +4,16 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
 import { DataStudioPool } from './pool.ts'
+import type { ProgressItem } from './kernel.ts'
+
+// The steps of a running question, appended to the calling agent's session so the UI can show them live (and
+// again on replay). Log-only: not on the surface, so the model never sees them; `callId` ties them to the
+// `tool/call` they belong to.
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    'fox/data-studio-progress': { callId: string; item: ProgressItem }
+  }
+}
 
 export const name = 'fox-harness-tool-data-studio-agent'
 export const inject = ['tools', 'agents']
@@ -114,7 +124,13 @@ export function apply(ctx: Context) {
         }),
       },
       async execute(args, exec) {
-        const reply = await pool.ask(args.question, roleOf(ctx, exec.agent), TIMEOUT_MS, exec.signal)
+        const session = exec.agent?.session
+        const onProgress = session
+          ? (item: ProgressItem) => {
+              session.append('fox/data-studio-progress', { callId: exec.callId, item })
+            }
+          : undefined
+        const reply = await pool.ask(args.question, roleOf(ctx, exec.agent), TIMEOUT_MS, exec.signal, onProgress)
         if (!reply.ok) throw new Error(reply.error ?? 'analyze_data: unknown error')
         return {
           answer: reply.answer ?? '',

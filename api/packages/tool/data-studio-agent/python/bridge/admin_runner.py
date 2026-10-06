@@ -19,7 +19,6 @@ stdin:  one JSON object per line:
   {"op": "delete_source", "source_id": "uuid"}                      soft delete + drop it from the search indexes
   {"op": "data_profile", "method": "GET", "path": "/entities/<id>", "user": "email", "query": {}, "body": {}}
                                                                    one reference /data-profile route -> {status, json|body_b64}
-  {"op": "sql", "sql": "SELECT ...", "limit": 100}                  the admin SQL console (read-only)
 stdout: one JSON reply per line:
   {"ok": true, ...op specific...}
   {"ok": false, "error": str, "status": 400|404|502}
@@ -41,10 +40,8 @@ import json
 import logging
 import os
 import sys
-import time
 from pathlib import Path
 
-import httpx
 
 # Python puts the SCRIPT's own directory (bridge/) on sys.path, not the CWD —
 # `src.*` (this service's package root, one level up) needs adding by hand,
@@ -71,7 +68,6 @@ from src.services.embedding_client import EmbeddingClient
 from src.services.embedding_index import reindex_all
 from src.services.meili_store import MeiliStore
 from src.services.profiling import profile_all_entities
-from src.services.sql_safety import check_read_only_sql
 from src.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -81,8 +77,6 @@ async def handle(request: dict, client: DremioClient, emb: EmbeddingClient, vs: 
     op = request.get("op")
     if op == "browse":
         return {"ok": True, "sources": list_available_dremio_sources(client)}
-    if op == "sql":
-        return run_sql(client, request.get("sql") or "", int(request.get("limit") or 100))
     db = get_mongo_db()
     if op == "datasets":
         return {"ok": True, "datasets": list_source_datasets(client, db, request["source_name"])}
@@ -111,34 +105,6 @@ async def handle(request: dict, client: DremioClient, emb: EmbeddingClient, vs: 
             query=request.get("query"), body=request.get("body"),
         )
     return {"ok": False, "error": f"unknown op: {op!r}"}
-
-
-def run_sql(client: DremioClient, sql: str, limit: int) -> dict:
-    """The admin SQL console (reference apis/routes/sql.py): read-only SQL on Dremio, at most 500 rows."""
-    error = check_read_only_sql(sql, dialect="dremio")
-    if error:
-        return {"ok": False, "status": 400, "error": error}
-    started = time.monotonic()
-    try:
-        result = client.run_sql_with_meta(sql, timeout_sec=60, fetch_limit=max(1, min(limit, 500)))
-    except httpx.HTTPStatusError as e:
-        # Dremio rejects some SQL (e.g. parse errors) on submit, with the reason in the body
-        try:
-            detail = e.response.json().get("errorMessage") or e.response.text
-        except ValueError:
-            detail = e.response.text
-        return {"ok": False, "status": 400, "error": f"Dremio returned {e.response.status_code}: {detail}"}
-    except httpx.HTTPError as e:
-        return {"ok": False, "status": 502, "error": f"Cannot reach Dremio: {e}"}
-    except Exception as e:  # noqa: BLE001 — DremioQueryError and friends: the query itself failed
-        return {"ok": False, "status": 400, "error": str(e)}
-    return {
-        "ok": True,
-        "columns": [{"name": c["name"], "type": c.get("type", {}).get("name", "UNKNOWN")} for c in result["columns"]],
-        "rows": result["rows"],
-        "row_count": result["row_count"],
-        "elapsed_ms": int((time.monotonic() - started) * 1000),
-    }
 
 
 def delete_source(db, vs: MeiliStore, source_id: str) -> dict:
