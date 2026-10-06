@@ -53,6 +53,16 @@ def get_by_physical_name(db: AttrDatabase, data_source_id: str, physical_name: s
     return db[COLLECTION].find_one(_q({"data_source_id": data_source_id, "physical_name": physical_name}))
 
 
+def get_by_physical_path(db: AttrDatabase, data_source_id: str, physical_path: str) -> AttrDict | None:
+    return db[COLLECTION].find_one(_q({"data_source_id": data_source_id, "physical_path": physical_path}))
+
+
+def list_physical_paths_by_data_source(db: AttrDatabase, data_source_id: str) -> set[str]:
+    """physical_path of every non-deprecated entity in the source."""
+    cursor = db[COLLECTION].find(_q({"data_source_id": data_source_id, "is_deprecated": False}), {"physical_path": 1})
+    return {doc["physical_path"] for doc in cursor}
+
+
 def create(
     db: AttrDatabase,
     *,

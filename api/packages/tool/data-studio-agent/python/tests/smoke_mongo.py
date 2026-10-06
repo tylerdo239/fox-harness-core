@@ -55,7 +55,11 @@ class FakeDremio:
         self.orders_fields = ["order_id", "customer_id", "total"]
 
     def list_sources(self):
-        return [{"id": "s1", "path": ["src"]}]
+        return self.list_containers(("SOURCE",))
+
+    def list_containers(self, container_types):
+        # top-level catalog entries, as DremioClient.list_containers (SOURCE databases, SPACE views)
+        return [e for e in [{"id": "s1", "path": ["src"], "containerType": "SOURCE"}] if e["containerType"] in container_types]
 
     def get_catalog_entry(self, entry_id):
         if entry_id == "s1":

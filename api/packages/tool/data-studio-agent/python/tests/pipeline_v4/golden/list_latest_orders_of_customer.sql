@@ -1,0 +1,1 @@
+SELECT "t0"."order_id" AS "order_id", "t0"."order_date" AS "order_date", "t0"."status" AS "status", "t0"."net_amount" AS "net_amount" FROM "sales"."orders" AS "t0" WHERE ("t0"."is_test" = FALSE) AND ("t0"."customer_id" = 'CUS-0001') ORDER BY "t0"."order_date" DESC LIMIT 20

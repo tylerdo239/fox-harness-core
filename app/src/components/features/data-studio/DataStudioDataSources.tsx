@@ -54,7 +54,7 @@ interface EntityColumn {
 }
 
 const ROLE_OPTIONS = ["", "dimension", "measure", "key"];
-const SEMANTIC_TYPE_OPTIONS = ["", "currency", "date", "datetime", "category", "id", "percent", "count", "text", "pii", "boolean"];
+const SEMANTIC_TYPE_OPTIONS = ["", "currency", "date", "datetime", "category", "id", "percent", "count", "number", "text", "pii", "boolean"];
 const AGGREGATION_OPTIONS = ["", "sum", "avg", "count", "count_distinct", "min", "max"];
 
 function parseJsonArray(raw: string): string[] {

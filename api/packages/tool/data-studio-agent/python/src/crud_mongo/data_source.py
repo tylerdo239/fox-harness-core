@@ -16,6 +16,11 @@ def list_all(db: AttrDatabase) -> list[AttrDict]:
     return list(db[COLLECTION].find({}))
 
 
+def list_active(db: AttrDatabase) -> list[AttrDict]:
+    """Sources that haven't been soft-deleted (deleted_at unset or null)."""
+    return list(db[COLLECTION].find({"deleted_at": None}))
+
+
 def create(
     db: AttrDatabase,
     *,

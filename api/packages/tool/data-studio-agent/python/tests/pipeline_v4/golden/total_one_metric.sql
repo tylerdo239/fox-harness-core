@@ -1,0 +1,1 @@
+SELECT SUM(CASE WHEN "t0"."order_date" >= TIMESTAMP '2026-07-31 17:00:00' AND "t0"."order_date" < TIMESTAMP '2026-08-31 17:00:00' THEN "t0"."net_amount" END) AS "net_revenue" FROM "sales"."orders" AS "t0" WHERE ("t0"."status" = 'DONE') AND ("t0"."order_date" >= TIMESTAMP '2026-07-31 17:00:00' AND "t0"."order_date" < TIMESTAMP '2026-08-31 17:00:00')

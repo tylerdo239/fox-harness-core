@@ -1,0 +1,1 @@
+SELECT COUNT(CASE WHEN "t0"."order_date" >= TIMESTAMP '2026-07-31 17:00:00' AND "t0"."order_date" < TIMESTAMP '2026-08-31 17:00:00' THEN 1 END) AS "cancelled_orders" FROM "sales"."orders" AS "t0" WHERE ("t0"."status" = 'CANCELLED') AND ("t0"."order_date" >= TIMESTAMP '2026-07-31 17:00:00' AND "t0"."order_date" < TIMESTAMP '2026-08-31 17:00:00')

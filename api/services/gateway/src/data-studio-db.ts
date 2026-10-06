@@ -17,6 +17,16 @@ import { randomUUID } from 'node:crypto'
 
 import { col, type Doc } from './mongo.ts'
 
+// Soft delete, as the Data Studio Python side (reference 2026-10): relationships, their column pairs and data
+// sources keep their document with `deleted_at` set; every read here skips them. A missing field reads as null.
+const ACTIVE = { deleted_at: null }
+
+async function softDelete(collection: string, filter: Record<string, unknown>): Promise<boolean> {
+  const at = now()
+  const res = await col(collection).updateMany({ ...filter, ...ACTIVE }, { $set: { deleted_at: at, updated_at: at } })
+  return res.modifiedCount > 0
+}
+
 const now = (): Date => new Date()
 const flag = (value: unknown): 0 | 1 => (value ? 1 : 0)
 const json = (value: unknown): string => JSON.stringify(value ?? [])
@@ -47,11 +57,11 @@ function toDataSourceRow(d: Doc): DataSourceRow {
 }
 
 export async function listDataSources(): Promise<DataSourceRow[]> {
-  return (await col('data_sources').find().sort({ name: 1 }).toArray()).map(toDataSourceRow)
+  return (await col('data_sources').find(ACTIVE).sort({ name: 1 }).toArray()).map(toDataSourceRow)
 }
 
 export async function getDataSource(id: string): Promise<DataSourceRow | undefined> {
-  const doc = await col('data_sources').findOne({ _id: id })
+  const doc = await col('data_sources').findOne({ _id: id, ...ACTIVE })
   return doc ? toDataSourceRow(doc) : undefined
 }
 
@@ -380,7 +390,7 @@ export interface RelationshipView {
 async function toRelationshipViews(relationships: Doc[]): Promise<RelationshipView[]> {
   if (relationships.length === 0) return []
   const relationshipIds = relationships.map((r) => r._id)
-  const pairs = await col('relationship_column_pairs').find({ relationship_id: { $in: relationshipIds } }).sort({ seq: 1 }).toArray()
+  const pairs = await col('relationship_column_pairs').find({ relationship_id: { $in: relationshipIds }, ...ACTIVE }).sort({ seq: 1 }).toArray()
   const entityIds = [...new Set(relationships.flatMap((r) => [r.from_entity_id, r.to_entity_id]))]
   const columnIds = [...new Set(pairs.flatMap((p) => [p.from_column_id, p.to_column_id]))]
   const [entities, columns] = await Promise.all([
@@ -415,11 +425,11 @@ async function toRelationshipViews(relationships: Doc[]): Promise<RelationshipVi
 }
 
 export async function listRelationships(): Promise<RelationshipView[]> {
-  return toRelationshipViews(await col('relationships').find().sort({ created_at: 1 }).toArray())
+  return toRelationshipViews(await col('relationships').find(ACTIVE).sort({ created_at: 1 }).toArray())
 }
 
 async function getRelationship(id: string): Promise<RelationshipView | undefined> {
-  const doc = await col('relationships').findOne({ _id: id })
+  const doc = await col('relationships').findOne({ _id: id, ...ACTIVE })
   return doc ? (await toRelationshipViews([doc]))[0] : undefined
 }
 
@@ -441,6 +451,7 @@ async function insertColumnPairs(relationshipId: string, pairs: RelationshipInpu
       from_column_id: pair.from_column_id,
       to_column_id: pair.to_column_id,
       seq,
+      deleted_at: null,
       created_at: at,
       updated_at: at,
     })),
@@ -456,6 +467,7 @@ export async function createRelationship(input: RelationshipInput): Promise<Rela
     cardinality: input.cardinality,
     join_type_default: input.join_type_default,
     is_curated: true,
+    deleted_at: null,
     created_at: at,
     updated_at: at,
   }
@@ -465,7 +477,7 @@ export async function createRelationship(input: RelationshipInput): Promise<Rela
 }
 
 export async function updateRelationship(id: string, input: RelationshipInput): Promise<RelationshipView | undefined> {
-  if (!(await col('relationships').findOne({ _id: id }, { projection: { _id: 1 } }))) return undefined
+  if (!(await col('relationships').findOne({ _id: id, ...ACTIVE }, { projection: { _id: 1 } }))) return undefined
   await col('relationships').updateOne(
     { _id: id },
     {
@@ -478,14 +490,15 @@ export async function updateRelationship(id: string, input: RelationshipInput): 
       },
     },
   )
-  await col('relationship_column_pairs').deleteMany({ relationship_id: id })
+  await softDelete('relationship_column_pairs', { relationship_id: id })
   await insertColumnPairs(id, input.column_pairs)
   return getRelationship(id)
 }
 
 export async function deleteRelationship(id: string): Promise<boolean> {
-  await col('relationship_column_pairs').deleteMany({ relationship_id: id })
-  return (await col('relationships').deleteOne({ _id: id })).deletedCount > 0
+  const done = await softDelete('relationships', { _id: id })
+  if (done) await softDelete('relationship_column_pairs', { relationship_id: id })
+  return done
 }
 
 // ---- Metrics ----

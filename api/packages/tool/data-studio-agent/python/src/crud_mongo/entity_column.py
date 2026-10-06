@@ -76,6 +76,7 @@ def best_label_column(db: AttrDatabase, entity_id: str) -> AttrDict | None:
             "semantic_type": "text",
         }))
         .sort("ordinal", 1)
+        .limit(1)  # the role filter is already in the query (_q); _visible only re-checks the one parent table
     ))
     return docs[0] if docs else None
 
