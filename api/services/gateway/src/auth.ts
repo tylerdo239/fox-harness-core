@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto'
 import { config } from './config.ts'
 import { createUser, getUserByEmail, updateUserPassword, updateUserRole, type Role } from './db.ts'
 import { hashPassword, verifyPassword } from './password.ts'
-import { resolveToken, revokeToken, revokeUserTokens, storeToken, type TokenRecord } from './redis.ts'
+import { resolveToken, revokeToken, revokeUserTokens, storeToken, storeWsTicket, takeWsTicket, type TokenRecord } from './redis.ts'
 
 export type AuthedIdentity = TokenRecord
 
@@ -74,6 +74,20 @@ export async function login(
 // login." See redis.ts's `resolveToken` for the real mechanism (`GETEX`).
 export async function resolveIdentity(token: string): Promise<AuthedIdentity | undefined> {
   return resolveToken(token, config.tokenTtlMs)
+}
+
+const WS_TICKET_TTL_MS = 30_000
+
+/** A single-use ticket for opening one WebSocket as this (already resolved) login — see redis.ts storeWsTicket. */
+export async function issueWsTicket(token: string): Promise<string> {
+  const ticket = randomBytes(24).toString('hex')
+  await storeWsTicket(ticket, token, WS_TICKET_TTL_MS)
+  return ticket
+}
+
+export async function redeemWsTicket(ticket: string): Promise<{ identity: AuthedIdentity; tokenHash: string } | undefined> {
+  const found = await takeWsTicket(ticket, config.tokenTtlMs)
+  return found ? { identity: found.record, tokenHash: found.tokenHash } : undefined
 }
 
 export async function logout(token: string): Promise<void> {

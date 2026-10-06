@@ -67,6 +67,30 @@ export async function revokeToken(token: string): Promise<void> {
   await redis.del(tokenKey(token))
 }
 
+// ---- WebSocket tickets (2026-10-06) ----
+// A browser cannot set a header on a WebSocket upgrade, so the login token used to travel in the URL
+// (`?token=`), where every proxy access log in between records it. The FE now trades its token for a ticket
+// (POST /auth/ws-ticket) and opens the socket with that instead: random, single use (GETDEL), 30 s, and stored as
+// the hash of the TOKEN it stands for — no raw token or ticket in Redis, and a revoked token voids its tickets.
+const ticketKey = (ticket: string) => `fh:wsticket:${tokenHash(ticket)}`
+
+export async function storeWsTicket(ticket: string, token: string, ttlMs: number): Promise<void> {
+  await redis.set(ticketKey(ticket), tokenHash(token), 'PX', ttlMs)
+}
+
+/** The ticket's login (resolved and renewed like a token), consuming the ticket; undefined if unknown, used or expired. */
+export async function takeWsTicket(ticket: string, ttlMs: number): Promise<{ record: TokenRecord; tokenHash: string } | undefined> {
+  const hash = await redis.getdel(ticketKey(ticket))
+  if (!hash) return undefined
+  const raw = await redis.getex(`fh:gwtoken:${hash}`, 'PX', ttlMs)
+  return raw ? { record: JSON.parse(raw) as TokenRecord, tokenHash: hash } : undefined
+}
+
+/** renewToken for a socket opened with a ticket: only the token's hash is known there. */
+export async function renewTokenHash(hash: string, ttlMs: number): Promise<void> {
+  await redis.pexpire(`fh:gwtoken:${hash}`, ttlMs)
+}
+
 // ---- Security fix 2026-09-09: rate-limit /auth/login, /auth/register ----
 
 const rateLimitKey = (bucket: string, key: string) => `fh:ratelimit:${bucket}:${key}`

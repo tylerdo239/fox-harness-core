@@ -65,6 +65,24 @@ export const config = {
   // route so one endpoint being hammered doesn't lock out the other.
   authRateLimitMax: envIntOr('AUTH_RATE_LIMIT_MAX', 10),
   authRateLimitWindowMs: envIntOr('AUTH_RATE_LIMIT_WINDOW_MS', 60 * 1000),
+  // 2026-10-06: `authRateLimitMax` counts per EMAIL (a guessed password locks only that account for the window).
+  // The per-IP bucket below only applies behind a trusted proxy: without one, every request's socket address is the
+  // proxy's own, so one bucket for everybody (measured: 10 bad logins locked out every user).
+  authIpRateLimitMax: envIntOr('AUTH_IP_RATE_LIMIT_MAX', 50),
+  // How many proxies in front of the gateway append to X-Forwarded-For (0 = none trusted: the header is ignored).
+  // The deploy's proxy must overwrite, not pass through, what the client sends (docs/deploy-security-checklist.md).
+  trustProxyHops: envIntOr('TRUST_PROXY', 0),
+  // Browser origins allowed to call this API cross-origin (comma-separated). Empty = same origin only, which is how
+  // the app is served (its own nginx / dev server proxies to the gateway).
+  allowedOrigins: envOr('ALLOWED_ORIGINS', '').split(',').map((o) => o.trim()).filter(Boolean),
+  // JSON request bodies are read into memory: anything larger is refused (413) before it is buffered. File uploads
+  // stream to disk with their own limit; a data-profile import (an exported JSON file) gets more.
+  maxJsonBodyBytes: envIntOr('MAX_JSON_BODY_BYTES', 1024 * 1024),
+  maxImportBodyBytes: envIntOr('MAX_IMPORT_BODY_BYTES', 20 * 1024 * 1024),
+  // Per-user limits per minute: chat messages (each one is an LLM turn), and each kind of costly Data Studio call
+  // (AI suggestion, Run on Dremio, import, sync, reindex) and uploads.
+  chatRateLimitMax: envIntOr('CHAT_RATE_LIMIT_PER_MIN', 20),
+  costlyRateLimitMax: envIntOr('COSTLY_RATE_LIMIT_PER_MIN', 10),
   // Performance fix 2026-09-09 (finding #6): `mariadb.createPool()` had no
   // explicit `connectionLimit` — see db.ts's own comment for how this was
   // verified to actually need the object-config form, not a query-string

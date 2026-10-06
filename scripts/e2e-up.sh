@@ -34,7 +34,10 @@ docker run -d --name foxe2e-backend --network $NET --cap-add SYS_ADMIN --cap-add
   -e OPENAI_API_KEY=sk-e2e-not-a-secret -e OPENAI_BASE_URL=http://host.docker.internal:4999 -e OPENAI_MODEL_ID=mock \
   -e MONGODB_URL=mongodb://spike-user:spike-pw@mongo.invalid:27017 \
   -e FOX_IDLE_DISPOSE_MS=8000 -e FOX_IDLE_SWEEP_MS=1000 -e FOX_PY_CELL_TIMEOUT_MS=5000 \
+  -e CHAT_RATE_LIMIT_PER_MIN=${E2E_CHAT_LIMIT:-60} \
   fox-harness-backend:dev >/dev/null
+# CHAT_RATE_LIMIT_PER_MIN: the suite itself sends one user more than the default 20 messages a minute; gatewayLimits
+# reads the same E2E_CHAT_LIMIT to probe the limit.
 # There is no self-registration: the e2e test signs up its users through this admin.
 docker exec foxe2e-backend node scripts/create-admin.mjs admin@e2e.test admin-e2e-password >/dev/null
 docker run -d --name foxe2e-web --network $NET -p 127.0.0.1:18080:80 -e BACKEND_URL=http://foxe2e-backend:4000 fox-harness-web:dev >/dev/null

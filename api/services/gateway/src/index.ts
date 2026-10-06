@@ -18,7 +18,16 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { Readable } from 'node:stream'
 import { WebSocketServer } from 'ws'
 
-import { changeUser, login, logout, register, resolveIdentity, type AuthedIdentity } from './auth.ts'
+import {
+  changeUser,
+  login,
+  logout,
+  register,
+  resolveIdentity,
+  type AuthedIdentity,
+  issueWsTicket,
+  redeemWsTicket,
+} from './auth.ts'
 import { config } from './config.ts'
 import {
   countCustomSkills,
@@ -101,7 +110,7 @@ import {
 } from './runtime/workspace-files.ts'
 import { checkMongoConnection, ensureIndexes } from './mongo.ts'
 import { proxyToWorker } from './proxy.ts'
-import { checkRateLimit, renewToken } from './redis.ts'
+import { checkRateLimit, renewTokenHash } from './redis.ts'
 import { loadBuiltinSkills, MAX_SKILLS_PER_USER, validateSkill } from './skills.ts'
 
 // Phase 6 checklist item 2: cross-layer telemetry, tagged with sessionId.
@@ -244,13 +253,48 @@ async function pushSkills(ownerId: number, sessions: { sessionId: string; projec
   }
 }
 
+// 2026-10-06: request bodies were read into memory with no cap (measured: 4 x 75 MB from one user took the backend
+// from 430 to 750 MB). route() refuses an over-limit Content-Length up front (413); this cap also stops a chunked
+// body that announces none, as soon as it passes the limit.
+function bodyLimitFor(pathname: string): number {
+  if (/^\/data-studio\/profile\/.*\/import$/.test(pathname)) return config.maxImportBodyBytes
+  return config.maxJsonBodyBytes
+}
+
 function readBody(req: IncomingMessage): Promise<string> {
+  const limit = bodyLimitFor(new URL(req.url ?? '/', 'http://localhost').pathname)
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    let size = 0
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > limit) {
+        req.destroy()
+        reject(new Error('request body too large'))
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     req.on('error', reject)
   })
+}
+
+// The caller's address, for rate limits. Behind `config.trustProxyHops` proxies it is the entry they added to
+// X-Forwarded-For; with none trusted the header is ignored (a client can write anything there).
+function clientIp(req: IncomingMessage): string | undefined {
+  if (config.trustProxyHops <= 0) return undefined
+  const forwarded = String(req.headers['x-forwarded-for'] ?? '').split(',').map((part) => part.trim()).filter(Boolean)
+  return forwarded[forwarded.length - config.trustProxyHops] ?? req.socket.remoteAddress
+}
+
+function rateLimited(res: ServerResponse): void {
+  sendJson(res, 429, { error: 'too many attempts, try again shortly', code: 'rate_limited' })
+}
+
+// Per-user limit for one kind of costly call (AI suggestion, Run on Dremio, import, sync, reindex, upload).
+async function costlyAllowed(kind: string, userId: number): Promise<boolean> {
+  return checkRateLimit(`costly:${kind}`, String(userId), config.costlyRateLimitMax, 60_000)
 }
 
 // Every route below except /auth/register, /auth/login, /auth/logout,
@@ -264,8 +308,11 @@ function readBody(req: IncomingMessage): Promise<string> {
 // `Authorization: Bearer <token>` header (app/src/main.ts sends it).
 async function identityFromRequest(req: IncomingMessage, url: URL): Promise<AuthedIdentity | undefined> {
   const authHeader = req.headers.authorization
-  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : undefined
-  const token = bearerToken ?? url.searchParams.get('token') ?? undefined
+  // Header only (2026-10-06): a `?token=` in the URL ends up in every proxy's access log. The WebSocket, which
+  // cannot send a header, uses a single-use ticket instead (POST /auth/ws-ticket). `url` stays in the signature
+  // for the ~40 callers.
+  void url
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : undefined
   if (!token) return undefined
   return resolveIdentity(token)
 }
@@ -308,7 +355,13 @@ function route(req: IncomingMessage, res: ServerResponse): void {
   // browser sends a CORS preflight before the real POST (application/json
   // isn't a CORS-safelisted content-type), and now also before a real
   // `Authorization` header (Phase 7 — also not a CORS-safelisted header).
-  res.setHeader('access-control-allow-origin', '*')
+  // 2026-10-06: only the origins in ALLOWED_ORIGINS (was `*`); none by default — the app is served from the same
+  // origin as this API (its nginx / dev server proxies here), which needs no CORS at all.
+  const origin = req.headers.origin
+  if (origin && config.allowedOrigins.includes(origin)) {
+    res.setHeader('access-control-allow-origin', origin)
+    res.setHeader('vary', 'Origin')
+  }
   // Real bug fixed 2026-09-10 (user: "có rõ ràng mà bị lỗi cors" —
   // PATCH /sessions/:id, HistoryChat.tsx's rename): `PATCH` was missing
   // from this list since the route itself was added (Phase 12 item 2) —
@@ -332,12 +385,23 @@ function route(req: IncomingMessage, res: ServerResponse): void {
 
   const url = new URL(req.url ?? '/', 'http://localhost')
 
+  // A JSON body over the limit is refused before a byte of it is read (uploads stream to disk with their own limit).
+  const declared = Number(req.headers['content-length'] ?? 0)
+  if (declared > bodyLimitFor(url.pathname) && !WORKSPACE_FILES_PATH.test(url.pathname)) {
+    res.setHeader('connection', 'close')
+    sendJson(res, 413, { error: 'request body too large', code: 'body_too_large' })
+    req.destroy()
+    return
+  }
+
   // Probes (no auth, no CORS): liveness = this process answers; readiness = it AND every agent runtime can take a chat.
   if (req.method === 'GET' && (url.pathname === '/healthz' || url.pathname === '/readyz')) {
     const health = runtime.health()
     const ok = url.pathname === '/healthz' || health.ready
     res.writeHead(ok ? 200 : 503, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ ok, ...(url.pathname === '/readyz' ? health : {}) }))
+    // shard up/down only — ports and restart counts are internal (2026-10-06)
+    const shards = health.shards.map((shard) => ({ index: shard.index, up: shard.up }))
+    res.end(JSON.stringify({ ok, ...(url.pathname === '/readyz' ? { ready: health.ready, shards } : {}) }))
     return
   }
 
@@ -359,11 +423,10 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       // Security fix 2026-09-09: no rate-limit existed here at all before —
       // checked first, before even reading the body, so a hammered client
       // doesn't cost more than 1 Redis round trip per attempt.
-      const registerIp = req.socket.remoteAddress ?? 'unknown'
-      if (!(await checkRateLimit('register', registerIp, config.authRateLimitMax, config.authRateLimitWindowMs))) {
-        res.writeHead(429, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ error: 'too many attempts, try again shortly', code: 'rate_limited' }))
-        return
+      // Admin-only route (adminGate): counted per admin account (2026-10-06; was per socket address — the proxy's).
+      const creator = await identityFromRequest(req, url)
+      if (!(await checkRateLimit('register', String(creator?.userId ?? 'anonymous'), config.authRateLimitMax, config.authRateLimitWindowMs))) {
+        return rateLimited(res)
       }
       let body: { email?: unknown; password?: unknown; role?: unknown }
       try {
@@ -413,11 +476,12 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       // Security fix 2026-09-09: separate bucket from /auth/register (same
       // reasoning as that route's own comment) — a login brute-force
       // attempt shouldn't also lock a real user out of registering.
-      const loginIp = req.socket.remoteAddress ?? 'unknown'
-      if (!(await checkRateLimit('login', loginIp, config.authRateLimitMax, config.authRateLimitWindowMs))) {
-        res.writeHead(429, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ error: 'too many attempts, try again shortly', code: 'rate_limited' }))
-        return
+      // 2026-10-06: per IP only behind a trusted proxy (else every caller shares the proxy's address — measured:
+      // 10 bad logins locked out every user), and per email always: guessing one account's password locks that
+      // account for the window, nobody else.
+      const ip = clientIp(req)
+      if (ip && !(await checkRateLimit('login-ip', ip, config.authIpRateLimitMax, config.authRateLimitWindowMs))) {
+        return rateLimited(res)
       }
       let body: { email?: unknown; password?: unknown }
       try {
@@ -426,6 +490,10 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(400, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: 'invalid JSON body', code: 'invalid_json' }))
         return
+      }
+      const emailKey = typeof body.email === 'string' ? body.email.trim().toLowerCase().slice(0, 255) : ''
+      if (!(await checkRateLimit('login', emailKey, config.authRateLimitMax, config.authRateLimitWindowMs))) {
+        return rateLimited(res)
       }
       const result =
         typeof body.email === 'string' && typeof body.password === 'string' ? await login(body.email, body.password) : undefined
@@ -450,6 +518,18 @@ function route(req: IncomingMessage, res: ServerResponse): void {
   // so a reload while the tab was still open would silently reconnect with
   // the "logged out" session. This route + app's rewired logout button
   // (main.ts) close that gap for real.
+  // A single-use, 30-second ticket to open one chat WebSocket (the browser cannot send the Authorization header on
+  // the upgrade; the token itself must not go in the URL). See redis.ts storeWsTicket.
+  if (req.method === 'POST' && url.pathname === '/auth/ws-ticket') {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      const authHeader = req.headers.authorization ?? ''
+      if (!identity || !authHeader.startsWith('Bearer ')) return sendJson(res, 401, { error: 'unauthorized' })
+      return sendJson(res, 200, { ticket: await issueWsTicket(authHeader.slice('Bearer '.length)) })
+    })
+    return
+  }
+
   if (req.method === 'POST' && url.pathname === '/auth/logout') {
     handle(res, async () => {
       // Idempotent by design (same spirit as register/login's own error
@@ -1090,6 +1170,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      if (!(await costlyAllowed('sync', identity.userId))) return rateLimited(res)
       let body: { source_names?: unknown; datasets?: unknown }
       try {
         body = JSON.parse(await readBody(req))
@@ -1151,6 +1232,10 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       // Reindex, import (reindexes what it changed), AI suggestions and Run can take minutes: those get a process
       // of their own, so they never queue the quick reads and saves behind them on the shared worker.
       const slow = /\/(reindex|import|suggest-[a-z]+|run)$/.test(path)
+      if (slow) {
+        const kind = path.slice(path.lastIndexOf('/') + 1).replace(/^suggest-.*/, 'suggest')
+        if (!(await costlyAllowed(kind, identity.userId))) return rateLimited(res)
+      }
       const user = await getUserById(identity.userId)
       type ProfileReply = {
         ok: boolean; status?: number; error?: string; json?: unknown
@@ -1345,6 +1430,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
 
       try {
         if (req.method === 'POST') {
+          if (!(await costlyAllowed('upload', identity.userId))) return rateLimited(res)
           const name = url.searchParams.get('name') ?? ''
           if (!UPLOAD_NAME_RE.test(name)) return sendJson(res, 400, { error: 'invalid file name' })
           try {
@@ -1490,7 +1576,10 @@ server.on('upgrade', (req, socket, head) => {
   const match = /^\/sessions\/(.+)$/.exec(url.pathname)
 
   void (async () => {
-    const identity = match ? await identityFromRequest(req, url) : undefined
+    // a single-use ticket from POST /auth/ws-ticket, never the login token itself (it would sit in access logs)
+    const ticket = url.searchParams.get('ticket')
+    const redeemed = match && ticket ? await redeemWsTicket(ticket) : undefined
+    const identity = redeemed?.identity
     if (!match || !identity) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
       socket.destroy()
@@ -1571,9 +1660,8 @@ server.on('upgrade', (req, socket, head) => {
       if (isNew) params.set('id', sessionId)
       const workerUrl = `ws://${target.host}:${target.port}/sessions/${isNew ? 'new' : sessionId}?${params}`
 
-      // WS upgrades only ever carry the token as `?token=` (browsers can't set custom headers on an upgrade
-      // request), so it is re-read directly here rather than threaded out of identityFromRequest.
-      const token = url.searchParams.get('token') ?? ''
+      // The socket was opened with a ticket; its login token is known here only by hash (redis.ts).
+      const tokenHash = redeemed!.tokenHash
       // First client frame = a real message: the session now shows in the sidebar. Every client frame
       // renews the sliding login token and the sidebar sort order (a bare open of an old chat must not
       // re-sort it, docs/code-rules.md 2026-09-10).
@@ -1583,9 +1671,22 @@ server.on('upgrade', (req, socket, head) => {
         () => void markSessionFirstMessage(sessionId),
         () => {
           void touchSessionRow(sessionId)
-          void renewToken(token, config.tokenTtlMs)
+          void renewTokenHash(tokenHash, config.tokenTtlMs)
         },
         runtime.headers,
+        // per-user chat rate limit (2026-10-06): every message starts an LLM turn; `cancel` is never refused
+        async (frame) => {
+          let type: unknown
+          try {
+            type = (JSON.parse(frame) as { type?: unknown }).type
+          } catch {
+            return undefined // not JSON: the runtime answers it
+          }
+          if (type !== 'followup' && type !== 'steer') return undefined
+          if (await checkRateLimit('chat', String(identity.userId), config.chatRateLimitMax, 60_000)) return undefined
+          log('chat_rate_limited', { userId: identity.userId, sessionId })
+          return `Too many messages: at most ${config.chatRateLimitMax} per minute. Wait a moment and send it again.`
+        },
       )
     })
   })().catch((error: unknown) => {
