@@ -207,6 +207,47 @@ Reference **không có role**. Port nguyên văn sẽ làm mất các phần sau
    thức với agent.
 5. (Tuỳ chọn) FE hiển thị tiến trình từng bước, nếu v4 phát sự kiện qua kênh trace hiện có.
 6. **Đánh giá v3 và v4 trên cùng bộ câu hỏi có đáp án** (như bài 77 / 851 đã dùng), rồi mới đổi mặc định.
+- **Kết quả (2026-10-06):**
+  - **Cờ bật v4:** `DATA_STUDIO_PIPELINE=v3|v4`, mặc định v3.
+    - Gateway (`runtimeEnvPassthrough`) và kernel (`FORWARDED_ENV`) chuyển biến này xuống runner.
+    - `bridge/runner.py` có thêm `handle_v4`, trả reply cùng hình dạng với v3. Biểu đồ được lưu qua `save_answer`
+      của reference nên vẫn ghim được lên dashboard.
+  - **Phân quyền:**
+    - `catalog.load_catalog` lọc bảng và cột theo `role.doc_allowed`.
+    - `_drop_unreachable` bỏ phần dựa trên thứ bị ẩn: quan hệ, metric, ratio, thuật ngữ, và bảng có bộ lọc
+      bắt buộc hay cột snapshot nằm trên cột bị ẩn.
+    - Chốt cuối là `security/sql_gate.py`, đặt trong `AsyncDremio._job`: chỉ cho phép một câu chỉ-đọc, và không
+      được nhắc tới bảng role không được xem.
+    - Có 4 test mới trong `tests/pipeline_v4/test_catalog_roles.py`.
+  - `make_model` từ chối chạy khi thiếu `OPENAI_BASE_URL`. Agno telemetry đã tắt sẵn.
+  - **So sánh trên 6 câu có đáp án từ Dremio** (chạy tuần tự, role admin):
+
+    | | v4 | v3 |
+    |---|---|---|
+    | Có bao nhiêu workflow | 77 ✓ | 77 ✓ |
+    | Tổng số node | 851 ✓ | lỗi SQL |
+    | Top 3 workflow nhiều node | ✗ (gộp 238 node có `workflow_id` rỗng, gán nhầm id) | lỗi cột |
+    | Workflow active | 77 ✓ | 77 ✓ |
+    | Node theo loại | 625/194/30/2 ✓ | lỗi SQL |
+    | Số layer | 439 ✓ | 439 ✓ |
+
+    v4 đúng 5/6, v3 đúng 3/6. Ba lỗi của v3 đều do chọn nguồn trùng tên `data studio` (có dấu cách,
+    `sqlglot` không parse được) hoặc cột. Khi chạy hai pipeline cùng lúc, cả hai đều gặp lỗi model trả chuỗi
+    thay vì JSON: server LLM bị tải, không phải lỗi code.
+  - **Role user (v4):**
+    - Tạm mở `workflow_layers` cho user: hỏi "bao nhiêu layer" trả 439, SQL chỉ chạm bảng đó.
+    - Hỏi "bao nhiêu workflow" (bảng chỉ admin): v4 **không từ chối** mà trả "439 workflows" từ bảng layer. Không
+      lộ dữ liệu, nhưng là câu trả lời sai nghĩa. v3 thì từ chối.
+    - Đã trả lại trạng thái cũ.
+  - **Ghi chú dữ liệu:** `workflows` có 77 dòng nhưng chỉ 15 dòng chưa xoá mềm (`workflow_nodes`: 851/182). Con
+    số "77" lâu nay đếm cả dòng đã xoá. Nên đặt bộ lọc mặc định `deleted_at` rỗng trong hồ sơ bảng.
+  - **Đề xuất:** **giữ v3 làm mặc định.** Chỉ đổi sang v4 khi đã:
+    1. điền hồ sơ dữ liệu: nhãn, bộ lọc mặc định;
+    2. xử lý trường hợp v4 trả lời bằng bảng khác khi bảng cần bị ẩn;
+    3. xem lại cách nhóm theo khoá rỗng.
+
+    Nguồn `data studio` (bản trùng của `workflows_db`) nên xoá hoặc tắt.
+  - **Chưa làm:** màn xem tiến trình từng bước của v4 trên FE (tuỳ chọn).
 
 ### Không port
 - Đăng nhập/JWT/Vault của reference.

@@ -12,6 +12,7 @@ from src.data_profile import service
 from src.data_profile.glossary import COLLECTION as GLOSSARY_COLLECTION
 from src.data_profile.metrics import COLLECTION as METRICS_COLLECTION
 from src.data_profile.models import ColumnProfile, EntityProfile, RelationshipProfile
+from src.security import role as role_mod
 
 
 @dataclass
@@ -99,7 +100,8 @@ async def load_catalog(db: AsyncDatabase) -> Catalog:
     sources = {s["_id"] for s in await db["data_sources"].find(enabled, {"_id": 1}).to_list()}
     cat = Catalog()
     for e in await db["entities"].find({"is_deprecated": False}).to_list():
-        if e["data_source_id"] not in sources:
+        # ours: role user sees only the tables an admin opened to it (src/security/role.py)
+        if e["data_source_id"] not in sources or not role_mod.doc_allowed(e):
             continue
         cat.tables[e["_id"]] = Table(
             id=e["_id"],
@@ -115,6 +117,7 @@ async def load_catalog(db: AsyncDatabase) -> Catalog:
             grain_description=e.get("grain_description"),
         )
     raw = await db["entity_columns"].find({"entity_id": {"$in": list(cat.tables)}, "is_deprecated": False}).to_list()
+    raw = [doc for doc in raw if role_mod.doc_allowed(doc)]   # ours: same, per column (and never PII for user)
     for doc in service.columns_with_json(raw):
         cat.columns[doc["_id"]] = _column(doc)
 
@@ -136,8 +139,39 @@ async def load_catalog(db: AsyncDatabase) -> Catalog:
         m.get(side) in cat.metrics for side in ("numerator_metric_id", "denominator_metric_id"))}
     cat.glossary = {g["_id"]: g for g in await db[GLOSSARY_COLLECTION].find(enabled).to_list()
                     if not g.get("metric_id") or g["metric_id"] in cat.metrics}
+    if not role_mod.unrestricted():
+        _drop_unreachable(cat)
     add_row_counts(cat)
     return cat
+
+
+def _drop_unreachable(cat: Catalog) -> None:
+    """Ours: after the role filter, drop what is built on a hidden table or column — a join on a hidden key,
+    a metric or term on a hidden table/column (and so a ratio or a term on such a metric) — rather than let
+    the compiler fail on a missing id or, worse, name the hidden column.
+    A table whose always-applied filters or snapshot column use a hidden column is dropped too: the compiler
+    would skip those filters and count rows the profile says to leave out."""
+    def needs_hidden(t: Table) -> bool:
+        p = t.profile
+        used = [f.column_id for f in [*p.default_filters, *p.list_filters]] + [p.snapshot_column_id]
+        return any(c and c not in cat.columns for c in used)
+
+    for t in [t for t in cat.tables.values() if needs_hidden(t)]:
+        del cat.tables[t.id]
+        cat.columns = {k: c for k, c in cat.columns.items() if c.entity_id != t.id}
+    cat.joins = [j for j in cat.joins if j.from_entity_id in cat.tables and j.to_entity_id in cat.tables]
+    cat.joins = [j for j in cat.joins if all(a in cat.columns and b in cat.columns for a, b in j.pairs)]
+
+    def reachable(doc: dict[str, Any]) -> bool:
+        tables = [doc.get("entity_id"), *(doc.get("related_entity_ids") or [])]
+        columns = [doc.get("column_id"), doc.get("time_column_id"), *(f.get("column_id") for f in doc.get("filters") or [])]
+        return all(t in cat.tables for t in tables if t) and all(c in cat.columns for c in columns if c)
+
+    cat.metrics = {k: m for k, m in cat.metrics.items() if reachable(m)}
+    cat.metrics = {k: m for k, m in cat.metrics.items() if m.get("kind") != "ratio" or all(
+        m.get(side) in cat.metrics for side in ("numerator_metric_id", "denominator_metric_id"))}
+    cat.glossary = {k: g for k, g in cat.glossary.items()
+                    if reachable(g) and (not g.get("metric_id") or g["metric_id"] in cat.metrics)}
 
 
 BUILTIN_PREFIX = "builtin:count:"

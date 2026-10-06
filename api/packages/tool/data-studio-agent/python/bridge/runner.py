@@ -55,8 +55,10 @@ os.environ["AGNO_TELEMETRY"] = "false"
 
 from src.crud_mongo import conversation as conversation_crud
 from src.database.models.enums import MessageRole
-from src.database.mongodb import AttrDatabase, check_mongo_connection, ensure_indexes, get_mongo_db
+from src.database.mongodb import AttrDatabase, check_mongo_connection, ensure_indexes, get_async_mongo_db, get_mongo_db
 from src.pipeline_v3.orchestrator import run_pipeline_v3
+from src.pipeline_v4.answer import ask_v4
+from src.pipeline_v4.persist import chart_spec, save_answer
 from src.security import role as role_mod
 from src.services.dremio_client import DremioClient
 from src.services.embedding_client import EmbeddingClient
@@ -66,6 +68,10 @@ from src.settings import get_settings
 
 # Cap what's handed back to the model/UI; a full result can be thousands of rows.
 MAX_ROWS = 200
+
+# Which pipeline answers (docs/data-studio-update-plan.md GĐ4): v3, the default, or v4 (the reference's newer
+# one, which reads the data profile). Anything else is v3.
+PIPELINE = "v4" if os.environ.get("DATA_STUDIO_PIPELINE", "").strip().lower() == "v4" else "v3"
 
 
 def _persist_charts(db: AttrDatabase, question: str, result, charts: list[dict]) -> list[str]:
@@ -188,11 +194,78 @@ async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliS
     }
 
 
+async def _log_event(event_type: str, payload: dict) -> None:
+    """Pipeline progress to stderr (`docker logs`), one JSON line per event; streamed text left out."""
+    if event_type in ("agent_delta", "answer_delta"):
+        return
+    print(json.dumps({"event": event_type, **payload}, ensure_ascii=False, default=str), file=sys.stderr, flush=True)
+
+
+def _v4_trace(answer) -> str:
+    """A short markdown trace for the tool result: each part's question and SQL, the notes, the timings."""
+    lines = [f"**Pipeline v4** — {answer.presentation.status}"]
+    if answer.standalone and answer.standalone != answer.question:
+        lines.append(f"Question understood as: {answer.standalone}")
+    for p in answer.parts:
+        lines.append(f"\n**{p.id}.** {p.question}")
+        if p.sql:
+            lines.append(f"```sql\n{p.sql}\n```")
+        if p.error:
+            lines.append(f"Error: {p.error}")
+    for note in [*answer.notes, *answer.presentation.notes, *answer.presentation.warnings]:
+        lines.append(f"- {note}")
+    seconds = (answer.timings or {}).get("seconds")
+    if seconds is not None:
+        lines.append(f"\nTotal: {seconds} s")
+    return "\n".join(lines)
+
+
+async def handle_v4(question: str) -> dict:
+    """The same reply as `handle()`, from pipeline v4 (src/pipeline_v4/answer.py ask_v4). Stateless per question
+    like v3: fox's session log carries the conversation, so no conversation_id goes in. The answer is still saved
+    (save_answer) because that is what gives each chart a document a dashboard can pin."""
+    answer = await ask_v4(question, get_settings(), _log_event)
+    shown = answer.presentation
+    if shown.status == "clarify":
+        options = "".join(f"\n- {o}" for o in shown.options)
+        return {"ok": False, "error": f"Cần làm rõ câu hỏi: {shown.answer_markdown}{options}"}
+    if shown.status == "failed":
+        return {"ok": False, "error": shown.answer_markdown or "pipeline v4 thất bại không rõ lý do"}
+
+    _, _, chart_ids = await save_answer(get_async_mongo_db(), answer, None)
+    charts = []
+    for chart, chart_id in zip(shown.charts, chart_ids):
+        spec = chart_spec(chart)
+        charts.append({
+            "type": spec["type"], "x": spec["x"], "y": spec["y"], "value_field": spec["value_field"],
+            "title": spec["title"], "description": "", "recommended": bool(chart.get("recommended")),
+            "rows": (spec["rows"] or [])[:MAX_ROWS], "chart_id": chart_id,
+        })
+    first = next((p for p in answer.parts if p.sql and p.result is not None), None)
+    rows = list(first.result.rows) if first else []
+    return {
+        "ok": True,
+        "answer": shown.answer_markdown,
+        "sql": first.sql if first else None,
+        "columns": [c.name for c in first.result.columns] if first else [],
+        "rows": rows[:MAX_ROWS],
+        "row_count": first.result.row_count if first else 0,
+        "trace_md": _v4_trace(answer),
+        "charts": charts,
+        "chart": next((c for c in charts if c["type"] != "table"), None),
+        "chart_id": next((c["chart_id"] for c in charts if c["type"] != "table"), None),
+        "follow_up_questions": [f["question"] for f in shown.follow_ups if f.get("question")],
+        "assumptions": list(answer.notes),
+        "truncated": len(rows) > MAX_ROWS,
+    }
+
+
 async def main() -> None:
     settings = get_settings()
     if not check_mongo_connection():
         raise RuntimeError('MongoDB is unreachable — set MONGODB_URL (or MongoDBWrite) and MONGODB_DATABASE_NAME')
     ensure_indexes()
+    print(json.dumps({"event": "pipeline", "pipeline": PIPELINE}), file=sys.stderr, flush=True)
     llm = LLMClient(settings)
     emb = EmbeddingClient(settings)
     vs = MeiliStore(settings)
@@ -209,7 +282,10 @@ async def main() -> None:
         # begin_question also notes which data sources an admin switched off: their tables are out for every role.
         role_mod.begin_question(get_mongo_db(), request.get("role", role_mod.USER))
         try:
-            reply = await handle(request["question"], llm, emb, vs, dremio)
+            if PIPELINE == "v4":
+                reply = await handle_v4(request["question"])
+            else:
+                reply = await handle(request["question"], llm, emb, vs, dremio)
         except Exception as e:  # noqa: BLE001 — surface any crash to the TS side instead of dying
             # Real gap found debugging a live "[Errno 111] Connection refused"
             # with zero context: `str(e)` alone doesn't say WHICH of

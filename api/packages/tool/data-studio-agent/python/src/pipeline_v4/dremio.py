@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 
 from src.pipeline_v4.timing import timed
+from src.security import sql_gate
 from src.settings import Settings
 
 QUERY_TIMEOUT_SEC = 300   # a question's query may run up to 5 minutes before it is stopped
@@ -42,6 +43,10 @@ class AsyncDremio:
         return {"Authorization": f"_dremio{self._token}"}
 
     async def _job(self, http: httpx.AsyncClient, sql: str, timeout_sec: float) -> tuple[str, dict[str, Any]]:
+        # Ours: read-only, and no table the current role may not query (src/security/sql_gate.py)
+        refusal = sql_gate.refusal(sql)
+        if refusal:
+            raise DremioError(refusal)
         headers = await self._headers(http)
         resp = await http.post(f"{self._base}/api/v3/sql", headers=headers, json={"sql": sql})
         resp.raise_for_status()

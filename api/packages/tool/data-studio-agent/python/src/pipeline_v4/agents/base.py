@@ -68,6 +68,9 @@ COMPRESSION = Sampling(temperature=0.7, top_p=0.8, presence_penalty=0.0)  # copi
 def make_model(settings: Settings, sampling: Sampling) -> OpenAILike:
     if not settings.openai_model_id:
         raise AgentFailed("no chat model configured (OPENAI_MODEL_ID)")
+    # Ours: without a base URL the OpenAI SDK silently targets api.openai.com — never allowed here
+    if not settings.openai_base_url:
+        raise AgentFailed("OPENAI_BASE_URL is not set; refusing to fall back to api.openai.com")
     extra = {**(settings.openai_extra_body or {}), "top_k": sampling.top_k, "min_p": sampling.min_p,
              "repetition_penalty": sampling.repetition_penalty}
     return OpenAILike(
@@ -125,7 +128,7 @@ class StructuredAgent(Generic[T]):
             if isinstance(result.content, self.output_schema):
                 return result.content
             last = f"answer was {type(result.content).__name__}, not {self.output_schema.__name__}"
-            log.warning("agent %s: %s", self.name, last)
+            log.warning("agent %s: %s — got %r", self.name, last, str(result.content)[:300])  # ours: what came back
         raise AgentFailed(f"{self.name}: {last[:300]}")
 
 
