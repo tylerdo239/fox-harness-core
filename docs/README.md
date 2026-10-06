@@ -6,6 +6,7 @@ Current:
 - `core-readiness-review-2026-10-05.md` — what is ready, what is not, verified results.
 - `single-backend-architecture-plan.md` — why the orchestrator was removed; measured results (§13).
 - `schema/` — the MariaDB schema handoff.
+- `data-studio-update-plan.md` — adopting the new reference Data Studio (pipeline v4, data profile), incl. the Mongo schema changes.
 - `fe-be-split-plan.md` — the app/api split (done 2026-10-05).
 
 **Paths in older documents** (roadmap, code-rules, transfer plans, reviews written before 2026-10-05) use the

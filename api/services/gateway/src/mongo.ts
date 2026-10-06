@@ -53,9 +53,13 @@ export async function checkMongoConnection(): Promise<boolean> {
 // gateway from booting, so each failure is logged and skipped.
 export async function ensureIndexes(): Promise<void> {
   const db = getDb()
+  // Replaced 2026-10-06 by the unique {data_source_id, physical_path} below; left in place it would still refuse a
+  // table name repeated in two schemas of one source. Gone already = fine.
+  await db.collection('entities').dropIndex('data_source_id_1_physical_name_1').catch(() => {})
   const results = await Promise.allSettled([
     db.collection('data_sources').createIndex({ name: 1 }, { unique: true }),
-    db.collection('entities').createIndex({ data_source_id: 1, physical_name: 1 }, { unique: true }),
+    // physical_path, not physical_name: the sync walks nested folders, so one table name can be in two schemas
+    db.collection('entities').createIndex({ data_source_id: 1, physical_path: 1 }, { unique: true }),
     db.collection('entities').createIndex({ data_source_id: 1, is_deprecated: 1 }),
     db.collection('entities').createIndex({ is_exposed: 1, is_deprecated: 1 }),
     db.collection('entity_columns').createIndex({ entity_id: 1, physical_name: 1 }, { unique: true }),
@@ -64,6 +68,8 @@ export async function ensureIndexes(): Promise<void> {
     db.collection('relationships').createIndex({ to_entity_id: 1 }),
     db.collection('relationship_column_pairs').createIndex({ relationship_id: 1, seq: 1 }),
     db.collection('metrics').createIndex({ name: 1 }),
+    db.collection('profile_metrics').createIndex({ name: 1 }),
+    db.collection('profile_glossary').createIndex({ term: 1 }),
     db.collection('business_glossary').createIndex({ term: 1 }),
     db.collection('verified_queries').createIndex({ is_verified: 1 }),
     db.collection('conversations').createIndex({ updated_at: -1 }),
@@ -72,6 +78,7 @@ export async function ensureIndexes(): Promise<void> {
     db.collection('charts').createIndex({ query_result_id: 1 }),
     db.collection('dashboards').createIndex({ updated_at: -1 }),
     db.collection('dashboard_widgets').createIndex({ dashboard_id: 1, seq: 1 }),
+    db.collection('sql_audit').createIndex({ at: -1 }),
   ])
   for (const result of results) {
     if (result.status === 'rejected') {

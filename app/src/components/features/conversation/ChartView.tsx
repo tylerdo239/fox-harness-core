@@ -1,7 +1,8 @@
 // Renders one chart of an `analyze_data` result (docs/data-studio-agent-transfer-plan.md) — the vendored
 // Python pipeline's own shape (`pipeline_v3/orchestrator.py`'s `_build_one_chart`) plus the user's saved edits.
-// A port of examples/example-data-studio-agent's chart-view ChartBody: bar | line | area | pie | scatter | stat |
-// table, per-field label overrides, per-series color overrides, Y-axis titles. Used by the chat answer
+// A port of the reference chart-view (examples/bot-data-studio-web-main components/chat/chart-view.tsx): line | area |
+// stacked_area | bar | bar_horizontal | stacked_bar | combo | pie | donut | treemap | scatter | stat | table, per-field
+// label overrides, per-series color overrides, Y-axis titles. Used by the chat answer
 // (DataStudioAnswer.tsx) and by the dashboard report / builder (DataStudioDashboards.tsx, `chromeless`).
 import {
   Area,
@@ -10,6 +11,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Label,
   Legend,
   Line,
@@ -20,6 +22,7 @@ import {
   Scatter,
   ScatterChart,
   Tooltip,
+  Treemap,
   XAxis,
   YAxis,
   ZAxis,
@@ -47,6 +50,30 @@ export interface ChartSpec {
 
 // Colorblind-safe series palette shared by every chart (same as the reference UI).
 export const SERIES_COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444", "#14b8a6"];
+
+// Every chart type, in the order the type picker shows them.
+export const CHART_TYPES = [
+  "line", "area", "stacked_area", "bar", "bar_horizontal", "stacked_bar", "combo",
+  "pie", "donut", "treemap", "scatter", "stat", "table",
+] as const;
+
+// Types whose X / Y fields the user can re-pick ("Edit fields"); the rest are shaped by their data.
+export const EDITABLE_CHART_TYPES: readonly string[] = ["line", "area", "stacked_area", "bar", "bar_horizontal", "stacked_bar", "combo", "scatter"];
+
+function TreemapCell(props: { x?: number; y?: number; width?: number; height?: number; index?: number; name?: string; depth?: number }) {
+  const { x = 0, y = 0, width = 0, height = 0, index = 0, name = "", depth = 1 } = props;
+  if (depth === 0) return null;
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={SERIES_COLORS[index % SERIES_COLORS.length]} stroke="#fff" strokeWidth={2} />
+      {width > 60 && height > 22 && (
+        <text x={x + 6} y={y + 16} fill="#fff" fontSize={11}>
+          {name.length > width / 7 ? `${name.slice(0, Math.max(1, Math.floor(width / 7) - 1))}…` : name}
+        </text>
+      )}
+    </g>
+  );
+}
 
 export function toNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -180,18 +207,28 @@ export function ChartView({
   );
 
   let plot: React.ReactElement;
-  if (type === "pie") {
+  if (type === "pie" || type === "donut") {
     // Share of one measure across categories: x = category, y[0] = value.
     plot = (
       <PieChart>
         {tooltip}
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Pie isAnimationActive={false} data={data} dataKey={ys[0]} nameKey={x} cx="50%" cy="50%" outerRadius="70%" label={(e: { name?: string }) => e.name ?? ""}>
+        <Pie isAnimationActive={false} data={data} dataKey={ys[0]} nameKey={x} cx="50%" cy="50%" outerRadius="70%" innerRadius={type === "donut" ? "45%" : 0} label={(e: { name?: string }) => e.name ?? ""}>
           {data.map((_, i) => (
             <Cell key={i} fill={SERIES_COLORS[i % SERIES_COLORS.length]} />
           ))}
         </Pie>
       </PieChart>
+    );
+  } else if (type === "treemap") {
+    // Share of one measure as nested rectangles: x = category, y[0] = size (non-positive values left out).
+    const cells = rows
+      .map((row) => ({ name: String(row[x] ?? "—"), size: toNumber(row[ys[0]]) ?? 0 }))
+      .filter((c) => c.size > 0);
+    plot = (
+      <Treemap data={cells} dataKey="size" nameKey="name" isAnimationActive={false} content={<TreemapCell />}>
+        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [String(v), label(ys[0])]} />
+      </Treemap>
     );
   } else if (type === "scatter") {
     const points = rows
@@ -224,7 +261,8 @@ export function ChartView({
         ))}
       </LineChart>
     );
-  } else if (type === "area") {
+  } else if (type === "area" || type === "stacked_area") {
+    const stackId = type === "stacked_area" ? "s" : undefined;
     plot = (
       <AreaChart data={data} margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
@@ -233,11 +271,54 @@ export function ChartView({
         {tooltip}
         {ys.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
         {ys.map((key, i) => (
-          <Area key={key} isAnimationActive={false} dataKey={key} name={label(key)} fill={colorFor(chart, key, i)} stroke={colorFor(chart, key, i)} />
+          <Area key={key} isAnimationActive={false} type="monotone" stackId={stackId} dataKey={key} name={label(key)} fill={colorFor(chart, key, i)} stroke={colorFor(chart, key, i)} />
         ))}
       </AreaChart>
     );
+  } else if (type === "combo") {
+    // y[0] as bars on the left axis, y[1] as a line on its own right axis (different scales)
+    const [barField, lineField] = ys;
+    plot = (
+      <ComposedChart data={data} margin={{ ...margin, right: 24 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+        {xAxis}
+        <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+        {tooltip}
+        <Legend wrapperStyle={{ fontSize: 12 }} />
+        {barField && <Bar yAxisId="left" isAnimationActive={false} dataKey={barField} name={label(barField)} fill={colorFor(chart, barField, 0)} radius={[3, 3, 0, 0]} />}
+        {lineField && <Line yAxisId="right" isAnimationActive={false} type="monotone" dataKey={lineField} name={label(lineField)} stroke={colorFor(chart, lineField, 1)} strokeWidth={2} />}
+      </ComposedChart>
+    );
+  } else if (type === "bar_horizontal") {
+    // one row per group, names on the left: long names and rankings read well; tall lists scroll
+    const rowsHeight = Math.max(240, data.length * 28 + 40);
+    return (
+      <div className="chart-view" style={wrapStyle}>
+        {title}
+        <div style={{ height: fill ? "100%" : height, overflowY: "auto" }}>
+          <div style={{ height: rowsHeight }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} layout="vertical" margin={{ top: 8, right: 24, bottom: 24, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                <XAxis type="number" tick={{ fontSize: 11 }}>
+                  {yTitle && <Label value={yTitle} position="insideBottom" offset={-14} style={AXIS_LABEL} />}
+                </XAxis>
+                <YAxis type="category" dataKey={x} width={140} tick={{ fontSize: 11 }} interval={0} />
+                {tooltip}
+                {ys.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
+                {ys.map((key, i) => (
+                  <Bar key={key} isAnimationActive={false} dataKey={key} name={label(key)} fill={colorFor(chart, key, i)} radius={[0, 3, 3, 0]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    );
   } else {
+    // bar and stacked_bar
+    const stackId = type === "stacked_bar" ? "s" : undefined;
     plot = (
       <BarChart data={data} margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
@@ -246,7 +327,7 @@ export function ChartView({
         {tooltip}
         {ys.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
         {ys.map((key, i) => (
-          <Bar key={key} isAnimationActive={false} dataKey={key} name={label(key)} fill={colorFor(chart, key, i)} radius={[3, 3, 0, 0]} />
+          <Bar key={key} isAnimationActive={false} stackId={stackId} dataKey={key} name={label(key)} fill={colorFor(chart, key, i)} radius={stackId ? undefined : [3, 3, 0, 0]} />
         ))}
       </BarChart>
     );

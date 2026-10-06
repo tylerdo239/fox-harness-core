@@ -78,7 +78,7 @@ class MeiliStore:
     def delete(self, collection_name: str, ids: list[str]) -> None:
         if not ids:
             return
-        self._client.post(f"/indexes/{collection_name}/documents/delete", json={"filter": None})  # noqa: E501
+        self._client.post(f"/indexes/{collection_name}/documents/delete-batch", json=ids)
 
     def clear(self, collection_name: str) -> None:
         """Drop all documents in the index (used before a full reindex)."""

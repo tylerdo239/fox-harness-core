@@ -2954,6 +2954,45 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+/* data profile tab bar (DataStudioProfile.tsx) — plain text tabs, not the app's filled buttons */
+button.fh-data-studio-tab {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  height: 30px;
+}
+
+button.fh-data-studio-tab:hover {
+  color: var(--fg);
+  background: var(--surface);
+}
+
+button.fh-data-studio-tab-active {
+  color: var(--fg);
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.fh-data-studio-sql-editor {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.fh-data-studio-note {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
 .fh-data-studio-relationship-arrow {
   color: var(--muted);
 }

@@ -11,6 +11,7 @@ import re
 from src.crud_mongo import entity as entity_crud
 from src.crud_mongo import entity_column as entity_column_crud
 from src.database.mongodb import AttrDatabase
+from src.services.sql_safety import check_read_only_sql, find_write_violation
 from src.security import role as role_mod
 
 DEFAULT_LIMIT = 1000
@@ -113,6 +114,14 @@ def validate_sql(
     if isinstance(sql, exp.Select):
         tree = sql
     else:
+        # parse_one silently keeps only the first of several statements, so reject
+        # multi-statement input (e.g. 'SELECT 1; DROP TABLE x') before parsing it (reference sql_safety)
+        read_only_error = check_read_only_sql(sql)
+        if read_only_error:
+            return ValidationResult(
+                is_valid=False,
+                errors=[ValidationError(ValidationErrorType.NOT_SELECT_ONLY, read_only_error)],
+            )
         try:
             tree = sqlglot.parse_one(sql)
         except ParseError as e:
@@ -130,6 +139,14 @@ def validate_sql(
                     f"Only SELECT statements are allowed, got {type(tree).__name__}",
                 )
             ],
+        )
+
+    # A SELECT can still carry a write (SELECT ... INTO, a DML subquery, a raw fragment): refuse those too.
+    write_violation = find_write_violation(tree)
+    if write_violation:
+        return ValidationResult(
+            is_valid=False,
+            errors=[ValidationError(ValidationErrorType.NOT_SELECT_ONLY, write_violation)],
         )
 
     role = role_mod.current()

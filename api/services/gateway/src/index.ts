@@ -77,6 +77,8 @@ import {
   updateChart,
   updateDashboard,
   updateDataSource,
+  logSqlRun,
+  listSqlRuns,
   updateEntity,
   updateEntityColumn,
   updateGlossaryTerm,
@@ -85,7 +87,7 @@ import {
   type MetricInput,
   type RelationshipInput,
 } from './data-studio-db.ts'
-import { runAdminBridge } from './data-studio-bridge.ts'
+import { callAdmin, runAdminBridge, stopAdminWorker } from './data-studio-bridge.ts'
 import { isLive, liveCount, track as trackConnection, checkQuota } from './runtime/live.ts'
 import { ensurePlacement, isUuid, placementFor, projectDirFor } from './runtime/paths.ts'
 import { deleteProjectData, purgeSessionData, workspaceDirForSession } from './runtime/sessions.ts'
@@ -163,6 +165,11 @@ const DATA_STUDIO_METRICS_PATH = /^\/data-studio\/metrics$/
 const DATA_STUDIO_METRIC_PATH = /^\/data-studio\/metrics\/([^/]+)$/
 const DATA_STUDIO_DREMIO_BROWSE_PATH = /^\/data-studio\/dremio\/browse$/
 const DATA_STUDIO_DREMIO_SYNC_PATH = /^\/data-studio\/dremio\/sync$/
+const DATA_STUDIO_DREMIO_DATASETS_PATH = /^\/data-studio\/dremio\/sources\/([^/]+)\/datasets$/
+const DATA_STUDIO_SQL_PATH = /^\/data-studio\/sql$/
+// the reference's data profile (/data-profile/*), served by bridge/admin_runner.py's `data_profile` op
+const DATA_STUDIO_PROFILE_PATH = /^\/data-studio\/profile(\/.*)$/
+const DATA_STUDIO_SQL_HISTORY_PATH = /^\/data-studio\/sql\/history$/
 const DATA_STUDIO_DASHBOARDS_PATH = /^\/data-studio\/dashboards$/
 const DATA_STUDIO_DASHBOARD_PATH = /^\/data-studio\/dashboards\/([^/]+)$/
 const DATA_STUDIO_DASHBOARD_WIDGETS_PATH = /^\/data-studio\/dashboards\/([^/]+)\/widgets$/
@@ -831,7 +838,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     return
   }
 
-  const sourceMatch = req.method === 'GET' || req.method === 'PATCH' ? DATA_STUDIO_SOURCE_PATH.exec(url.pathname) : null
+  const sourceMatch = req.method === 'GET' || req.method === 'PATCH' || req.method === 'DELETE' ? DATA_STUDIO_SOURCE_PATH.exec(url.pathname) : null
   if (sourceMatch) {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)
@@ -840,6 +847,15 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       if (req.method === 'GET') {
         const source = await getDataSource(sourceId)
         return source ? sendJson(res, 200, source) : sendJson(res, 404, { error: 'data source not found' })
+      }
+      if (req.method === 'DELETE') {
+        // Soft delete (reference data_source_deletion.py): its tables and columns are deprecated and leave the
+        // search index; a later import of the same source restores it.
+        const reply = await callAdmin({ op: 'delete_source', source_id: sourceId })
+        log('data_studio_source_deleted', { sourceId, userId: identity.userId, ok: reply.ok })
+        if (!reply.ok) return sendJson(res, reply.status ?? 502, { error: reply.error })
+        res.writeHead(204)
+        return res.end()
       }
       let body: Record<string, unknown>
       try {
@@ -1078,18 +1094,22 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      let body: { source_names?: unknown }
+      let body: { source_names?: unknown; datasets?: unknown }
       try {
         body = JSON.parse(await readBody(req))
       } catch {
         return sendJson(res, 400, { error: 'invalid JSON body' })
       }
       const sourceNames = Array.isArray(body.source_names) ? body.source_names : null
+      // datasets: full Dremio paths picked one by one (GET .../datasets); when given, only these are imported
+      const datasets = Array.isArray(body.datasets)
+        ? body.datasets.filter((p): p is string[] => Array.isArray(p) && p.length > 0 && p.every((x) => typeof x === 'string'))
+        : null
       try {
         // Sync walks Dremio's real catalog tree, so it legitimately takes
         // longer than the browse call above — same generous ceiling
         // packages/tool/data-studio-agent gives the chat-side pipeline.
-        const reply = await runAdminBridge({ op: 'sync', source_names: sourceNames }, 240_000)
+        const reply = await runAdminBridge({ op: 'sync', source_names: sourceNames, datasets }, 240_000)
         return reply.ok
           ? sendJson(res, 200, { summary: reply.summary, reindexSummary: reply.reindex_summary })
           : sendJson(res, 502, { error: reply.error })
@@ -1097,6 +1117,107 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         log('data_studio_dremio_sync_failed', { error: String(error) })
         return sendJson(res, 502, { error: 'failed to reach the Dremio bridge' })
       }
+    })
+    return
+  }
+
+  const datasetsMatch = req.method === 'GET' ? DATA_STUDIO_DREMIO_DATASETS_PATH.exec(url.pathname) : null
+  if (datasetsMatch) {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const reply = await callAdmin({ op: 'datasets', source_name: decodeURIComponent(datasetsMatch[1]) }, 120_000)
+      return reply.ok ? sendJson(res, 200, { datasets: reply.datasets }) : sendJson(res, reply.status ?? 502, { error: reply.error })
+    })
+    return
+  }
+
+  // SQL console (admin only, like every /data-studio/* write): read-only SQL on Dremio, every run audited.
+  // It bypasses the per-table allow-user rules by design, which is why only admins reach it (needsAdmin).
+  const profileMatch = url.pathname.match(DATA_STUDIO_PROFILE_PATH)
+  if (profileMatch && ['GET', 'POST', 'PUT', 'DELETE'].includes(req.method ?? '')) {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      let body: unknown
+      if (req.method === 'POST' || req.method === 'PUT') {
+        const raw = await readBody(req)
+        if (raw.length > 20_000_000) return sendJson(res, 413, { error: 'body too large' })
+        try {
+          body = raw ? JSON.parse(raw) : undefined
+        } catch {
+          return sendJson(res, 400, { error: 'invalid JSON body' })
+        }
+      }
+      const query: Record<string, string> = {}
+      for (const [key, value] of url.searchParams) if (key !== 'token') query[key] = value
+      const path = profileMatch[1]
+      // Reindex, import (reindexes what it changed), AI suggestions and Run can take minutes: those get a process
+      // of their own, so they never queue the quick reads and saves behind them on the shared worker.
+      const slow = /\/(reindex|import|suggest-[a-z]+|run)$/.test(path)
+      const user = await getUserById(identity.userId)
+      type ProfileReply = {
+        ok: boolean; status?: number; error?: string; json?: unknown
+        body_b64?: string; content_type?: string; content_disposition?: string | null
+      }
+      const request = { op: 'data_profile', method: req.method, path, query, body, user: user?.email ?? `user-${identity.userId}` }
+      const reply: ProfileReply = await (slow ? runAdminBridge(request, 600_000) : callAdmin(request, 60_000)).catch((error: unknown): ProfileReply => ({ ok: false, status: 502, error: String(error) }))
+      if (!reply.ok) return sendJson(res, reply.status ?? 502, { error: reply.error })
+      if (req.method !== 'GET') log('data_profile_write', { userId: identity.userId, method: req.method, path, status: reply.status })
+      if (reply.body_b64 !== undefined) {
+        const headers: Record<string, string> = { 'content-type': reply.content_type || 'application/octet-stream' }
+        if (reply.content_disposition) headers['content-disposition'] = reply.content_disposition
+        res.writeHead(reply.status ?? 200, headers)
+        return res.end(Buffer.from(reply.body_b64, 'base64'))
+      }
+      if (reply.status === 204) {
+        res.writeHead(204)
+        return res.end()
+      }
+      return sendJson(res, reply.status ?? 200, reply.json ?? null)
+    })
+    return
+  }
+
+  if (req.method === 'POST' && DATA_STUDIO_SQL_PATH.test(url.pathname)) {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      let body: { sql?: unknown; limit?: unknown }
+      try {
+        body = JSON.parse(await readBody(req))
+      } catch {
+        return sendJson(res, 400, { error: 'invalid JSON body' })
+      }
+      const sql = typeof body.sql === 'string' ? body.sql.trim() : ''
+      if (!sql || sql.length > 20_000) return sendJson(res, 400, { error: 'sql is required (at most 20,000 characters)' })
+      const limit = Math.min(500, Math.max(1, Number(body.limit) || 100))
+      const user = await getUserById(identity.userId)
+      type SqlReply = { ok: boolean; status?: number; error?: string; columns?: unknown; rows?: unknown; row_count?: number; elapsed_ms?: number }
+      const reply: SqlReply = await callAdmin({ op: 'sql', sql, limit }, 90_000).catch(
+        (error: unknown): SqlReply => ({ ok: false, status: 502, error: String(error) }),
+      )
+      await logSqlRun({
+        user_id: identity.userId,
+        email: user?.email ?? '',
+        sql,
+        ok: reply.ok,
+        row_count: reply.ok ? (reply.row_count ?? null) : null,
+        elapsed_ms: reply.ok ? (reply.elapsed_ms ?? null) : null,
+        error: reply.ok ? null : (reply.error ?? 'failed'),
+      })
+      log('sql_console', { userId: identity.userId, ok: reply.ok, chars: sql.length })
+      if (!reply.ok) return sendJson(res, reply.status ?? 502, { error: reply.error })
+      return sendJson(res, 200, { columns: reply.columns, rows: reply.rows, row_count: reply.row_count, elapsed_ms: reply.elapsed_ms })
+    })
+    return
+  }
+
+  if (req.method === 'GET' && DATA_STUDIO_SQL_HISTORY_PATH.test(url.pathname)) {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      return sendJson(res, 200, { runs: await listSqlRuns(Number(url.searchParams.get('limit')) || 50) })
     })
     return
   }
@@ -1548,6 +1669,7 @@ async function shutdown(signal: string): Promise<void> {
   // Stop taking connections, let the runtimes flush every session log (they do it on idle and on SIGTERM), exit.
   server.close()
   for (const client of wss.clients) client.close(1001, 'server shutting down')
+  stopAdminWorker()
   await runtime.stop()
   process.exit(0)
 }

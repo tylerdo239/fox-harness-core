@@ -31,6 +31,8 @@ const FORWARDED_ENV = [
   'EMBEDDING_API_KEY', 'EMBEDDING_BASE_URL', 'EMBEDDING_MODEL_ID',
   'DREMIO_URL', 'DREMIO_USERNAME', 'DREMIO_PASSWORD',
   'MEILISEARCH_URL', 'MEILISEARCH_MASTER_KEY', 'MEILISEARCH_SEMANTIC_RATIO',
+  // which pipeline answers: v3 (default) or v4 (python/bridge/runner.py)
+  'DATA_STUDIO_PIPELINE',
   // MongoDB holding the shared semantic layer + chat history (docs/data-studio-mongodb-plan.md) —
   // forwarded to the runtime by services/gateway (config.ts runtimeEnvPassthrough).
   'MONGODB_URL', 'MongoDBWrite', 'MONGODB_DATABASE_NAME',

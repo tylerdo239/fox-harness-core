@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     dremio_url: str = "http://localhost:9047"
     dremio_username: str = "admin"
     dremio_password: str = "admin123"
+    # The corporate HTTP(S)_PROXY env vars are ignored for Dremio unless this is on (reference 2026-10).
+    dremio_use_env_proxy: bool = False
+    # top-level Dremio containers offered for sync: SOURCE (databases), SPACE (views)
+    dremio_sync_container_types: list[str] = ["SOURCE", "SPACE"]
 
     openai_api_key: str | None = None
     openai_base_url: str | None = None

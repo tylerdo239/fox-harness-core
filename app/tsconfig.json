@@ -5,7 +5,8 @@
     "moduleResolution": "Bundler",
     "lib": [
       "ES2022",
-      "DOM"
+      "DOM",
+      "DOM.Iterable"
     ],
     "types": [],
     "jsx": "react-jsx",
@@ -14,7 +15,16 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/ref/*"
+      ],
+      "next/link": [
+        "./src/ref/shims/link.tsx"
+      ]
+    }
   },
   "include": [
     "src"

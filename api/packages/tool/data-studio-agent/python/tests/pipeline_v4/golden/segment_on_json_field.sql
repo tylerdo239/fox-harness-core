@@ -1,0 +1,1 @@
+SELECT "t1"."region" AS "region", COUNT(*) AS "order_count" FROM "sales"."orders" AS "t0" LEFT JOIN "sales"."branches" AS "t1" ON "t0"."branch_id" = "t1"."branch_id" WHERE ("t0"."status" = 'DONE') AND ((TRY_CONVERT_FROM("t0"."config" AS ROW("is_online" BOOLEAN)))."is_online" = TRUE) GROUP BY "t1"."region" ORDER BY "order_count" DESC LIMIT 1000

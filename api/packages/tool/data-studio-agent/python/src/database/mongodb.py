@@ -6,10 +6,12 @@ Uses PyMongo's synchronous client to match the sync call signatures used
 throughout src/apis/routes/*.py.
 """
 
+import asyncio
 import logging
 from typing import Any, Iterator
 
-from pymongo import MongoClient
+from pymongo import AsyncMongoClient, MongoClient
+from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.collection import Collection
 from pymongo.cursor import Cursor
 from pymongo.database import Database
@@ -139,6 +141,20 @@ def get_mongo_db() -> AttrDatabase:
     return AttrDatabase(mongo_client.get_default_database(settings.mongodb_database_name))
 
 
+# Async client for pipeline v4. A client belongs to the event loop it first runs on, so keep one
+# per loop (the server has one loop; scripts and tests may start several with asyncio.run).
+_async_clients: dict[int, AsyncMongoClient] = {}
+
+
+def get_async_mongo_db() -> AsyncDatabase:
+    """Async database handle (plain dict documents) for the running event loop."""
+    loop_id = id(asyncio.get_running_loop())
+    client = _async_clients.get(loop_id)
+    if client is None:
+        client = _async_clients[loop_id] = AsyncMongoClient(settings.mongodb_url)
+    return client.get_default_database(settings.mongodb_database_name)
+
+
 def get_mongo_db_dependency() -> Iterator[AttrDatabase]:
     """FastAPI dependency version of get_mongo_db — see src/apis/deps.py MongoDep."""
     yield get_mongo_db()
@@ -162,7 +178,9 @@ def ensure_indexes(db: AttrDatabase | None = None) -> None:
     db = db or get_mongo_db()
     specs: list[tuple[str, list[tuple[str, int]], dict]] = [
         ("data_sources", [("name", 1)], {"unique": True}),
-        ("entities", [("data_source_id", 1), ("physical_name", 1)], {"unique": True}),
+        # physical_path, not physical_name: the sync walks nested folders, so one table name can appear in
+        # two schemas of the same source (reference 2026-10).
+        ("entities", [("data_source_id", 1), ("physical_path", 1)], {"unique": True}),
         ("entities", [("data_source_id", 1), ("is_deprecated", 1)], {}),
         ("entities", [("is_exposed", 1), ("is_deprecated", 1)], {}),
         ("entity_columns", [("entity_id", 1), ("physical_name", 1)], {"unique": True}),
@@ -171,6 +189,8 @@ def ensure_indexes(db: AttrDatabase | None = None) -> None:
         ("relationships", [("to_entity_id", 1)], {}),
         ("relationship_column_pairs", [("relationship_id", 1), ("seq", 1)], {}),
         ("metrics", [("name", 1)], {}),
+        ("profile_metrics", [("name", 1)], {}),
+        ("profile_glossary", [("term", 1)], {}),
         ("business_glossary", [("term", 1)], {}),
         ("verified_queries", [("is_verified", 1)], {}),
         ("conversations", [("updated_at", -1)], {}),
@@ -179,7 +199,14 @@ def ensure_indexes(db: AttrDatabase | None = None) -> None:
         ("charts", [("query_result_id", 1)], {}),
         ("dashboards", [("updated_at", -1)], {}),
         ("dashboard_widgets", [("dashboard_id", 1), ("seq", 1)], {}),
+        ("sql_audit", [("at", -1)], {}),
     ]
+    # Replaced 2026-10-06 by the unique (data_source_id, physical_path) above; left in place it would still refuse a
+    # table name repeated in two schemas of one source. Already gone = fine. Same in services/gateway/src/mongo.ts.
+    try:
+        db["entities"].drop_index("data_source_id_1_physical_name_1")
+    except Exception:  # noqa: BLE001
+        pass
     for collection, keys, options in specs:
         try:
             db[collection].create_index(keys, **options)

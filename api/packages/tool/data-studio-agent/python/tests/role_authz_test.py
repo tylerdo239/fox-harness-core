@@ -118,6 +118,29 @@ try:
     result = validate_sql(db, tree, ALL)
     check("refuses: raw expression fragment naming a forbidden column", not result.is_valid, "accepted")
 
+    print("--- a data source switched off for the agents (disabled_at), while answering a question")
+    raw.data_sources.insert_one({"_id": "ds_off", "name": "off", "disabled_at": "2026-10-06"})
+    entity("off_tbl", "archived_orders", ["admin", "user"])
+    raw.entities.update_one({"_id": "off_tbl"}, {"$set": {"data_source_id": "ds_off"}})
+    column("off_amount", "off_tbl", "amount", ["admin", "user"])
+    role.begin_question(raw, "admin")
+    check("admin answering: a table of a switched-off source is out", entity_crud.get_by_id(db, "off_tbl") is None)
+    check("admin answering: its columns are out too", column_crud.get_by_id(db, "off_amount") is None)
+    check("admin answering: other tables unchanged", entity_crud.get_by_id(db, "secret") is not None)
+    ok, why = sql_ok("SELECT o.amount FROM cat.db.archived_orders AS o", ALL + ["off_tbl"])
+    check("admin answering: SQL on it is refused", not ok, why or "accepted")
+    role.begin_question(raw, "user")
+    check("user answering: still out", entity_crud.get_by_id(db, "off_tbl") is None)
+    role.begin_question(raw, "admin")
+    raw.data_sources.update_one({"_id": "ds_off"}, {"$set": {"disabled_at": None}})
+    role.begin_question(raw, "admin")
+    check("switched back on: visible again", entity_crud.get_by_id(db, "off_tbl") is not None)
+    raw.data_sources.update_one({"_id": "ds_off"}, {"$set": {"disabled_at": "2026-10-06"}})
+    role._hidden_sources.set(frozenset())  # outside a question (admin jobs): everything stays visible
+    with role.as_role("admin"):
+        check("admin job (not answering): sees the switched-off table", entity_crud.get_by_id(db, "off_tbl") is not None)
+    role.set_role("user")
+
     print("--- validate_sql, role admin (behaviour unchanged)")
     with role.as_role("admin"):
         for label, sql, want in [

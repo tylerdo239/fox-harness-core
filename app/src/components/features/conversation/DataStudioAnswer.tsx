@@ -28,7 +28,7 @@ import { useRuntime } from "../../../runtime.ts";
 import { Button } from "../../primitives/Button.tsx";
 import { dsApi, type ChartUpdate } from "../data-studio/dsApi.ts";
 import { AddToDashboardDialog, EditColorsDialog, EditFieldsDialog } from "./ChartDialogs.tsx";
-import { ChartView, resolveChart, type ChartSpec } from "./ChartView.tsx";
+import { ChartView, EDITABLE_CHART_TYPES, resolveChart, type ChartSpec } from "./ChartView.tsx";
 import { Markdown } from "./Markdown.tsx";
 
 type T = (key: TranslationKey, params?: Record<string, string>) => string;
@@ -69,9 +69,15 @@ export function PinToDashboardButton({ chartId, t }: { chartId: string; t: T }) 
 
 const CHART_ICON: Record<string, typeof ChartBarIcon> = {
   bar: ChartBarIcon,
+  bar_horizontal: ChartBarIcon,
+  stacked_bar: ChartBarIcon,
+  combo: ChartBarIcon,
   line: ChartLineIcon,
   area: ChartLineIcon,
+  stacked_area: ChartLineIcon,
   pie: ChartPieIcon,
+  donut: ChartPieIcon,
+  treemap: ChartPieIcon,
   scatter: ChartScatterIcon,
   table: TableIcon,
   stat: TableIcon,
@@ -82,8 +88,20 @@ function chartLabel(type: string | undefined, t: T): string {
     case "line":
     case "area":
       return t("conversation.dsChartLine");
+    case "stacked_area":
+      return t("conversation.dsChartStackedArea");
+    case "bar_horizontal":
+      return t("conversation.dsChartBarHorizontal");
+    case "stacked_bar":
+      return t("conversation.dsChartStackedBar");
+    case "combo":
+      return t("conversation.dsChartCombo");
     case "pie":
       return t("conversation.dsChartPie");
+    case "donut":
+      return t("conversation.dsChartDonut");
+    case "treemap":
+      return t("conversation.dsChartTreemap");
     case "scatter":
       return t("conversation.dsChartScatter");
     case "table":
@@ -190,7 +208,7 @@ export function DataStudioAnswer({
   const current = Math.min(active, Math.max(viewCount - 1, 0));
   const activeChart = current < specs.length ? specs[current] : undefined;
   const activeResolved = activeChart ? resolveChart(activeChart) : undefined;
-  const editableFields = activeResolved && ["line", "bar", "area", "scatter"].includes((activeResolved.type ?? "").toLowerCase());
+  const editableFields = activeResolved && EDITABLE_CHART_TYPES.includes((activeResolved.type ?? "").toLowerCase());
   const colorFields = activeResolved && (activeResolved.type ?? "").toLowerCase() !== "table" ? (activeResolved.y ?? []) : [];
 
   function updateActive(patch: Partial<ChartSpec>, persisted: ChartUpdate): void {

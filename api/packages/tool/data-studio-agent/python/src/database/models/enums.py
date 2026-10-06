@@ -21,6 +21,7 @@ class SemanticType(StrEnum):
     ID = "id"
     PERCENT = "percent"
     COUNT = "count"
+    NUMBER = "number"  # numeric setting or position: compare/sort, never summed
     TEXT = "text"
     PII = "pii"
     BOOLEAN = "boolean"

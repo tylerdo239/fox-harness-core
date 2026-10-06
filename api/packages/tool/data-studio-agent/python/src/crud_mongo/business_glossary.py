@@ -8,7 +8,7 @@ COLLECTION = "business_glossary"
 def _visible(db: AttrDatabase, docs: list) -> list:
     """A term is visible to a non-admin only if every table it relates to is (its SQL fragments name them)."""
     docs = [d for d in docs if d is not None]
-    if role.is_admin() or not docs:
+    if role.unrestricted() or not docs:
         return docs
     entities = role.visible_entity_ids(db) or set()
     return [d for d in docs if all(e in entities for e in (d.get("related_entity_ids") or []))]

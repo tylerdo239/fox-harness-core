@@ -7,7 +7,7 @@ COLLECTION = "entities"
 
 def _q(query: dict) -> dict:
     """Every read is scoped to what the current role may see (src/security/role.py); admin: unchanged."""
-    return {**query, **role.catalog_filter()}
+    return {**query, **role.entity_filter()}
 
 
 def get_by_id(db: AttrDatabase, entity_id: str) -> AttrDict | None:
@@ -51,6 +51,16 @@ def list_by_ids(db: AttrDatabase, entity_ids: list[str]) -> list[AttrDict]:
 
 def get_by_physical_name(db: AttrDatabase, data_source_id: str, physical_name: str) -> AttrDict | None:
     return db[COLLECTION].find_one(_q({"data_source_id": data_source_id, "physical_name": physical_name}))
+
+
+def get_by_physical_path(db: AttrDatabase, data_source_id: str, physical_path: str) -> AttrDict | None:
+    return db[COLLECTION].find_one(_q({"data_source_id": data_source_id, "physical_path": physical_path}))
+
+
+def list_physical_paths_by_data_source(db: AttrDatabase, data_source_id: str) -> set[str]:
+    """physical_path of every non-deprecated entity in the source."""
+    cursor = db[COLLECTION].find(_q({"data_source_id": data_source_id, "is_deprecated": False}), {"physical_path": 1})
+    return {doc["physical_path"] for doc in cursor}
 
 
 def create(

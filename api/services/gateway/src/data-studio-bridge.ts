@@ -44,6 +44,8 @@ const FORWARDED_ENV = [
 export interface AdminBridgeReply {
   ok: boolean
   error?: string
+  /** HTTP status the gateway should answer with when ok is false (400 bad input, 404 unknown id, 502 Dremio down). */
+  status?: number
   sources?: { name: string; type: string }[]
   summary?: Record<string, number>
   // Only present on `op: "sync"` — admin_runner.py always reindexes right
@@ -103,4 +105,98 @@ export function runAdminBridge(request: Record<string, unknown>, timeoutMs = 60_
     child.stdin.write(JSON.stringify(request) + '\n')
     child.stdin.end()
   })
+}
+
+
+// ---- the long-lived admin worker (quick calls) -------------------------------------------------------------
+// One-shot processes (runAdminBridge above) are right for minutes-long jobs; for quick calls — the data-profile
+// editor, the SQL console, dataset pickers — starting Python each time costs ~1.4 s (measured). This keeps one
+// admin_runner.py alive and talks JSON lines with it, matching replies by `id`. It answers in order; a call that
+// times out means the worker is stuck, so it is killed (every pending call fails) and the next call starts a
+// fresh one.
+
+interface Pending {
+  resolve: (reply: AdminBridgeReply & Record<string, unknown>) => void
+  reject: (error: Error) => void
+  timer: NodeJS.Timeout
+}
+
+let worker: ReturnType<typeof spawn> | undefined
+const pending = new Map<number, Pending>()
+let nextId = 1
+
+function adminEnv(): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const key of FORWARDED_ENV) {
+    const value = process.env[key]
+    if (value !== undefined) env[key] = value
+  }
+  env.MONGODB_URL = config.mongodbUrl
+  env.MONGODB_DATABASE_NAME = config.mongodbDatabaseName
+  return env
+}
+
+function failAll(error: Error): void {
+  for (const [id, call] of pending) {
+    clearTimeout(call.timer)
+    call.reject(error)
+    pending.delete(id)
+  }
+}
+
+function startWorker(): ReturnType<typeof spawn> {
+  const child = spawn(PYTHON, ['-u', RUNNER], { cwd: SERVICE_DIR, env: adminEnv() })
+  let stderrTail = ''
+  child.stderr!.on('data', (chunk: Buffer) => {
+    stderrTail = (stderrTail + chunk.toString()).slice(-2000)
+  })
+  createInterface({ input: child.stdout! }).on('line', (line) => {
+    let reply: AdminBridgeReply & { id?: number } & Record<string, unknown>
+    try {
+      reply = JSON.parse(line)
+    } catch {
+      return // a library printing to stdout: not a reply
+    }
+    const call = reply.id === undefined ? undefined : pending.get(reply.id)
+    if (!call) return
+    pending.delete(reply.id!)
+    clearTimeout(call.timer)
+    call.resolve(reply)
+  })
+  child.on('exit', (code) => {
+    if (worker === child) worker = undefined
+    failAll(new Error(`admin worker exited (code ${code}).\n${stderrTail}`.trim()))
+  })
+  child.on('error', (error) => {
+    if (worker === child) worker = undefined
+    failAll(error)
+  })
+  return child
+}
+
+/** One quick admin call on the long-lived worker. `id` is the reply correlation key, set here — a request field
+ *  named `id` would be overwritten, so ops name theirs (`source_id`, …). */
+export function callAdmin<T extends Record<string, unknown> = Record<string, unknown>>(
+  request: Record<string, unknown> & { id?: never },
+  timeoutMs = 60_000,
+): Promise<AdminBridgeReply & T> {
+  worker ??= startWorker()
+  const child = worker
+  const id = nextId++
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(id)
+      reject(new Error(`admin worker did not answer within ${timeoutMs / 1000}s`))
+      if (worker === child) worker = undefined
+      child.kill('SIGKILL') // stuck: the next call starts a fresh one
+    }, timeoutMs)
+    pending.set(id, { resolve: resolve as Pending['resolve'], reject, timer })
+    child.stdin!.write(JSON.stringify({ ...request, id }) + '\n')
+  })
+}
+
+/** Stop the worker (gateway shutdown). */
+export function stopAdminWorker(): void {
+  worker?.kill('SIGTERM')
+  worker = undefined
 }

@@ -354,6 +354,13 @@ const tests = {
       ['POST', '/data-studio/glossary', {}], ['GET', '/data-studio/metrics'], ['GET', '/data-studio/relationships'],
       ['POST', '/data-studio/dremio/sync', {}], ['POST', '/data-studio/dremio/browse', {}], ['PATCH', '/data-studio/entities/x', { allow_user: true }],
       ['PATCH', '/data-studio/charts/x', {}], ['POST', '/data-studio/dashboards', { title: 't' }], ['GET', '/data-studio/dashboards/meta/available-charts'],
+      // Data Studio v4 phase 2: delete source, per-dataset import, the SQL console and its audit log
+      ['DELETE', '/data-studio/sources/x'], ['GET', '/data-studio/dremio/sources/x/datasets'],
+      ['POST', '/data-studio/dremio/sync', { datasets: [['x', 'y']] }],
+      ['POST', '/data-studio/sql', { sql: 'SELECT 1' }], ['GET', '/data-studio/sql/history'],
+      // phase 3: the data profile (reference routes in the Python admin worker)
+      ['GET', '/data-studio/profile/metrics'], ['PUT', '/data-studio/profile/entities/x', {}],
+      ['GET', '/data-studio/profile/data-sources/x/export.docx'], ['POST', '/data-studio/profile/metrics/run', { draft: {} }],
     ]) await expect(`${method} ${path}, as user`, a.token, method, path, body, 403)
     const dashUser = await api('GET', '/data-studio/dashboards', a.token)
     rows.push(['GET dashboards, as user (read-only allowed)', dashUser.status === 403 ? 403 : 'not 403', 'not 403'])

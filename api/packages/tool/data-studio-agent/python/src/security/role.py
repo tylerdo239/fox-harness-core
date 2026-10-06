@@ -28,6 +28,10 @@ USER = "user"
 ROLES = (ADMIN, USER)
 
 _current: ContextVar[str] = ContextVar("fox_data_role", default=USER)
+# Data sources an admin switched off for the agents (disabled_at) or deleted (deleted_at): while ANSWERING a
+# question their tables are out of the catalog for every role. Empty outside a question, so admin jobs (sync,
+# profiling, the profile editor) still see everything. Set once per question by begin_question().
+_hidden_sources: ContextVar[frozenset[str]] = ContextVar("fox_hidden_sources", default=frozenset())
 
 
 def current() -> str:
@@ -36,6 +40,23 @@ def current() -> str:
 
 def is_admin() -> bool:
     return _current.get() == ADMIN
+
+
+def begin_question(db: Any, role: str) -> None:
+    """Start answering one question (bridge/runner.py): the caller's role, and which data sources are off."""
+    set_role(role)
+    hidden = {d["_id"] for d in db["data_sources"].find(
+        {"$or": [{"disabled_at": {"$ne": None}}, {"deleted_at": {"$ne": None}}]}, {"_id": 1})}
+    _hidden_sources.set(frozenset(hidden))
+
+
+def hidden_sources() -> frozenset[str]:
+    return _hidden_sources.get()
+
+
+def unrestricted() -> bool:
+    """Nothing to filter at all: an admin, and no data source switched off for this question."""
+    return is_admin() and not _hidden_sources.get()
 
 
 def set_role(role: str) -> None:
@@ -61,9 +82,17 @@ def catalog_filter() -> dict[str, Any]:
     return {"allowed_roles": USER, "is_pii": {"$ne": True}}
 
 
+def entity_filter() -> dict[str, Any]:
+    """Mongo filter fragment for ENTITIES: the role filter, plus tables of switched-off sources while answering."""
+    hidden = _hidden_sources.get()
+    return {**catalog_filter(), **({"data_source_id": {"$nin": sorted(hidden)}} if hidden else {})}
+
+
 def doc_allowed(doc: dict[str, Any] | None, role: str | None = None) -> bool:
     """Whether one entity/column document is visible to `role` (default: the current role)."""
     if doc is None:
+        return False
+    if doc.get("data_source_id") in _hidden_sources.get():  # an entity of a switched-off source
         return False
     if (role or _current.get()) == ADMIN:
         return True
@@ -71,15 +100,15 @@ def doc_allowed(doc: dict[str, Any] | None, role: str | None = None) -> bool:
 
 
 def visible_entity_ids(db: Any) -> set[str] | None:
-    """Ids of entities the current role may see; None means "no restriction" (admin)."""
-    if is_admin():
+    """Ids of entities the current role may see; None means "no restriction" (admin, no source switched off)."""
+    if unrestricted():
         return None
-    return {e["_id"] for e in db["entities"].find(catalog_filter(), {"_id": 1})}
+    return {e["_id"] for e in db["entities"].find(entity_filter(), {"_id": 1})}
 
 
 def visible_column_ids(db: Any, column_ids: list[str]) -> set[str] | None:
-    """Which of `column_ids` the current role may see (column AND its entity visible); None = admin."""
-    if is_admin():
+    """Which of `column_ids` the current role may see (column AND its entity visible); None = unrestricted."""
+    if unrestricted():
         return None
     ids = [c for c in column_ids if c]
     if not ids:
