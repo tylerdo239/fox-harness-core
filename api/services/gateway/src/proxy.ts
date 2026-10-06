@@ -18,6 +18,10 @@ export function proxyToWorker(
   onEveryClientMessage?: () => void,
   // The runtime only accepts connections that carry the gateway's secret (runtime/supervisor.ts).
   headers?: Record<string, string>,
+  // 2026-10-06: a gate in front of the relay (index.ts: per-user chat rate limit). Returns why a frame must not
+  // reach the runtime, or undefined to relay it; a refused frame is answered with an `error` frame instead.
+  // Frames keep their order: each waits for the previous one's decision.
+  admit?: (frame: string) => Promise<string | undefined>,
 ): void {
   const workerWs = new WebSocket(workerUrl, headers ? { headers } : undefined)
 
@@ -50,7 +54,18 @@ export function proxyToWorker(
     for (const frame of pending.splice(0)) workerWs.send(frame)
   })
 
+  let admitted: Promise<void> = Promise.resolve()
   browserWs.on('message', (data) => {
+    const frame = data.toString()
+    if (!admit) return relay(frame)
+    admitted = admitted.then(async () => {
+      const refusal = await admit(frame).catch(() => undefined)
+      if (refusal === undefined) return relay(frame)
+      if (browserWs.readyState === browserWs.OPEN) browserWs.send(JSON.stringify({ type: 'error', message: refusal }))
+    })
+  })
+
+  function relay(frame: string): void {
     if (!notifiedClientMessage) {
       notifiedClientMessage = true
       onClientMessage?.()
@@ -63,9 +78,8 @@ export function proxyToWorker(
     // a human send/steer (bounded by typing speed) — streaming chunks flow
     // worker->browser, the opposite direction, never through this path.
     onEveryClientMessage?.()
-    const frame = data.toString()
     if (workerOpen) {
-      workerWs.send(frame)
+      if (workerWs.readyState === workerWs.OPEN) workerWs.send(frame)
       return
     }
     pendingBytes += Buffer.byteLength(frame)
@@ -74,7 +88,7 @@ export function proxyToWorker(
       return
     }
     pending.push(frame)
-  })
+  }
 
   workerWs.on('message', (data) => {
     if (browserWs.readyState === browserWs.OPEN) browserWs.send(data.toString())

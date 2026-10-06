@@ -412,6 +412,8 @@ function AppInner() {
 
   const frameRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  // which connect() is current: an older one still waiting for its ticket must not open a socket
+  const connectAttemptRef = useRef(0);
   const gatewayHttpBaseRef = useRef("");
   const frameHistoryRef = useRef<ServerToClient[]>([]);
   const frameListenersRef = useRef(new Set<(frame: ServerToClient) => void>());
@@ -476,158 +478,186 @@ function AppInner() {
     // docs/rlm-transfer-plan.md 9.1: a new chat inside a project.
     const projectParam =
       sessionPath === "new" && projectId ? `&project=${encodeURIComponent(projectId)}` : "";
-    const socket = new WebSocket(
-      `${wsBaseFor(httpBase)}/sessions/${sessionPath}?token=${encodeURIComponent(token)}${modelParam}${flowParam}${projectParam}`,
-    );
-    wsRef.current = socket;
-    // Set by the 'open' handler below — read by 'close'/the 'error' grace
-    // timer to tell "handshake was flat-out rejected" apart from
-    // "connected fine, then disconnected later" (real gap fixed 2026-09-09).
-    let didOpen = false;
-    // Guards `handleHandshakeFailure` against running twice — it's now
-    // reachable from 2 different event paths (see the 'error' listener's
-    // own comment for why).
-    let handshakeSettled = false;
-
-    if (sessionPath !== "new") setSessionId(sessionPath);
-
-    socket.addEventListener("open", () => {
-      didOpen = true;
-      handshakeSettled = true;
-      setStatus("connected");
-      setAuthenticated(true);
-      setAuthCheckPending(false);
-    });
-
-    // Real gap fixed 2026-09-10 (found while testing the new "checking
-    // token" loading screen with a deliberately-invalid stored token,
-    // confirmed directly against the real running gateway, not guessed):
-    // this app's own WS-rejection response
-    // (`server.on('upgrade', ...)`'s `socket.write('HTTP/1.1 401...');
-    // socket.destroy()`, services/gateway/src/index.ts) is a raw, abrupt
-    // socket teardown, not a real WebSocket close handshake — Node's own
-    // `WebSocket` client fires 'error' for it almost instantly but then
-    // NEVER fires 'close' at all (confirmed: none within 10 real seconds
-    // against the real gateway). This function used to assume "'close'
-    // fires immediately after 'error'" and did ALL of its handling there
-    // — for this exact rejection shape it simply never fires, leaving
-    // `status` stuck on 'connecting' (and, worse, the loading screen
-    // above stuck spinning) forever for anyone with a stale/invalid
-    // stored token. WS `error` events still carry no diagnostic info by
-    // spec (opaque for security) — this doesn't try to read anything
-    // from it, just uses it to start a short grace timer: if 'close'
-    // hasn't ALSO fired by then, handle the failure directly instead of
-    // waiting on an event that may never come.
-    socket.addEventListener("error", () => {
-      setTimeout(() => {
-        if (wsRef.current !== socket || handshakeSettled) return;
-        handshakeSettled = true;
-        wsRef.current = null;
-        void handleHandshakeFailure();
-      }, 300);
-    });
-
-    // Real gap fixed 2026-09-09: a rejected handshake (never `open()`ed)
-    // looks IDENTICAL to browser JS whether the gateway 401'd (token
-    // dead — e.g. sliding expiration finally caught up) or 403'd (token
-    // fine, but this SESSION isn't reachable/owned) — WS `close`/`error`
-    // carry no status code by spec. Getting this wrong matters: treating
-    // an expired token as "session gone" would needlessly wipe a
-    // perfectly good `/chat/<id>` URL and burn the retry-as-new attempt
-    // below on a request that's going to 401 again anyway (same dead
-    // token). One lightweight authenticated REST call — which DOES
-    // expose a real status code, unlike the WS handshake — disambiguates
-    // before deciding anything destructive. Factored into its own named
-    // function 2026-09-10 so both the 'close' handler below AND the
-    // 'error' grace timer above can reach it.
-    async function handleHandshakeFailure(): Promise<void> {
-      const probe = await fetch(`${httpBase}/sessions/mine`, {
+    // 2026-10-06: the socket is opened with a single-use ticket (POST /auth/ws-ticket), never the login token —
+    // a token in the URL ends up in every proxy's access log. A newer connect() supersedes one still fetching.
+    const attempt = ++connectAttemptRef.current;
+    // the old socket (callers close it first) is no longer current: its late 'close' event must not read as
+    // "this connection dropped" while the new one is still waiting for its ticket
+    wsRef.current = null;
+    void (async () => {
+      const res = await fetch(`${httpBase}/auth/ws-ticket`, {
+        method: "POST",
         headers: { authorization: `Bearer ${token}` },
       }).catch(() => undefined);
-      if (probe?.status === 401) {
+      if (attempt !== connectAttemptRef.current) return;
+      if (res?.status === 401) {
         handleAuthExpired();
         return;
       }
-      // Token's fine — the SESSION itself is what's unreachable. Same
-      // self-heal this app already applies for the "unknown session"
-      // WS-level error frame (handleFrame below): a reconnect to a
-      // KNOWN session (sessionPath !== 'new') that never opened means
-      // the gateway rejected it outright — e.g. services/gateway's
-      // canAccessSession() 403ing a sessionId whose ownership row no
-      // longer exists (hit for real: a full DB migration that started
-      // the new database empty left every browser's cached session id
-      // pointing at a row that's just gone). Retrying the exact same
-      // id would 403 forever, leaving the user stuck
-      // rejecting-and-reloading with no way out — drop the stale id
-      // (back to `/`, `replaceState` since this is a correction the
-      // app is making, not a click) and start fresh instead of
-      // looping. Bounded to exactly 1 retry: the retry itself passes
-      // 'new', so a second failure just falls through to
-      // 'disconnected' below.
-      if (sessionPath !== "new") {
-        replaceUrl("/");
-        setChatPlace({ area: "chat" });
-        setHasChatted(false);
-        toast.info(t("app.sessionGoneStartedNew"));
-        connect(httpBase, token, "new");
+      const ticket = res?.ok ? ((await res.json().catch(() => ({}))) as { ticket?: string }).ticket : undefined;
+      if (attempt !== connectAttemptRef.current) return;
+      if (!ticket) {
+        setStatus("disconnected");
+        setAuthCheckPending(false);
         return;
       }
-      // Genuine give-up for THIS connect attempt (token's fine per the
-      // probe above, but the socket still never opened — gateway
-      // unreachable, network down, ...). If this was the initial
-      // silent auto-reconnect, stop showing the loading screen and
-      // fall back to the real login form rather than spinning forever.
-      setStatus("disconnected");
-      setAuthCheckPending(false);
-    }
+      openSocket(ticket);
+    })();
 
-    socket.addEventListener("close", () => {
-      // Guards against a STALE close event: switchSession()/startNewSession()
-      // close the OLD socket right before opening a new one, and 'close'
-      // doesn't fire synchronously — by the time it does, wsRef.current may
-      // already point at the NEW (already-open) socket. Only a close of the
-      // CURRENTLY active socket means "really disconnected".
-      if (wsRef.current !== socket) return;
-      wsRef.current = null;
-      if (!didOpen) {
-        // The 'error' grace timer above may have already handled this
-        // (rare but possible ordering: its 300ms timer fires before
-        // 'close' does, just not so far ahead that this guard is
-        // pointless — real WS implementations that DO follow the spec
-        // fire 'close' right after 'error', well under 300ms).
-        if (handshakeSettled) return;
+    function openSocket(ticket: string): void {
+      const socket = new WebSocket(
+        `${wsBaseFor(httpBase)}/sessions/${sessionPath}?ticket=${encodeURIComponent(ticket)}${modelParam}${flowParam}${projectParam}`,
+      );
+      wsRef.current = socket;
+      // Set by the 'open' handler below — read by 'close'/the 'error' grace
+      // timer to tell "handshake was flat-out rejected" apart from
+      // "connected fine, then disconnected later" (real gap fixed 2026-09-09).
+      let didOpen = false;
+      // Guards `handleHandshakeFailure` against running twice — it's now
+      // reachable from 2 different event paths (see the 'error' listener's
+      // own comment for why).
+      let handshakeSettled = false;
+
+      if (sessionPath !== "new") setSessionId(sessionPath);
+
+      socket.addEventListener("open", () => {
+        didOpen = true;
         handshakeSettled = true;
-        void handleHandshakeFailure();
-        return;
-      }
-      setStatus("disconnected");
-    });
+        setStatus("connected");
+        setAuthenticated(true);
+        setAuthCheckPending(false);
+      });
 
-    socket.addEventListener("message", (ev) => {
-      // Bug fix 2026-09-09 (docs/security-performance-review-2026-09-09.md's
-      // Bug #1 — the most-worth-fixing one in that list): the SAME stale-event
-      // race the 'close' handler above already guards against
-      // (`wsRef.current !== socket`) — switchSession()/startNewSession()
-      // close the OLD socket right before opening a new one, and a
-      // `message` event already in flight on the old socket can still land
-      // AFTER `wsRef.current` has moved on to the new one. Without this
-      // guard, that stale frame gets published into the shared
-      // frameHistoryRef/listeners as if it belonged to the NEW session —
-      // a real message/tool-result from session A could bleed into
-      // session B right after switching. Same guard, same reasoning.
-      if (wsRef.current !== socket) return;
-      let frame: ServerToClient;
-      try {
-        frame = JSON.parse(String(ev.data)) as ServerToClient;
-      } catch {
-        console.error(
-          "fox-harness-web: invalid JSON frame from gateway",
-          ev.data,
-        );
-        return;
+      // Real gap fixed 2026-09-10 (found while testing the new "checking
+      // token" loading screen with a deliberately-invalid stored token,
+      // confirmed directly against the real running gateway, not guessed):
+      // this app's own WS-rejection response
+      // (`server.on('upgrade', ...)`'s `socket.write('HTTP/1.1 401...');
+      // socket.destroy()`, services/gateway/src/index.ts) is a raw, abrupt
+      // socket teardown, not a real WebSocket close handshake — Node's own
+      // `WebSocket` client fires 'error' for it almost instantly but then
+      // NEVER fires 'close' at all (confirmed: none within 10 real seconds
+      // against the real gateway). This function used to assume "'close'
+      // fires immediately after 'error'" and did ALL of its handling there
+      // — for this exact rejection shape it simply never fires, leaving
+      // `status` stuck on 'connecting' (and, worse, the loading screen
+      // above stuck spinning) forever for anyone with a stale/invalid
+      // stored token. WS `error` events still carry no diagnostic info by
+      // spec (opaque for security) — this doesn't try to read anything
+      // from it, just uses it to start a short grace timer: if 'close'
+      // hasn't ALSO fired by then, handle the failure directly instead of
+      // waiting on an event that may never come.
+      socket.addEventListener("error", () => {
+        setTimeout(() => {
+          if (wsRef.current !== socket || handshakeSettled) return;
+          handshakeSettled = true;
+          wsRef.current = null;
+          void handleHandshakeFailure();
+        }, 300);
+      });
+
+      // Real gap fixed 2026-09-09: a rejected handshake (never `open()`ed)
+      // looks IDENTICAL to browser JS whether the gateway 401'd (token
+      // dead — e.g. sliding expiration finally caught up) or 403'd (token
+      // fine, but this SESSION isn't reachable/owned) — WS `close`/`error`
+      // carry no status code by spec. Getting this wrong matters: treating
+      // an expired token as "session gone" would needlessly wipe a
+      // perfectly good `/chat/<id>` URL and burn the retry-as-new attempt
+      // below on a request that's going to 401 again anyway (same dead
+      // token). One lightweight authenticated REST call — which DOES
+      // expose a real status code, unlike the WS handshake — disambiguates
+      // before deciding anything destructive. Factored into its own named
+      // function 2026-09-10 so both the 'close' handler below AND the
+      // 'error' grace timer above can reach it.
+      async function handleHandshakeFailure(): Promise<void> {
+        const probe = await fetch(`${httpBase}/sessions/mine`, {
+          headers: { authorization: `Bearer ${token}` },
+        }).catch(() => undefined);
+        if (probe?.status === 401) {
+          handleAuthExpired();
+          return;
+        }
+        // Token's fine — the SESSION itself is what's unreachable. Same
+        // self-heal this app already applies for the "unknown session"
+        // WS-level error frame (handleFrame below): a reconnect to a
+        // KNOWN session (sessionPath !== 'new') that never opened means
+        // the gateway rejected it outright — e.g. services/gateway's
+        // canAccessSession() 403ing a sessionId whose ownership row no
+        // longer exists (hit for real: a full DB migration that started
+        // the new database empty left every browser's cached session id
+        // pointing at a row that's just gone). Retrying the exact same
+        // id would 403 forever, leaving the user stuck
+        // rejecting-and-reloading with no way out — drop the stale id
+        // (back to `/`, `replaceState` since this is a correction the
+        // app is making, not a click) and start fresh instead of
+        // looping. Bounded to exactly 1 retry: the retry itself passes
+        // 'new', so a second failure just falls through to
+        // 'disconnected' below.
+        if (sessionPath !== "new") {
+          replaceUrl("/");
+          setChatPlace({ area: "chat" });
+          setHasChatted(false);
+          toast.info(t("app.sessionGoneStartedNew"));
+          connect(httpBase, token, "new");
+          return;
+        }
+        // Genuine give-up for THIS connect attempt (token's fine per the
+        // probe above, but the socket still never opened — gateway
+        // unreachable, network down, ...). If this was the initial
+        // silent auto-reconnect, stop showing the loading screen and
+        // fall back to the real login form rather than spinning forever.
+        setStatus("disconnected");
+        setAuthCheckPending(false);
       }
-      handleFrame(frame);
-    });
+
+      socket.addEventListener("close", () => {
+        // Guards against a STALE close event: switchSession()/startNewSession()
+        // close the OLD socket right before opening a new one, and 'close'
+        // doesn't fire synchronously — by the time it does, wsRef.current may
+        // already point at the NEW (already-open) socket. Only a close of the
+        // CURRENTLY active socket means "really disconnected".
+        if (wsRef.current !== socket) return;
+        wsRef.current = null;
+        if (!didOpen) {
+          // The 'error' grace timer above may have already handled this
+          // (rare but possible ordering: its 300ms timer fires before
+          // 'close' does, just not so far ahead that this guard is
+          // pointless — real WS implementations that DO follow the spec
+          // fire 'close' right after 'error', well under 300ms).
+          if (handshakeSettled) return;
+          handshakeSettled = true;
+          void handleHandshakeFailure();
+          return;
+        }
+        setStatus("disconnected");
+      });
+
+      socket.addEventListener("message", (ev) => {
+        // Bug fix 2026-09-09 (docs/security-performance-review-2026-09-09.md's
+        // Bug #1 — the most-worth-fixing one in that list): the SAME stale-event
+        // race the 'close' handler above already guards against
+        // (`wsRef.current !== socket`) — switchSession()/startNewSession()
+        // close the OLD socket right before opening a new one, and a
+        // `message` event already in flight on the old socket can still land
+        // AFTER `wsRef.current` has moved on to the new one. Without this
+        // guard, that stale frame gets published into the shared
+        // frameHistoryRef/listeners as if it belonged to the NEW session —
+        // a real message/tool-result from session A could bleed into
+        // session B right after switching. Same guard, same reasoning.
+        if (wsRef.current !== socket) return;
+        let frame: ServerToClient;
+        try {
+          frame = JSON.parse(String(ev.data)) as ServerToClient;
+        } catch {
+          console.error(
+            "fox-harness-web: invalid JSON frame from gateway",
+            ev.data,
+          );
+          return;
+        }
+        handleFrame(frame);
+      });
+    }
   }
 
   function handleFrame(frame: ServerToClient): void {

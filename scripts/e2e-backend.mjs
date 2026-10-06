@@ -54,13 +54,27 @@ async function newUser(label, role = 'user') {
   return { email, password, token: login.json.token, id: reg.json.id, role: login.json.role }
 }
 
-/** One chat connection through the full path. `events` = snapshot + live events. */
-function chat(token, { session = 'new', params = {} } = {}) {
-  const query = new URLSearchParams({ token, ...params })
-  const ws = new WebSocket(`${WS_BASE}/sessions/${session}?${query}`)
-  const c = { ws, events: [], frames: [], errors: [], closed: false, status: undefined, sessionId: session === 'new' ? undefined : session }
+/** A single-use WebSocket ticket for this login (POST /auth/ws-ticket); undefined when the token is refused. */
+async function wsTicket(token) {
+  const r = await api('POST', '/auth/ws-ticket', token)
+  return r.status === 200 ? r.json.ticket : undefined
+}
+
+/** One chat connection through the full path. `events` = snapshot + live events. Opens with a ws ticket, as the app does. */
+function chat(token, { session = 'new', params = {}, ticket } = {}) {
+  const c = { ws: undefined, events: [], frames: [], errors: [], closed: false, status: undefined, sessionId: session === 'new' ? undefined : session }
   const waiters = []
   const notify = () => { for (const w of [...waiters]) w() }
+  let wsReady
+  const wsPromise = new Promise((resolve) => { wsReady = resolve })
+  void (ticket !== undefined ? Promise.resolve(ticket) : wsTicket(token)).then((t) => {
+    const query = new URLSearchParams({ ticket: t ?? 'none', ...params })
+    const ws = new WebSocket(`${WS_BASE}/sessions/${session}?${query}`)
+    c.ws = ws
+    wire(ws)
+    wsReady(ws)
+  })
+  function wire(ws) {
   ws.on('message', (data) => {
     const frame = JSON.parse(data.toString())
     c.frames.push(frame)
@@ -73,8 +87,9 @@ function chat(token, { session = 'new', params = {} } = {}) {
   ws.on('unexpected-response', (_req, res) => { c.status = res.statusCode; c.closed = true; notify() })
   ws.on('close', () => { c.closed = true; notify() })
   ws.on('error', () => notify())
-  c.opened = new Promise((resolve) => { ws.once('open', () => resolve(true)); ws.once('error', () => resolve(false)); ws.once('unexpected-response', () => resolve(false)) })
-  c.send = (text) => ws.send(JSON.stringify({ type: 'followup', text }))
+  }
+  c.opened = wsPromise.then((ws) => new Promise((resolve) => { ws.once('open', () => resolve(true)); ws.once('error', () => resolve(false)); ws.once('unexpected-response', () => resolve(false)) }))
+  c.send = (text) => c.ws.send(JSON.stringify({ type: 'followup', text }))
   c.waitFor = (predicate, timeoutMs = 30000, label = 'condition') => new Promise((resolve, reject) => {
     const timer = setTimeout(() => { cleanup(); reject(new Error(`timeout waiting for ${label}; errors=${JSON.stringify(c.errors)} status=${c.status}`)) }, timeoutMs)
     const check = () => { const hit = predicate(c); if (hit) { cleanup(); resolve(hit) } }
@@ -83,7 +98,7 @@ function chat(token, { session = 'new', params = {} } = {}) {
   })
   c.ready = () => c.waitFor((x) => x.frames.some((f) => f.type === 'snapshot'), 30000, 'snapshot')
   c.turnEnds = (n, ms) => c.waitFor((x) => x.events.filter((e) => e.type === 'turn/end').length >= n, ms, `${n} turn/end`)
-  c.close = () => { try { ws.close() } catch { /* already closed */ } }
+  c.close = () => { void wsPromise.then((ws) => { try { ws.close() } catch { /* already closed */ } }) }
   return c
 }
 
@@ -438,6 +453,46 @@ const tests = {
     await api('POST', '/auth/logout', u.token)
     const revoked = (await api('GET', '/sessions/mine', u.token)).status === 401
     return { ok: !rawInRedis && works && revoked, detail: `raw token in redis=${rawInRedis}, token works=${works}, logout revokes=${revoked}` }
+  },
+
+  // 2026-10-06 gateway hardening: login limit per email (a burst on one email must not lock out others), body cap,
+  // single-use WebSocket tickets instead of a token in the URL, no `?token=` on HTTP, no wildcard CORS, a per-user
+  // chat message limit and a per-user limit on uploads.
+  async gatewayLimits() {
+    const rows = []
+    const u = await newUser('erin')
+    const bursts = []
+    for (let i = 0; i < 11; i++) bursts.push((await api('POST', '/auth/login', undefined, { email: 'nobody@e2e.test', password: 'wrong-password' })).status)
+    rows.push(['11th bad login on one email', bursts[10], 429])
+    rows.push(['another user still logs in', (await api('POST', '/auth/login', undefined, { email: u.email, password: u.password })).status, 200])
+    rows.push(['2 MB JSON body', (await api('POST', '/projects', u.token, { name: 'x'.repeat(2 * 1024 * 1024) })).status, 413])
+    rows.push(['?token= on HTTP', (await fetch(`${BASE}/sessions/mine?token=${u.token}`)).status, 401])
+    const cors = await fetch(`${BASE}/sessions/mine`, { headers: { origin: 'https://evil.example', authorization: `Bearer ${u.token}` } })
+    rows.push(['CORS for a foreign origin', cors.headers.get('access-control-allow-origin') ?? 'none', 'none'])
+    const ready = await (await fetch(`${BASE}/readyz`)).json()
+    rows.push(['/readyz shows no ports', JSON.stringify(ready).includes('port'), false])
+    const ticket = await wsTicket(u.token)
+    const first = chat(u.token, { params: { flow: 'default' }, ticket }); rows.push(['ws with a ticket', await first.opened, true]); await first.ready()
+    const reused = chat(u.token, { params: { flow: 'default' }, ticket }); await reused.opened; await sleep(300)
+    rows.push(['ws ticket used twice', reused.status, 401])
+    const raw = new WebSocket(`${WS_BASE}/sessions/new?token=${u.token}&flow=default`)
+    const rawStatus = await new Promise((resolve) => { raw.on('unexpected-response', (_q, r) => resolve(r.statusCode)); raw.on('open', () => resolve('open')); raw.on('error', () => resolve('error')) })
+    rows.push(['ws with ?token=', rawStatus, 401])
+    const chatLimit = Number(process.env.E2E_CHAT_LIMIT ?? 60)   // scripts/e2e-up.sh passes the same value
+    for (let i = 0; i <= chatLimit; i++) first.send(`ping ${i}`)
+    await first.waitFor((x) => x.errors.some((e) => e.includes('Too many messages')), 20000, 'chat rate limit').catch(() => undefined)
+    rows.push([`message ${chatLimit + 1} in a minute refused`, first.errors.some((e) => e.includes('Too many messages')), true])
+    // uploads go to a data-analysis chat's working folder (a default chat has none)
+    const da = chat(u.token, { params: { flow: 'data-analysis' } }); await da.opened; await da.ready()
+    const sid = da.sessionId
+    const uploads = []
+    for (let i = 0; i < 11; i++) uploads.push((await api('POST', `/sessions/${sid}/files?name=f${i}.txt`, u.token, 'x', true)).status)
+    rows.push(['first 10 uploads', JSON.stringify(uploads.slice(0, 10)), JSON.stringify(Array(10).fill(201))])
+    rows.push(['11th upload in a minute', uploads[10], 429])
+    da.close()
+    first.close()
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks` }
   },
 
   // Vietnamese and emoji round-trip through the gateway and MariaDB (the e2e database defaults to latin1), and an

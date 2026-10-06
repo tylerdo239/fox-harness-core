@@ -50,13 +50,17 @@ Dremio dùng một tài khoản chung: toàn bộ phân quyền dữ liệu nằ
 
 ## 5. Chưa sửa / cần biết
 
-| #   | Vấn đề                                                                                                 | Mức        |
-| --- | ------------------------------------------------------------------------------------------------------ | ---------- |
-| 1   | Dashboard do admin tạo có thể chứa dữ liệu bảng user không được hỏi, nhưng user vẫn xem được dashboard | Cao        |
-| 2   | Hạ quyền không đóng WebSocket đang mở; agent đang chạy giữ role cũ tới khi ngắt                        | Cao        |
-| 3   | Admin mở được session của mọi user (có chủ ý), chưa có log riêng cho việc này                          | Thấp       |
-| 4   | Token đi qua `?token=` khi mở WebSocket, có thể lọt vào log proxy                                      | Trung bình |
-| 5   | Chỉ phân quyền bảng/cột; không có theo dòng, nhóm, phòng ban                                           | Thiết kế   |
+| #   | Vấn đề                                                                                                 | Mức      |
+| --- | ------------------------------------------------------------------------------------------------------ | -------- |
+| 1   | Dashboard do admin tạo có thể chứa dữ liệu bảng user không được hỏi, nhưng user vẫn xem được dashboard | Cao      |
+| 2   | Hạ quyền không đóng WebSocket đang mở; agent đang chạy giữ role cũ tới khi ngắt                        | Cao      |
+| 3   | Admin mở được session của mọi user (có chủ ý), chưa có log riêng cho việc này                          | Thấp     |
+| 4   | ~~Token đi qua `?token=` khi mở WebSocket~~ — đã sửa: vé dùng một lần (`POST /auth/ws-ticket`)         | Đã sửa   |
+| 5   | Chỉ phân quyền bảng/cột; không có theo dòng, nhóm, phòng ban                                           | Thiết kế |
+
+Giới hạn và rate limit của gateway (2026-10-06): đăng nhập theo email (và theo IP khi `TRUST_PROXY`), body JSON
+≤ 1 MB, chat 20 tin/phút/user, thao tác tốn tiền (gợi ý AI, Run, import, sync, reindex, upload) 10 lần/phút/user, CORS
+theo `ALLOWED_ORIGINS`. Phần thuộc tầng deploy: `deploy-security-checklist.md`.
 
 ## 6. Kiểm thử
 
