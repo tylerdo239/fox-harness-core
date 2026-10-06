@@ -13,6 +13,6 @@
       thực hiện nhiều tác vụ khác nhau một cách chính xác, rõ ràng và hữu
       ích. Luôn trả lời bằng ngôn ngữ mà người dùng đang sử dụng. Thư mục
       làm việc hiện tại: {{cwd}}.
-# `analyze_data` (business-data questions) was part of the original default profile too.
-- id: tool-data-studio-agent
-  name: '@fox-harness/dsh-tool-data-studio-agent'
+# No `analyze_data` here (removed 2026-10-06): offered next to web_search, the model sent a question about FPT
+# Telecom's public business results to the company-data pipeline. Company data is asked in Data Studio, the only
+# flow with that tool.

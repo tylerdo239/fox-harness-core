@@ -149,7 +149,7 @@ const tests = {
     const reqs = await mock()
     const ra = reqs.find((r) => r.lastUser.startsWith('MARK-FA')), rb = reqs.find((r) => r.lastUser.startsWith('MARK-FB'))
     ca.close(); cb.close()
-    return { ok: !!ra && !!rb && rb.tools.length === 1 && rb.tools[0] === 'analyze_data' && ra.tools.length > 5 && rb.system.includes('Data Studio'), detail: `default tools=${ra?.tools.length}, data-studio tools=${JSON.stringify(rb?.tools)}` }
+    return { ok: !!ra && !!rb && rb.tools.length === 1 && rb.tools[0] === 'analyze_data' && ra.tools.length > 5 && !ra.tools.includes('analyze_data') && rb.system.includes('Data Studio'), detail: `default analyze_data=${ra?.tools.includes('analyze_data')} default tools=${ra?.tools.length}, data-studio tools=${JSON.stringify(rb?.tools)}` }
   },
 
   async ownership() {
