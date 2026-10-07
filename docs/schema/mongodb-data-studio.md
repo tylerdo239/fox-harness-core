@@ -83,6 +83,11 @@ Index: `{term: 1}`
 | `messages`                  | `events_json`         | object[]      | v4                                                               |
 | `messages`                  | `chart_ids_json`      | string[]      | v4                                                               |
 | `query_results`             | `spec_json`           | object        | v4                                                               |
+| `dashboards`                | `owner_id`            | int           | chủ dashboard (2026-10-07)                                       |
+| `charts`                    | `owner_id`            | int           | người hỏi (2026-10-07)                                           |
+| `charts`                    | `session_id`          | string        | chat sinh ra chart (2026-10-07)                                  |
+| `conversations`             | `owner_id`            | int           | người hỏi (2026-10-07)                                           |
+| `conversations`             | `session_id`          | string        | chat (2026-10-07)                                                |
 
 ## Index
 
@@ -91,6 +96,8 @@ Index: `{term: 1}`
 | `entities`         | bỏ unique `(data_source_id, physical_name)`, thêm unique `(data_source_id, physical_path)` |
 | `profile_metrics`  | mới `{name: 1}`                                                                            |
 | `profile_glossary` | mới `{term: 1}`                                                                            |
+| `dashboards`       | mới `{owner_id: 1, updated_at: -1}`                                                        |
+| `charts`           | mới `{owner_id: 1, created_at: -1}`                                                        |
 
 ## Kiểu con
 

@@ -348,7 +348,7 @@ const tests = {
     return { ok: ends[0] === 'completed' && ends.length === 2 && ends[1] !== 'completed' && JSON.stringify(turnsOf(again.events)) === '[1,2,3]' && firstKept, detail: `turn ends after restart=${JSON.stringify(ends)} (completed turn kept, interrupted one closed), next turns=${JSON.stringify(turnsOf(again.events))}` }
   },
 
-  // Two roles. user: chats + own data + Data Studio dashboards read-only. admin: everything (src/index.ts adminGate).
+  // Two roles. user: chats + own data + own Data Studio dashboards/charts. admin: everything (src/index.ts adminGate).
   async roleGate() {
     const { a } = await users()
     const adm = await admin()
@@ -363,12 +363,11 @@ const tests = {
     await expect('create user, as user', a.token, 'POST', '/users', { email: `z${Date.now()}@e2e.test`, password: 'xxxxxxxxxx' }, 403)
     await expect('list users, as user', a.token, 'GET', '/users', undefined, 403)
     await expect('change a role, as user', a.token, 'PATCH', `/users/${a.id}`, { role: 'admin' }, 403)
-    // Data Studio: admin-only except reading dashboards
+    // Data Studio: admin-only except the per-user dashboards and charts (dashboardOwnership covers those)
     for (const [method, path, body] of [
       ['GET', '/data-studio/sources'], ['PATCH', '/data-studio/sources/x', {}], ['GET', '/data-studio/glossary'],
       ['POST', '/data-studio/glossary', {}], ['GET', '/data-studio/metrics'], ['GET', '/data-studio/relationships'],
       ['POST', '/data-studio/dremio/sync', {}], ['POST', '/data-studio/dremio/browse', {}], ['PATCH', '/data-studio/entities/x', { allow_user: true }],
-      ['PATCH', '/data-studio/charts/x', {}], ['POST', '/data-studio/dashboards', { title: 't' }], ['GET', '/data-studio/dashboards/meta/available-charts'],
       // Data Studio v4 phase 2: delete source, per-dataset import
       ['DELETE', '/data-studio/sources/x'], ['GET', '/data-studio/dremio/sources/x/datasets'],
       ['POST', '/data-studio/dremio/sync', { datasets: [['x', 'y']] }],
@@ -377,7 +376,7 @@ const tests = {
       ['GET', '/data-studio/profile/data-sources/x/export.docx'], ['POST', '/data-studio/profile/metrics/run', { draft: {} }],
     ]) await expect(`${method} ${path}, as user`, a.token, method, path, body, 403)
     const dashUser = await api('GET', '/data-studio/dashboards', a.token)
-    rows.push(['GET dashboards, as user (read-only allowed)', dashUser.status === 403 ? 403 : 'not 403', 'not 403'])
+    rows.push(['GET dashboards, as user (own dashboards)', dashUser.status === 403 ? 403 : 'not 403', 'not 403'])
     const srcAdmin = await api('GET', '/data-studio/sources', adm)
     rows.push(['GET sources, as admin', srcAdmin.status === 403 || srcAdmin.status === 401 ? srcAdmin.status : 'allowed', 'allowed'])
     // an admin cannot demote themselves
@@ -491,6 +490,38 @@ const tests = {
     rows.push(['11th upload in a minute', uploads[10], 429])
     da.close()
     first.close()
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks` }
+  },
+
+  // Per-user dashboards (docs/data-studio-user-dashboards-plan.md): each user sees, edits and pins into only their own
+  // dashboards, and only their own charts. Charts are made by analyze_data (Python + Dremio, not in this stack), so
+  // two are written straight into Mongo with an owner, as bridge/runner.py does.
+  async dashboardOwnership() {
+    const rows = []
+    const [a, b] = [await newUser('fay'), await newUser('gus')]
+    const chartA = randomUUID(), chartB = randomUUID()
+    const doc = (id, owner) => `{_id:"${id}",owner_id:${owner},query_result_id:"none",type:"bar",title:"t",x:"k",y_json:["v"],rows_json:[{k:"a",v:1}],created_at:new Date(),updated_at:new Date()}`
+    execFileSync('docker', ['exec', 'foxe2e-mongo', 'mongosh', '--quiet', 'bot_data_studio', '--eval', `db.charts.insertMany([${doc(chartA, a.id)},${doc(chartB, b.id)}])`])
+    const made = await api('POST', '/data-studio/dashboards', a.token, { title: 'A board' })
+    rows.push(['user creates a dashboard', made.status, 201])
+    const dash = made.json?.id
+    rows.push(['A pins own chart', (await api('POST', `/data-studio/dashboards/${dash}/charts`, a.token, { chart_id: chartA })).status, 200])
+    rows.push(["A pins B's chart", (await api('POST', `/data-studio/dashboards/${dash}/charts`, a.token, { chart_id: chartB })).status, 404])
+    rows.push(["A adds B's chart through the layout", (await api('PUT', `/data-studio/dashboards/${dash}/widgets`, a.token, { widgets: [{ id: 'fake', kind: 'chart', chart_id: chartB }] })).status, 404])
+    rows.push(['A sees it', (await api('GET', `/data-studio/dashboards/${dash}`, a.token)).json?.widgets?.length, 1])
+    rows.push(["B's list", JSON.stringify((await api('GET', '/data-studio/dashboards', b.token)).json), '[]'])
+    rows.push(["B opens A's dashboard", (await api('GET', `/data-studio/dashboards/${dash}`, b.token)).status, 404])
+    rows.push(["B renames it", (await api('PATCH', `/data-studio/dashboards/${dash}`, b.token, { title: 'x' })).status, 404])
+    rows.push(["B pins into it", (await api('POST', `/data-studio/dashboards/${dash}/charts`, b.token, { chart_id: chartB })).status, 404])
+    rows.push(["B edits A's chart", (await api('PATCH', `/data-studio/charts/${chartA}`, b.token, { title_override: 'x' })).status, 404])
+    rows.push(['A edits own chart', (await api('PATCH', `/data-studio/charts/${chartA}`, a.token, { title_override: 'mine' })).status, 200])
+    const availA = (await api('GET', '/data-studio/dashboards/meta/available-charts', a.token)).json ?? []
+    rows.push(['available charts = own only', JSON.stringify(availA.map((c) => c.chart_id)), JSON.stringify([chartA])])
+    const adminList = (await api('GET', '/data-studio/dashboards', await admin())).json ?? []
+    rows.push(["admin's list has no user's dashboard", adminList.some((d) => d.id === dash), false])
+    rows.push(["B deletes it", (await api('DELETE', `/data-studio/dashboards/${dash}`, b.token)).status, 404])
+    rows.push(['A deletes it', (await api('DELETE', `/data-studio/dashboards/${dash}`, a.token)).status, 200])
     const bad = rows.filter(([, got, want]) => got !== want)
     return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks` }
   },

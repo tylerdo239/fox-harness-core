@@ -1283,7 +1283,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      sendJson(res, 200, await availableCharts())
+      sendJson(res, 200, await availableCharts(identity.userId))
     })
     return
   }
@@ -1295,13 +1295,13 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const body = await readJson()
       if (!body) return sendJson(res, 400, { error: 'invalid JSON body' })
-      const patch: Parameters<typeof updateChart>[1] = {}
+      const patch: Parameters<typeof updateChart>[2] = {}
       if ('title_override' in body) patch.title_override = typeof body.title_override === 'string' ? body.title_override : null
       if ('x_override' in body) patch.x_override = typeof body.x_override === 'string' ? body.x_override : null
       if ('y_override' in body) patch.y_override = asStringArray(body.y_override) ?? null
       if ('color_overrides' in body) patch.color_overrides = asStringMap(body.color_overrides) ?? {}
       if ('label_overrides' in body) patch.label_overrides = asStringMap(body.label_overrides) ?? {}
-      const updated = await updateChart(chartMatch[1], patch)
+      const updated = await updateChart(chartMatch[1], identity.userId, patch)
       return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'chart not found' })
     })
     return
@@ -1311,13 +1311,13 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      if (req.method === 'GET') return sendJson(res, 200, await listDashboards())
+      if (req.method === 'GET') return sendJson(res, 200, await listDashboards(identity.userId))
       const body = await readJson()
       if (!body) return sendJson(res, 400, { error: 'invalid JSON body' })
       sendJson(
         res,
         201,
-        await createDashboard(typeof body.title === 'string' ? body.title : undefined, typeof body.description === 'string' ? body.description : undefined),
+        await createDashboard(identity.userId, typeof body.title === 'string' ? body.title : undefined, typeof body.description === 'string' ? body.description : undefined),
       )
     })
     return
@@ -1330,16 +1330,16 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const dashboardId = dashboardMatch[1]
       if (req.method === 'DELETE') {
-        if (!(await deleteDashboard(dashboardId))) return sendJson(res, 404, { error: 'dashboard not found' })
+        if (!(await deleteDashboard(dashboardId, identity.userId))) return sendJson(res, 404, { error: 'dashboard not found' })
         return sendJson(res, 200, { deleted: true })
       }
       if (req.method === 'GET') {
-        const dashboard = await getDashboard(dashboardId)
+        const dashboard = await getDashboard(dashboardId, identity.userId)
         return dashboard ? sendJson(res, 200, dashboard) : sendJson(res, 404, { error: 'dashboard not found' })
       }
       const body = await readJson()
       if (!body) return sendJson(res, 400, { error: 'invalid JSON body' })
-      const updated = await updateDashboard(dashboardId, {
+      const updated = await updateDashboard(dashboardId, identity.userId, {
         title: typeof body.title === 'string' ? body.title : null,
         description: typeof body.description === 'string' ? body.description : null,
         appearance: body.appearance && typeof body.appearance === 'object' && !Array.isArray(body.appearance) ? (body.appearance as Record<string, unknown>) : null,
@@ -1357,7 +1357,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       const body = await readJson()
       if (!body || typeof body.chart_id !== 'string') return sendJson(res, 400, { error: 'chart_id is required' })
-      const result = await pinChart(pinMatch[1], body.chart_id)
+      const result = await pinChart(pinMatch[1], body.chart_id, identity.userId)
       if (result === 'no-dashboard') return sendJson(res, 404, { error: 'dashboard not found' })
       if (result === 'no-chart') return sendJson(res, 404, { error: 'chart not found' })
       sendJson(res, 200, result)
@@ -1390,10 +1390,12 @@ function route(req: IncomingMessage, res: ServerResponse): void {
             note: typeof w.note === 'string' ? w.note : null,
             text: typeof w.text === 'string' ? w.text : null,
           }))
-        const saved = await saveWidgets(dashboardId, widgets)
-        return saved ? sendJson(res, 200, saved) : sendJson(res, 404, { error: 'dashboard not found' })
+        const saved = await saveWidgets(dashboardId, identity.userId, widgets)
+        if (saved === 'no-dashboard') return sendJson(res, 404, { error: 'dashboard not found' })
+        if (saved === 'no-chart') return sendJson(res, 404, { error: 'chart not found' })
+        return sendJson(res, 200, saved)
       }
-      const added = await addWidget(dashboardId, {
+      const added = await addWidget(dashboardId, identity.userId, {
         kind: typeof body.kind === 'string' ? body.kind : undefined,
         chart_id: typeof body.chart_id === 'string' ? body.chart_id : null,
         text: typeof body.text === 'string' ? body.text : null,
@@ -1521,16 +1523,24 @@ function route(req: IncomingMessage, res: ServerResponse): void {
 
 // Role gate, in front of every route (one place instead of a check in each of ~30 handlers). Two roles:
 //   admin — everything;
-//   user  — chats, own projects/files/skills, and Data Studio dashboards READ-ONLY.
-// Admin-only: every /data-studio/* route except reading dashboards (semantic-layer edits, Dremio browse/sync,
-// the catalog itself — which would reveal tables a user may not query —, charts, dashboard changes), creating
+//   user  — chats, own projects/files/skills, and their own Data Studio dashboards and charts.
+// Admin-only: every /data-studio/* route except the per-user dashboards and charts (semantic-layer edits, Dremio
+// browse/sync, the catalog itself — which would reveal tables a user may not query —, the data profile), creating
 // accounts (no self-registration) and managing users.
-const USER_DATA_STUDIO_READS = [/^\/data-studio\/dashboards$/, /^\/data-studio\/dashboards\/[^/]+$/]
+// 2026-10-07: dashboards and the charts on them are per user (owner_id; docs/data-studio-user-dashboards-plan.md) —
+// every route below checks ownership itself, so role `user` may use them fully (was: read-only, every dashboard).
+const USER_DATA_STUDIO_PATHS = [
+  /^\/data-studio\/dashboards$/,
+  /^\/data-studio\/dashboards\/[^/]+$/,
+  /^\/data-studio\/dashboards\/[^/]+\/(widgets|charts)$/,
+  /^\/data-studio\/dashboards\/meta\/available-charts$/,
+  /^\/data-studio\/charts\/[^/]+$/,
+]
 const ADMIN_ONLY_PATHS = [/^\/auth\/register$/, /^\/users$/, /^\/users\/[^/]+$/]
 
 function needsAdmin(req: IncomingMessage, pathname: string): boolean {
   if (req.method === 'OPTIONS') return false
-  if (pathname.startsWith('/data-studio/')) return !(req.method === 'GET' && USER_DATA_STUDIO_READS.some((re) => re.test(pathname)))
+  if (pathname.startsWith('/data-studio/')) return !USER_DATA_STUDIO_PATHS.some((re) => re.test(pathname))
   return ADMIN_ONLY_PATHS.some((re) => re.test(pathname))
 }
 

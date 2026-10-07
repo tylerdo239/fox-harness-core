@@ -16,7 +16,7 @@ Mọi request đi qua `adminGate` (`api/services/gateway/src/index.ts`) trước
 | ------------------------------------------------------------------------------------ | ----- | ------------ |
 | `/users`, `/auth/register`                                                           | ✓     | 403          |
 | `/data-studio/*` (nguồn, bảng, cột, quan hệ, chỉ số, thuật ngữ, sync, hồ sơ, chart…) | ✓     | 403          |
-| `GET /data-studio/dashboards`, `GET /data-studio/dashboards/:id`                     | ✓     | ✓ (chỉ xem)  |
+| `/data-studio/dashboards*`, `/data-studio/charts/:id` (của mình)                     | ✓     | ✓ (của mình) |
 | Chat, project, file, skill                                                           | ✓     | ✓ (của mình) |
 
 FE ẩn mục admin, nhưng chặn thật ở gateway.
@@ -50,13 +50,13 @@ Dremio dùng một tài khoản chung: toàn bộ phân quyền dữ liệu nằ
 
 ## 5. Chưa sửa / cần biết
 
-| #   | Vấn đề                                                                                                 | Mức      |
-| --- | ------------------------------------------------------------------------------------------------------ | -------- |
-| 1   | Dashboard do admin tạo có thể chứa dữ liệu bảng user không được hỏi, nhưng user vẫn xem được dashboard | Cao      |
-| 2   | Hạ quyền không đóng WebSocket đang mở; agent đang chạy giữ role cũ tới khi ngắt                        | Cao      |
-| 3   | Admin mở được session của mọi user (có chủ ý), chưa có log riêng cho việc này                          | Thấp     |
-| 4   | ~~Token đi qua `?token=` khi mở WebSocket~~ — đã sửa: vé dùng một lần (`POST /auth/ws-ticket`)         | Đã sửa   |
-| 5   | Chỉ phân quyền bảng/cột; không có theo dòng, nhóm, phòng ban                                           | Thiết kế |
+| #   | Vấn đề                                                                                                                                    | Mức      |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 1   | ~~Dashboard admin chứa dữ liệu user không được hỏi~~ — đã sửa: dashboard và chart riêng từng user (`data-studio-user-dashboards-plan.md`) | Đã sửa   |
+| 2   | Hạ quyền không đóng WebSocket đang mở; agent đang chạy giữ role cũ tới khi ngắt                                                           | Cao      |
+| 3   | Admin mở được session của mọi user (có chủ ý), chưa có log riêng cho việc này                                                             | Thấp     |
+| 4   | ~~Token đi qua `?token=` khi mở WebSocket~~ — đã sửa: vé dùng một lần (`POST /auth/ws-ticket`)                                            | Đã sửa   |
+| 5   | Chỉ phân quyền bảng/cột; không có theo dòng, nhóm, phòng ban                                                                              | Thiết kế |
 
 Giới hạn và rate limit của gateway (2026-10-06): đăng nhập theo email (và theo IP khi `TRUST_PROXY`), body JSON
 ≤ 1 MB, chat 20 tin/phút/user, thao tác tốn tiền (gợi ý AI, Run, import, sync, reindex, upload) 10 lần/phút/user, CORS

@@ -198,6 +198,9 @@ def ensure_indexes(db: AttrDatabase | None = None) -> None:
         ("query_results", [("message_id", 1), ("seq", 1)], {}),
         ("charts", [("query_result_id", 1)], {}),
         ("dashboards", [("updated_at", -1)], {}),
+        # per-user dashboards and charts (docs/data-studio-user-dashboards-plan.md); same in services/gateway/src/mongo.ts
+        ("dashboards", [("owner_id", 1), ("updated_at", -1)], {}),
+        ("charts", [("owner_id", 1), ("created_at", -1)], {}),
         ("dashboard_widgets", [("dashboard_id", 1), ("seq", 1)], {}),
     ]
     # Replaced 2026-10-06 by the unique (data_source_id, physical_path) above; left in place it would still refuse a

@@ -48,6 +48,22 @@ function roleOf(ctx: Context, agent: Agent | undefined): 'admin' | 'user' {
   return 'user'
 }
 
+/**
+ * Who asked: the user and the chat (session) of the agent that carries `userId` — the conversation's root agent, the
+ * same walk as roleOf. bridge/runner.py writes them on the charts of the answer, so a chart belongs to its asker
+ * (docs/data-studio-user-dashboards-plan.md). Unknown → no owner (nobody's dashboards can use the chart).
+ */
+function ownerOf(ctx: Context, agent: Agent | undefined): { userId?: number; sessionId?: string } {
+  let current = agent
+  for (let hops = 0; current && hops < 16; hops += 1) {
+    const userId = (current.options as { userId?: unknown }).userId
+    if (typeof userId === 'string' && /^[0-9]{1,12}$/.test(userId)) return { userId: Number(userId), sessionId: current.session.id }
+    const parent = current.session.header.parentSession
+    current = parent ? ctx.agents.get(parent) : undefined
+  }
+  return {}
+}
+
 export function apply(ctx: Context) {
   // A pool, not one kernel: one runtime serves many sessions (see pool.ts).
   const pool = new DataStudioPool()
@@ -130,7 +146,7 @@ export function apply(ctx: Context) {
               session.append('fox/data-studio-progress', { callId: exec.callId, item })
             }
           : undefined
-        const reply = await pool.ask(args.question, roleOf(ctx, exec.agent), TIMEOUT_MS, exec.signal, onProgress)
+        const reply = await pool.ask(args.question, roleOf(ctx, exec.agent), TIMEOUT_MS, exec.signal, onProgress, ownerOf(ctx, exec.agent))
         if (!reply.ok) throw new Error(reply.error ?? 'analyze_data: unknown error')
         return {
           answer: reply.answer ?? '',
