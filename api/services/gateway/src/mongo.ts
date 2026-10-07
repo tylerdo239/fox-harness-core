@@ -77,6 +77,9 @@ export async function ensureIndexes(): Promise<void> {
     db.collection('query_results').createIndex({ message_id: 1, seq: 1 }),
     db.collection('charts').createIndex({ query_result_id: 1 }),
     db.collection('dashboards').createIndex({ updated_at: -1 }),
+    // per-user dashboards and charts (docs/data-studio-user-dashboards-plan.md)
+    db.collection('dashboards').createIndex({ owner_id: 1, updated_at: -1 }),
+    db.collection('charts').createIndex({ owner_id: 1, created_at: -1 }),
     db.collection('dashboard_widgets').createIndex({ dashboard_id: 1, seq: 1 }),
   ])
   for (const result of results) {

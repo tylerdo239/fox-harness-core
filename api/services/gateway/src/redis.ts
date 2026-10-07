@@ -63,6 +63,23 @@ export async function renewToken(token: string, ttlMs: number): Promise<void> {
   await redis.pexpire(tokenKey(token), ttlMs)
 }
 
+// ---- session archive (docs/session-archive-plan.md): what was last copied to S3, per log file ----
+const ARCHIVE_KEY = 'fh:session-archive'
+
+export async function archivedStamp(file: string): Promise<string | null> {
+  return redis.hget(ARCHIVE_KEY, file)
+}
+
+export async function setArchivedStamp(file: string, stamp: string): Promise<void> {
+  await redis.hset(ARCHIVE_KEY, file, stamp)
+}
+
+/** Fields are `<dsh dir>/<sessionId>/<file>`: drop every one of the session, whatever the dsh dir. */
+export async function forgetArchived(sessionId: string): Promise<void> {
+  const fields = (await redis.hkeys(ARCHIVE_KEY)).filter((f) => f.split('/')[1] === sessionId)
+  if (fields.length > 0) await redis.hdel(ARCHIVE_KEY, ...fields)
+}
+
 export async function revokeToken(token: string): Promise<void> {
   await redis.del(tokenKey(token))
 }

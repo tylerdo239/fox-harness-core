@@ -637,6 +637,10 @@ export async function deleteMetric(id: string): Promise<boolean> {
 // Unlike the admin tables above, these endpoints return the reference API's native shapes (real arrays,
 // booleans and objects — see bot-data-studio-api's routes/dashboard.py) because the dashboard UI is a new
 // clone of that reference, not the old wire-compat FE.
+//
+// Ownership (2026-10-07, docs/data-studio-user-dashboards-plan.md): a chart belongs to the user who asked the question
+// (`owner_id`, written by bridge/runner.py), a dashboard to the user who made it. Every function below takes that
+// user id and only touches that user's documents; anything else reads as "not found".
 
 export interface ChartOut {
   id: string
@@ -681,8 +685,8 @@ async function toChartOuts(charts: Doc[]): Promise<ChartOut[]> {
   }))
 }
 
-export async function getChart(id: string): Promise<ChartOut | undefined> {
-  const doc = await col('charts').findOne({ _id: id })
+export async function getChart(id: string, ownerId: number): Promise<ChartOut | undefined> {
+  const doc = await col('charts').findOne({ _id: id, owner_id: ownerId })
   return doc ? (await toChartOuts([doc]))[0] : undefined
 }
 
@@ -696,7 +700,8 @@ export interface ChartUpdateInput {
 
 // Persists the toolbar edits so they survive a reload. Omitted fields stay unchanged; an explicit empty value
 // ('' / [] / {}) clears an override and falls back to the recommended field(s) — same rules as the reference API.
-export async function updateChart(id: string, input: ChartUpdateInput): Promise<ChartOut | undefined> {
+export async function updateChart(id: string, ownerId: number, input: ChartUpdateInput): Promise<ChartOut | undefined> {
+  if (!(await col('charts').findOne({ _id: id, owner_id: ownerId }, { projection: { _id: 1 } }))) return undefined
   const fields: Record<string, unknown> = {}
   if ('title_override' in input) fields.title_override = input.title_override || null
   if ('x_override' in input) fields.x_override = input.x_override || null
@@ -704,7 +709,7 @@ export async function updateChart(id: string, input: ChartUpdateInput): Promise<
   if ('color_overrides' in input) fields.color_overrides_json = input.color_overrides ?? {}
   if ('label_overrides' in input) fields.label_overrides_json = input.label_overrides ?? {}
   if (Object.keys(fields).length > 0) await col('charts').updateOne({ _id: id }, { $set: { ...fields, updated_at: now() } })
-  return getChart(id)
+  return getChart(id, ownerId)
 }
 
 export interface DashboardSummary {
@@ -738,14 +743,14 @@ export interface DashboardDetail {
   widgets: WidgetOut[]
 }
 
-export async function listDashboards(): Promise<DashboardSummary[]> {
-  const dashboards = await col('dashboards').find().sort({ updated_at: -1 }).toArray()
+export async function listDashboards(ownerId: number): Promise<DashboardSummary[]> {
+  const dashboards = await col('dashboards').find({ owner_id: ownerId }).sort({ updated_at: -1 }).toArray()
   if (dashboards.length === 0) return []
   const widgets = await col('dashboard_widgets')
     .find({ dashboard_id: { $in: dashboards.map((d) => d._id) }, kind: 'chart', chart_id: { $ne: null } })
     .toArray()
   const chartIds = [...new Set(widgets.map((w) => w.chart_id as string))]
-  const live = new Set((await col('charts').find({ _id: { $in: chartIds } }, { projection: { _id: 1 } }).toArray()).map((c) => c._id))
+  const live = new Set((await col('charts').find({ _id: { $in: chartIds }, owner_id: ownerId }, { projection: { _id: 1 } }).toArray()).map((c) => c._id))
   const counts = new Map<string, number>()
   for (const w of widgets) if (live.has(w.chart_id)) counts.set(w.dashboard_id, (counts.get(w.dashboard_id) ?? 0) + 1)
   return dashboards.map((d) => ({
@@ -760,12 +765,13 @@ export async function listDashboards(): Promise<DashboardSummary[]> {
 async function toDashboardDetail(d: Doc): Promise<DashboardDetail> {
   const widgets = await col('dashboard_widgets').find({ dashboard_id: d._id }).sort({ seq: 1 }).toArray()
   const chartIds = [...new Set(widgets.filter((w) => w.kind === 'chart' && w.chart_id).map((w) => w.chart_id as string))]
-  const charts = chartIds.length > 0 ? await toChartOuts(await col('charts').find({ _id: { $in: chartIds } }).toArray()) : []
+  // only the dashboard owner's own charts, whatever a widget points at
+  const charts = chartIds.length > 0 ? await toChartOuts(await col('charts').find({ _id: { $in: chartIds }, owner_id: d.owner_id }).toArray()) : []
   const chartById = new Map(charts.map((c) => [c.id, c]))
   const out: WidgetOut[] = []
   for (const w of widgets) {
     const chart = w.kind === 'chart' ? (chartById.get(w.chart_id) ?? null) : null
-    if (w.kind === 'chart' && !chart) continue // its source chart was deleted
+    if (w.kind === 'chart' && !chart) continue // its source chart was deleted (or is not the owner's)
     out.push({
       id: w._id, seq: w.seq, kind: w.kind, x: w.x, y: w.y, w: w.w, h: w.h,
       title_override: w.title_override ?? null, note: w.note ?? null, text: w.text ?? null,
@@ -775,15 +781,15 @@ async function toDashboardDetail(d: Doc): Promise<DashboardDetail> {
   return { id: d._id, title: d.title, description: d.description ?? '', appearance: d.appearance_json ?? {}, widgets: out }
 }
 
-export async function getDashboard(id: string): Promise<DashboardDetail | undefined> {
-  const doc = await col('dashboards').findOne({ _id: id })
+export async function getDashboard(id: string, ownerId: number): Promise<DashboardDetail | undefined> {
+  const doc = await col('dashboards').findOne({ _id: id, owner_id: ownerId })
   return doc ? toDashboardDetail(doc) : undefined
 }
 
-export async function createDashboard(title?: string, description?: string): Promise<DashboardDetail> {
+export async function createDashboard(ownerId: number, title?: string, description?: string): Promise<DashboardDetail> {
   const at = now()
   const doc: Doc = {
-    _id: randomUUID(), title: title?.trim() || 'Dashboard chưa đặt tên', description: description ?? '',
+    _id: randomUUID(), owner_id: ownerId, title: title?.trim() || 'Dashboard chưa đặt tên', description: description ?? '',
     appearance_json: {}, created_at: at, updated_at: at,
   }
   await col('dashboards').insertOne(doc)
@@ -792,19 +798,29 @@ export async function createDashboard(title?: string, description?: string): Pro
 
 export async function updateDashboard(
   id: string,
+  ownerId: number,
   input: { title?: string | null; description?: string | null; appearance?: Record<string, unknown> | null },
 ): Promise<DashboardDetail | undefined> {
   const fields: Record<string, unknown> = {}
   if (input.title != null) fields.title = input.title
   if (input.description != null) fields.description = input.description
   if (input.appearance != null) fields.appearance_json = input.appearance
-  const res = await col('dashboards').findOneAndUpdate({ _id: id }, { $set: { ...fields, updated_at: now() } }, { returnDocument: 'after' })
+  const res = await col('dashboards').findOneAndUpdate({ _id: id, owner_id: ownerId }, { $set: { ...fields, updated_at: now() } }, { returnDocument: 'after' })
   return res ? toDashboardDetail(res) : undefined
 }
 
-export async function deleteDashboard(id: string): Promise<boolean> {
+export async function deleteDashboard(id: string, ownerId: number): Promise<boolean> {
+  if (!(await ownsDashboard(id, ownerId))) return false
   await col('dashboard_widgets').deleteMany({ dashboard_id: id })
   return (await col('dashboards').deleteOne({ _id: id })).deletedCount > 0
+}
+
+async function ownsDashboard(id: string, ownerId: number): Promise<boolean> {
+  return !!(await col('dashboards').findOne({ _id: id, owner_id: ownerId }, { projection: { _id: 1 } }))
+}
+
+async function ownsChart(id: string, ownerId: number): Promise<boolean> {
+  return !!(await col('charts').findOne({ _id: id, owner_id: ownerId }, { projection: { _id: 1 } }))
 }
 
 async function touchDashboard(id: string): Promise<Doc | null> {
@@ -821,9 +837,9 @@ function newWidget(dashboardId: string, seq: number, fields: Partial<Doc>): Doc 
 }
 
 // "Thêm vào dashboard" from a chat chart: two per row on the 12-column grid, stacking downward.
-export async function pinChart(dashboardId: string, chartId: string): Promise<DashboardDetail | 'no-dashboard' | 'no-chart'> {
-  if (!(await col('dashboards').findOne({ _id: dashboardId }, { projection: { _id: 1 } }))) return 'no-dashboard'
-  if (!(await col('charts').findOne({ _id: chartId }, { projection: { _id: 1 } }))) return 'no-chart'
+export async function pinChart(dashboardId: string, chartId: string, ownerId: number): Promise<DashboardDetail | 'no-dashboard' | 'no-chart'> {
+  if (!(await ownsDashboard(dashboardId, ownerId))) return 'no-dashboard'
+  if (!(await ownsChart(chartId, ownerId))) return 'no-chart'
   const seq = await col('dashboard_widgets').countDocuments({ dashboard_id: dashboardId })
   await col('dashboard_widgets').insertOne(newWidget(dashboardId, seq, { chart_id: chartId, x: seq % 2 ? 6 : 0, y: Math.floor(seq / 2) * 4 }))
   await col('charts').updateOne({ _id: chartId }, { $set: { is_pinned: true, updated_at: now() } })
@@ -838,9 +854,9 @@ export interface AvailableChart {
   chart: ChartOut
 }
 
-// The builder's "từ hội thoại" list: every saved chart, newest first, labelled with its conversation.
-export async function availableCharts(): Promise<AvailableChart[]> {
-  const charts = await col('charts').find().sort({ created_at: -1 }).limit(300).toArray()
+// The builder's "từ hội thoại" list: the user's own saved charts, newest first, labelled with their conversation.
+export async function availableCharts(ownerId: number): Promise<AvailableChart[]> {
+  const charts = await col('charts').find({ owner_id: ownerId }).sort({ created_at: -1 }).limit(300).toArray()
   if (charts.length === 0) return []
   const outs = await toChartOuts(charts)
   const results = await col('query_results').find({ _id: { $in: [...new Set(charts.map((c) => c.query_result_id))] } }, { projection: { message_id: 1 } }).toArray()
@@ -860,11 +876,12 @@ export async function availableCharts(): Promise<AvailableChart[]> {
 
 export async function addWidget(
   dashboardId: string,
+  ownerId: number,
   input: { kind?: string; chart_id?: string | null; text?: string | null; title?: string | null },
 ): Promise<DashboardDetail | 'no-dashboard' | 'no-chart'> {
-  if (!(await col('dashboards').findOne({ _id: dashboardId }, { projection: { _id: 1 } }))) return 'no-dashboard'
+  if (!(await ownsDashboard(dashboardId, ownerId))) return 'no-dashboard'
   const kind = input.kind ?? 'text'
-  if (kind === 'chart' && (!input.chart_id || !(await col('charts').findOne({ _id: input.chart_id }, { projection: { _id: 1 } })))) return 'no-chart'
+  if (kind === 'chart' && (!input.chart_id || !(await ownsChart(input.chart_id, ownerId)))) return 'no-chart'
   const existing = await col('dashboard_widgets').find({ dashboard_id: dashboardId }, { projection: { y: 1, h: 1 } }).toArray()
   const bottom = Math.max(0, ...existing.map((w) => w.y + w.h))
   await col('dashboard_widgets').insertOne(
@@ -891,9 +908,14 @@ export interface WidgetLayoutInput {
 
 // Bulk-save from the builder ("Xuất bản"): widgets with a known id are updated in list order, the rest are created,
 // and every existing widget missing from the list is deleted. Sequential writes, no transaction (see the header).
-export async function saveWidgets(dashboardId: string, widgets: WidgetLayoutInput[]): Promise<DashboardDetail | undefined> {
-  if (!(await col('dashboards').findOne({ _id: dashboardId }, { projection: { _id: 1 } }))) return undefined
+export async function saveWidgets(dashboardId: string, ownerId: number, widgets: WidgetLayoutInput[]): Promise<DashboardDetail | 'no-dashboard' | 'no-chart'> {
+  if (!(await ownsDashboard(dashboardId, ownerId))) return 'no-dashboard'
   const existing = new Set((await col('dashboard_widgets').find({ dashboard_id: dashboardId }, { projection: { _id: 1 } }).toArray()).map((w) => w._id))
+  // a widget that is not already on this dashboard is created: as a chart, only from one of the owner's own charts
+  for (const w of widgets) {
+    const isNew = !w.id || !existing.has(w.id)
+    if (isNew && (w.kind ?? 'chart') === 'chart' && (!w.chart_id || !(await ownsChart(w.chart_id, ownerId)))) return 'no-chart'
+  }
   const kept = new Set<string>()
   for (const [seq, w] of widgets.entries()) {
     const layout = { x: w.x ?? 0, y: w.y ?? 0, w: w.w ?? 6, h: w.h ?? 4 }

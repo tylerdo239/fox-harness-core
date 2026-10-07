@@ -79,7 +79,6 @@ function Spinner({ label }: { label: string }) {
 
 function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
   const runtime = useRuntime();
-  const isAdmin = runtime.userRole === "admin";
   const { t, locale } = useLocale();
   const [dashboards, setDashboards] = useState<DashboardSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,11 +127,9 @@ function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
           <h2>{t("dsx.dashboardsTitle")}</h2>
           <p className="ds-muted">{t("dsx.dashboardsSubtitle")}</p>
         </div>
-        {isAdmin && (
-          <Button variant="primary" onClick={() => void create()} disabled={creating}>
-            <PlusIcon size={14} /> {t("dsx.newDashboard")}
-          </Button>
-        )}
+        <Button variant="primary" onClick={() => void create()} disabled={creating}>
+          <PlusIcon size={14} /> {t("dsx.newDashboard")}
+        </Button>
       </div>
 
       {loading ? (
@@ -140,7 +137,7 @@ function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
       ) : dashboards.length === 0 ? (
         <div className="ds-dash-empty">
           <DashboardsIcon size={28} />
-          <p>{isAdmin ? t("dsx.noDashboardsHint") : t("dsx.noDashboardsReadOnly")}</p>
+          <p>{t("dsx.noDashboardsHint")}</p>
         </div>
       ) : (
         <div className="ds-dash-cards">
@@ -155,7 +152,7 @@ function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
                   {t("dsx.chartsCount", { n: String(d.widget_count) })} · {new Date(d.updated_at).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US")}
                 </span>
               </button>
-              {!isAdmin ? null : confirmId === d.id ? (
+              {confirmId === d.id ? (
                 <div className="ds-dash-confirm">
                   <span>{t("dsx.confirmDelete", { name: d.title })}</span>
                   <Button variant="primary" onClick={() => void remove(d.id)}>
@@ -637,19 +634,17 @@ function PanelBtn({ active, onClick, children }: { active: boolean; onClick: () 
 
 type Mode = { mode: "list" } | { mode: "report"; id: string } | { mode: "edit"; id: string };
 
+// Every user has their own dashboards (docs/data-studio-user-dashboards-plan.md): list, report and builder alike.
 export function DataStudioDashboards() {
-  const { userRole } = useRuntime();
-  const isAdmin = userRole === "admin";
   const [state, setState] = useState<Mode>({ mode: "list" });
-  // A user never reaches the builder; `edit` left over from an admin login on this tab shows the report instead.
-  if (state.mode === "report" || (state.mode === "edit" && !isAdmin)) {
+  if (state.mode === "report") {
     const id = state.id;
     return (
       <DashboardReport
         key={id}
         id={id}
         onBack={() => setState({ mode: "list" })}
-        onEdit={isAdmin ? () => setState({ mode: "edit", id }) : undefined}
+        onEdit={() => setState({ mode: "edit", id })}
       />
     );
   }

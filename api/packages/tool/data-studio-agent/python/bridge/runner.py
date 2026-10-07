@@ -10,7 +10,7 @@ worker) over a private stdio pipe, never the network.
 `run_pipeline_v3` is stateless per question (no conversation_id/history) — fox's own
 session log is what carries multi-turn context; each call here is independent.
 
-stdin:  one {"question": str} per line
+stdin:  one {"question": str, "role": "admin"|"user", "user_id": int|null, "session_id": str|null} per line
 stdout: one JSON reply per line:
   {"ok": true, "answer": str, "sql": str|None, "columns": [str], "rows": [...],
    "row_count": int, "trace_md": str, "charts": [{type,x,y,title,recommended,rows,chart_id}],
@@ -75,7 +75,29 @@ MAX_ROWS = 200
 PIPELINE = "v4" if os.environ.get("DATA_STUDIO_PIPELINE", "").strip().lower() == "v4" else "v3"
 
 
-def _persist_charts(db: AttrDatabase, question: str, result, charts: list[dict]) -> list[str]:
+def _owner_fields(owner: dict) -> dict:
+    """{owner_id, session_id} of the asker, as known (docs/data-studio-user-dashboards-plan.md)."""
+    fields = {}
+    if isinstance(owner.get("user_id"), int):
+        fields["owner_id"] = owner["user_id"]
+    if isinstance(owner.get("session_id"), str):
+        fields["session_id"] = owner["session_id"]
+    return fields
+
+
+def _stamp_owner(db, conversation_id: str | None, chart_ids: list, owner: dict) -> None:
+    """A chart belongs to whoever asked: only that user's dashboards can show it (gateway data-studio-db.ts)."""
+    fields = _owner_fields(owner)
+    if not fields:
+        return
+    if conversation_id:
+        db["conversations"].update_one({"_id": conversation_id}, {"$set": fields})
+    ids = [i for i in chart_ids if i]
+    if ids:
+        db["charts"].update_many({"_id": {"$in": ids}}, {"$set": fields})
+
+
+def _persist_charts(db: AttrDatabase, question: str, result, charts: list[dict], owner: dict | None = None) -> list[str]:
     """Minimal conversation -> message -> query_result -> chart chain so every chart (already computed
     by `handle()` below) has a real document a dashboard widget can reference. ONE chain holds all the
     charts of an answer; returns the new chart ids in the same order as `charts` (uuid strings).
@@ -101,7 +123,7 @@ def _persist_charts(db: AttrDatabase, question: str, result, charts: list[dict])
         row_count=result.row_count,
         rows=result.rows[:MAX_ROWS],
     )
-    return [
+    ids = [
         conversation_crud.create_chart(
             db,
             query_result_id=query_result.id,
@@ -116,6 +138,8 @@ def _persist_charts(db: AttrDatabase, question: str, result, charts: list[dict])
         ).id
         for chart in charts
     ]
+    _stamp_owner(db, conversation.id, ids, owner or {})
+    return ids
 
 
 def _persist_chart(db: AttrDatabase, question: str, result, chart: dict | None) -> str | None:
@@ -136,7 +160,8 @@ def _answer_charts(result) -> list[dict]:
     return [c for c in charts if c.get("type") != "table"] + [c for c in charts if c.get("type") == "table"]
 
 
-async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliStore, dremio: DremioClient) -> dict:
+async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliStore, dremio: DremioClient,
+                 owner: dict | None = None) -> dict:
     # Milestone progress (which agent/step/tool is running right now) AND every retry/
     # warning/error (orchestrator.py's `_trace()`, 2026-09-18 — "log hết"), one JSON line
     # per event on stderr — kernel.ts forwards each line straight to the worker
@@ -162,7 +187,7 @@ async def handle(question: str, llm: LLMClient, emb: EmbeddingClient, vs: MeiliS
         return {"ok": False, "error": result.error or "pipeline thất bại không rõ lý do"}
 
     answer_charts = _answer_charts(result)
-    chart_ids = _persist_charts(db, question, result, answer_charts)
+    chart_ids = _persist_charts(db, question, result, answer_charts, owner)
     charts = [
         {
             "type": c.get("type", "bar"),
@@ -296,7 +321,7 @@ def _v4_trace(answer) -> str:
     return "\n".join(lines)
 
 
-async def handle_v4(question: str) -> dict:
+async def handle_v4(question: str, owner: dict | None = None) -> dict:
     """The same reply as `handle()`, from pipeline v4 (src/pipeline_v4/answer.py ask_v4). Stateless per question
     like v3: fox's session log carries the conversation, so no conversation_id goes in. The answer is still saved
     (save_answer) because that is what gives each chart a document a dashboard can pin."""
@@ -308,7 +333,8 @@ async def handle_v4(question: str) -> dict:
     if shown.status == "failed":
         return {"ok": False, "error": shown.answer_markdown or "pipeline v4 thất bại không rõ lý do"}
 
-    _, _, chart_ids = await save_answer(get_async_mongo_db(), answer, None)
+    conversation_id, _, chart_ids = await save_answer(get_async_mongo_db(), answer, None)
+    _stamp_owner(get_mongo_db(), conversation_id, list(chart_ids), owner or {})
     charts = []
     for chart, chart_id in zip(shown.charts, chart_ids):
         spec = chart_spec(chart)
@@ -359,10 +385,11 @@ async def main() -> None:
         role_mod.begin_question(get_mongo_db(), request.get("role", role_mod.USER))
         _PROGRESS.reset()
         try:
+            owner = {"user_id": request.get("user_id"), "session_id": request.get("session_id")}
             if PIPELINE == "v4":
-                reply = await handle_v4(request["question"])
+                reply = await handle_v4(request["question"], owner)
             else:
-                reply = await handle(request["question"], llm, emb, vs, dremio)
+                reply = await handle(request["question"], llm, emb, vs, dremio, owner)
         except Exception as e:  # noqa: BLE001 — surface any crash to the TS side instead of dying
             # Real gap found debugging a live "[Errno 111] Connection refused"
             # with zero context: `str(e)` alone doesn't say WHICH of

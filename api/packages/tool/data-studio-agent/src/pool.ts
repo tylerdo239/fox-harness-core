@@ -1,4 +1,4 @@
-import { DataStudioKernel, type AnalyzeReply, type ProgressItem } from './kernel.ts'
+import { DataStudioKernel, type AnalyzeReply, type AskOwner, type ProgressItem } from './kernel.ts'
 
 // One runtime hosts many users' sessions (docs/single-backend-architecture-plan.md), so
 // `analyze_data` can no longer own "the" subprocess: a DataStudioKernel serves ONE question at a
@@ -48,10 +48,11 @@ export class DataStudioPool {
     timeoutMs: number,
     signal: AbortSignal,
     onProgress?: (item: ProgressItem) => void,
+    owner: AskOwner = {},
   ): Promise<AnalyzeReply> {
     const worker = await this.acquire(signal)
     try {
-      return await worker.kernel.ask(question, role, timeoutMs, signal, onProgress)
+      return await worker.kernel.ask(question, role, timeoutMs, signal, onProgress, owner)
     } finally {
       worker.lastUsed = Date.now()
       this.release(worker)

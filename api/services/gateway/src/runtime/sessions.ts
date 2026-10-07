@@ -6,6 +6,7 @@ import { stat } from 'node:fs/promises'
 import type { SessionRuntimeInfo } from '../db.ts'
 import { config } from '../config.ts'
 import { placementFor, projectDirFor, removeSessionLogs, removeTree, sessionDir } from './paths.ts'
+import { deleteArchived } from './session-archive.ts'
 import type { RuntimeSupervisor } from './supervisor.ts'
 
 /**
@@ -20,6 +21,7 @@ export async function purgeSessionData(
 ): Promise<void> {
   await runtime.drop(sessionId)
   await removeSessionLogs(sessionId)
+  await deleteArchived(sessionId, info.ownerId) // and its copies in S3 (docs/session-archive-plan.md)
   if (info.projectId === undefined) await removeTree(sessionDir(info.ownerId, sessionId))
 }
 

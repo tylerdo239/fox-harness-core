@@ -1,6 +1,12 @@
-# MongoDB `bot_data_studio` — thay đổi khi port Data Studio v4 (2026-10-06)
+# MongoDB `bot_data_studio` — thay đổi từ Data Studio v4 (2026-10-06 → 2026-10-07)
 
-Không cần migrate: trường mới đều tuỳ chọn, collection/index tạo khi backend khởi động.
+Không cần migrate: trường mới đều tuỳ chọn, collection/index tạo khi backend khởi động. Đối chiếu DB thật với bản sao
+lưu trước khi port (`data/_backup/2026-10-06-before-data-studio-v4/`) ngày 2026-10-07: khớp file này.
+
+| Ngày       | Thay đổi                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------------------- |
+| 2026-10-06 | Port Data Studio v4: hồ sơ dữ liệu (`profile_*`), xoá mềm, tắt nguồn, câu trả lời v4                      |
+| 2026-10-07 | Dashboard và chart riêng từng user: `owner_id`, `session_id` (`docs/data-studio-user-dashboards-plan.md`) |
 
 ## Collection mới
 
@@ -83,6 +89,19 @@ Index: `{term: 1}`
 | `messages`                  | `events_json`         | object[]      | v4                                                               |
 | `messages`                  | `chart_ids_json`      | string[]      | v4                                                               |
 | `query_results`             | `spec_json`           | object        | v4                                                               |
+| `dashboards`                | `owner_id`            | int           | chủ dashboard (2026-10-07)                                       |
+| `charts`                    | `owner_id`            | int           | người hỏi (2026-10-07)                                           |
+| `charts`                    | `session_id`          | string        | chat sinh ra chart (2026-10-07)                                  |
+| `conversations`             | `owner_id`            | int           | người hỏi (2026-10-07)                                           |
+| `conversations`             | `session_id`          | string        | chat (2026-10-07)                                                |
+
+Ghi chú dashboard riêng từng user (2026-10-07):
+
+- `owner_id` = `discovery_users.id` (MariaDB). Gateway chỉ trả dashboard/chart có `owner_id` của người gọi; thiếu
+  `owner_id` → không ai thấy.
+- `charts.owner_id`/`session_id` và `conversations.owner_id`/`session_id` do `bridge/runner.py` ghi khi trả lời.
+- Dữ liệu cũ (không có `owner_id`) gán một lần bằng `api/scripts/backfill-dashboard-owners.mjs` (mặc định cho admin đầu
+  tiên; `--dry-run` để xem trước).
 
 ## Index
 
@@ -91,6 +110,8 @@ Index: `{term: 1}`
 | `entities`         | bỏ unique `(data_source_id, physical_name)`, thêm unique `(data_source_id, physical_path)` |
 | `profile_metrics`  | mới `{name: 1}`                                                                            |
 | `profile_glossary` | mới `{term: 1}`                                                                            |
+| `dashboards`       | mới `{owner_id: 1, updated_at: -1}`                                                        |
+| `charts`           | mới `{owner_id: 1, created_at: -1}`                                                        |
 
 ## Kiểu con
 

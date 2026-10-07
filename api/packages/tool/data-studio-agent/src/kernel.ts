@@ -64,6 +64,12 @@ export interface AnalyzeReply {
 /** One step of the running pipeline, as bridge/runner.py's `_Progress` reduces it ({t: step|part|agent|tool|sql|result|error, ...}). */
 export type ProgressItem = Record<string, JsonValue>
 
+/** The asker: written on the answer's charts by bridge/runner.py (per-user dashboards). */
+export interface AskOwner {
+  userId?: number
+  sessionId?: string
+}
+
 // One persistent process per POOL WORKER (pool.ts), started
 // lazily on the first call and reused across turns — avoids paying Python
 // startup + import cost (agno/sqlglot/chromadb) on every question.
@@ -80,6 +86,7 @@ export class DataStudioKernel {
     timeoutMs: number,
     signal: AbortSignal,
     onProgress?: (item: ProgressItem) => void,
+    owner: AskOwner = {},
   ): Promise<AnalyzeReply> {
     const process = this.process ?? this.start()
     this.progress = onProgress
@@ -93,7 +100,7 @@ export class DataStudioKernel {
         signal.removeEventListener('abort', onAbort)
         resolve(value)
       }
-      process.stdin.write(JSON.stringify({ question, role }) + '\n')
+      process.stdin.write(JSON.stringify({ question, role, user_id: owner.userId ?? null, session_id: owner.sessionId ?? null }) + '\n')
     })
     this.reply = undefined
     this.progress = undefined

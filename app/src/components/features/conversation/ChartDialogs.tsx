@@ -202,10 +202,9 @@ export function AddToDashboardDialog({ open, onClose, chartId }: { open: boolean
   const [done, setDone] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
 
-  const isAdmin = runtime.userRole === "admin";
-
+  // every user pins to their own dashboards (docs/data-studio-user-dashboards-plan.md)
   useEffect(() => {
-    if (!open || !isAdmin) return;
+    if (!open) return;
     setDone(null);
     setNewTitle("");
     setLoading(true);
@@ -214,7 +213,7 @@ export function AddToDashboardDialog({ open, onClose, chartId }: { open: boolean
       .then(setDashboards)
       .catch(() => setDashboards([]))
       .finally(() => setLoading(false));
-  }, [open, runtime, isAdmin]);
+  }, [open, runtime]);
 
   async function pinTo(dashboardId: string, name: string): Promise<void> {
     setBusy(true);
@@ -241,7 +240,6 @@ export function AddToDashboardDialog({ open, onClose, chartId }: { open: boolean
     }
   }
 
-  if (!isAdmin) return null;
   return (
     <Modal
       open={open}
