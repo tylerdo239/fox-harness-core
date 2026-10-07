@@ -128,6 +128,16 @@ async function waitReady(ms = 120000) {
   }
 }
 
+// What the session archive (docs/session-archive-plan.md) holds in MinIO, read with the backend's own S3 client.
+const s3 = (op, prefix) => JSON.parse(dx('node', '-e', `
+const { createRequire } = require('node:module')
+const s3 = createRequire('/repo/services/gateway/package.json')('@aws-sdk/client-s3')
+const c = new s3.S3Client({ endpoint: process.env.S3_ENDPOINT, region: 'us-east-1', forcePathStyle: true, credentials: { accessKeyId: process.env.S3_ACCESS_KEY_ID, secretAccessKey: process.env.S3_SECRET_ACCESS_KEY } })
+const run = ${JSON.stringify(op)} === 'versions'
+  ? c.send(new s3.ListObjectVersionsCommand({ Bucket: process.env.S3_BUCKET, Prefix: ${JSON.stringify(prefix ?? '')} })).then((r) => [...(r.Versions ?? []), ...(r.DeleteMarkers ?? [])].map((v) => v.Key))
+  : c.send(new s3.GetBucketLifecycleConfigurationCommand({ Bucket: process.env.S3_BUCKET })).then((r) => r.Rules ?? [], () => [])
+run.then((x) => console.log(JSON.stringify(x)))`))
+
 // ---- shared fixtures (created once) ----
 const world = {}
 async function users() {
@@ -607,6 +617,34 @@ const tests = {
     const again = chat(a.token, { session: id }); await again.opened; await sleep(300)
     const mine = await api('GET', '/sessions/mine', a.token)
     return { ok: del.status === 204 && existedBefore === 'yes' && existsAfter === 'no' && logsBefore !== '0' && logsAfter === '0' && c.closed && again.status !== undefined && !mine.json.some((r) => r.sessionId === id), detail: `dir ${existedBefore}->${existsAfter}, logs ${logsBefore}->${logsAfter}, viewer closed=${c.closed}, reopen status=${again.status}` }
+  },
+  // Session logs go to S3 (sessions/<owner>/<session>/...), come back when a chat whose log left the disk is reopened,
+  // and a purge deletes every copy and version. SESSION_ARCHIVE_INTERVAL_MS=2000 in scripts/e2e-up.sh.
+  async sessionArchive() {
+    const rows = []
+    const { a } = await users()
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    c.send('archive me'); await c.turnEnds(1)
+    const id = c.sessionId; c.close()
+    const prefix = `sessions/${a.id}/${id}/`
+    let keys = []
+    for (let i = 0; i < 30 && keys.length === 0; i++) { await sleep(1000); keys = s3('versions', prefix) }
+    rows.push(['log archived to S3', keys.length > 0, true])
+    const rules = s3('lifecycle')
+    const rule = rules.find((r) => r.ID === 'fox-session-retention')
+    rows.push(['12-month lifecycle rule', `${rule?.Filter?.Prefix}:${rule?.Expiration?.Days}`, 'sessions/:365'])
+    await sleep(15000) // FOX_IDLE_DISPOSE_MS=8000: the runtime lets go of the chat
+    dx('sh', '-c', `rm -rf /data/dsh-home/sessions/*/${id}`) // as the local-retention eviction does
+    rows.push(['log gone from disk', dx('sh', '-c', `ls -d /data/dsh-home/sessions/*/${id} 2>/dev/null | wc -l`).trim(), '0'])
+    const again = chat(a.token, { session: id }); await again.opened; await again.ready()
+    again.send('after restore'); await again.turnEnds(2)
+    again.close()
+    rows.push(['history restored from S3', JSON.stringify(turnsOf(again.events)), '[1,2]'])
+    await sleep(500)
+    rows.push(['purge', (await api('DELETE', `/sessions/${id}`, a.token)).status, 204])
+    rows.push(['no object or version left', JSON.stringify(s3('versions', prefix)), '[]'])
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks, ${keys.length} object(s)` }
   },
 }
 

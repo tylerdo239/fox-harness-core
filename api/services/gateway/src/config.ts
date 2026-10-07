@@ -112,6 +112,18 @@ export const config = {
   // addressing (`http://host/bucket/key`) — they don't support the
   // virtual-hosted-style (`http://bucket.host/key`) AWS S3 defaults to.
   s3ForcePathStyle: envOr('S3_FORCE_PATH_STYLE', 'false') === 'true',
+  // Server-side encryption for what the gateway stores in S3 (session archives): 'AES256' or 'aws:kms'. Empty =
+  // none (a local MinIO without a KMS refuses it).
+  s3Sse: process.env.S3_SSE || undefined,
+  // docs/session-archive-plan.md: dsh session logs copied to S3 under `sessions/` (local disk stays the working copy).
+  sessionArchive: {
+    enabled: envOr('SESSION_ARCHIVE', '1') !== '0',
+    intervalMs: envIntOr('SESSION_ARCHIVE_INTERVAL_MS', 120_000),
+    // a log untouched this long (and archived) leaves the local disk; reopening the chat brings it back. 0 = keep.
+    localRetentionDays: Number(envOr('SESSION_LOCAL_RETENTION_DAYS', '30')),
+    // lifecycle rule on the bucket's `sessions/` prefix: deleted this long after the last write. 0 = not managed.
+    retentionDays: envIntOr('SESSION_ARCHIVE_RETENTION_DAYS', 365),
+  },
   // docs/data-studio-mongodb-plan.md: Data Studio's semantic layer + chat history live in MongoDB,
   // shared with every worker container (Python) and with bot-data-studio-api. `MongoDBWrite` is the
   // name Vault injects on FPT infrastructure (same alias the Python settings accept); MONGODB_URL

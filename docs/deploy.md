@@ -17,6 +17,7 @@ Meilisearch, Dremio and a sample MySQL on one machine). Production runs the two 
 | MariaDB 10.11, database `discovery-agent` | Apply `api/migrations/001_init.sql` once (hand `docs/schema/` to whoever provisions it). Every table declares `utf8mb4` itself. |
 | Redis | Login tokens (stored as SHA-256) + rate limits only. Not worth backing up. Require a password. |
 | S3-compatible bucket | Per-user skill content. Always set `S3_ENDPOINT` unless you really mean AWS S3. |
+| (same bucket) | Archived session logs under `sessions/`, kept 12 months by a lifecycle rule the gateway adds at boot — the S3 user needs `s3:PutLifecycleConfiguration`, or set the rule by hand. See `docs/session-archive-plan.md`. |
 | The LLM + embeddings | Any OpenAI-compatible `/chat/completions` and `/embeddings` endpoint (`OPENAI_BASE_URL`, `EMBEDDING_BASE_URL`; required — nothing falls back to api.openai.com). |
 | MongoDB, Dremio, Meilisearch | Only for the Data Studio flow (`analyze_data`) and its admin UI. Meilisearch: its own container with a volume for `/meili_data`, `MEILI_ENV=production`, `MEILI_MASTER_KEY` (≥16 bytes), `MEILI_NO_ANALYTICS=true`. |
 | A persistent volume for `/data` (backend) | **Every conversation, workspace and project.** Back it up. RWO is enough for one replica. |

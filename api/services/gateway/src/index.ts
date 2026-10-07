@@ -98,6 +98,7 @@ import { callAdmin, runAdminBridge, stopAdminWorker } from './data-studio-bridge
 import { isLive, liveCount, track as trackConnection, checkQuota } from './runtime/live.ts'
 import { ensurePlacement, isUuid, placementFor, projectDirFor } from './runtime/paths.ts'
 import { deleteProjectData, purgeSessionData, workspaceDirForSession } from './runtime/sessions.ts'
+import { ensureLocal as ensureSessionLogLocal, startArchiver, stopArchiver } from './runtime/session-archive.ts'
 import { syncSkills } from './runtime/skills-sync.ts'
 import { RuntimeSupervisor } from './runtime/supervisor.ts'
 import {
@@ -1627,6 +1628,10 @@ server.on('upgrade', (req, socket, head) => {
       const row = await getSessionRuntimeInfo(sessionId)
       if (!row) return reject('404 Not Found', 'ws_unknown_session', { sessionId })
       session = row
+      // a log that left the disk (docs/session-archive-plan.md) comes back from S3 before the runtime reads it
+      await ensureSessionLogLocal(sessionId, row.ownerId).catch((error: unknown) =>
+        log('session_restore_failed', { sessionId, error: error instanceof Error ? error.message : String(error) }),
+      )
     }
 
     // The OWNER's role decides what this session's agent may touch (Data Studio data — python/src/security/role.py).
@@ -1720,6 +1725,7 @@ void checkMongoConnection()
 // (Both are matched before authentication, ahead of the router above, by wrapping the listener below.)
 async function main(): Promise<void> {
   await runtime.start()
+  await startArchiver()
   server.listen(config.port, () => {
     console.log(`[gateway] listening on http://127.0.0.1:${config.port}; ${config.runtimeCount} agent runtime(s), data in ${config.dataDir}`)
   })
@@ -1735,6 +1741,7 @@ async function shutdown(signal: string): Promise<void> {
   for (const client of wss.clients) client.close(1001, 'server shutting down')
   stopAdminWorker()
   await runtime.stop()
+  await stopArchiver() // the runtimes have flushed: archive the last turns
   process.exit(0)
 }
 process.on('SIGTERM', () => void shutdown('SIGTERM'))
