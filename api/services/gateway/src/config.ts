@@ -33,6 +33,13 @@ function envIntOr(name: string, fallback: number): number {
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
 const confineRunner = join(repoRoot, 'docker/fox-confine.sh')
+// FOX_SANDBOX_MODE: `strict` (default) — model-written code (bash, python tools) runs under bubblewrap, confined to its
+// session's workspace and off the network; needs CAP_SYS_ADMIN + CAP_NET_ADMIN. `none` — for hosts that allow no
+// namespace (a plain Kubernetes pod), internal test deployments only: docker/fox-noconfine.sh runs the code with NO
+// isolation (it sees every user's files); it only keeps the environment allow-list, the workspace and rlimits.
+const sandboxMode = (process.env.FOX_SANDBOX_MODE || 'strict').toLowerCase()
+if (sandboxMode !== 'strict' && sandboxMode !== 'none') throw new Error(`FOX_SANDBOX_MODE must be 'strict' or 'none', got '${sandboxMode}'`)
+const noConfineRunner = join(repoRoot, 'docker/fox-noconfine.sh')
 const isProd = process.env.NODE_ENV === 'production'
 
 // Which agent flows exist (each is an agent preset in packages/profile-template/presets). `workspace`
@@ -129,7 +136,10 @@ export const config = {
   runtimeReadyTimeoutMs: envIntOr('FOX_RUNTIME_READY_TIMEOUT_MS', 60_000),
   // Strict bubblewrap runner for bash/python (docker/fox-confine.sh). Required in production:
   // without it model-run code can read every other user's files.
-  confineRunner: existsSync(confineRunner) ? confineRunner : undefined,
+  sandboxMode: sandboxMode as 'strict' | 'none',
+  confineRunner: sandboxMode === 'none'
+    ? (existsSync(noConfineRunner) ? noConfineRunner : undefined)
+    : (existsSync(confineRunner) ? confineRunner : undefined),
   requireSandbox: envOr('FOX_REQUIRE_SANDBOX', isProd ? '1' : '0') === '1',
   maxUploadBytes: envIntOr('MAX_UPLOAD_BYTES', 70 * 1024 * 1024),
   // 0 = unlimited. Counted over sessions that have an open browser connection.
@@ -158,5 +168,7 @@ export const config = {
     'FOX_DS_WORKERS', 'FOX_DS_QUEUE_TIMEOUT_MS', 'FOX_DS_IDLE_MS',
     'FOX_PY_IDLE_MS', 'FOX_PY_FORGET_MS', 'FOX_PY_MAX_KERNELS', 'FOX_PY_CELL_TIMEOUT_MS',
     'FOX_IDLE_DISPOSE_MS', 'FOX_IDLE_SWEEP_MS',
+    // limits of docker/fox-noconfine.sh (FOX_SANDBOX_MODE=none)
+    'FOX_NOCONFINE_MEMORY_MB', 'FOX_NOCONFINE_CPU_SECONDS', 'FOX_NOCONFINE_FILE_MB', 'FOX_NOCONFINE_OPEN_FILES',
   ] as const,
 }

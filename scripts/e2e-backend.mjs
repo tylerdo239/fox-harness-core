@@ -19,6 +19,9 @@ const BASE = process.env.E2E_URL ?? 'http://127.0.0.1:18080'
 const WS_BASE = BASE.replace(/^http/, 'ws')
 const BACKEND = process.env.E2E_BACKEND ?? 'foxe2e-backend'
 const MOCK = process.env.E2E_MOCK ?? 'http://127.0.0.1:4999'
+// scripts/e2e-up.sh: the backend's FOX_SANDBOX_MODE (strict = bubblewrap isolation; none = no isolation, by design)
+const SANDBOX_MODE = process.env.E2E_SANDBOX_MODE ?? 'strict'
+const skippedWithoutSandbox = { ok: true, detail: 'skipped: FOX_SANDBOX_MODE=none runs model code without isolation, by design' }
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const dx = (...args) => execFileSync('docker', ['exec', BACKEND, ...args], { encoding: 'utf8' })
 // The login API does not return the user id (by design), so a session's real workspace is found on disk.
@@ -180,6 +183,7 @@ const tests = {
   },
 
   async crossUserIsolation() {
+    if (SANDBOX_MODE === 'none') return skippedWithoutSandbox
     const { a, b } = await users()
     // B's workspace on disk, with a canary; A's agent is then asked to reach it through every route.
     const sb = world.bobSession
@@ -221,6 +225,7 @@ const tests = {
   // the parent's scope did not cover it: measured, a subagent's `read` returned another user's file. The child
   // runs in the background, so what its tool returned is read from the mock LLM's record of the child's request.
   async subagentIsolation() {
+    if (SANDBOX_MODE === 'none') return skippedWithoutSandbox
     const { a, b } = await users()
     const bDir = workspaceOf(world.bobSession)
     dx('sh', '-c', `echo SECRET-B-CANARY > ${bDir}/secret.txt`)
@@ -415,6 +420,7 @@ const tests = {
   // Model-run bash/python get their own network namespace (fox-confine.sh --unshare-net): measured before the fix,
   // confined code reached the gateway's Redis (login tokens) without a password, Mongo, MariaDB and the internet.
   async sandboxNoNetwork() {
+    if (SANDBOX_MODE === 'none') return skippedWithoutSandbox
     const { a } = await users()
     const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
     const targets = [['foxe2e-redis', 6379], ['foxe2e-mariadb', 3306], ['127.0.0.1', 4000], ['foxe2e-backend', 4000], ['host.docker.internal', 4999], ['example.com', 443]]
@@ -440,6 +446,29 @@ const tests = {
     c.close()
     const open = rows.filter(([, reached]) => reached).map(([l]) => l)
     return { ok: open.length === 0 && /^0+$/.test(caps ?? '') && control, detail: `${rows.length} probes, reachable=${JSON.stringify(open)}, CapEff=${caps}, control=${control}` }
+  },
+
+  // FOX_SANDBOX_MODE: strict confines model code (sandboxNoNetwork & co. above prove it); none runs it unconfined but
+  // must still run (bash and python), keep secrets out of the command's environment, start in the workspace and say
+  // so loudly at boot. Each mode must report itself in the backend log.
+  async sandboxMode() {
+    const logs = execFileSync('docker', ['logs', BACKEND], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    const announced = logs.includes('"sandbox_disabled"')
+    if (SANDBOX_MODE !== 'none') return { ok: !announced, detail: `strict: sandbox_disabled logged=${announced}` }
+    const { a } = await users()
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    c.send(`CALL bash ${JSON.stringify({ command: 'echo BASH-RUNS; pwd; env | cut -d= -f1 | sort | tr "\\n" " "', description: 'mode' })}`)
+    await c.turnEnds(1, 40000).catch(() => {})
+    const bashOut = toolText(c.events)
+    const p = chat(a.token, { params: { flow: 'data-analysis' } }); await p.opened; await p.ready()
+    p.send(`CALL python ${JSON.stringify({ code: "import os\nprint('PY-RUNS', sorted(k for k in os.environ if 'KEY' in k or 'PASS' in k or 'SECRET' in k or 'TOKEN' in k))" })}`)
+    await p.turnEnds(1, 90000).catch(() => {})
+    const pyOut = toolText(p.events)
+    c.close(); p.close()
+    const secretVars = /OPENAI_API_KEY|DATABASE_URL|REDIS_URL|S3_SECRET|FOX_INTERNAL_SECRET|MONGODB_URL/.test(bashOut)
+    const inWorkspace = new RegExp(`/data/users/[0-9]+/${c.sessionId}`).test(bashOut)
+    const ok = announced && bashOut.includes('BASH-RUNS') && !secretVars && inWorkspace && pyOut.includes("PY-RUNS []")
+    return { ok, detail: `none: announced=${announced} bash=${bashOut.includes('BASH-RUNS')} secrets in env=${secretVars} in workspace=${inWorkspace} python=${pyOut.includes('PY-RUNS')} py secret vars=${(pyOut.match(/PY-RUNS (\[[^\]]*\])/) ?? [])[1]}` }
   },
 
   // Redis holds only SHA-256 hashes of login tokens: a Redis dump or a reader on the network gets nothing to log in with.

@@ -147,6 +147,15 @@ export class RuntimeSupervisor {
   }
 
   private assertSandbox(): void {
+    if (config.sandboxMode === 'none') {
+      if (config.confineRunner === undefined) throw new Error('fox-harness-gateway: FOX_SANDBOX_MODE=none but docker/fox-noconfine.sh is missing')
+      // Deliberate (internal test deployment): said loudly at every start, never silently.
+      log('sandbox_disabled', {
+        mode: 'none',
+        warning: 'FOX_SANDBOX_MODE=none: model-written code (bash, python) runs WITHOUT isolation and can read every user\'s files; internal testing only',
+      })
+      return
+    }
     const why = this.sandboxProblem()
     if (why === undefined) return
     if (config.requireSandbox) {

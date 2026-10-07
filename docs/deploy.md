@@ -48,6 +48,28 @@ The web container makes no outbound call.
   without a working sandbox. If your platform forbids these capabilities, the alternatives are a seccomp/AppArmor
   profile that allows unprivileged user namespaces, or a sandboxed runtime (gVisor/Kata) — then the sandbox runner
   has to be reconsidered; do not turn the requirement off for real users.
+- **No capability allowed (plain Kubernetes pod) — `FOX_SANDBOX_MODE=none`.** For internal test deployments that
+  accept the risk: `bash`/`python` run through `docker/fox-noconfine.sh` with **no isolation** (model code can read
+  every user's files and the backend's processes). It keeps only what needs no privilege: the session's workspace as
+  working directory, an environment allow-list (no key or password in the command's `env`) and rlimits
+  (`FOX_NOCONFINE_*`). The gateway logs `sandbox_disabled` at every start; the session log records every command for
+  audit. Default is `strict` (bubblewrap, as above). e2e: `E2E_SANDBOX_MODE=none sh scripts/e2e-up.sh`.
+  Verified to run under a Pod Security "restricted" profile (e2e green, `E2E_POD=restricted E2E_POD_USER=10001`):
+  ```yaml
+  securityContext:            # pod
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001            # the data volume becomes writable by that user
+  containers:
+    - securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: { drop: [ALL] }
+        readOnlyRootFilesystem: true   # optional; then mount a writable /tmp:
+      env: [{ name: FOX_SANDBOX_MODE, value: none }, { name: HOME, value: /tmp }]
+      volumeMounts: [{ name: data, mountPath: /data }, { name: tmp, mountPath: /tmp }]
+  volumes: [{ name: tmp, emptyDir: {} }, …]
+  ```
 - Not published: only the web container talks to it (port 4000).
 - **First admin**: `docker exec <backend> node scripts/create-admin.mjs <email> <password>` (never over HTTP).
   Further accounts are created by an admin in Settings → Users.

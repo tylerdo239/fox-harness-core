@@ -37,6 +37,9 @@ WORKDIR /repo
 # portable CPython instead of relying on apt. Only pyproject.toml + uv.lock decide that venv (the project is not
 # itself installed), so they are copied alone first: editing code no longer re-downloads every Python package.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# The interpreter uv downloads goes under /opt, not /root/.local (mode 700): the backend must also run as a non-root
+# user (a Kubernetes pod under Pod Security "restricted"), and then /root is unreadable.
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
 COPY packages/tool/data-studio-agent/python/pyproject.toml packages/tool/data-studio-agent/python/uv.lock \
   packages/tool/data-studio-agent/python/
 RUN cd packages/tool/data-studio-agent/python && uv sync --locked
