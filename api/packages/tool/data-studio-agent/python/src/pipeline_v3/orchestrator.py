@@ -36,6 +36,7 @@ from src.pipeline_v2.state import (
 )
 from src.pipeline_v2.step6_joins import run_step6
 from src.pipeline_v2.step8_generate import run_step8
+from src.pipeline_v3.lang import table_title, title_for
 from src.pipeline_v3.agents import (
     build_chart_agent,
     build_chart_review_agent,
@@ -1059,7 +1060,7 @@ async def _build_one_chart(model, item, sql_rows: list[dict], question: str, tra
         if approved:
             return {
                 "type": ctype, "x": x, "y": ys, "value_field": None,
-                "title": item.title or question, "recommended": bool(item.recommended),
+                "title": title_for(item.title, question), "recommended": bool(item.recommended),
                 "rows": chart_rows, "transform_code": transform_code,
             }
 
@@ -1092,7 +1093,7 @@ async def _build_one_chart(model, item, sql_rows: list[dict], question: str, tra
     if x in cols and ys and all(c in cols for c in ys):
         return {
             "type": ctype, "x": x, "y": ys, "value_field": None,
-            "title": item.title or question, "recommended": bool(item.recommended),
+            "title": title_for(item.title, question), "recommended": bool(item.recommended),
             "rows": chart_rows, "transform_code": transform_code,
         }
     _trace(trace, f"## Chart review\n- ⚠️ dropped {ctype} after 3 failed reviews (x={x}, y={ys})")
@@ -1139,7 +1140,7 @@ async def _run_chart(model, result: V3Result, question: str, trace: list[str]) -
     # ALWAYS append a data table of the raw SQL result — never transformed, never reviewed. With no visual
     # chart it is the recommended view.
     reviewed.append({
-        "type": "table", "x": None, "y": columns, "title": "Bảng dữ liệu",
+        "type": "table", "x": None, "y": columns, "title": table_title(question),
         "recommended": not reviewed, "rows": result.rows,
     })
     result.charts = reviewed
