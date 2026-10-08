@@ -51,16 +51,39 @@ async function filePaths(dir: string): Promise<string[]> {
 // outside generated/ and outputs/ recorded as its sources.
 async function sourcesOf(dir: string): Promise<Set<string>> {
   const raw = await readFile(join(dir, SOURCES_FILE), 'utf8').catch(() => undefined)
-  if (raw !== undefined) return new Set(JSON.parse(raw) as string[])
+  if (raw !== undefined) {
+    try {
+      return new Set(JSON.parse(raw) as string[])
+    } catch {
+      // a record broken by concurrent writes before 2026-10-08 (see writeSources): rebuilt below
+    }
+  }
   const existing = (await filePaths(dir)).filter((path) => !path.startsWith('generated/') && !path.startsWith('outputs/'))
   const sources = new Set(existing)
   await writeSources(dir, sources)
   return sources
 }
 
+// Written whole through a temporary file: two uploads finishing together used to interleave their writes and
+// leave a broken record (then every file listing failed).
 async function writeSources(dir: string, sources: Set<string>): Promise<void> {
   await mkdir(join(dir, '.fox'), { recursive: true })
-  await writeFile(join(dir, SOURCES_FILE), JSON.stringify([...sources].sort()))
+  const temporary = join(dir, `${SOURCES_FILE}.${process.pid}.${Math.random().toString(36).slice(2)}`)
+  await writeFile(temporary, JSON.stringify([...sources].sort()))
+  await rename(temporary, join(dir, SOURCES_FILE))
+}
+
+// One read-add-write of a folder's record at a time (chat attachments upload several files at once).
+const sourceUpdates = new Map<string, Promise<unknown>>()
+function addSource(dir: string, path: string): Promise<void> {
+  const next = (sourceUpdates.get(dir) ?? Promise.resolve())
+    .catch(() => undefined)
+    .then(async () => writeSources(dir, (await sourcesOf(dir)).add(path)))
+  sourceUpdates.set(dir, next)
+  void next.finally(() => {
+    if (sourceUpdates.get(dir) === next) sourceUpdates.delete(dir)
+  }).catch(() => undefined)
+  return next
 }
 
 function originOf(path: string, sources: Set<string>): Pick<WorkspaceFile, 'origin' | 'sessionId'> {
@@ -96,9 +119,23 @@ export async function promoteOutput(dir: string, sessionId: string, path: string
   return `outputs/${basename(source)}`
 }
 
-// Streams the request body to `<dir>/<name>` through a hidden partial file.
-export async function saveUpload(dir: string, name: string, body: IncomingMessage): Promise<void> {
+// `name (2).ext`, `name (3).ext`, ... — the first name not taken in `dir`.
+async function freeName(dir: string, name: string): Promise<string> {
+  const ext = extname(name)
+  const stem = name.slice(0, name.length - ext.length)
+  for (let n = 1; n < 1000; n++) {
+    const candidate = n === 1 ? name : `${stem} (${n})${ext}`
+    if (!(await stat(join(dir, candidate)).catch(() => undefined))) return candidate
+  }
+  throw new Error('too many files with this name')
+}
+
+// Streams the request body to `<dir>/<name>` through a hidden partial file; returns the name it was saved as.
+// `unique` (chat attachments): never replace an existing file — an earlier message may refer to it — but save
+// under the next free name instead. Without it a re-upload replaces the file (project sources).
+export async function saveUpload(dir: string, requested: string, body: IncomingMessage, { unique = false } = {}): Promise<string> {
   await mkdir(dir, { recursive: true })
+  const name = unique ? await freeName(dir, requested) : requested
   const target = join(dir, name)
   const partial = join(dir, `.${name}.part`)
   let received = 0
@@ -111,8 +148,8 @@ export async function saveUpload(dir: string, name: string, body: IncomingMessag
   try {
     await pipeline(body, limit, createWriteStream(partial))
     await rename(partial, target)
-    const sources = await sourcesOf(dir)
-    await writeSources(dir, sources.add(name.split(sep).join('/')))
+    await addSource(dir, name.split(sep).join('/'))
+    return name
   } catch (error) {
     await rm(partial, { force: true })
     throw error

@@ -1436,14 +1436,15 @@ function route(req: IncomingMessage, res: ServerResponse): void {
           if (!(await costlyAllowed('upload', identity.userId))) return rateLimited(res)
           const name = url.searchParams.get('name') ?? ''
           if (!UPLOAD_NAME_RE.test(name)) return sendJson(res, 400, { error: 'invalid file name' })
+          let saved: string
           try {
-            await saveUpload(dir, name, req)
+            saved = await saveUpload(dir, name, req, { unique: url.searchParams.get('unique') === '1' })
           } catch (error) {
             if (error instanceof UploadTooLargeError) return sendJson(res, 413, { error: error.message })
             throw error
           }
           log('workspace_upload', { owner, userId: identity.userId })
-          return sendJson(res, 201, { path: name })
+          return sendJson(res, 201, { path: saved })
         }
         if (!path) return sendJson(res, 200, { files: await listWorkspaceFiles(dir) })
         const target = resolveInside(dir, decodeURIComponent(path))
