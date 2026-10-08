@@ -22,7 +22,7 @@ Mỗi lần agent dùng một công cụ, một dòng nhỏ hiện ra — bấm 
 | Dòng hiện ra                          | Nghĩa là                                                          |
 | ------------------------------------- | ----------------------------------------------------------------- |
 | Đang tra cứu… / Đã tra cứu *n* nguồn  | Agent tìm trên web; bấm để xem danh sách nguồn                    |
-| Đang đọc skill … / Đã đọc skill …     | Agent đang làm theo một [skill](/docs/chat/ky-nang/)               |
+| Đang đọc skill … / Đã đọc skill …     | Agent đang làm theo một [skill](/docs/chat/skills/)               |
 | Đang phân tích dữ liệu…               | Agent hỏi dữ liệu công ty; bấm để xem câu trả lời, biểu đồ, SQL và bảng |
 | Đang dùng … / Đã dùng …               | Các công cụ khác                                                  |
 
@@ -36,10 +36,10 @@ Model dùng cho đoạn chat do hệ thống chọn, người dùng không cần
   bình thường.
 - **Tên:** đoạn chat tự đặt tên theo tin nhắn đầu. Để đổi tên, bấm vào tên ở đầu đoạn chat, hoặc rê chuột vào đoạn chat ở
   thanh bên → **…** → **Đổi tên** (tối đa 255 ký tự; Enter để lưu, Esc để huỷ). Tên bạn tự đặt sẽ không bị đổi lại.
-![Menu của một đoạn chat](../../../assets/screens/chat-row-menu.png)
-
-- **Xoá:** thanh bên → **…** → **Xoá**. Không hoàn tác được — xem [Dữ liệu của bạn](/docs/khac/du-lieu-va-gioi-han/).
+- **Xoá:** thanh bên → **…** → **Xoá**. Không hoàn tác được — xem [Dữ liệu của bạn](/docs/more/data-and-limits/).
 - **Chia sẻ đường dẫn:** mỗi đoạn chat có địa chỉ riêng (`/chat/...`), nhưng **chỉ chủ đoạn chat mở được**.
+
+![Menu của một đoạn chat](../../../assets/screens/chat-row-menu.png)
 
 ## Lỗi hay gặp
 

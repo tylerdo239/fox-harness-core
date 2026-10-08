@@ -13,9 +13,9 @@ sidebar:
 | Kính lúp                | Tìm đoạn chat theo tên                                                                       |
 | Nút thu gọn             | Thu thanh bên thành một cột biểu tượng (màn hình hẹp hơn 1024px sẽ tự thu gọn)               |
 | **Trò chuyện mới**      | Mở một đoạn chat mới (bị mờ khi đoạn chat hiện tại còn trống)                                |
-| **Kỹ năng**             | Xem và tạo skill — xem [Kỹ năng](/docs/chat/ky-nang/)                                         |
-| **Phân tích dữ liệu**   | Mở danh sách dự án — xem [Phân tích dữ liệu](/docs/chat/phan-tich-du-lieu/)                   |
-| **Data Studio**         | Hỏi dữ liệu của công ty — xem [Data Studio](/docs/data-studio/hoi-du-lieu/)                   |
+| **Kỹ năng**             | Xem và tạo skill — xem [Kỹ năng](/docs/chat/skills/)                                         |
+| **Phân tích dữ liệu**   | Mở danh sách dự án — xem [Phân tích dữ liệu](/docs/chat/data-analysis/)                   |
+| **Data Studio**         | Hỏi dữ liệu của công ty — xem [Data Studio](/docs/data-studio/asking/)                   |
 | Lịch sử chat            | Các đoạn chat thường, nhóm theo Hôm nay / Hôm qua / 7 ngày trước / 30 ngày trước / Cũ hơn    |
 | Email của bạn (cuối)    | Menu tài khoản: **Cài đặt**, **Hướng dẫn sử dụng**, **Đăng xuất**                             |
 

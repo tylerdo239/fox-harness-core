@@ -26,5 +26,8 @@ Phải bấm **Xem trước** hoặc **Xuất bản** để lưu trước khi r�
 **Thông báo tiếng Anh "Too many messages".**
 Bạn gửi quá 20 tin trong một phút. Đợi một chút rồi gửi lại.
 
+**Đoạn chat báo "Lượt này đã dừng vì chạm giới hạn…".**
+Mỗi lượt có giới hạn số bước và thời gian. Gửi "tiếp tục" để agent làm tiếp từ kết quả đã có.
+
 **Trang báo "Mất kết nối với agent".**
 Tải lại trang.

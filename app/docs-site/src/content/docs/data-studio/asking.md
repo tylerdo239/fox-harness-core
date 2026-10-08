@@ -15,7 +15,7 @@ Thanh bên → **Data Studio**. Thanh bên đổi sang Data Studio, với hai m�
 | Mục                 | Dùng để                                                              |
 | ------------------- | -------------------------------------------------------------------- |
 | **Trò chuyện**      | Hỏi dữ liệu; lịch sử chat Data Studio nằm ngay dưới                   |
-| **Bảng điều khiển** | Dashboard của bạn — xem [Dashboard](/docs/data-studio/dashboard/)     |
+| **Bảng điều khiển** | Dashboard của bạn — xem [Dashboard](/docs/data-studio/dashboards/)     |
 
 Mũi tên **Quay lại Fox Harness** ở đầu thanh bên để trở về màn hình chat thường (menu Cài đặt / Đăng xuất nằm ở đó).
 

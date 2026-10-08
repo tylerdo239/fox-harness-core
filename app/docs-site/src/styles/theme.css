@@ -1,0 +1,17 @@
+/* The app's orange (app/public/theme.css: --fh-accent / --fh-alias-accent-text) instead of Starlight's blue.
+   Starlight's own variables: dark mode is :root, light mode is [data-theme='light']. */
+:root {
+  --sl-color-accent-low: #4a1f05;
+  --sl-color-accent: #d9600f;
+  --sl-color-accent-high: #ffd2b3;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #ffe4d1;
+  --sl-color-accent: #c4530f;
+  --sl-color-accent-high: #8a3409;
+}
+/* screenshots: a thin frame so a white screen does not melt into the page */
+.sl-markdown-content img {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 8px;
+}
