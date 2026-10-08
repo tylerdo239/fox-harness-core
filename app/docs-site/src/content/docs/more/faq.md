@@ -17,8 +17,8 @@ trong Data Studio.
 **Data Studio trả lời "không tìm thấy dữ liệu".**
 Bảng bạn hỏi có thể chưa được mở cho bạn. Hỏi admin.
 
-**Nút Tải file lên ở đâu?**
-Chỉ có trong đoạn chat của dự án (Phân tích dữ liệu). Chat thường và Data Studio không nhận tệp.
+**Đính kèm file ở đâu?**
+Nút kẹp giấy cạnh nút Gửi (hoặc kéo-thả, dán) — trong chat thường và chat phân tích dữ liệu. Data Studio không nhận file.
 
 **Tôi sửa dashboard rồi quay lại thì mất hết.**
 Phải bấm **Xem trước** hoặc **Xuất bản** để lưu trước khi rời trình dựng.

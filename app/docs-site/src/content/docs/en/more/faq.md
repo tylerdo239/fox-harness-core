@@ -17,8 +17,9 @@ inside Data Studio.
 **Data Studio says it can't find the data.**
 The table you asked about may not be open to you. Ask an admin.
 
-**Where is the Upload file button?**
-Only in project chats (Data analysis). Regular chats and Data Studio don't take files.
+**How do I attach a file?**
+The paperclip next to Send (or drag and drop, or paste) — in regular and data-analysis chats. Data Studio doesn't take
+files.
 
 **I edited a dashboard, went back and lost everything.**
 Click **Preview** or **Publish** to save before leaving the builder.

@@ -24,8 +24,9 @@ Tab **Nguồn** → **Thêm nguồn cho dự án**. Chọn được nhiều tệ
 
 ![Tab Nguồn của dự án](../../../assets/screens/project-sources.png)
 
-Trong một đoạn chat, thanh phía trên ô nhập có **Tải file lên** (thêm tệp cho riêng đoạn chat đó) và **Tệp (*n*)** (xem các
-tệp đã có, kể cả tệp model tạo ra). Bấm vào ảnh để xem trước, tệp khác sẽ được tải về.
+Trong một đoạn chat, đính kèm thêm file bằng nút kẹp giấy (xem [Đính kèm file](/docs/chat/chatting/#đính-kèm-file)).
+**Tệp (*n*)** phía trên ô nhập liệt kê các tệp đã có, kể cả tệp model tạo ra. Bấm vào ảnh để xem trước, tệp khác sẽ được
+tải về.
 
 ![Danh sách tệp của đoạn chat](../../../assets/screens/project-files.png)
 

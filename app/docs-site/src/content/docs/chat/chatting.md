@@ -15,6 +15,30 @@ có một câu trả lời: đợi xong (hoặc dừng) rồi mới gửi tin ti
 
 ![Một đoạn chat với agent](../../../assets/screens/chat.png)
 
+## Đính kèm file
+
+Ba cách, trong chat thường và chat phân tích dữ liệu:
+
+- bấm nút **kẹp giấy** cạnh nút **Gửi**;
+- kéo file thả vào khung nhập;
+- dán (Ctrl/Cmd + V) một ảnh chụp màn hình hoặc file đã sao chép.
+
+![Hai file đang chờ gửi](../../../assets/screens/attach-composer.png)
+
+File được tải lên ngay; mỗi file là một thẻ có thanh tiến trình. Tối đa **5 file mỗi tin nhắn**, **70 MB mỗi file**. Nút
+**Gửi** chờ đến khi tải xong. Thẻ lỗi có nút **Thử lại**; nút **×** bỏ file khỏi tin nhắn (file vẫn nằm trong **Tệp**).
+Gửi được cả khi chỉ có file, không có chữ.
+
+![Tin nhắn đã gửi kèm file](../../../assets/screens/attach-sent.png)
+
+Sau khi gửi, thẻ file hiện phía trên tin nhắn: bấm ảnh để xem, bấm file khác để tải về. Agent đọc file trong thư mục
+của đoạn chat bằng công cụ của nó (đọc văn bản, CSV; ở chat phân tích dữ liệu thì chạy Python). Agent không "nhìn" ảnh như
+người — nó chỉ xử lý ảnh bằng code (kích thước, màu…).
+
+- Gửi một file trùng tên file đã có: file mới được lưu thành `ten (2).csv`, file cũ giữ nguyên.
+- **Tệp (*n*)** phía trên ô nhập liệt kê mọi file của đoạn chat, kể cả file agent tạo ra.
+- Data Studio không nhận file.
+
 ## Agent làm gì trong lúc trả lời
 
 Mỗi lần agent dùng một công cụ, một dòng nhỏ hiện ra — bấm vào để xem chi tiết:
