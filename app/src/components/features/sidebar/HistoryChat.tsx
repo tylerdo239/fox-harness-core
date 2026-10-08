@@ -150,6 +150,11 @@ export function HistoryChat({
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
 
+  // The CURRENT session id: refresh() also runs from an event handler set up before the first message gave the
+  // chat its id (the automatic title), where `runtime.sessionId` is still the old render's value.
+  const sessionIdRef = useRef(runtime.sessionId);
+  sessionIdRef.current = runtime.sessionId;
+
   async function refresh(): Promise<void> {
     const res = await runtime.authedFetch("/sessions/mine");
     if (!res.ok) return;
@@ -160,7 +165,7 @@ export function HistoryChat({
     // `runtime.sessionsVersion` in the effect below) and on session switch,
     // so reporting the active row's title here is enough to keep the title
     // bar in sync with all 3 sources without duplicating any fetch logic.
-    const active = list.find((row) => row.sessionId === runtime.sessionId);
+    const active = list.find((row) => row.sessionId === sessionIdRef.current);
     runtime.setSessionTitle(active?.title ?? undefined);
   }
 
@@ -170,9 +175,6 @@ export function HistoryChat({
   // their source; gateway (db.ts renameSession) keeps them only while the chat
   // has no title or just a `fallback` one — never over a user rename — and
   // without bumping `updated_at` (a user rename does, which re-sorts the list).
-  const sessionIdRef = useRef(runtime.sessionId);
-  sessionIdRef.current = runtime.sessionId;
-
   async function applyAutoTitle(sessionId: string, title: string, source: string): Promise<void> {
     // The row appears only once gateway marks the first message, which can
     // land a moment after the title event.

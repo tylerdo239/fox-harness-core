@@ -74,6 +74,7 @@ export const vi = {
   // `sidebar.settings`: the row itself now opens a menu (Settings +
   // Logout), it isn't a direct Settings shortcut anymore.
   "sidebar.accountMenu": "Menu tài khoản",
+  "sidebar.userGuide": "Hướng dẫn sử dụng",
   "sidebar.skills": "Kỹ năng",
   // docs/data-analysis-flow-plan.md — opens a new session on the
   // "data-analysis" flow (a different agent loop).
@@ -228,6 +229,7 @@ export const vi = {
   // divider anymore (removed 2026-09-10, see Conversation.tsx's own
   // comment on `turn/start`).
   "conversation.turnEnded": "lượt {n} kết thúc: {reason}",
+  "conversation.turnBlocked": "Lượt này đã dừng vì chạm giới hạn (số bước hoặc lượng dùng) trước khi trả lời xong. Gửi “tiếp tục” để agent làm tiếp; nếu vẫn dừng, hãy báo admin.",
   // Turn ended because the model call failed (after dsh-llm-retry gave up,
   // or a code it does not retry such as AUTH).
   "conversation.modelError": "Không gọi được model ({code}): {message}",
@@ -292,6 +294,7 @@ export const vi = {
   "conversation.dsChartTreemap": "Biểu đồ ô (treemap)",
   "conversation.dsTable": "Bảng dữ liệu",
   "conversation.dsRows": "{n} dòng",
+  "conversation.dsRow": "1 dòng",
   "conversation.dsSuggestions": "Câu hỏi gợi ý",
   "conversation.dsStat": "Số liệu",
   "dsx.editFields": "Chỉnh trường",
@@ -549,6 +552,7 @@ export const en: Record<TranslationKey, string> = {
   "sidebar.settings": "Settings",
   "sidebar.account": "Account",
   "sidebar.accountMenu": "Account menu",
+  "sidebar.userGuide": "User guide",
   "sidebar.skills": "Skills",
   "sidebar.dataAnalysis": "Data analysis",
   "sidebar.dataStudio": "Data Studio",
@@ -669,6 +673,7 @@ export const en: Record<TranslationKey, string> = {
   "conversation.disconnectedWhileRunning": "Lost connection to the agent. Reload the page to continue.",
   "conversation.stopped": "Stopped.",
   "conversation.turnEnded": "turn {n} ended: {reason}",
+  "conversation.turnBlocked": "This turn stopped at a limit (steps or usage) before the answer was finished. Send “continue” to let the agent carry on; if it stops again, tell an admin.",
   "conversation.modelError": "Model call failed ({code}): {message}",
   "conversation.toolRunning": "Using {name}…",
   "conversation.toolUsed": "Used {name}",
@@ -708,6 +713,7 @@ export const en: Record<TranslationKey, string> = {
   "conversation.dsChartTreemap": "Treemap",
   "conversation.dsTable": "Data table",
   "conversation.dsRows": "{n} rows",
+  "conversation.dsRow": "1 row",
   "conversation.dsSuggestions": "Suggested questions",
   "conversation.dsStat": "Figure",
   "dsx.editFields": "Edit fields",

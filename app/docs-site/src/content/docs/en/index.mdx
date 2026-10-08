@@ -1,0 +1,25 @@
+---
+title: Fox Harness user guide
+description: How to use Fox Harness — chat with the agent, analyse your files and ask about company data in Data Studio.
+template: splash
+hero:
+  tagline: Chat with the agent, analyse data files and ask questions about company data.
+  actions:
+    - text: Get started
+      link: /docs/en/getting-started/login/
+      icon: right-arrow
+    - text: Open Fox Harness
+      link: /
+      variant: minimal
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components'
+
+<CardGrid>
+  <LinkCard title="Getting started" description="Logging in, the parts of the screen, language and theme." href="/docs/en/getting-started/login/" />
+  <LinkCard title="Chatting" description="Send messages, stop a reply, rename and delete chats." href="/docs/en/chat/chatting/" />
+  <LinkCard title="Data analysis" description="Projects, uploading files and getting the model's results." href="/docs/en/chat/data-analysis/" />
+  <LinkCard title="Skills" description="Use the built-in skills or write your own." href="/docs/en/chat/skills/" />
+  <LinkCard title="Data Studio" description="Ask about company data, edit charts and build dashboards." href="/docs/en/data-studio/asking/" />
+  <LinkCard title="Your data and limits" description="Who sees your data, how long it is kept, usage limits." href="/docs/en/more/data-and-limits/" />
+</CardGrid>

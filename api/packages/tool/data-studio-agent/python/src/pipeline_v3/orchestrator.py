@@ -36,6 +36,7 @@ from src.pipeline_v2.state import (
 )
 from src.pipeline_v2.step6_joins import run_step6
 from src.pipeline_v2.step8_generate import run_step8
+from src.pipeline_v3.lang import table_title, title_for
 from src.pipeline_v3.agents import (
     build_chart_agent,
     build_chart_review_agent,
@@ -1059,7 +1060,7 @@ async def _build_one_chart(model, item, sql_rows: list[dict], question: str, tra
         if approved:
             return {
                 "type": ctype, "x": x, "y": ys, "value_field": None,
-                "title": item.title or question, "recommended": bool(item.recommended),
+                "title": title_for(item.title, question), "recommended": bool(item.recommended),
                 "rows": chart_rows, "transform_code": transform_code,
             }
 
@@ -1092,7 +1093,7 @@ async def _build_one_chart(model, item, sql_rows: list[dict], question: str, tra
     if x in cols and ys and all(c in cols for c in ys):
         return {
             "type": ctype, "x": x, "y": ys, "value_field": None,
-            "title": item.title or question, "recommended": bool(item.recommended),
+            "title": title_for(item.title, question), "recommended": bool(item.recommended),
             "rows": chart_rows, "transform_code": transform_code,
         }
     _trace(trace, f"## Chart review\n- ⚠️ dropped {ctype} after 3 failed reviews (x={x}, y={ys})")
@@ -1128,19 +1129,19 @@ async def _run_chart(model, result: V3Result, question: str, trace: list[str]) -
         charts.append(chart)
         if len(charts) >= 3:
             break
-    if not charts:  # nothing usable → one guarded default bar on the raw rows
-        x, ys = _guard_chart_fields(None, [], columns)
-        charts = [{"type": "bar", "x": x, "y": ys, "title": question, "recommended": True, "rows": result.rows}]
-    if not any(c["recommended"] for c in charts):
+    if not charts:  # nothing usable → one guarded default bar on the raw rows, if it has a measure to plot
+        charts = _default_charts(columns, result.rows, question)
+    if charts and not any(c["recommended"] for c in charts):
         charts[0]["recommended"] = True
 
     # VISION review each VISUAL chart in-loop (FE renders + posts image per chart).
     reviewed = [await _vision_review_chart(model, c, columns, question, trace) for c in charts]
 
-    # ALWAYS append a data table of the raw SQL result — never transformed, never reviewed.
+    # ALWAYS append a data table of the raw SQL result — never transformed, never reviewed. With no visual
+    # chart it is the recommended view.
     reviewed.append({
-        "type": "table", "x": None, "y": columns, "title": "Bảng dữ liệu",
-        "recommended": False, "rows": result.rows,
+        "type": "table", "x": None, "y": columns, "title": table_title(question),
+        "recommended": not reviewed, "rows": result.rows,
     })
     result.charts = reviewed
     _trace(trace, "## Charts\n" + "\n".join(f"- {c['type']}" for c in reviewed))
@@ -1166,6 +1167,15 @@ async def _vision_review_chart(model, chart: dict, columns, question, trace) -> 
     if res.get("satisfied"):
         return chart
     return res.get("chart") or chart
+
+
+def _default_charts(columns: list[str], rows: list[dict], question: str) -> list[dict]:
+    """The fallback bar when the chart agent produced nothing usable — none when no column can be its Y
+    (e.g. a timestamp and an id): a bar with no series renders as an empty plot; the data table shows the rows."""
+    x, ys = _guard_chart_fields(None, [], columns)
+    if x is None or not ys:
+        return []
+    return [{"type": "bar", "x": x, "y": ys, "title": question, "recommended": True, "rows": rows}]
 
 
 def _guard_chart_fields(x: str | None, ys: list[str], columns: list[str]) -> tuple[str | None, list[str]]:

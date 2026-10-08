@@ -793,8 +793,8 @@ def build_chart_agent(model: OpenAILike) -> WorkerParserAgent:
             "add a pct column; a chart over only the top few → df.nlargest; binned distribution → "
             "pd.cut. **If the chart works on the raw SQL columns as-is, leave transform_code empty.**",
             "**transform_code rules:** only pandas (`pd`) + `df`; assign to `result`; no imports/io.",
-            "**Each chart's title MUST be in the SAME language as the question** (e.g. a Vietnamese "
-            "question → a Vietnamese title). Never translate to English.",
+            "**Each chart's title MUST be in the SAME language as the question** (a Vietnamese "
+            "question → a Vietnamese title, an English question → an English title). Never translate it.",
             "**Be terse — for each chart: type + x + y + title + (transform_code only if needed).**",
         ],
         parser_rules=(
@@ -903,7 +903,7 @@ def build_followups_agent(model: OpenAILike) -> WorkerParserAgent:
             "**Your ONLY job: suggest 2-3 natural follow-up questions** the user might ask next. You "
             "do NOT answer them.",
             "**Write every question in the SAME language as the original question** (Vietnamese → "
-            "Vietnamese). **Never switch to English.**",
+            "Vietnamese, English → English). **Never switch language.**",
             "**Ground each suggestion ONLY in the 'available but unused' schema shown** — a different "
             "breakdown by an unused dimension, a related table, or a business concept that EXISTS. "
             "**Never suggest anything the shown schema can't answer.**",
@@ -939,7 +939,7 @@ def build_decompose_agent(model: OpenAILike) -> WorkerParserAgent:
             "The ranking/percentage words are NOT nouns — ignore them when counting.",
             "**Each sub-question must be self-contained** (repeat the grouping part in each).",
             "**Write every sub-question in the SAME language as the original question** (a Vietnamese "
-            "question → Vietnamese sub-questions). **Never translate to English.** Be terse.",
+            "question → Vietnamese sub-questions, an English one → English). **Never translate.** Be terse.",
         ],
         parser_rules=(
             "Extract is_multi (bool), sub_questions (id + self-contained question each, in the SAME "

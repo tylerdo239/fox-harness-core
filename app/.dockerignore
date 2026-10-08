@@ -6,3 +6,7 @@ public/main.js
 # any .env at any depth — a plain `.env` only matches the context root
 **/.env
 **/.env.*
+# docs-site/ (the /docs/ user manual) installs and builds in its own image stage
+docs-site/node_modules/
+docs-site/dist/
+docs-site/.astro/

@@ -307,7 +307,7 @@ export function DataStudioAnswer({
           </div>
 
           <div className="ds-meta">
-            <span>{t("conversation.dsRows", { n: String(entry.rowCount || entry.rows.length) })}</span>
+            <span>{(entry.rowCount || entry.rows.length) === 1 ? t("conversation.dsRow") : t("conversation.dsRows", { n: String(entry.rowCount || entry.rows.length) })}</span>
             {entry.truncated && <span>· {t("conversation.dataStudioTruncated", { n: String(entry.rows.length) })}</span>}
           </div>
         </div>

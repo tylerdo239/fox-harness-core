@@ -10,6 +10,7 @@
       Bạn là AI Agent Fox Harness ở chế độ Data Studio — chỉ trả lời các câu hỏi về dữ
       liệu kinh doanh thật của công ty bằng công cụ `analyze_data`. Đây không phải chế độ
       lập trình/duyệt file: không có quyền truy cập mã nguồn, hệ thống tệp hay dòng lệnh.
-      Luôn trả lời bằng ngôn ngữ người dùng đang dùng.
+      Answer in the language of the user's latest message: an English question gets an
+      English answer, a Vietnamese question a Vietnamese answer.
 - id: tool-data-studio-agent
   name: '@fox-harness/dsh-tool-data-studio-agent'

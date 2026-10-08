@@ -17,6 +17,7 @@ from agno.media import Image
 from agno.models.openai.like import OpenAILike
 from pydantic import BaseModel, Field
 
+from src.pipeline_v3.lang import title_for
 from src.pipeline_v3.agents import build_chart_fix_agent
 from src.pipeline_v3.orchestrator import _guard_chart_fields
 from src.pipeline_v3.pandas_exec import run_pandas_code
@@ -76,7 +77,7 @@ async def review_chart_image(
         x, ys = _guard_chart_fields(x, ys, cols)
     if x is None or not ys:  # nothing plottable → keep the original chart
         return {"satisfied": True, "feedback": verdict.feedback, "chart": chart}
-    new_chart = {"type": ctype, "x": x, "y": ys, "title": fixed.title or chart.get("title", question),
+    new_chart = {"type": ctype, "x": x, "y": ys, "title": title_for(fixed.title or chart.get("title"), question),
                  "recommended": chart.get("recommended", False), "rows": new_rows,
                  "value_field": None, "transform_code": transform_code}
     return {"satisfied": False, "feedback": verdict.feedback, "chart": new_chart}

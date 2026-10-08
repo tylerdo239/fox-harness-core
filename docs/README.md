@@ -3,6 +3,8 @@
 Current:
 - `core-architecture.md` — START HERE: every component of `api/`, how a chat turn runs, and why.
 - `deploy.md` — deploying the two images (`app/`, `api/`).
+- `admin-guide.md` — admin manual (users, Data Studio sources and who may query them); the user manual is `/docs` (`app/docs-site/`).
+- `session-archive-plan.md` — session logs archived to S3 (12 months, restore on reopen, delete on purge), done 2026-10-07.
 - `core-readiness-review-2026-10-05.md` — what is ready, what is not, verified results.
 - `multi-user-authz.md` — multi-user isolation and role-based access (admin/user), open issues, how to test.
 - `deploy-security-checklist.md` — what the deploy's proxy/ingress must do (TLS, headers, X-Forwarded-For, logs).

@@ -33,6 +33,8 @@ export {
   // `LogOutIcon` is the popup's own Logout item.
   MoreHorizontal as MoreIcon,
   LogOut as LogOutIcon,
+  // the account menu's link to the user manual (/docs/, app/docs-site)
+  BookOpen as BookIcon,
   // Settings dialog's Profile tab nav item (2026-09-10).
   User as ProfileIcon,
   // Settings dialog's Users tab nav item (admin only).

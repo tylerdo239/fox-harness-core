@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { KNOWN_SESSION_EVENT_TYPES } from '@deepseek-ai/dsh-session'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
 import { DataStudioPool } from './pool.ts'
@@ -14,6 +15,12 @@ declare module '@deepseek-ai/dsh-session/types' {
     'fox/data-studio-progress': { callId: string; item: ProgressItem }
   }
 }
+
+// dsh refuses to resume a log holding an event type it does not know (and `session.append` cannot mark one
+// ignorable), so every Data Studio chat with a progress step failed to reopen once its runtime let go of it
+// ("unknown session"). dsh has no registration surface for plugin events yet; its known-type set is the one the
+// persistence read path checks, so the type joins it when this plugin loads — before any chat is resumed.
+;(KNOWN_SESSION_EVENT_TYPES as Set<string>).add('fox/data-studio-progress')
 
 export const name = 'fox-harness-tool-data-studio-agent'
 export const inject = ['tools', 'agents']

@@ -1,0 +1,29 @@
+/* The app's orange (app/public/theme.css): --fh-accent is the fill (buttons, the current page) with white text on it,
+   --fh-alias-accent-text is orange used as text on the page. Starlight's dark mode is :root, light is
+   [data-theme='light']; its --sl-color-text-accent is used both as a fill and as link text, so links get their own. */
+:root {
+  --sl-color-accent-low: #4a1f05;
+  --sl-color-accent: #d9600f; /* --fh-accent, dark */
+  --sl-color-accent-high: #f37021; /* --fh-alias-accent-text, dark */
+  --sl-color-text-accent: #d9600f;
+  --sl-color-text-invert: #ffffff;
+  --fh-link: #f37021;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #ffe7d6;
+  --sl-color-accent: #ff7a1f; /* --fh-accent, light */
+  --sl-color-accent-high: #b3450c; /* --fh-alias-accent-text, light */
+  --sl-color-text-accent: #ff7a1f;
+  --sl-color-text-invert: #ffffff;
+  --fh-link: #b3450c;
+}
+.sl-markdown-content a:not(.card):not(.sl-link-card),
+starlight-toc a[aria-current='true'],
+mobile-starlight-toc a[aria-current='true'] {
+  color: var(--fh-link);
+}
+/* screenshots: a thin frame so a white screen does not melt into the page */
+.sl-markdown-content img {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 8px;
+}
