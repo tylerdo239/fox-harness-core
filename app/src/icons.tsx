@@ -35,6 +35,8 @@ export {
   LogOut as LogOutIcon,
   // the account menu's link to the user manual (/docs/, app/docs-site)
   BookOpen as BookIcon,
+  // a failed chat attachment's retry (Attachments.tsx)
+  RotateCcw as RetryIcon,
   // Settings dialog's Profile tab nav item (2026-09-10).
   User as ProfileIcon,
   // Settings dialog's Users tab nav item (admin only).

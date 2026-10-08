@@ -380,14 +380,19 @@ export const vi = {
   "conversation.untitledSession": "Đoạn chat mới",
 
   // WorkspacePanel.tsx — files of a data-analysis chat.
-  "workspace.upload": "Tải file lên",
-  "workspace.uploading": "Đang tải lên…",
   "workspace.files": "Tệp ({n})",
   "workspace.empty": "Chưa có tệp nào. Tải dữ liệu lên để bắt đầu.",
   "workspace.uploaded": "Đã tải lên {name}",
   "workspace.uploadFailed": "Không tải lên được {name}",
   "workspace.tooLarge": "{name} quá lớn (tối đa 70 MB)",
   "workspace.openFailed": "Không mở được {name}",
+  "attach.button": "Đính kèm file",
+  "attach.dropHint": "Thả file vào đây để đính kèm",
+  "attach.tooMany": "Mỗi tin nhắn đính kèm tối đa {n} file",
+  "attach.tooLarge": "Quá lớn (tối đa 70 MB)",
+  "attach.failed": "Tải lên thất bại",
+  "attach.retry": "Thử lại",
+  "attach.remove": "Bỏ đính kèm",
 
   // ProjectHub.tsx (docs/rlm-transfer-plan.md 9.1) — wording from agent-core's
   // packages/ui-projects/src/ProjectHub.tsx.
@@ -795,14 +800,19 @@ export const en: Record<TranslationKey, string> = {
   "dsx.headerTwoTone": "Two-tone",
   "dsx.headerTwoToneNote": "Dark band + title",
   "conversation.untitledSession": "New chat",
-  "workspace.upload": "Upload file",
-  "workspace.uploading": "Uploading…",
   "workspace.files": "Files ({n})",
   "workspace.empty": "No files yet. Upload data to get started.",
   "workspace.uploaded": "Uploaded {name}",
   "workspace.uploadFailed": "Could not upload {name}",
   "workspace.tooLarge": "{name} is too large (max 70 MB)",
   "workspace.openFailed": "Could not open {name}",
+  "attach.button": "Attach files",
+  "attach.dropHint": "Drop files here to attach them",
+  "attach.tooMany": "At most {n} files per message",
+  "attach.tooLarge": "Too large (max 70 MB)",
+  "attach.failed": "Upload failed",
+  "attach.retry": "Retry",
+  "attach.remove": "Remove attachment",
 
   "projects.eyebrow": "Data analysis",
   "projects.title": "Projects",
