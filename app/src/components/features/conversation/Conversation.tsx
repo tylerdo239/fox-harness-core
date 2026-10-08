@@ -935,6 +935,10 @@ export function Conversation({
             text: tRef.current("conversation.stopped"),
             muted: true,
           });
+        } else if (data.reason.kind === "blocked") {
+          // a plugin refused the next step: the data-analysis step / time limit (packages/flow/data-analysis)
+          // or the session token budget (agent-core policy/quota.ts) — not a crash, so say what to do.
+          pushEntry({ kind: "notice", id: `evt-${event.seq}`, text: tRef.current("conversation.turnBlocked") });
         } else if (data.reason.kind !== "completed") {
           pushEntry({
             kind: "notice",

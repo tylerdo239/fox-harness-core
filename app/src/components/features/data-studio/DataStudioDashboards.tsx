@@ -18,7 +18,7 @@ import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
 import { Button } from "../../primitives/Button.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
-import { ChartView } from "../conversation/ChartView.tsx";
+import { ChartView, chartTitle } from "../conversation/ChartView.tsx";
 import { DashboardHeader } from "./DashboardHeader.tsx";
 import {
   chartOutToSpec,
@@ -190,7 +190,7 @@ function WidgetBody({ widget, look }: { widget: WidgetOut; look: ReturnType<type
   const spec = chartOutToSpec(widget.chart, widget.title_override);
   return (
     <>
-      <div className="ds-dash-widget-title">{widget.title_override || widget.chart.title_override || widget.chart.title}</div>
+      <div className="ds-dash-widget-title">{widget.title_override || widget.chart.title_override || chartTitle(widget.chart, t("conversation.dsTable"))}</div>
       <div className="ds-dash-widget-plot">
         <ChartView chart={spec} height="100%" chromeless />
       </div>
@@ -478,7 +478,7 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
             available.map((c) => (
               <button key={c.chart_id} type="button" className="ds-builder-chart" onClick={() => addChart(c)} title={c.conversation_title ?? undefined}>
                 <span className="ds-builder-chart-title">
-                  <ChartBarIcon size={13} /> {c.title || c.type}
+                  <ChartBarIcon size={13} /> {chartTitle(c, t("conversation.dsTable")) || c.type}
                 </span>
                 <span className="ds-muted">{c.type}{c.conversation_title ? ` · ${c.conversation_title}` : ""}</span>
               </button>

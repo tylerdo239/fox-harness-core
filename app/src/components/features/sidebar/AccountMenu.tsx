@@ -26,7 +26,7 @@ import { MenuItem } from '../../primitives/MenuItem.tsx'
 
 export function AccountMenu({ onOpenSettings, onLogout }: { onOpenSettings: () => void; onLogout: () => void }) {
   const runtime = useRuntime()
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<{ left: number; bottom: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -97,8 +97,8 @@ export function AccountMenu({ onOpenSettings, onLogout }: { onOpenSettings: () =
               variant="popup"
               onClick={() => {
                 setOpen(false)
-                // the user manual is a separate static site (app/docs-site) next to the app
-                window.open('/docs/', '_blank', 'noopener')
+                // the user manual is a separate static site (app/docs-site) next to the app, in the app's language
+                window.open(locale === 'en' ? '/docs/en/' : '/docs/', '_blank', 'noopener')
               }}
             >
               <BookIcon size={15} />

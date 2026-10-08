@@ -28,6 +28,8 @@ import {
   ZAxis,
 } from "recharts";
 
+import { useLocale } from "../../../i18n/locale.tsx";
+
 export interface ChartSpec {
   type?: string;
   x?: string | null;
@@ -48,8 +50,9 @@ export interface ChartSpec {
   label_overrides?: Record<string, string>;
 }
 
-// Colorblind-safe series palette shared by every chart (same as the reference UI).
-export const SERIES_COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444", "#14b8a6"];
+// Series palette shared by every chart: the app's orange first (public/theme.css --fh-accent), then hues far from it
+// (the reference UI's amber is dropped — next to orange two series were hard to tell apart).
+export const SERIES_COLORS = ["#ff7a1f", "#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#14b8a6"];
 
 // Every chart type, in the order the type picker shows them.
 export const CHART_TYPES = [
@@ -87,6 +90,12 @@ export function categoryOf(value: unknown): string | number {
   if (typeof value === "number" || typeof value === "string") return value;
   if (value === null || value === undefined) return "—";
   return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+// Charts saved by pipeline v3 before 2026-10-08 name the raw-rows table "Bảng dữ liệu" whatever the question's
+// language: show the UI's own label for it.
+export function chartTitle(chart: { type?: string | null; title?: string | null }, tableLabel: string): string {
+  return (chart.type ?? "").toLowerCase() === "table" && chart.title === "Bảng dữ liệu" ? tableLabel : chart.title ?? "";
 }
 
 // A saved chart already carries its persisted edits; fold them into the working spec so the chart renders the
@@ -133,13 +142,15 @@ export function ChartView({
   // just the plot: no title (the dashboard card draws its own)
   chromeless?: boolean;
 }) {
+  const { t } = useLocale();
   const chart = resolveChart(input);
   const rows = chart.rows ?? [];
   const type = (chart.type ?? "bar").toLowerCase();
   const label = (field: string) => labelFor(field, chart.label_overrides);
   const fill = height === "100%";
   const wrapStyle = fill ? { height: "100%" } : undefined;
-  const title = !chromeless && chart.title ? <div className="chart-view-title">{chart.title}</div> : null;
+  const titleText = chartTitle(chart, t("conversation.dsTable"));
+  const title = !chromeless && titleText ? <div className="chart-view-title">{titleText}</div> : null;
 
   if (rows.length === 0) return null;
 
