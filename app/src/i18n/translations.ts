@@ -74,6 +74,7 @@ export const vi = {
   // `sidebar.settings`: the row itself now opens a menu (Settings +
   // Logout), it isn't a direct Settings shortcut anymore.
   "sidebar.accountMenu": "Menu tài khoản",
+  "sidebar.userGuide": "Hướng dẫn sử dụng",
   "sidebar.skills": "Kỹ năng",
   // docs/data-analysis-flow-plan.md — opens a new session on the
   // "data-analysis" flow (a different agent loop).
@@ -549,6 +550,7 @@ export const en: Record<TranslationKey, string> = {
   "sidebar.settings": "Settings",
   "sidebar.account": "Account",
   "sidebar.accountMenu": "Account menu",
+  "sidebar.userGuide": "User guide",
   "sidebar.skills": "Skills",
   "sidebar.dataAnalysis": "Data analysis",
   "sidebar.dataStudio": "Data Studio",

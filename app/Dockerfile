@@ -15,10 +15,20 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm run build
 
+# The user manual (docs-site/, Starlight): static pages served at /docs/.
+FROM node:22-slim AS docs
+RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
+WORKDIR /docs-site
+COPY docs-site/package.json docs-site/pnpm-lock.yaml docs-site/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY docs-site/ ./
+RUN pnpm run build
+
 FROM nginx:1.27-alpine
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 # Runs before nginx's own template step: no BACKEND_URL → refuse to start with a clear message, instead of nginx
 # proxying to a guessed host.
 COPY docker/require-backend-url.sh /docker-entrypoint.d/05-require-backend-url.sh
 COPY --from=build /app/public /usr/share/nginx/html
+COPY --from=docs /docs-site/dist /usr/share/nginx/html/docs
 EXPOSE 80

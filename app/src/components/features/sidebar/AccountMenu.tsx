@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { useLocale } from '../../../i18n/locale.tsx'
-import { GearIcon, LogOutIcon, MoreIcon } from '../../../icons.tsx'
+import { BookIcon, GearIcon, LogOutIcon, MoreIcon } from '../../../icons.tsx'
 import { useRuntime } from '../../../runtime.ts'
 import { MenuItem } from '../../primitives/MenuItem.tsx'
 
@@ -92,6 +92,17 @@ export function AccountMenu({ onOpenSettings, onLogout }: { onOpenSettings: () =
             >
               <GearIcon size={15} />
               {t('sidebar.settings')}
+            </MenuItem>
+            <MenuItem
+              variant="popup"
+              onClick={() => {
+                setOpen(false)
+                // the user manual is a separate static site (app/docs-site) next to the app
+                window.open('/docs/', '_blank', 'noopener')
+              }}
+            >
+              <BookIcon size={15} />
+              {t('sidebar.userGuide')}
             </MenuItem>
             <MenuItem
               variant="popup"

@@ -1,0 +1,8 @@
+# docs-site/ is its own pnpm project, built into the web image's /docs/ (app/Dockerfile).
+allowBuilds:
+  esbuild: true
+  sharp: true
+minimumReleaseAgeExclude:
+  - astro@7.3.7
+  - playwright-core@1.64.0
+  - playwright@1.64.0
