@@ -618,6 +618,24 @@ const tests = {
     const mine = await api('GET', '/sessions/mine', a.token)
     return { ok: del.status === 204 && existedBefore === 'yes' && existsAfter === 'no' && logsBefore !== '0' && logsAfter === '0' && c.closed && again.status !== undefined && !mine.json.some((r) => r.sessionId === id), detail: `dir ${existedBefore}->${existsAfter}, logs ${logsBefore}->${logsAfter}, viewer closed=${c.closed}, reopen status=${again.status}` }
   },
+  // A Data Studio chat's log holds `fox/data-studio-progress` events (the live steps). dsh refused to resume a log
+  // with an event type it does not know, so such a chat failed to reopen ("unknown session") once the runtime let
+  // go of it. analyze_data has no Dremio here and fails, but only after its first steps were logged.
+  async dataStudioResume() {
+    const { a } = await users()
+    const c = chat(a.token, { params: { flow: 'data-studio' } }); await c.opened; await c.ready()
+    c.send(`CALL analyze_data ${JSON.stringify({ question: 'Có bao nhiêu workflow?' })}`)
+    await c.turnEnds(1, 180000)
+    const progress = c.events.filter((e) => e.type === 'fox/data-studio-progress').length
+    const id = c.sessionId; c.close()
+    await sleep(15000) // FOX_IDLE_DISPOSE_MS=8000
+    const again = chat(a.token, { session: id }); await again.opened
+    const reopened = await again.ready().then(() => true, () => false)
+    const replayed = again.events.filter((e) => e.type === 'fox/data-studio-progress').length
+    again.close()
+    return { ok: progress > 0 && reopened && replayed === progress && again.errors.length === 0, detail: `progress events=${progress}, reopened=${reopened}, replayed=${replayed}, errors=${JSON.stringify(again.errors)}` }
+  },
+
   // Session logs go to S3 (sessions/<owner>/<session>/...), come back when a chat whose log left the disk is reopened,
   // and a purge deletes every copy and version. SESSION_ARCHIVE_INTERVAL_MS=2000 in scripts/e2e-up.sh.
   async sessionArchive() {

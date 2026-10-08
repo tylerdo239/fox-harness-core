@@ -81,6 +81,14 @@ export function toNumber(value: unknown): number | null {
   return null;
 }
 
+// An X value as the category recharts can draw: it only places string / number keys, so a boolean (`is_active`),
+// a null or an object would leave the plot empty.
+export function categoryOf(value: unknown): string | number {
+  if (typeof value === "number" || typeof value === "string") return value;
+  if (value === null || value === undefined) return "—";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
 // A saved chart already carries its persisted edits; fold them into the working spec so the chart renders the
 // user's last-chosen title / fields on reload.
 export function resolveChart(spec: ChartSpec): ChartSpec {
@@ -186,7 +194,7 @@ export function ChartView({
 
   // y values may arrive as numeric strings (Dremio decimals) — plot them as numbers.
   const data = rows.map((row) => {
-    const point: Record<string, unknown> = { [x]: row[x] };
+    const point: Record<string, unknown> = { [x]: categoryOf(row[x]) };
     for (const y of ys) point[y] = toNumber(row[y]) ?? row[y];
     return point;
   });

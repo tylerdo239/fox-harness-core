@@ -55,6 +55,7 @@ docker run -d --name foxe2e-backend --network $NET $SANDBOX_ARGS -v foxe2e-data:
   -e FOX_IDLE_DISPOSE_MS=8000 -e FOX_IDLE_SWEEP_MS=1000 -e FOX_PY_CELL_TIMEOUT_MS=5000 \
   -e CHAT_RATE_LIMIT_PER_MIN=${E2E_CHAT_LIMIT:-60} \
   -e SESSION_ARCHIVE_INTERVAL_MS=2000 \
+  -e EMBEDDING_BASE_URL=http://host.docker.internal:4999 \
   fox-harness-backend:dev >/dev/null
 # CHAT_RATE_LIMIT_PER_MIN: the suite itself sends one user more than the default 20 messages a minute; gatewayLimits
 # reads the same E2E_CHAT_LIMIT to probe the limit.

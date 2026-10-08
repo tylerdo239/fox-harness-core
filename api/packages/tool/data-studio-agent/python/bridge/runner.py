@@ -394,9 +394,7 @@ async def main() -> None:
             # Real gap found debugging a live "[Errno 111] Connection refused"
             # with zero context: `str(e)` alone doesn't say WHICH of
             # LLM/embedding/Dremio/Meilisearch refused — the traceback's
-            # deepest frames do. Goes to the model (then the user), same as
-            # `str(e)` did before; a bit more tokens on the rare error path
-            # is worth being able to actually diagnose it.
+            # deepest frames do — logged below.
             #
             # 2026-09-18: this used to be invisible until the reply printed below —
             # a hard crash produced ZERO output on stderr, so `docker logs` stayed
@@ -405,7 +403,9 @@ async def main() -> None:
             tb = traceback.format_exc()
             print(json.dumps({"event": "crash", "error": str(e), "traceback": tb[-2000:]},
                               ensure_ascii=False), file=sys.stderr, flush=True)
-            reply = {"ok": False, "error": f"{e}\n{tb[-2000:]}"}
+            # The traceback stays in the log above; the user (and the model) get the error alone — a traceback
+            # in the chat showed the backend's file paths and library internals (2026-10-08).
+            reply = {"ok": False, "error": f"{type(e).__name__}: {e}"}
         print(json.dumps(reply, ensure_ascii=False), flush=True)
 
 
