@@ -36,6 +36,8 @@ Model dùng cho đoạn chat do hệ thống chọn, người dùng không cần
   bình thường.
 - **Tên:** đoạn chat tự đặt tên theo tin nhắn đầu. Để đổi tên, bấm vào tên ở đầu đoạn chat, hoặc rê chuột vào đoạn chat ở
   thanh bên → **…** → **Đổi tên** (tối đa 255 ký tự; Enter để lưu, Esc để huỷ). Tên bạn tự đặt sẽ không bị đổi lại.
+![Menu của một đoạn chat](../../../assets/screens/chat-row-menu.png)
+
 - **Xoá:** thanh bên → **…** → **Xoá**. Không hoàn tác được — xem [Dữ liệu của bạn](/docs/khac/du-lieu-va-gioi-han/).
 - **Chia sẻ đường dẫn:** mỗi đoạn chat có địa chỉ riêng (`/chat/...`), nhưng **chỉ chủ đoạn chat mở được**.
 

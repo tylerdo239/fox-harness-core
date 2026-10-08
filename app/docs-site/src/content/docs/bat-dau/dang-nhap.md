@@ -32,6 +32,5 @@ Nếu bạn mở một đường dẫn tới đoạn chat (ví dụ `/chat/...`)
 Bấm vào email của bạn ở cuối thanh bên → **Đăng xuất**, hoặc **Cài đặt → Hồ sơ → Đăng xuất**.
 
 :::note[Quên mật khẩu?]
-Chưa có chức năng tự đặt lại mật khẩu. Admin có thể đặt mật khẩu mới cho bạn (xem
-[Quản lý người dùng](/docs/quan-tri/nguoi-dung/)).
+Chưa có chức năng tự đặt lại mật khẩu. Liên hệ admin để được đặt mật khẩu mới.
 :::

@@ -16,7 +16,6 @@ export default defineConfig({
         { label: 'Bắt đầu', items: [{ autogenerate: { directory: 'bat-dau' } }] },
         { label: 'Chat', items: [{ autogenerate: { directory: 'chat' } }] },
         { label: 'Data Studio', items: [{ autogenerate: { directory: 'data-studio' } }] },
-        { label: 'Quản trị', items: [{ autogenerate: { directory: 'quan-tri' } }] },
         { label: 'Khác', items: [{ autogenerate: { directory: 'khac' } }] },
       ],
     }),

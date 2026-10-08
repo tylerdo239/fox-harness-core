@@ -31,7 +31,6 @@ Mở menu tài khoản → **Cài đặt**.
 | --------------- | ------------------------------------------------------------ |
 | **Cài đặt**     | **Giao diện** (Sáng / Tối) và **Ngôn ngữ** (Tiếng Việt / English) |
 | **Hồ sơ**       | Email của bạn và nút **Đăng xuất**                           |
-| **Người dùng**  | Chỉ admin thấy — xem [Quản lý người dùng](/docs/quan-tri/nguoi-dung/) |
 
 Lựa chọn giao diện và ngôn ngữ được nhớ trên trình duyệt này.
 

@@ -4,19 +4,18 @@ sidebar:
   order: 1
 ---
 
-Data Studio trả lời câu hỏi về **dữ liệu của công ty** (các bảng admin đã đưa vào) bằng câu trả lời, biểu đồ và SQL.
+Data Studio trả lời câu hỏi về **dữ liệu của công ty** (các bảng admin đã mở cho bạn) bằng câu trả lời, biểu đồ và SQL.
 
 ## Mở Data Studio
 
 ![Màn hình Data Studio](../../../assets/screens/ds-home.png)
 
-Thanh bên → **Data Studio**. Thanh bên đổi sang Data Studio:
+Thanh bên → **Data Studio**. Thanh bên đổi sang Data Studio, với hai mục:
 
-| Mục                    | Ai thấy        | Dùng để                                                         |
-| ---------------------- | -------------- | --------------------------------------------------------------- |
-| **Trò chuyện**         | Mọi người      | Hỏi dữ liệu; lịch sử chat Data Studio nằm ngay dưới             |
-| **Bảng điều khiển**    | Mọi người      | Dashboard của bạn — xem [Dashboard](/docs/data-studio/dashboard/) |
-| Nguồn dữ liệu, Hồ sơ dữ liệu, Từ điển thuật ngữ, Quan hệ dữ liệu, Chỉ số | Chỉ admin | Cấu hình dữ liệu — xem [Nguồn dữ liệu](/docs/quan-tri/nguon-du-lieu/) |
+| Mục                 | Dùng để                                                              |
+| ------------------- | -------------------------------------------------------------------- |
+| **Trò chuyện**      | Hỏi dữ liệu; lịch sử chat Data Studio nằm ngay dưới                   |
+| **Bảng điều khiển** | Dashboard của bạn — xem [Dashboard](/docs/data-studio/dashboard/)     |
 
 Mũi tên **Quay lại Fox Harness** ở đầu thanh bên để trở về màn hình chat thường (menu Cài đặt / Đăng xuất nằm ở đó).
 

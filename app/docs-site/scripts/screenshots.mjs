@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Screenshots for the user manual (src/assets/screens/*.png), taken from a running Fox Harness with a real model.
-// Use a demo account with no real data in it (an admin: the Quản trị pages need one), e.g. on the local stack:
+// The manual is for role `user`, so shoot as one: a demo account with no real data in it, created by an admin
+// (Cài đặt → Người dùng), e.g. demo-user@fox-harness.local; an admin sees screens a user never does.
 //
-//   docker exec fox-harness-backend-1 node scripts/create-admin.mjs demo@fox-harness.local '<password>'
-//   DOCS_EMAIL=demo@fox-harness.local DOCS_PASSWORD='<password>' pnpm screenshots [name...]
+//   DOCS_EMAIL=demo-user@fox-harness.local DOCS_PASSWORD='<password>' pnpm screenshots [name...]
 //
 // Env: DOCS_BASE_URL (default http://127.0.0.1:8080), CHROMIUM_PATH (a Chromium already on the machine; otherwise
 // `pnpm exec playwright install chromium` once). It creates chats, a project, a skill and a dashboard in that account.
-// Data Studio shots need Dremio with at least one table enabled. Emails other than the demo account's are masked.
+// Data Studio shots need Dremio and a table an admin opened to role user ("Cho phép role user"). Emails other than the demo account's are masked.
 
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -104,8 +104,6 @@ const steps = {
     await page.getByText('Cài đặt', { exact: true }).first().click()
     await page.getByRole('dialog').waitFor()
     await shot('settings')
-    await page.getByRole('dialog').getByText('Người dùng', { exact: true }).click()
-    await shot('settings-users')
     await page.keyboard.press('Escape')
   },
 
@@ -172,7 +170,11 @@ const steps = {
     await page.getByText('Data Studio', { exact: true }).first().click()
     await page.getByPlaceholder('Nhắn cho agent…').waitFor()
     await shot('ds-home')
-    await send(process.env.DOCS_DS_QUESTION ?? 'Số workflow được tạo phân theo loại workflow là bao nhiêu?')
+    await send(process.env.DOCS_DS_QUESTION ?? 'Số lượng workflow theo trạng thái?')
+    // the live steps, once a few are done
+    await page.locator('.ds-progress, [class*=progress]').getByText(/Chọn chỉ số đo|Tìm dữ liệu|Kiểm tra độ rõ/).first().waitFor({ timeout: LONG }).catch(() => {})
+    await page.waitForTimeout(3000)
+    if (await page.getByRole('button', { name: 'Dừng' }).count()) await shot('ds-progress')
     await turnDone()
     await page.locator('.recharts-wrapper, table').first().evaluate((e) => e.scrollIntoView({ block: 'center' }))
     await shot('ds-answer')
@@ -192,12 +194,6 @@ const steps = {
     await shot('dashboard-builder')
   },
 
-  async adminSources() {
-    await page.goto(BASE)
-    await page.getByText('Data Studio', { exact: true }).first().click()
-    await page.getByText('Nguồn dữ liệu', { exact: true }).first().click()
-    await shot('ds-sources')
-  },
 }
 
 for (const [name, step] of Object.entries(steps)) {
