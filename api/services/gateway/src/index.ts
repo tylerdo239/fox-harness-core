@@ -103,6 +103,7 @@ import { syncSkills } from './runtime/skills-sync.ts'
 import { RuntimeSupervisor } from './runtime/supervisor.ts'
 import {
   contentTypeFor,
+  deleteWorkspaceFile,
   listWorkspaceFiles,
   promoteOutput,
   resolveInside,
@@ -1410,11 +1411,15 @@ function route(req: IncomingMessage, res: ServerResponse): void {
   }
 
   // GET /sessions/:id/files lists, POST /sessions/:id/files?name=<file> uploads
-  // the raw body, GET /sessions/:id/files/<path> downloads — the same under
+  // the raw body, GET /sessions/:id/files/<path> downloads, DELETE …/files/<path> removes (an attachment taken
+  // off a message before it was sent, docs/chat-attachments-plan.md) — the same under
   // /projects/:id/files for a project's shared folder. Owner (or admin) only;
   // a chat without a working directory answers 404.
   const workspaceMatch = WORKSPACE_FILES_PATH.exec(url.pathname)
-  if (workspaceMatch && (req.method === 'GET' || (req.method === 'POST' && !workspaceMatch[3]))) {
+  if (
+    workspaceMatch &&
+    (req.method === 'GET' || (req.method === 'POST' && !workspaceMatch[3]) || (req.method === 'DELETE' && workspaceMatch[3]))
+  ) {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
@@ -1445,6 +1450,12 @@ function route(req: IncomingMessage, res: ServerResponse): void {
           }
           log('workspace_upload', { owner, userId: identity.userId })
           return sendJson(res, 201, { path: saved })
+        }
+        if (req.method === 'DELETE') {
+          if (!(await deleteWorkspaceFile(dir, decodeURIComponent(path)))) return sendJson(res, 404, { error: 'file not found' })
+          log('workspace_delete', { owner, userId: identity.userId })
+          res.writeHead(204).end()
+          return
         }
         if (!path) return sendJson(res, 200, { files: await listWorkspaceFiles(dir) })
         const target = resolveInside(dir, decodeURIComponent(path))

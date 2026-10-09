@@ -73,12 +73,16 @@ async function writeSources(dir: string, sources: Set<string>): Promise<void> {
   await rename(temporary, join(dir, SOURCES_FILE))
 }
 
-// One read-add-write of a folder's record at a time (chat attachments upload several files at once).
+// One read-change-write of a folder's record at a time (chat attachments upload several files at once).
 const sourceUpdates = new Map<string, Promise<unknown>>()
-function addSource(dir: string, path: string): Promise<void> {
+function updateSources(dir: string, change: (sources: Set<string>) => void): Promise<void> {
   const next = (sourceUpdates.get(dir) ?? Promise.resolve())
     .catch(() => undefined)
-    .then(async () => writeSources(dir, (await sourcesOf(dir)).add(path)))
+    .then(async () => {
+      const sources = await sourcesOf(dir)
+      change(sources)
+      await writeSources(dir, sources)
+    })
   sourceUpdates.set(dir, next)
   void next.finally(() => {
     if (sourceUpdates.get(dir) === next) sourceUpdates.delete(dir)
@@ -148,12 +152,23 @@ export async function saveUpload(dir: string, requested: string, body: IncomingM
   try {
     await pipeline(body, limit, createWriteStream(partial))
     await rename(partial, target)
-    await addSource(dir, name.split(sep).join('/'))
+    await updateSources(dir, (sources) => sources.add(name.split(sep).join('/')))
     return name
   } catch (error) {
     await rm(partial, { force: true })
     throw error
   }
+}
+
+/** Removes one visible file of `dir` (and its source record); false when there is no such file. */
+export async function deleteWorkspaceFile(dir: string, path: string): Promise<boolean> {
+  const target = resolveInside(dir, path)
+  const info = target ? await stat(target).catch(() => undefined) : undefined
+  if (!target || !info?.isFile()) return false
+  await rm(target)
+  const recorded = relative(dir, target).split(sep).join('/')
+  await updateSources(dir, (sources) => sources.delete(recorded))
+  return true
 }
 
 // Only inert types are served with their real content type; anything that a

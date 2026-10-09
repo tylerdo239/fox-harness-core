@@ -24,7 +24,7 @@ nhắn; model đọc file bằng công cụ của nó (fs/bash/python), không c
 | Trùng tên            | `?unique=1`: trùng tên thì lưu thành `ten (2).csv` — không ghi đè file tin nhắn trước đã nhắc tới; gateway trả tên thật |
 | Tin nhắn             | Chữ người dùng + dòng cuối `[Attached files in the working directory: ["a.csv","b.png"]]` (JSON → tên có dấu phẩy, ngoặc vẫn đúng; một dạng duy nhất, không theo ngôn ngữ) |
 | Composer             | Nút kẹp giấy; thẻ chờ gửi: ảnh thu nhỏ / biểu tượng, tên, dung lượng, thanh tiến trình, nút bỏ, lỗi + thử lại; kéo-thả cả khung; dán file từ clipboard; chưa tải xong thì chưa gửi được |
-| Bỏ thẻ               | Chỉ bỏ khỏi tin nhắn; file vẫn nằm trong thư mục (xem ở "Tệp")                                                   |
+| Bỏ thẻ               | Huỷ việc tải, hoặc xoá file đã tải (`DELETE …/files/<path>`) — file chưa gửi không ở lại trong "Tệp" (sửa 2026-10-09: bản đầu để file lại, người dùng thấy như lỗi "xoá rồi vẫn hiện") |
 | Bong bóng đã gửi     | Đọc dòng đánh dấu → thẻ file phía trên chữ (ảnh: thu nhỏ, bấm xem; file khác: bấm tải); mở lại chat vẫn vậy vì dựng từ chữ đã lưu |
 | Ảnh                  | Không gửi ảnh cho model (adapter openai-compat chỉ gửi chữ); model xử lý bằng công cụ. Vision là việc riêng       |
 

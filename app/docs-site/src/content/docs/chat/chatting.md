@@ -26,7 +26,7 @@ Ba cách, trong chat thường và chat phân tích dữ liệu:
 ![Hai file đang chờ gửi](../../../assets/screens/attach-composer.png)
 
 File được tải lên ngay; mỗi file là một thẻ có thanh tiến trình. Tối đa **5 file mỗi tin nhắn**, **70 MB mỗi file**. Nút
-**Gửi** chờ đến khi tải xong. Thẻ lỗi có nút **Thử lại**; nút **×** bỏ file khỏi tin nhắn (file vẫn nằm trong **Tệp**).
+**Gửi** chờ đến khi tải xong. Thẻ lỗi có nút **Thử lại**; nút **×** bỏ file khỏi tin nhắn và xoá luôn file đó (nó chưa được gửi).
 Gửi được cả khi chỉ có file, không có chữ.
 
 ![Tin nhắn đã gửi kèm file](../../../assets/screens/attach-sent.png)

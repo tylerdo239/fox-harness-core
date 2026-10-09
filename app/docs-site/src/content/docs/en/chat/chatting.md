@@ -26,8 +26,8 @@ Three ways, in regular and data-analysis chats:
 ![Two files waiting to be sent](../../../../assets/screens/en/attach-composer.png)
 
 Files upload right away; each is a card with a progress bar. Up to **5 files per message**, **70 MB each**. **Send** waits
-until they are uploaded. A failed card has a **Retry** button; **×** removes a file from the message (it stays in
-**Files**). You can send files without any text.
+until they are uploaded. A failed card has a **Retry** button; **×** takes a file off the message and deletes it (it
+was never sent). You can send files without any text.
 
 ![A message sent with files](../../../../assets/screens/en/attach-sent.png)
 
