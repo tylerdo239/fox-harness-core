@@ -11,7 +11,8 @@
 //   - pages: React 19's use(params) -> plain props (this app is React 18);
 //   - lib/api.ts: fetch(apiUrl(path)) -> refFetch(path) (bearer token, /data-profile -> /data-studio/profile);
 //     getEntities/updateEntity -> our gateway's entity routes (shims/fetch.ts);
-//   - ui/dialog.tsx, ui/select.tsx: radix portals render inside the `.fh-ref` style scope.
+//   - ui/dialog.tsx, ui/select.tsx: radix portals render inside the `.fh-ref` style scope;
+//   - sql/sql-code.tsx: copy through shims/clipboard.ts (navigator.clipboard is undefined over plain HTTP).
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -73,6 +74,10 @@ const PATCHES = {
     t = replace(t, f, /import \{ use, /, 'import { ')
     t = replace(t, f, /params: Promise<(\{[^}]*\})>;/, 'params: $1;')
     return replace(t, f, 'use(params)', 'params')
+  },
+  'components/sql/sql-code.tsx': (t, f) => {
+    t = replace(t, f, 'await navigator.clipboard.writeText(code);', 'await copyText(code);')
+    return replace(t, f, 'import { cn } from "@/lib/utils";', 'import { cn } from "@/lib/utils";\nimport { copyText } from "@/shims/clipboard";')
   },
   'components/ui/dialog.tsx': (t, f) => replace(t, f, '<DialogPortal>', '<DialogPortal container={refPortal()}>')
     .replace('import { cn } from "@/lib/utils"', 'import { cn } from "@/lib/utils"\nimport { refPortal } from "@/shims/portal"'),

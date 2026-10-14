@@ -6,6 +6,7 @@ import sqlLanguage from "react-syntax-highlighter/dist/esm/languages/prism/sql";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { format } from "sql-formatter";
 import { cn } from "@/lib/utils";
+import { copyText } from "@/shims/clipboard";
 
 // The one way SQL is shown in the app (chat, metric / glossary test runs, SQL console): pretty-printed
 // with sql-formatter and syntax-highlighted with Prism.
@@ -56,7 +57,7 @@ export function SqlCode({ sql, pretty = true, maxHeight = "32rem", className }: 
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(code);
+      await copyText(code);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

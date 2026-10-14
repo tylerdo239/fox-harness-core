@@ -30,6 +30,7 @@ import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 
+import { copyText } from "../../../clipboard.ts";
 import { useLocale } from "../../../i18n/locale.tsx";
 import { CopiedIcon, CopyIcon } from "../../../icons.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
@@ -64,7 +65,7 @@ const CodeBlock = memo(
 
     async function handleCopy() {
       try {
-        await navigator.clipboard.writeText(plainText);
+        await copyText(plainText);
         toast.success(t("conversation.codeCopied"));
         // Real per-button confirmation (the icon itself flips), separate
         // from the toast — matches Claude/ChatGPT's own code-block copy
