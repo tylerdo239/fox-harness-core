@@ -8,19 +8,22 @@
 // gateway-only concern with no event-sourcing/torn-tail/content-addressing
 // requirements, so a plain client suffices.
 
+import { createWriteStream } from 'node:fs'
+import { rename } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
+import type { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+
 import {
   CreateBucketCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
-  GetBucketLifecycleConfigurationCommand,
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
   ListObjectVersionsCommand,
-  PutBucketLifecycleConfigurationCommand,
   PutObjectCommand,
   S3Client,
-  type LifecycleRule,
   type ServerSideEncryption,
 } from '@aws-sdk/client-s3'
 
@@ -200,6 +203,18 @@ export async function getArchiveObject(key: string): Promise<Buffer> {
   return Buffer.from(await res.Body!.transformToByteArray())
 }
 
+/** Downloads an object straight to `path` (via a temporary file next to it), without holding it in memory. */
+export async function downloadArchiveObject(key: string, path: string): Promise<void> {
+  const res = await client.send(new GetObjectCommand({ Bucket: config.s3Bucket, Key: key }))
+  const partial = join(dirname(path), `.${basename(path)}.restore`)
+  await pipeline(res.Body as Readable, createWriteStream(partial))
+  await rename(partial, path)
+}
+
+export async function deleteArchiveObject(key: string): Promise<void> {
+  await client.send(new DeleteObjectCommand({ Bucket: config.s3Bucket, Key: key }))
+}
+
 /** Right to erasure: every object AND every version (and delete marker) under the prefix. */
 export async function deleteArchivePrefix(prefix: string): Promise<number> {
   await ensureBucket()
@@ -222,35 +237,4 @@ export async function deleteArchivePrefix(prefix: string): Promise<number> {
     versionMarker = page.NextVersionIdMarker
   }
   return deleted
-}
-
-const RETENTION_RULE_ID = 'fox-session-retention'
-
-/** Adds (never replaces other rules) the lifecycle rule that deletes session archives `days` after their last write. */
-export async function ensureArchiveRetention(prefix: string, days: number): Promise<'added' | 'present'> {
-  await ensureBucket()
-  let rules: LifecycleRule[] = []
-  try {
-    rules = (await client.send(new GetBucketLifecycleConfigurationCommand({ Bucket: config.s3Bucket }))).Rules ?? []
-  } catch (error) {
-    // no configuration yet
-    if ((error as { name?: string }).name !== 'NoSuchLifecycleConfiguration') throw error
-  }
-  const existing = rules.find((r) => r.ID === RETENTION_RULE_ID)
-  if (existing && existing.Expiration?.Days === days && existing.Filter?.Prefix === prefix) return 'present'
-  const rule: LifecycleRule = {
-    ID: RETENTION_RULE_ID,
-    Status: 'Enabled',
-    Filter: { Prefix: prefix },
-    Expiration: { Days: days },
-    // with versioning on, an overwritten or deleted archive must not linger as an old version
-    NoncurrentVersionExpiration: { NoncurrentDays: 1 },
-  }
-  await client.send(
-    new PutBucketLifecycleConfigurationCommand({
-      Bucket: config.s3Bucket,
-      LifecycleConfiguration: { Rules: [...rules.filter((r) => r.ID !== RETENTION_RULE_ID), rule] },
-    }),
-  )
-  return 'added'
 }

@@ -689,9 +689,8 @@ const tests = {
     let keys = []
     for (let i = 0; i < 30 && keys.length === 0; i++) { await sleep(1000); keys = s3('versions', prefix) }
     rows.push(['log archived to S3', keys.length > 0, true])
-    const rules = s3('lifecycle')
-    const rule = rules.find((r) => r.ID === 'fox-session-retention')
-    rows.push(['12-month lifecycle rule', `${rule?.Filter?.Prefix}:${rule?.Expiration?.Days}`, 'sessions/:365'])
+    // the 12-month lifecycle rule was removed (2026-10-14): the gateway leaves the bucket's lifecycle alone
+    rows.push(['no lifecycle rule from the gateway', s3('lifecycle').length, 0])
     await sleep(15000) // FOX_IDLE_DISPOSE_MS=8000: the runtime lets go of the chat
     dx('sh', '-c', `rm -rf /data/dsh-home/sessions/*/${id}`) // as the local-retention eviction does
     rows.push(['log gone from disk', dx('sh', '-c', `ls -d /data/dsh-home/sessions/*/${id} 2>/dev/null | wc -l`).trim(), '0'])
@@ -699,6 +698,40 @@ const tests = {
     again.send('after restore'); await again.turnEnds(2)
     again.close()
     rows.push(['history restored from S3', JSON.stringify(turnsOf(again.events)), '[1,2]'])
+    await sleep(500)
+    rows.push(['purge', (await api('DELETE', `/sessions/${id}`, a.token)).status, 204])
+    rows.push(['no object or version left', JSON.stringify(s3('versions', prefix)), '[]'])
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks, ${keys.length} object(s)` }
+  },
+
+  // A working directory's files — an upload and what python wrote — go to S3 (files/users/<owner>/<session>/...),
+  // come back when the folder left the disk and the chat is opened again, and a purge deletes every copy
+  // (docs/workspace-archive-plan.md).
+  async workspaceArchive() {
+    const rows = []
+    const { a } = await users()
+    const c = chat(a.token, { params: { flow: 'data-analysis' } }); await c.opened; await c.ready()
+    const id = c.sessionId
+    const csv = 'region,amount\nN,1\n'
+    rows.push(['upload', (await api('POST', `/sessions/${id}/files?name=sales.csv`, a.token, csv, true)).status, 201])
+    // the python tool moves what a cell wrote into generated/<session>/
+    c.send(`CALL python ${JSON.stringify({ code: "open('report.txt', 'w').write('made by python')" })}`); await c.turnEnds(1, 90000)
+    c.close()
+    const dir = workspaceOf(id)
+    const prefix = `files/${dir.replace(/^\/data\//, '')}/`
+    let keys = []
+    for (let i = 0; i < 30 && !(keys.includes(`${prefix}sales.csv`) && keys.includes(`${prefix}generated/${id}/report.txt`)); i++) {
+      await sleep(1000); keys = s3('versions', prefix)
+    }
+    rows.push(['upload on S3', keys.includes(`${prefix}sales.csv`), true])
+    rows.push(['python output on S3', keys.includes(`${prefix}generated/${id}/report.txt`), true])
+    rows.push(['skills not archived', keys.some((k) => k.includes('/.dsh/')), false])
+    await sleep(15000) // FOX_IDLE_DISPOSE_MS=8000: the runtime lets go of the chat
+    dx('sh', '-c', `rm -rf ${dir}`) // the folder left the disk, as the local-retention eviction does
+    const again = chat(a.token, { session: id }); await again.opened; await again.ready(); again.close()
+    rows.push(['upload restored', (await api('GET', `/sessions/${id}/files/sales.csv`, a.token)).text, csv])
+    rows.push(['python output restored', (await api('GET', `/sessions/${id}/files/generated/${id}/report.txt`, a.token)).text, 'made by python'])
     await sleep(500)
     rows.push(['purge', (await api('DELETE', `/sessions/${id}`, a.token)).status, 204])
     rows.push(['no object or version left', JSON.stringify(s3('versions', prefix)), '[]'])

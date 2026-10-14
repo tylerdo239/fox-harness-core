@@ -80,6 +80,39 @@ export async function forgetArchived(sessionId: string): Promise<void> {
   if (fields.length > 0) await redis.hdel(ARCHIVE_KEY, ...fields)
 }
 
+// ---- workspace archive (runtime/workspace-archive.ts): per working directory, what was last copied to S3 ----
+// `dirKey` is the directory relative to the data dir: `users/<userId>/<sessionId>` or `projects/<projectId>`.
+const workspaceKey = (dirKey: string) => `fh:workspace-archive:${dirKey}`
+// directories whose files were removed from the disk and live on S3 only, until they are restored
+const WORKSPACE_EVICTED = 'fh:workspace-evicted'
+
+/** relative path → `<mtimeMs>:<size>` of the copy on S3 */
+export async function workspaceStamps(dirKey: string): Promise<Record<string, string>> {
+  return redis.hgetall(workspaceKey(dirKey))
+}
+
+export async function setWorkspaceStamp(dirKey: string, path: string, stamp: string): Promise<void> {
+  await redis.hset(workspaceKey(dirKey), path, stamp)
+}
+
+export async function dropWorkspaceStamps(dirKey: string, paths: string[]): Promise<void> {
+  if (paths.length > 0) await redis.hdel(workspaceKey(dirKey), ...paths)
+}
+
+export async function isWorkspaceEvicted(dirKey: string): Promise<boolean> {
+  return (await redis.sismember(WORKSPACE_EVICTED, dirKey)) === 1
+}
+
+export async function setWorkspaceEvicted(dirKey: string, evicted: boolean): Promise<void> {
+  if (evicted) await redis.sadd(WORKSPACE_EVICTED, dirKey)
+  else await redis.srem(WORKSPACE_EVICTED, dirKey)
+}
+
+export async function forgetWorkspace(dirKey: string): Promise<void> {
+  await redis.del(workspaceKey(dirKey))
+  await redis.srem(WORKSPACE_EVICTED, dirKey)
+}
+
 export async function revokeToken(token: string): Promise<void> {
   await redis.del(tokenKey(token))
 }
