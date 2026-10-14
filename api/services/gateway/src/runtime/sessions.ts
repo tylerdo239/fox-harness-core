@@ -7,6 +7,7 @@ import type { SessionRuntimeInfo } from '../db.ts'
 import { config } from '../config.ts'
 import { placementFor, projectDirFor, removeSessionLogs, removeTree, sessionDir } from './paths.ts'
 import { deleteArchived } from './session-archive.ts'
+import { deleteWorkspaceArchive } from './workspace-archive.ts'
 import type { RuntimeSupervisor } from './supervisor.ts'
 
 /**
@@ -22,13 +23,19 @@ export async function purgeSessionData(
   await runtime.drop(sessionId)
   await removeSessionLogs(sessionId)
   await deleteArchived(sessionId, info.ownerId) // and its copies in S3 (docs/session-archive-plan.md)
-  if (info.projectId === undefined) await removeTree(sessionDir(info.ownerId, sessionId))
+  if (info.projectId === undefined) {
+    // the disk first: a sweep can no longer upload a file of it after S3 is emptied
+    const dir = sessionDir(info.ownerId, sessionId)
+    await removeTree(dir)
+    await deleteWorkspaceArchive(dir)
+  }
 }
 
 export async function deleteProjectData(projectId: string): Promise<void> {
   const dir = projectDirFor(projectId)
   if (!dir) throw new Error('invalid project id')
   await removeTree(dir)
+  await deleteWorkspaceArchive(dir) // and its copies on S3 (workspace-archive.ts)
 }
 
 /** The working directory the files API may list/serve for a session, or undefined for a chat without one. */

@@ -122,8 +122,9 @@ export const config = {
     intervalMs: envIntOr('SESSION_ARCHIVE_INTERVAL_MS', 120_000),
     // a log untouched this long (and archived) leaves the local disk; reopening the chat brings it back. 0 = keep.
     localRetentionDays: Number(envOr('SESSION_LOCAL_RETENTION_DAYS', '30')),
-    // lifecycle rule on the bucket's `sessions/` prefix: deleted this long after the last write. 0 = not managed.
-    retentionDays: envIntOr('SESSION_ARCHIVE_RETENTION_DAYS', 365),
+    // runtime/workspace-archive.ts: a working-directory file bigger than this stays on the disk only (it is read
+    // into memory to upload); its directory then never leaves the disk
+    maxFileBytes: envIntOr('WORKSPACE_ARCHIVE_MAX_FILE_BYTES', 100 * 1024 * 1024),
   },
   // docs/data-studio-mongodb-plan.md: Data Studio's semantic layer + chat history live in MongoDB,
   // shared with every worker container (Python) and with bot-data-studio-api. `MongoDBWrite` is the

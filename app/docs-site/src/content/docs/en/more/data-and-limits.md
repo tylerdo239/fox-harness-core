@@ -17,7 +17,7 @@ Fox Harness is an internal tool. Don't upload data you are not allowed to share.
 
 | What                 | Details                                                                         |
 | -------------------- | ------------------------------------------------------------------------------- |
-| Chat history is kept | Up to 12 months after it was last used                                          |
+| Chat history is kept | Until you delete the chat                                                       |
 | Deleting a chat      | Removes its history, working files and every archived copy; it cannot be undone |
 | Deleting a project   | Also deletes all of the project's chats and files                               |
 

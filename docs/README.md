@@ -5,7 +5,8 @@ Current:
 - `deploy.md` — deploying the two images (`app/`, `api/`).
 - `admin-guide.md` — admin manual (users, Data Studio sources and who may query them); the user manual is `/docs` (`app/docs-site/`).
 - `chat-attachments-plan.md` — attaching files in chat (default + data-analysis), done 2026-10-08.
-- `session-archive-plan.md` — session logs archived to S3 (12 months, restore on reopen, delete on purge), done 2026-10-07.
+- `workspace-archive-plan.md` — uploads and python/agent output (chat and project folders) on S3 as the main copy, restore on reopen, delete on purge, done 2026-10-14.
+- `session-archive-plan.md` — session logs archived to S3 (kept until deleted, restore on reopen, delete on purge), done 2026-10-07.
 - `core-readiness-review-2026-10-05.md` — what is ready, what is not, verified results.
 - `multi-user-authz.md` — multi-user isolation and role-based access (admin/user), open issues, how to test.
 - `staging-checklist.md` — step-by-step checklist for putting `api/` and `app/` on staging (infra, env, network, smoke tests, Data Studio).

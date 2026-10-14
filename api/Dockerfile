@@ -40,8 +40,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # The interpreter uv downloads goes under /opt, not /root/.local (mode 700): the backend must also run as a non-root
 # user (a Kubernetes pod under Pod Security "restricted"), and then /root is unreadable.
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
+# .python-version (3.12) too: without it uv picks the newest CPython it knows, for which some locked wheels
+# (onnxruntime 1.29.0: cp312/cp313 only) do not exist, and `uv sync --locked` fails.
 COPY packages/tool/data-studio-agent/python/pyproject.toml packages/tool/data-studio-agent/python/uv.lock \
-  packages/tool/data-studio-agent/python/
+  packages/tool/data-studio-agent/python/.python-version packages/tool/data-studio-agent/python/
 RUN cd packages/tool/data-studio-agent/python && uv sync --locked
 
 # Node packages: `pnpm fetch` needs only the lockfile, so the download layer is cached the same way.

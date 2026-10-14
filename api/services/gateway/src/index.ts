@@ -99,6 +99,7 @@ import { isLive, liveCount, track as trackConnection, checkQuota } from './runti
 import { ensurePlacement, isUuid, placementFor, projectDirFor } from './runtime/paths.ts'
 import { deleteProjectData, purgeSessionData, workspaceDirForSession } from './runtime/sessions.ts'
 import { ensureLocal as ensureSessionLogLocal, startArchiver, stopArchiver } from './runtime/session-archive.ts'
+import { ensureWorkspaceLocal } from './runtime/workspace-archive.ts'
 import { syncSkills } from './runtime/skills-sync.ts'
 import { RuntimeSupervisor } from './runtime/supervisor.ts'
 import {
@@ -890,6 +891,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       }
       try {
         const dir = projectDirFor(projectId)
+        if (dir) await ensureWorkspaceLocal(dir)
         const promoted = dir ? await promoteOutput(dir, sessionId, path) : undefined
         if (!promoted) return sendJson(res, 404, { error: 'output not found' })
         log('project_promote_ok', { projectId, sessionId })
@@ -1442,6 +1444,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       if (!dir) return sendJson(res, 404, { error: 'no working directory' })
 
       try {
+        await ensureWorkspaceLocal(dir)
         if (req.method === 'POST') {
           if (!(await costlyAllowed('upload', identity.userId))) return rateLimited(res)
           const name = url.searchParams.get('name') ?? ''
@@ -1664,6 +1667,12 @@ server.on('upgrade', (req, socket, head) => {
     let placement
     try {
       placement = placementFor(session, sessionId)
+      // files that left the disk come back from S3 before the agent looks for them (workspace-archive.ts)
+      if (!isNew) {
+        await ensureWorkspaceLocal(placement.cwd, { checkEmpty: true }).catch((error: unknown) =>
+          log('workspace_restore_failed', { sessionId, ...errorFields(error) }),
+        )
+      }
       await ensurePlacement(placement)
       target = await runtime.target(sessionId)
     } catch (error) {

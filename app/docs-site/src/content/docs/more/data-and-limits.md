@@ -17,7 +17,7 @@ Fox Harness là công cụ nội bộ. Không tải lên dữ liệu mà bạn k
 
 | Việc                  | Chi tiết                                                               |
 | --------------------- | ---------------------------------------------------------------------- |
-| Lịch sử chat được lưu | Tối đa 12 tháng kể từ lần dùng cuối                                    |
+| Lịch sử chat được lưu | Cho tới khi bạn xoá đoạn chat                                          |
 | Xoá một đoạn chat     | Xoá hẳn lịch sử, tệp làm việc và mọi bản lưu trữ; không khôi phục được |
 | Xoá dự án             | Xoá luôn mọi đoạn chat và tệp của dự án                                |
 

@@ -4,7 +4,7 @@
 
 | #   | Câu hỏi              | Chốt                                                                                          |
 | --- | -------------------- | --------------------------------------------------------------------------------------------- |
-| 1   | Giữ bao lâu          | 12 tháng kể từ lần ghi cuối (quy tắc vòng đời S3 trên prefix `sessions/`)                      |
+| 1   | Giữ bao lâu          | ~~12 tháng kể từ lần ghi cuối~~ — bỏ 2026-10-14: giữ cho tới khi user xoá chat                 |
 | 2   | Audit hay quyền xoá  | **Quyền xoá**: không Object Lock; xoá hội thoại → xoá mọi bản (cả mọi phiên bản) trên S3      |
 | 3   | Mã hoá, quyền        | Mã hoá phía server (`S3_SSE`), bucket riêng tư, chỉ backend có key                           |
 | 4   | Bucket               | Dùng chung bucket với skill, prefix `sessions/`                                               |
@@ -21,25 +21,25 @@
 | Dọn đĩa              | File không đổi quá `SESSION_LOCAL_RETENTION_DAYS` (mặc định 30) **và** đã có bản trên S3 → xoá khỏi đĩa                     |
 | Mở lại               | WebSocket mở lại một hội thoại mà đĩa không còn log → tải từ S3 về trước khi runtime đọc                                  |
 | Xoá (purge)          | Như cũ + xoá mọi object và mọi phiên bản dưới prefix của phiên                                                            |
-| Giữ 12 tháng         | Lúc khởi động, gateway thêm (không ghi đè rule khác) rule vòng đời `fox-session-retention`: hết hạn 365 ngày sau lần ghi cuối; phiên bản cũ hết hạn sau 1 ngày. Không có quyền → log cảnh báo, đội vận hành đặt tay |
+| ~~Giữ 12 tháng~~     | Bỏ 2026-10-14 (`ensureArchiveRetention`, `SESSION_ARCHIVE_RETENTION_DAYS`): gateway không đặt rule vòng đời nào. Bucket đã có rule `fox-session-retention` từ trước thì rule vẫn còn trên bucket, phải xoá tay |
 | Mã hoá               | `S3_SSE=AES256` (hoặc `aws:kms`) áp cho object session; để trống ở dev (MinIO không có KMS)                                |
 | Tắt tính năng        | `SESSION_ARCHIVE=0`                                                                                                       |
 
-Phiên hết hạn trên S3 sau 12 tháng mà đĩa cũng không còn → mở lại báo không tìm thấy hội thoại.
+~~Phiên hết hạn trên S3 sau 12 tháng mà đĩa cũng không còn → mở lại báo không tìm thấy hội thoại.~~ Không còn hết hạn (2026-10-14).
 
 ## Mã nguồn
 
 | File                                                  | Nội dung                                                                    |
 | ----------------------------------------------------- | --------------------------------------------------------------------------- |
 | `api/services/gateway/src/runtime/session-archive.ts` | quét/đẩy, dọn đĩa, tải về khi mở lại, xoá, khởi động/tắt                    |
-| `api/services/gateway/src/object-storage.ts`          | put/list/get, xoá mọi phiên bản dưới prefix, thêm rule vòng đời             |
+| `api/services/gateway/src/object-storage.ts`          | put/list/get, xoá mọi phiên bản dưới prefix                                   |
 | `api/services/gateway/src/redis.ts`                   | dấu đã đẩy (`fh:session-archive`)                                           |
 | `api/services/gateway/src/index.ts`                   | bật khi khởi động, quét lần cuối khi tắt, tải về trước khi mở lại WebSocket |
 | `api/services/gateway/src/runtime/sessions.ts`        | purge xoá luôn bản trên S3                                                  |
 
 ## Kiểm thử (2026-10-07)
 
-- e2e `sessionArchive` (PASS): chat → object có trên S3 → rule `fox-session-retention` (`sessions/`, 365 ngày) có trên
-  bucket → xoá log khỏi đĩa → mở lại đủ lịch sử (turn 1, 2) → purge → không còn object/phiên bản nào.
+- e2e `sessionArchive` (PASS): chat → object có trên S3 → (từ 2026-10-14: gateway không đặt rule vòng đời nào
+  trên bucket) → xoá log khỏi đĩa → mở lại đủ lịch sử (turn 1, 2) → purge → không còn object/phiên bản nào.
 - Dọn đĩa: lùi mtime log về 40 ngày trước → lần quét sau xoá khỏi đĩa (`evictedFromDisk: 1`).
 - Toàn bộ 23 e2e pass (`E2E_SANDBOX_MODE=none`).

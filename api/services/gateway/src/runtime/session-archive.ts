@@ -1,15 +1,16 @@
 // docs/session-archive-plan.md — dsh session logs copied to S3 (`sessions/<owner>/<session>/<dsh dir>/<file>`).
 // The local disk stays dsh's working copy; S3 is the archive: a sweep uploads what changed, a log untouched for
 // SESSION_LOCAL_RETENTION_DAYS (and archived) leaves the disk, reopening such a chat downloads it first, and a
-// purge deletes every copy. Retention (12 months) is a lifecycle rule on the bucket's `sessions/` prefix.
+// purge deletes every copy. Nothing expires on S3 by itself (the 12-month lifecycle rule was removed 2026-10-14).
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { config } from '../config.ts'
 import { getSessionOwnerId } from '../db.ts'
 import { errorFields, log } from '../log.ts'
-import { deleteArchivePrefix, ensureArchiveRetention, getArchiveObject, listArchiveKeys, putArchiveObject } from '../object-storage.ts'
+import { deleteArchivePrefix, getArchiveObject, listArchiveKeys, putArchiveObject } from '../object-storage.ts'
 import { archivedStamp, forgetArchived, setArchivedStamp } from '../redis.ts'
+import { sweepWorkspaces } from './workspace-archive.ts'
 import { dshHome } from './paths.ts'
 
 const PREFIX = 'sessions/'
@@ -145,26 +146,20 @@ export async function deleteArchived(sessionId: string, ownerId: number): Promis
 
 let timer: NodeJS.Timeout | undefined
 
+// the chat logs, then every working directory's files (workspace-archive.ts)
+async function sweepAll(): Promise<void> {
+  await sweep().catch((error) => log('session_archive_failed', errorFields(error)))
+  await sweepWorkspaces().catch((error) => log('workspace_archive_failed', errorFields(error)))
+}
+
 export async function startArchiver(): Promise<void> {
   if (!config.sessionArchive.enabled) return
-  if (config.sessionArchive.retentionDays > 0) {
-    try {
-      const result = await ensureArchiveRetention(PREFIX, config.sessionArchive.retentionDays)
-      log('session_archive_retention', { result, days: config.sessionArchive.retentionDays })
-    } catch (error) {
-      // not fatal: archiving still works, archives just never expire on their own
-      log('session_archive_retention_failed', {
-        ...errorFields(error),
-        hint: `set a lifecycle rule on the bucket's "${PREFIX}" prefix by hand (expire after ${config.sessionArchive.retentionDays} days), or SESSION_ARCHIVE_RETENTION_DAYS=0 to stop trying`,
-      }, 'warn')
-    }
-  }
-  timer = setInterval(() => void sweep().catch((error) => log('session_archive_failed', errorFields(error))), config.sessionArchive.intervalMs)
+  timer = setInterval(() => void sweepAll(), config.sessionArchive.intervalMs)
   timer.unref()
 }
 
 /** On shutdown: one last pass so the latest turns are archived. */
 export async function stopArchiver(): Promise<void> {
   if (timer) clearInterval(timer)
-  if (config.sessionArchive.enabled) await sweep().catch((error) => log('session_archive_failed', errorFields(error)))
+  if (config.sessionArchive.enabled) await sweepAll()
 }

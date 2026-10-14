@@ -38,13 +38,13 @@ Thứ tự:
 |---|---|
 | **MariaDB 10.11** | [ ] Có database `discovery-agent` và user riêng. [ ] Đã chạy `api/migrations/001_init.sql` **một lần**. [ ] Các bảng `discovery_*` là `utf8mb4` (nếu DB cũ: xem `api/migrations/README.md`). |
 | **Redis** | [ ] Có mật khẩu. Không cần backup (chỉ giữ token đăng nhập và rate limit). |
-| **S3 / bucket** | [ ] Bucket tồn tại sẵn (gateway chỉ tự tạo khi `HeadBucket` lỗi, trên S3 công ty thường không được quyền tạo). [ ] User S3 có quyền **bắt buộc**: `s3:ListBucket` (cho `HeadBucket` và liệt kê), `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucketVersions` (xoá log khi purge session); bucket bật versioning thì thêm `s3:DeleteObjectVersion`. [ ] **Tuỳ chọn**: `s3:GetLifecycleConfiguration` + `s3:PutLifecycleConfiguration`, để gateway tự đặt rule xoá log session sau 12 tháng dưới `sessions/`. Không có thì app vẫn chạy, log có dòng `session_archive_retention_failed`, chỉ là log không tự xoá: nhờ bên S3 đặt rule bằng tay, hoặc đặt `SESSION_ARCHIVE_RETENTION_DAYS=0` để gateway không thử. [ ] Đặt `S3_ENDPOINT` (trừ khi đúng là AWS). [ ] MinIO hoặc S3 kiểu path: `S3_FORCE_PATH_STYLE=true`. |
+| **S3 / bucket** | [ ] Bucket tồn tại sẵn (gateway chỉ tự tạo khi `HeadBucket` lỗi, trên S3 công ty thường không được quyền tạo). [ ] User S3 có quyền **bắt buộc**: `s3:ListBucket` (cho `HeadBucket` và liệt kê), `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucketVersions` (xoá log và file khi xoá chat/project); bucket bật versioning thì thêm `s3:DeleteObjectVersion`. Không cần quyền lifecycle (gateway không đặt rule nào từ 2026-10-14). S3 giữ log chat (`sessions/`), file upload và file python sinh ra (`files/`), xem `docs/workspace-archive-plan.md`. [ ] Đặt `S3_ENDPOINT` (trừ khi đúng là AWS). [ ] MinIO hoặc S3 kiểu path: `S3_FORCE_PATH_STYLE=true`. |
 | **LLM** | [ ] Endpoint OpenAI-compatible `/chat/completions`, hỗ trợ tool-calling. Không có fallback sang api.openai.com. |
 | **Embedding** | [ ] Endpoint `/embeddings` (Data Studio dùng). |
 | **MongoDB** | [ ] Có DB cho Data Studio (`MONGODB_DATABASE_NAME`, mặc định `bot_data_studio`). Nếu URI có tên DB thì tên trong URI thắng. |
 | **Meilisearch** | [ ] Container riêng có volume `/meili_data`, `MEILI_ENV=production`, `MEILI_MASTER_KEY` ≥ 16 byte, `MEILI_NO_ANALYTICS=true`. |
 | **Dremio** | [ ] Hệ thống bên ngoài: làm hết bước 0 trong `docs/data-studio-dremio-staging-fix-plan.md` (tài khoản, quyền, TLS, proxy). |
-| **Volume `/data`** | [ ] PVC cho backend (RWO đủ cho 1 replica). [ ] Có lịch backup: đây là **toàn bộ hội thoại, workspace, project**. |
+| **Volume `/data`** | [ ] PVC cho backend (RWO đủ cho 1 replica). [ ] Có lịch backup: đây là bản làm việc của hội thoại, workspace, project. Log và file cũng có trên S3 (trừ file > 100 MB), nhưng thay đổi trong 2 phút gần nhất chỉ nằm ở đây. |
 
 ## 3. Mạng
 
@@ -148,6 +148,8 @@ Dùng cả tài khoản admin và tài khoản `user`.
 - [ ] Copy link chat của user A sang trình duyệt user B → 403.
 - [ ] Admin đổi role của user → tab của user đó bị đăng xuất ở request kế.
 - [ ] Restart pod backend: hội thoại cũ vẫn còn (kiểm tra PVC `/data`).
+- [ ] Upload 1 file và chạy python sinh 1 file trong chat data-analysis; sau ~2 phút log có `workspace_archive uploaded=…`, và trên bucket có `files/users/<userId>/<sessionId>/…`.
+- [ ] Xoá chat đó: hết object dưới `files/users/<userId>/<sessionId>/` và `sessions/<userId>/<sessionId>/`.
 
 ## 9. Data Studio trên staging
 
