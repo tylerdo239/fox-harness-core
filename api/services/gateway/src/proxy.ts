@@ -11,6 +11,8 @@
 
 import WebSocket from 'ws'
 
+import { errorFields, log } from './log.ts'
+
 export function proxyToWorker(
   browserWs: WebSocket,
   workerUrl: string,
@@ -103,7 +105,7 @@ export function proxyToWorker(
   workerWs.on('close', closeBoth)
   browserWs.on('error', closeBoth)
   workerWs.on('error', (error) => {
-    console.error('fox-harness-gateway: worker connection error:', error)
+    log('runtime_ws_error', errorFields(error))
     closeBoth()
   })
 }

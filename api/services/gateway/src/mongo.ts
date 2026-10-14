@@ -7,6 +7,7 @@
 import { MongoClient, type Collection, type Db } from 'mongodb'
 
 import { config } from './config.ts'
+import { errorFields, log } from './log.ts'
 
 // Every document: `_id` is an app-generated uuid4 string (not ObjectId), timestamps are UTC Dates —
 // same contract as the Python crud_mongo layer, which is the schema's reference implementation.
@@ -40,7 +41,7 @@ export async function checkMongoConnection(): Promise<boolean> {
     return true
   } catch (error) {
     // The URL can carry credentials — log only the message, never the connection string.
-    console.error('[gateway] MongoDB connection check failed:', error instanceof Error ? error.message : 'unknown error')
+    log('mongo_check_failed', { database: config.mongodbDatabaseName, ...errorFields(error) })
     return false
   }
 }
@@ -84,7 +85,7 @@ export async function ensureIndexes(): Promise<void> {
   ])
   for (const result of results) {
     if (result.status === 'rejected') {
-      console.error('[gateway] ensureIndexes: skipped an index:', result.reason instanceof Error ? result.reason.message : result.reason)
+      log('mongo_index_skipped', errorFields(result.reason), 'warn')
     }
   }
 }
