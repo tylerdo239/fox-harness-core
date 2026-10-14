@@ -110,7 +110,9 @@ import {
   saveUpload,
   UploadTooLargeError,
 } from './runtime/workspace-files.ts'
+import { errorFields, log } from './log.ts'
 import { checkMongoConnection, ensureIndexes } from './mongo.ts'
+import { checkS3 } from './object-storage.ts'
 import { proxyToWorker } from './proxy.ts'
 import { checkRateLimit, renewTokenHash } from './redis.ts'
 import { loadBuiltinSkills, MAX_SKILLS_PER_USER, validateSkill } from './skills.ts'
@@ -119,9 +121,6 @@ import { loadBuiltinSkills, MAX_SKILLS_PER_USER, validateSkill } from './skills.
 // Same structured-JSON-to-stdout convention duplicated in
 // the runtime (see packages/agent-core/src/transport/server.ts: this isn't a
 // shared import).
-function log(event: string, fields: Record<string, unknown> = {}): void {
-  console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'gateway', event, ...fields }))
-}
 
 // Security fix 2026-09-09: every real sessionId this repo ever produces is
 // a `randomUUID()` output (WS upgrade handler, brand-new session branch) —
@@ -198,7 +197,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 // live chat) down.
 function handle(res: ServerResponse, run: () => Promise<unknown>): void {
   run().catch((error: unknown) => {
-    log('route_failed', { error: error instanceof Error ? error.message : String(error) })
+    log('route_failed', { method: res.req.method, path: new URL(res.req.url ?? '/', 'http://x').pathname, ...errorFields(error) })
     if (!res.headersSent) sendJson(res, 500, { error: 'internal error' })
     else res.end()
   })
@@ -251,7 +250,7 @@ async function pushSkills(ownerId: number, sessions: { sessionId: string; projec
     const synced = await syncSkills(cwds, skills)
     log('skills_sync_ok', { ownerId, synced, skills: skills.length })
   } catch (error) {
-    log('skills_sync_failed', { ownerId, error: String(error) })
+    log('skills_sync_failed', { ownerId, ...errorFields(error) })
   }
 }
 
@@ -455,7 +454,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(201, { 'content-type': 'application/json' })
         res.end(JSON.stringify(user))
       } catch (error) {
-        log('register_failed', { error: String(error) })
+        log('register_failed', errorFields(error))
         // Security fix 2026-09-09: only the one real, safe, expected error
         // (email already taken) gets its message forwarded to the client —
         // anything else (DB down, driver internals, ...) used to leak
@@ -585,7 +584,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(upstream.status, { 'content-type': 'application/json' })
         res.end(upstream.body)
       } catch (error) {
-        console.error(`[gateway] plugin-inventory(${sessionId}) failed:`, error)
+        log('plugin_inventory_failed', { sessionId, ...errorFields(error) })
         res.writeHead(502, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: 'failed to fetch plugin inventory' }))
       }
@@ -790,7 +789,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(204)
         res.end()
       } catch (error) {
-        log('purge_failed', { sessionId, error: String(error) })
+        log('purge_failed', { sessionId, ...errorFields(error) })
         res.writeHead(500, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: 'failed to purge session' }))
       }
@@ -863,7 +862,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(204)
         res.end()
       } catch (error) {
-        log('project_delete_failed', { projectId, error: String(error) })
+        log('project_delete_failed', { projectId, ...errorFields(error) })
         sendJson(res, 502, { error: 'failed to delete project' })
       }
     })
@@ -896,7 +895,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         log('project_promote_ok', { projectId, sessionId })
         sendJson(res, 201, { path: promoted })
       } catch (error) {
-        log('project_promote_failed', { projectId, error: String(error) })
+        log('project_promote_failed', { projectId, ...errorFields(error) })
         sendJson(res, 500, { error: 'promote failed' })
       }
     })
@@ -1159,9 +1158,10 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
       try {
         const reply = await runAdminBridge({ op: 'browse' })
+        if (!reply.ok) log('data_studio_dremio_browse_failed', { status: reply.status, error: reply.error })
         return reply.ok ? sendJson(res, 200, { sources: reply.sources }) : sendJson(res, 502, { error: reply.error })
       } catch (error) {
-        log('data_studio_dremio_browse_failed', { error: String(error) })
+        log('data_studio_dremio_browse_failed', errorFields(error))
         return sendJson(res, 502, { error: 'failed to reach the Dremio bridge' })
       }
     })
@@ -1189,11 +1189,12 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         // longer than the browse call above — same generous ceiling
         // packages/tool/data-studio-agent gives the chat-side pipeline.
         const reply = await runAdminBridge({ op: 'sync', source_names: sourceNames, datasets }, 240_000)
+        if (!reply.ok) log('data_studio_dremio_sync_failed', { status: reply.status, error: reply.error })
         return reply.ok
           ? sendJson(res, 200, { summary: reply.summary, reindexSummary: reply.reindex_summary })
           : sendJson(res, 502, { error: reply.error })
       } catch (error) {
-        log('data_studio_dremio_sync_failed', { error: String(error) })
+        log('data_studio_dremio_sync_failed', errorFields(error))
         return sendJson(res, 502, { error: 'failed to reach the Dremio bridge' })
       }
     })
@@ -1245,7 +1246,11 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       }
       const request = { op: 'data_profile', method: req.method, path, query, body, user: user?.email ?? `user-${identity.userId}` }
       const reply: ProfileReply = await (slow ? runAdminBridge(request, 600_000) : callAdmin(request, 60_000)).catch((error: unknown): ProfileReply => ({ ok: false, status: 502, error: String(error) }))
-      if (!reply.ok) return sendJson(res, reply.status ?? 502, { error: reply.error })
+      if (!reply.ok) {
+        // 4xx is the user's input (shown to them); 5xx is the bridge, Dremio or Mongo failing
+        if ((reply.status ?? 502) >= 500) log('data_profile_failed', { method: req.method, path, status: reply.status, error: reply.error })
+        return sendJson(res, reply.status ?? 502, { error: reply.error })
+      }
       if (req.method !== 'GET') log('data_profile_write', { userId: identity.userId, method: req.method, path, status: reply.status })
       if (reply.body_b64 !== undefined) {
         const headers: Record<string, string> = { 'content-type': reply.content_type || 'application/octet-stream' }
@@ -1464,7 +1469,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(200, { 'content-type': contentTypeFor(target), 'content-length': info.size })
         createReadStream(target).pipe(res)
       } catch (error) {
-        log('workspace_files_failed', { owner, error: String(error) })
+        log('workspace_files_failed', { owner, ...errorFields(error) })
         if (!res.headersSent) sendJson(res, 500, { error: 'files unavailable' })
         else res.end()
       }
@@ -1574,7 +1579,7 @@ const server = createServer((req, res) => {
       if (allowed) route(req, res)
     },
     (error: unknown) => {
-      log('admin_gate_failed', { error: String(error) })
+      log('admin_gate_failed', { method: req.method, path: new URL(req.url ?? '/', 'http://x').pathname, ...errorFields(error) })
       if (!res.headersSent) sendJson(res, 500, { error: 'internal error' })
     },
   )
@@ -1642,7 +1647,7 @@ server.on('upgrade', (req, socket, head) => {
       session = row
       // a log that left the disk (docs/session-archive-plan.md) comes back from S3 before the runtime reads it
       await ensureSessionLogLocal(sessionId, row.ownerId).catch((error: unknown) =>
-        log('session_restore_failed', { sessionId, error: error instanceof Error ? error.message : String(error) }),
+        log('session_restore_failed', { sessionId, ...errorFields(error) }),
       )
     }
 
@@ -1662,8 +1667,7 @@ server.on('upgrade', (req, socket, head) => {
       await ensurePlacement(placement)
       target = await runtime.target(sessionId)
     } catch (error) {
-      console.error(`[gateway] runtime target for ${sessionId} failed:`, error)
-      return reject('502 Bad Gateway', 'ws_runtime_unavailable', { sessionId, error: String(error) })
+      return reject('502 Bad Gateway', 'ws_runtime_unavailable', { sessionId, ...errorFields(error) })
     }
 
     if (isNew) await createSession(sessionId, identity.userId, session.flow, session.projectId, session.model)
@@ -1717,7 +1721,7 @@ server.on('upgrade', (req, socket, head) => {
       )
     })
   })().catch((error: unknown) => {
-    log('ws_upgrade_failed', { error: error instanceof Error ? error.message : String(error) })
+    log('ws_upgrade_failed', { ...errorFields(error) })
     if (socket.writable) socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n')
     socket.destroy()
   })
@@ -1731,7 +1735,10 @@ void checkMongoConnection()
     log('mongo_check', { ok })
     if (ok) await ensureIndexes()
   })
-  .catch((error: unknown) => log('mongo_check', { ok: false, error: error instanceof Error ? error.message : String(error) }))
+  .catch((error: unknown) => log('mongo_check', { ok: false, ...errorFields(error) }))
+
+// Same for S3 (custom skills, session-log archive): one line at start-up saying whether the bucket is reachable.
+void checkS3()
 
 // Readiness is "this process AND its runtime(s) can take a chat"; liveness is just "this process answers".
 // (Both are matched before authentication, ahead of the router above, by wrapping the listener below.)
@@ -1739,7 +1746,7 @@ async function main(): Promise<void> {
   await runtime.start()
   await startArchiver()
   server.listen(config.port, () => {
-    console.log(`[gateway] listening on http://127.0.0.1:${config.port}; ${config.runtimeCount} agent runtime(s), data in ${config.dataDir}`)
+    log('listening', { port: config.port, runtimes: config.runtimeCount, dataDir: config.dataDir, sandbox: config.sandboxMode })
   })
 }
 
@@ -1763,10 +1770,10 @@ process.on('SIGINT', () => void shutdown('SIGINT'))
 // queued (MongoTopologyClosedError from Topology.close draining its wait queue) — Node's default would exit and drop
 // every live chat. Log it; the request that hit it already got its error.
 process.on('unhandledRejection', (reason: unknown) => {
-  log('unhandled_rejection', { error: reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason) })
+  log('unhandled_rejection', errorFields(reason))
 })
 
 main().catch((error: unknown) => {
-  console.error('[gateway] failed to start:', error)
+  log('start_failed', errorFields(error))
   void runtime.stop().finally(() => process.exit(1))
 })

@@ -12,11 +12,12 @@ import { delimiter, join } from 'node:path'
 import { WebSocket } from 'ws'
 
 import { config } from '../config.ts'
+import { errorFields, log as baseLog } from '../log.ts'
 import { materializeProfile, PROFILE_NAME } from './materialize.ts'
 import { dshHome } from './paths.ts'
 
 function log(event: string, fields: Record<string, unknown> = {}): void {
-  console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'gateway', component: 'runtime', event, ...fields }))
+  baseLog(event, { component: 'runtime', ...fields })
 }
 
 export interface RuntimeTarget {
@@ -105,7 +106,7 @@ export class RuntimeSupervisor {
       })
       if (!res.ok && res.status !== 404) log('drop_failed', { sessionId, status: res.status })
     } catch (error) {
-      log('drop_failed', { sessionId, error: String(error) })
+      log('drop_failed', { sessionId, ...errorFields(error) })
     }
   }
 

@@ -7,6 +7,7 @@ import { join } from 'node:path'
 
 import { config } from '../config.ts'
 import { getSessionOwnerId } from '../db.ts'
+import { errorFields, log } from '../log.ts'
 import { deleteArchivePrefix, ensureArchiveRetention, getArchiveObject, listArchiveKeys, putArchiveObject } from '../object-storage.ts'
 import { archivedStamp, forgetArchived, setArchivedStamp } from '../redis.ts'
 import { dshHome } from './paths.ts'
@@ -16,8 +17,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // a file still being written is left for the next sweep
 const SETTLE_MS = 5_000
 
-const log = (event: string, fields: Record<string, unknown> = {}) =>
-  console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'gateway', event, ...fields }))
 
 const root = () => join(dshHome(), 'sessions')
 const keyPrefix = (ownerId: number, sessionId: string) => `${PREFIX}${ownerId}/${sessionId}/`
@@ -59,9 +58,14 @@ export function sweep(): Promise<void> {
       if (!owners.has(sessionId)) owners.set(sessionId, await getSessionOwnerId(sessionId))
       return owners.get(sessionId)
     }
-    let uploaded = 0
-    let evicted = 0
     const now = Date.now()
+    let uploaded = 0
+    let uploadedBytes = 0
+    const uploadedSessions = new Set<string>()
+    let evicted = 0
+    // one line per pass, not per file: while S3 is down every file fails the same way
+    let failed = 0
+    let firstFailure: { sessionId: string; error: unknown } | undefined
     const evictable = new Map<string, boolean>() // `${bucket}/${sessionId}` → every file archived and old
     for (const f of await sessionFiles()) {
       const owner = await ownerOf(f.sessionId)
@@ -70,11 +74,15 @@ export function sweep(): Promise<void> {
       const current = (await archivedStamp(fieldOf(f))) === stampOf(f)
       if (!current && now - f.mtimeMs >= SETTLE_MS) {
         try {
-          await putArchiveObject(`${keyPrefix(owner, f.sessionId)}${f.bucket}/${f.name}`, await readFile(f.path))
+          const body = await readFile(f.path)
+          await putArchiveObject(`${keyPrefix(owner, f.sessionId)}${f.bucket}/${f.name}`, body)
           await setArchivedStamp(fieldOf(f), stampOf(f))
           uploaded += 1
+          uploadedBytes += body.length
+          uploadedSessions.add(f.sessionId)
         } catch (error) {
-          log('session_archive_failed', { sessionId: f.sessionId, error: String(error) })
+          failed += 1
+          firstFailure ??= { sessionId: f.sessionId, error }
           evictable.set(dirKey, false)
           continue
         }
@@ -88,7 +96,19 @@ export function sweep(): Promise<void> {
       await rm(join(root(), dirKey), { recursive: true, force: true })
       evicted += 1
     }
-    if (uploaded > 0 || evicted > 0) log('session_archive', { uploaded, evictedFromDisk: evicted })
+    if (uploaded > 0 || evicted > 0) {
+      // ms = the whole pass (S3 uploads + Redis stamps); a slow S3 shows up here first
+      log('session_archive', {
+        uploaded,
+        sessions: uploadedSessions.size,
+        bytes: uploadedBytes,
+        ms: Date.now() - now,
+        evictedFromDisk: evicted,
+      })
+    }
+    if (firstFailure) {
+      log('session_archive_failed', { failedFiles: failed, uploaded, firstSessionId: firstFailure.sessionId, ...errorFields(firstFailure.error) })
+    }
   })().finally(() => {
     sweeping = undefined
   })
@@ -132,18 +152,19 @@ export async function startArchiver(): Promise<void> {
       const result = await ensureArchiveRetention(PREFIX, config.sessionArchive.retentionDays)
       log('session_archive_retention', { result, days: config.sessionArchive.retentionDays })
     } catch (error) {
+      // not fatal: archiving still works, archives just never expire on their own
       log('session_archive_retention_failed', {
-        error: String(error),
-        warning: `set a lifecycle rule on the bucket's "${PREFIX}" prefix by hand (expire after ${config.sessionArchive.retentionDays} days)`,
-      })
+        ...errorFields(error),
+        hint: `set a lifecycle rule on the bucket's "${PREFIX}" prefix by hand (expire after ${config.sessionArchive.retentionDays} days), or SESSION_ARCHIVE_RETENTION_DAYS=0 to stop trying`,
+      }, 'warn')
     }
   }
-  timer = setInterval(() => void sweep().catch((error) => log('session_archive_failed', { error: String(error) })), config.sessionArchive.intervalMs)
+  timer = setInterval(() => void sweep().catch((error) => log('session_archive_failed', errorFields(error))), config.sessionArchive.intervalMs)
   timer.unref()
 }
 
 /** On shutdown: one last pass so the latest turns are archived. */
 export async function stopArchiver(): Promise<void> {
   if (timer) clearInterval(timer)
-  if (config.sessionArchive.enabled) await sweep().catch((error) => log('session_archive_failed', { error: String(error) }))
+  if (config.sessionArchive.enabled) await sweep().catch((error) => log('session_archive_failed', errorFields(error)))
 }
