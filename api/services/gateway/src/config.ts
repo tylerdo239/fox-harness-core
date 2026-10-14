@@ -45,7 +45,8 @@ const isProd = process.env.NODE_ENV === 'production'
 // Which agent flows exist (each is an agent preset in packages/profile-template/presets). `workspace`
 // = the flow works on the user's files, so its working directory gets the files API.
 const flows = {
-  default: { workspace: false },
+  // a regular chat takes attachments (docs/chat-attachments-plan.md); the model reads them with its fs/bash tools
+  default: { workspace: true },
   'data-analysis': { workspace: true },
   'data-studio': { workspace: false },
 } as const

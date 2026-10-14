@@ -13,6 +13,7 @@
 // Data Studio shots need Dremio and a table an admin opened to role user ("Cho phép role user"). Emails other than the demo account's are masked.
 
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { deflateSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -39,6 +40,8 @@ const T = {
     project: 'Doanh thu 2026 (demo)', csv: 'doanh_thu_2026.csv', csvHeader: 'thang,khu_vuc,doanh_thu_trieu', regions: ['Bắc', 'Trung', 'Nam'],
     projectQuestion: 'Tóm tắt file doanh_thu_2026.csv và vẽ biểu đồ doanh thu theo tháng cho từng khu vực.',
     dsQuestion: 'Số lượng workflow theo trạng thái?', dashboard: 'Báo cáo vận hành (demo)',
+    attachCsv: 'khach_hang.csv', attachPng: 'bieu_do.png',
+    attachQuestion: 'Tóm tắt giúp file khach_hang.csv và cho biết ảnh bieu_do.png có kích thước bao nhiêu.',
   },
   en: {
     login: 'Log in', composer: 'Message the agent…', projectComposer: /New chat in/, stop: 'Stop',
@@ -52,6 +55,8 @@ const T = {
     project: 'Revenue 2026 (demo)', csv: 'revenue_2026.csv', csvHeader: 'month,region,revenue_k_usd', regions: ['North', 'Central', 'South'],
     projectQuestion: 'Summarise revenue_2026.csv and chart monthly revenue for each region.',
     dsQuestion: 'How many workflows are there by status?', dashboard: 'Operations report (demo)',
+    attachCsv: 'customers.csv', attachPng: 'chart.png',
+    attachQuestion: 'Summarise customers.csv and tell me the size of chart.png.',
   },
 }[LOCALE]
 mkdirSync(OUT, { recursive: true })
@@ -105,6 +110,31 @@ async function send(text) {
   await box.press('Enter')
 }
 
+// A small PNG (orange bars on white) to attach, made here so the script needs no fixture.
+function barsPng(width = 240, height = 140) {
+  const bars = [0.45, 0.8, 0.6, 0.95]
+  const rows = []
+  for (let y = 0; y < height; y++) {
+    const row = [0]
+    for (let x = 0; x < width; x++) {
+      const i = Math.floor(x / (width / bars.length))
+      const inBar = x % (width / bars.length) > 10 && height - y < bars[i] * (height - 10)
+      row.push(...(inBar ? [255, 122, 31] : [255, 255, 255]))
+    }
+    rows.push(...row)
+  }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length)
+    const body = Buffer.concat([Buffer.from(type), data])
+    let c = ~0
+    for (const byte of body) { c ^= byte; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)) }
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(~c >>> 0)
+    return Buffer.concat([len, body, crc])
+  }
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4); ihdr.set([8, 2, 0, 0, 0], 8)
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(Buffer.from(rows))), chunk('IEND', Buffer.alloc(0))])
+}
+
 const steps = {
   async login() {
     await page.goto(BASE)
@@ -127,6 +157,24 @@ const steps = {
     await page.getByTitle(T.options).first().click()
     await shot('chat-row-menu', { clip: { x: 0, y: 0, width: 640, height: 600 } })
     await page.keyboard.press('Escape')
+  },
+
+  async attach() {
+    await page.goto(BASE)
+    await page.getByPlaceholder(T.composer).waitFor()
+    const csv = join(tmpdir(), T.attachCsv)
+    writeFileSync(csv, ['id,name,city,orders', '1,An,Hà Nội,12', '2,Bình,Đà Nẵng,7', '3,Chi,TP.HCM,19', '4,Dũng,Hà Nội,4'].join('\n'))
+    const png = join(tmpdir(), T.attachPng)
+    writeFileSync(png, barsPng())
+    await page.locator('#send-form input[type=file]').setInputFiles([csv, png])
+    await page.locator('.fh-attach-chip').nth(1).waitFor()
+    await page.waitForFunction(() => !document.querySelector('.fh-attach-progress'), null, { timeout: 60_000 })
+    await page.getByPlaceholder(T.composer).fill(T.attachQuestion)
+    await shot('attach-composer')
+    await page.getByPlaceholder(T.composer).press('Enter')
+    await turnDone()
+    await page.locator('.fh-user-message').first().evaluate((e) => e.scrollIntoView({ block: 'start' }))
+    await shot('attach-sent')
   },
 
   async settings() {

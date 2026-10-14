@@ -1,13 +1,12 @@
-// Files bar for data-analysis chats (docs/rlm-transfer-plan.md giai đoạn 4):
-// upload into the chat's working directory, list its files (including the
-// model's generated/ outputs), preview images, download the rest. Renders
-// nothing for a chat without a working directory. In a project chat the
-// directory is the project's shared folder (docs/rlm-transfer-plan.md 9.1).
+// Files bar of a chat with a working directory (docs/rlm-transfer-plan.md giai đoạn 4): its files (uploads and the
+// model's generated/ outputs), preview images, download the rest. Uploading is the composer's attach button
+// (docs/chat-attachments-plan.md); `version` changes when one finished. Renders nothing for a chat without a
+// working directory or with no file yet. In a project chat the directory is the project's shared folder (9.1).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { FolderIcon, PaperclipIcon } from "../../../icons.tsx";
+import { FolderIcon } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import { useRuntime } from "../../../runtime.ts";
 import { Button } from "../../primitives/Button.tsx";
@@ -15,22 +14,18 @@ import {
   fetchWorkspaceFile,
   formatSize,
   listWorkspaceFiles,
-  MAX_UPLOAD_BYTES,
-  uploadWorkspaceFile,
   type WorkspaceFile,
 } from "./workspaceApi.ts";
 
 const IMAGE_RE = /\.(png|jpe?g|gif|webp)$/i;
 
-export function WorkspacePanel() {
+export function WorkspacePanel({ version = 0 }: { version?: number }) {
   const runtime = useRuntime();
   const { t } = useLocale();
   const base = runtime.sessionId ? `/sessions/${runtime.sessionId}` : "";
   const [files, setFiles] = useState<WorkspaceFile[] | undefined>();
   const [open, setOpen] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<{ path: string; url: string } | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   async function refresh(): Promise<void> {
     if (!base) return;
@@ -62,27 +57,12 @@ export function WorkspacePanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base]);
 
-  if (files === undefined) return null;
+  useEffect(() => {
+    if (version > 0) void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
 
-  async function upload(list: FileList | null): Promise<void> {
-    if (!list || list.length === 0) return;
-    setUploading(true);
-    for (const file of Array.from(list)) {
-      if (file.size > MAX_UPLOAD_BYTES) {
-        toast.error(t("workspace.tooLarge", { name: file.name }));
-        continue;
-      }
-      try {
-        await uploadWorkspaceFile(runtime, base, file);
-        toast.success(t("workspace.uploaded", { name: file.name }));
-      } catch {
-        toast.error(t("workspace.uploadFailed", { name: file.name }));
-      }
-    }
-    setUploading(false);
-    setOpen(true);
-    await refresh();
-  }
+  if (files === undefined || files.length === 0) return null;
 
   async function openFile(file: WorkspaceFile): Promise<void> {
     try {
@@ -109,24 +89,10 @@ export function WorkspacePanel() {
   return (
     <div className="fh-workspace">
       <div className="fh-workspace-bar">
-        <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={uploading}>
-          <PaperclipIcon size={14} />
-          {uploading ? t("workspace.uploading") : t("workspace.upload")}
-        </Button>
         <Button variant="link" className="fh-workspace-toggle" onClick={() => setOpen(!open)}>
           <FolderIcon size={14} />
           {t("workspace.files", { n: String(files.length) })}
         </Button>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          hidden
-          onChange={(event) => {
-            void upload(event.target.files);
-            event.target.value = "";
-          }}
-        />
       </div>
       {open && (
         <ul className="fh-workspace-list">

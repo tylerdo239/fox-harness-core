@@ -24,8 +24,9 @@ project can use them.
 
 ![A project's Sources tab](../../../../assets/screens/en/project-sources.png)
 
-Inside a chat, the bar above the message box has **Upload file** (a file for that chat only) and **Files (*n*)** (the
-files it has, including the ones the model made). Click an image to preview it; other files download.
+Inside a chat, attach more files with the paperclip (see [Attaching files](/docs/en/chat/chatting/#attaching-files)).
+**Files (*n*)** above the message box lists the files it has, including the ones the model made. Click an image to
+preview it; other files download.
 
 ![A chat's file list](../../../../assets/screens/en/project-files.png)
 

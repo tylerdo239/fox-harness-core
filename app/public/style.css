@@ -1740,6 +1740,184 @@ button:disabled {
   justify-content: flex-end;
 }
 
+/* Chat attachments (docs/chat-attachments-plan.md; Attachments.tsx). The attach button is the actions row's
+ * left-hand action; Send stays right. */
+#send-form {
+  position: relative;
+}
+.fh-attach-button {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25em;
+  height: 2.25em;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+.fh-attach-button svg,
+.fh-attach-action svg,
+.fh-attach-card svg {
+  flex: none;
+}
+.fh-attach-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.fh-attach-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.fh-composer-drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--accent);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  color: var(--accent-text);
+  font-weight: 600;
+  pointer-events: none;
+}
+.fh-attach-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+.fh-attach-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  width: 13.5em;
+  padding: 0.4em 0.4em 0.4em 0.45em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+.fh-attach-chip-error {
+  border-color: var(--error);
+}
+.fh-attach-thumb,
+.fh-attach-icon {
+  flex: none;
+  width: 2.25em;
+  height: 2.25em;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+.fh-attach-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-hover);
+  color: var(--muted);
+}
+.fh-attach-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.25;
+}
+.fh-attach-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85em;
+}
+.fh-attach-size {
+  font-size: 0.75em;
+  color: var(--muted);
+}
+.fh-attach-chip-error .fh-attach-size {
+  color: var(--error);
+}
+.fh-attach-action {
+  flex: none;
+  display: inline-flex;
+  padding: 0.2em;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.fh-attach-action:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.fh-attach-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--border-subtle);
+}
+.fh-attach-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--duration-fast) var(--ease);
+}
+/* A sent message: its file cards above the bubble, both on the right. */
+.fh-user-message {
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4em;
+  max-width: 85%;
+}
+.fh-user-message .bubble {
+  max-width: 100%;
+}
+.fh-attach-sent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4em;
+}
+.fh-attach-card {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  max-width: 16em;
+  padding: 0.45em 0.7em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+.fh-attach-card:hover {
+  background: var(--bg-hover);
+}
+.fh-attach-card:has(.fh-attach-card-thumb) {
+  padding: 0;
+  overflow: hidden;
+}
+.fh-attach-card-thumb {
+  display: block;
+  max-width: 14em;
+  max-height: 10em;
+  object-fit: cover;
+}
+
 /* Files bar of a data-analysis chat (WorkspacePanel.tsx), top of the composer. */
 .fh-workspace-bar {
   display: flex;

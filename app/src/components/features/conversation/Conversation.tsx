@@ -79,6 +79,7 @@ import {
   BrandIcon,
   ChevronDownIcon,
   DataAnalysisIcon,
+  PaperclipIcon,
   PinIcon,
   SearchIcon,
   SkillIcon,
@@ -102,6 +103,8 @@ import {
   refreshSkillMenu,
   SkillApiError,
 } from "../skills/skillsApi.ts";
+import { PendingAttachments, SentAttachments } from "./Attachments.tsx";
+import { MAX_ATTACHMENTS, splitAttachments, useAttachments, withAttachments } from "./attachments.ts";
 import { ChartView, type ChartSpec } from "./ChartView.tsx";
 import { DataStudioAnswer, PinToDashboardButton } from "./DataStudioAnswer.tsx";
 import type { ProgressItem } from "./DataStudioProgress.tsx";
@@ -720,9 +723,16 @@ function LogEntryView({
       );
     case "bubble":
       if (entry.role === "user") {
+        // a message with attachments ends with their marker line (attachments.ts): cards above the text
+        const { text, names } = splitAttachments(entry.text);
         return (
-          <div className="bubble bubble-user">
-            <span>{entry.text}</span>
+          <div className="fh-user-message">
+            {names.length > 0 && <SentAttachments names={names} t={t} />}
+            {text && (
+              <div className="bubble bubble-user">
+                <span>{text}</span>
+              </div>
+            )}
           </div>
         );
       }
@@ -784,6 +794,12 @@ export function Conversation({
   }, [running]);
   const logRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // docs/chat-attachments-plan.md: files go into the chat's working directory; Data Studio has none to read them
+  const canAttach = variant !== "data-studio" && !!runtime.sessionId;
+  const [filesVersion, setFilesVersion] = useState(0);
+  const attachments = useAttachments(runtime, () => setFilesVersion((v) => v + 1));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragDepth, setDragDepth] = useState(0);
   const skillItems = useSkillMenu(runtime);
   const [menuIndex, setMenuIndex] = useState(0);
   const [menuDismissedFor, setMenuDismissedFor] = useState<string | null>(null);
@@ -1399,11 +1415,17 @@ export function Conversation({
     textareaRef.current?.focus();
   }
 
+  function addFiles(files: Iterable<File>): void {
+    if (!canAttach || run) return;
+    const left = attachments.add(files);
+    if (left > 0) toast.error(t("attach.tooMany", { n: String(MAX_ATTACHMENTS) }));
+  }
+
   function sendMessage(): void {
     const trimmed = text.trim();
-    // One reply at a time: while it runs the button is Stop and Enter waits.
-    if (!trimmed || run || !runtime.connected) return;
-    runtime.send({ type: "followup", text: trimmed });
+    // One reply at a time: while it runs the button is Stop and Enter waits. Attachments must finish uploading.
+    if ((!trimmed && attachments.ready === 0) || run || !runtime.connected || attachments.uploading) return;
+    runtime.send({ type: "followup", text: withAttachments(trimmed, attachments.take()) });
     setText("");
     // The status row shows right away instead of waiting for `turn/start`.
     setRun({ startedAt: Date.now(), tools: 0 });
@@ -1527,8 +1549,27 @@ export function Conversation({
           <h2>{t("conversation.emptyHeading")}</h2>
         </div>
       )}
-      <form id="send-form" onSubmit={onSubmit}>
-        <WorkspacePanel />
+      <form
+        id="send-form"
+        onSubmit={onSubmit}
+        onDragEnter={(event) => {
+          if (!canAttach || !event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          setDragDepth((d) => d + 1);
+        }}
+        onDragOver={(event) => {
+          if (canAttach && event.dataTransfer.types.includes("Files")) event.preventDefault();
+        }}
+        onDragLeave={() => setDragDepth((d) => Math.max(0, d - 1))}
+        onDrop={(event) => {
+          if (!canAttach) return;
+          event.preventDefault();
+          setDragDepth(0);
+          addFiles(event.dataTransfer.files);
+        }}
+      >
+        {dragDepth > 0 && <div className="fh-composer-drop-hint">{t("attach.dropHint")}</div>}
+        <WorkspacePanel version={filesVersion} />
         {menuItems.length > 0 && (
           <SkillMenu
             items={menuItems}
@@ -1548,8 +1589,39 @@ export function Conversation({
             setMenuIndex(0);
           }}
           onKeyDown={onTextareaKeyDown}
+          onPaste={(event) => {
+            // a pasted screenshot or copied file attaches; pasted text stays text
+            if (!canAttach || event.clipboardData.files.length === 0) return;
+            event.preventDefault();
+            addFiles(event.clipboardData.files);
+          }}
         />
+        <PendingAttachments items={attachments.items} onRemove={attachments.remove} onRetry={attachments.retry} t={t} />
         <div className="fh-composer-actions">
+          {canAttach && (
+            <>
+              <button
+                type="button"
+                className="fh-attach-button"
+                title={t("attach.button")}
+                aria-label={t("attach.button")}
+                disabled={!!run}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <PaperclipIcon size={18} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                hidden
+                onChange={(event) => {
+                  if (event.target.files) addFiles(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+            </>
+          )}
           {run && runtime.connected ? (
             <Button
               key="stop"
@@ -1561,7 +1633,7 @@ export function Conversation({
               {t("conversation.stop")}
             </Button>
           ) : (
-            <Button key="send" variant="primary" type="submit">
+            <Button key="send" variant="primary" type="submit" disabled={attachments.uploading}>
               {t("conversation.send")}
             </Button>
           )}

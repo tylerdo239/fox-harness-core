@@ -14,12 +14,17 @@ import '@deepseek-ai/dsh-tools'
 // rows in profile-template/<flow>/cordis.patch.yml did when a flow was a whole process.
 //   'all'      -> the flow's tools come ONLY from its preset (data-studio: `analyze_data`).
 //   string[]   -> these global tools are hidden, the rest stay (data-analysis: no bash, no subagents...).
+// `read_image` is hidden everywhere: the openai-compat adapter sends the model text only, so the call always
+// failed — with an attached image the model first tried it, got an error, then fell back to bash/python
+// (docs/chat-attachments-plan.md). Back when image input is wired through.
+const NO_IMAGE_INPUT = ['read_image']
 const FLOW_TOOL_MASK: Record<string, 'all' | readonly string[]> = {
+  default: NO_IMAGE_INPUT,
   'data-studio': 'all',
   'data-analysis': [
     'bash', 'str_replace_editor', 'job_kill', 'job_list', 'job_output', 'workflow', 'ralph',
     'subagent', 'subagent_fork', 'list_agents', 'interrupt_agent', 'send_message',
-    'create_goal', 'get_goal', 'update_goal', 'exit_plan_mode', 'todo_write',
+    'create_goal', 'get_goal', 'update_goal', 'exit_plan_mode', 'todo_write', ...NO_IMAGE_INPUT,
   ],
 }
 

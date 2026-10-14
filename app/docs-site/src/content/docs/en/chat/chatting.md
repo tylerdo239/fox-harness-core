@@ -15,6 +15,30 @@ time: wait for it to finish (or stop it) before sending the next message.
 
 ![A chat with the agent](../../../../assets/screens/en/chat.png)
 
+## Attaching files
+
+Three ways, in regular and data-analysis chats:
+
+- click the **paperclip** next to **Send**;
+- drag files onto the message box;
+- paste (Ctrl/Cmd + V) a screenshot or a copied file.
+
+![Two files waiting to be sent](../../../../assets/screens/en/attach-composer.png)
+
+Files upload right away; each is a card with a progress bar. Up to **5 files per message**, **70 MB each**. **Send** waits
+until they are uploaded. A failed card has a **Retry** button; **×** takes a file off the message and deletes it (it
+was never sent). You can send files without any text.
+
+![A message sent with files](../../../../assets/screens/en/attach-sent.png)
+
+Once sent, the files show above your message: click an image to view it, any other file to download it. The agent reads
+the files in the chat's folder with its tools (text, CSV; Python in a data-analysis chat). It does not "see" images the
+way you do — it can only process them with code (size, colours…).
+
+- Sending a file with the same name as one already there saves the new one as `name (2).csv`; the old one stays.
+- **Files (*n*)** above the message box lists every file of the chat, including the ones the agent made.
+- Data Studio does not take files.
+
 ## What the agent is doing
 
 Each time the agent uses a tool, a small line appears — click it for the details:

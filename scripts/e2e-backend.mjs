@@ -177,7 +177,7 @@ const tests = {
     const reqs = await mock()
     const ra = reqs.find((r) => r.lastUser.startsWith('MARK-FA')), rb = reqs.find((r) => r.lastUser.startsWith('MARK-FB'))
     ca.close(); cb.close()
-    return { ok: !!ra && !!rb && rb.tools.length === 1 && rb.tools[0] === 'analyze_data' && ra.tools.length > 5 && !ra.tools.includes('analyze_data') && rb.system.includes('Data Studio'), detail: `default analyze_data=${ra?.tools.includes('analyze_data')} default tools=${ra?.tools.length}, data-studio tools=${JSON.stringify(rb?.tools)}` }
+    return { ok: !!ra && !!rb && rb.tools.length === 1 && rb.tools[0] === 'analyze_data' && ra.tools.length > 5 && !ra.tools.includes('analyze_data') && !ra.tools.includes('read_image') && ra.tools.includes('read') && rb.system.includes('Data Studio'), detail: `default analyze_data=${ra?.tools.includes('analyze_data')} read_image=${ra?.tools.includes('read_image')} default tools=${ra?.tools.length}, data-studio tools=${JSON.stringify(rb?.tools)}` }
   },
 
   async ownership() {
@@ -520,7 +520,7 @@ const tests = {
     for (let i = 0; i <= chatLimit; i++) first.send(`ping ${i}`)
     await first.waitFor((x) => x.errors.some((e) => e.includes('Too many messages')), 20000, 'chat rate limit').catch(() => undefined)
     rows.push([`message ${chatLimit + 1} in a minute refused`, first.errors.some((e) => e.includes('Too many messages')), true])
-    // uploads go to a data-analysis chat's working folder (a default chat has none)
+    // uploads go to the chat's working folder
     const da = chat(u.token, { params: { flow: 'data-analysis' } }); await da.opened; await da.ready()
     const sid = da.sessionId
     const uploads = []
@@ -618,6 +618,47 @@ const tests = {
     const mine = await api('GET', '/sessions/mine', a.token)
     return { ok: del.status === 204 && existedBefore === 'yes' && existsAfter === 'no' && logsBefore !== '0' && logsAfter === '0' && c.closed && again.status !== undefined && !mine.json.some((r) => r.sessionId === id), detail: `dir ${existedBefore}->${existsAfter}, logs ${logsBefore}->${logsAfter}, viewer closed=${c.closed}, reopen status=${again.status}` }
   },
+  // Chat attachments (docs/chat-attachments-plan.md): a regular chat now has the files API; an attachment with a
+  // taken name gets a new one instead of replacing it; the message's marker line names the files and the model
+  // reads them from its working directory; Data Studio still has no files; another user cannot reach them.
+  async chatAttachments() {
+    const rows = []
+    const { a, b } = await users()
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    const sid = c.sessionId
+    const up = async (body) => api('POST', `/sessions/${sid}/files?unique=1&name=notes.txt`, a.token, body, true)
+    const first = await up('first version'); const second = await up('ATTACHED-CONTENT-42')
+    rows.push(['upload in a regular chat', first.status, 201])
+    rows.push(['same name again → new name', second.json?.path, 'notes (2).txt'])
+    rows.push(['first file kept', (await api('GET', `/sessions/${sid}/files/notes.txt`, a.token)).text, 'first version'])
+    // several attachments upload at once (the composer does): every one recorded, the listing still works
+    const parallel = await Promise.all(['p1.csv', 'p2.csv', 'p3.csv'].map((n) => api('POST', `/sessions/${sid}/files?unique=1&name=${n}`, a.token, n, true)))
+    rows.push(['3 uploads at once', JSON.stringify(parallel.map((r) => r.status)), '[201,201,201]'])
+    const listed = await api('GET', `/sessions/${sid}/files`, a.token)
+    rows.push(['listing after them', `${listed.status}:${['p1.csv', 'p2.csv', 'p3.csv'].every((n) => listed.json?.files?.some((f) => f.path === n && f.origin === 'source'))}`, '200:true'])
+    const names = JSON.stringify([second.json?.path])
+    c.send(`CALL bash ${JSON.stringify({ command: "cat 'notes (2).txt'", description: 'read attachment' })}\n\n[Attached files in the working directory: ${names}]`)
+    await c.turnEnds(1, 40000).catch(() => {})
+    rows.push(['model reads the attachment', toolText(c.events).includes('ATTACHED-CONTENT-42'), true])
+    const userText = JSON.stringify(c.events.filter((e) => e.type === 'user/message').map((e) => e.data.message?.content ?? e.data.content))
+    rows.push(['marker kept in the message', userText.includes('Attached files in the working directory'), true])
+    rows.push(["another user can't list them", (await api('GET', `/sessions/${sid}/files`, b.token)).status, 404])
+    // a card taken off before sending deletes its file (the composer's ×)
+    rows.push(["another user can't delete one", (await api('DELETE', `/sessions/${sid}/files/p1.csv`, b.token)).status, 404])
+    rows.push(['owner deletes one', (await api('DELETE', `/sessions/${sid}/files/p1.csv`, a.token)).status, 204])
+    const afterDelete = await api('GET', `/sessions/${sid}/files`, a.token)
+    rows.push(['gone from the list', afterDelete.json?.files?.some((f) => f.path === 'p1.csv'), false])
+    rows.push(['source record updated', dx('sh', '-c', `cat /data/users/*/${sid}/.fox/sources.json`).includes('p1.csv'), false])
+    rows.push(['deleting it again', (await api('DELETE', `/sessions/${sid}/files/p1.csv`, a.token)).status, 404])
+    rows.push(['delete outside the folder', (await api('DELETE', `/sessions/${sid}/files/..%2F..%2Fsecret`, a.token)).status, 404])
+    c.close()
+    const ds = chat(a.token, { params: { flow: 'data-studio' } }); await ds.opened; await ds.ready()
+    rows.push(['Data Studio has no files', (await api('POST', `/sessions/${ds.sessionId}/files?unique=1&name=x.txt`, a.token, 'x', true)).status, 404])
+    ds.close()
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks` }
+  },
+
   // A Data Studio chat's log holds `fox/data-studio-progress` events (the live steps). dsh refused to resume a log
   // with an event type it does not know, so such a chat failed to reopen ("unknown session") once the runtime let
   // go of it. analyze_data has no Dremio here and fails, but only after its first steps were logged.

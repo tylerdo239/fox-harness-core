@@ -34,18 +34,6 @@ export async function listWorkspaceFiles(
   return ((await res.json()) as { files: WorkspaceFile[] }).files;
 }
 
-export async function uploadWorkspaceFile(
-  runtime: Runtime,
-  base: string,
-  file: File,
-): Promise<void> {
-  const res = await runtime.authedFetch(
-    `${base}/files?name=${encodeURIComponent(file.name)}`,
-    { method: "POST", headers: { "content-type": "application/octet-stream" }, body: file },
-  );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-}
-
 export async function fetchWorkspaceFile(
   runtime: Runtime,
   base: string,
