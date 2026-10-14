@@ -112,6 +112,8 @@ việc của hệ thống bên ngoài.
 
 ## 6. Những chỗ code hiện tại sẽ lỗi
 
+Danh sách cần sửa, theo thứ tự, kèm file và cách kiểm tra: `docs/data-studio-dremio-staging-fix-plan.md`.
+
 | Trường hợp | Vì sao lỗi | Cách sửa (chưa làm) |
 |---|---|---|
 | HTTPS với cert do CA nội bộ ký | Client tạo `httpx` với `trust_env=False`, nên chỉ tin bộ CA public (certifi); `SSL_CERT_FILE` bị bỏ qua và không có biến nào để trỏ tới CA riêng. Lỗi `CERTIFICATE_VERIFY_FAILED`. | Thêm biến CA bundle (vd. `DREMIO_CA_BUNDLE`) truyền vào `verify=` của cả hai client, và forward biến đó. |
