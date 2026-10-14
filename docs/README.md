@@ -13,6 +13,7 @@ Current:
 - `data-studio-user-dashboards-plan.md` — per-user Data Studio dashboards and charts (owner_id), done 2026-10-07.
 - `single-backend-architecture-plan.md` — why the orchestrator was removed; measured results (§13).
 - `schema/` — the MariaDB schema handoff.
+- `data-studio-dremio-staging.md` — what the local stack runs for Data Studio, and connecting to an external (staging) Dremio: requirements and gaps.
 - `data-studio-update-plan.md` — adopting the new reference Data Studio (pipeline v4, data profile), incl. the Mongo schema changes.
 - `fe-be-split-plan.md` — the app/api split (done 2026-10-05).
 
