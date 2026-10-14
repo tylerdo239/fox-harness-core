@@ -8,6 +8,7 @@ Current:
 - `session-archive-plan.md` — session logs archived to S3 (12 months, restore on reopen, delete on purge), done 2026-10-07.
 - `core-readiness-review-2026-10-05.md` — what is ready, what is not, verified results.
 - `multi-user-authz.md` — multi-user isolation and role-based access (admin/user), open issues, how to test.
+- `staging-checklist.md` — step-by-step checklist for putting `api/` and `app/` on staging (infra, env, network, smoke tests, Data Studio).
 - `deploy-security-checklist.md` — what the deploy's proxy/ingress must do (TLS, headers, X-Forwarded-For, logs).
 - `sandbox-service-plan.md` — plan: code-runner service on one unprivileged pod, holds no data (`/sandbox`).
 - `data-studio-user-dashboards-plan.md` — per-user Data Studio dashboards and charts (owner_id), done 2026-10-07.
