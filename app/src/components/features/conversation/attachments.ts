@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { randomId } from "../../../randomId.ts";
 import type { Runtime } from "../../../runtime.ts";
 import { MAX_UPLOAD_BYTES } from "./workspaceApi.ts";
 
@@ -136,7 +137,7 @@ export function useAttachments(runtime: Runtime, onUploaded: () => void) {
     const room = MAX_ATTACHMENTS - itemsRef.current.length;
     const list = [...files];
     const taken = list.slice(0, Math.max(room, 0)).map<PendingAttachment>((file) => ({
-      id: crypto.randomUUID(),
+      id: randomId(),
       file,
       status: file.size > MAX_UPLOAD_BYTES ? "error" : "uploading",
       progress: 0,

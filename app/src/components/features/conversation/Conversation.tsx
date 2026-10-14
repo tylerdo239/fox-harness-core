@@ -88,6 +88,7 @@ import {
 } from "../../../icons.tsx";
 import { translateErrorCode, useLocale } from "../../../i18n/locale.tsx";
 import type { Locale, TranslationKey } from "../../../i18n/translations.ts";
+import { randomId } from "../../../randomId.ts";
 import { useRuntime } from "../../../runtime.ts";
 import type {
   ContentBlock,
@@ -1316,7 +1317,7 @@ export function Conversation({
         setRun(null);
         pushEntry({
           kind: "notice",
-          id: `err-${crypto.randomUUID()}`,
+          id: `err-${randomId()}`,
           text: frame.message,
         });
         break;
