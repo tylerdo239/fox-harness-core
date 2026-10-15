@@ -126,6 +126,20 @@ export const config = {
     // into memory to upload); its directory then never leaves the disk
     maxFileBytes: envIntOr('WORKSPACE_ARCHIVE_MAX_FILE_BYTES', 100 * 1024 * 1024),
   },
+  // docs/storage-quota-plan.md — the bucket has a fixed size and no lifecycle rule may be set on it, so the gateway
+  // keeps it from filling up itself.
+  storage: {
+    // what one user's files (uploads and chat outputs, in every chat and project) may take; an upload past it is
+    // refused until the user deletes old files. 0 = no limit.
+    userQuotaBytes: envIntOr('USER_FILE_QUOTA_BYTES', 500 * 1024 * 1024),
+    // the bucket's size (e.g. 12 GB): measured every scan; uploads stop at blockPercent. 0 = not measured.
+    bucketCapacityBytes: envIntOr('S3_BUCKET_CAPACITY_BYTES', 0),
+    warnPercent: envIntOr('STORAGE_WARN_PERCENT', 80),
+    blockPercent: envIntOr('STORAGE_BLOCK_PERCENT', 95),
+    scanIntervalMs: envIntOr('STORAGE_SCAN_INTERVAL_MS', 60 * 60 * 1000),
+    // the files of a chat/project nobody used for this many days are deleted (the chat itself stays). 0 = never.
+    fileRetentionDays: envIntOr('FILE_RETENTION_DAYS', 0),
+  },
   // docs/data-studio-mongodb-plan.md: Data Studio's semantic layer + chat history live in MongoDB,
   // shared with every worker container (Python) and with bot-data-studio-api. `MongoDBWrite` is the
   // name Vault injects on FPT infrastructure (same alias the Python settings accept); MONGODB_URL

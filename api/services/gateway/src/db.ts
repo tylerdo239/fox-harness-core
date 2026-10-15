@@ -346,6 +346,22 @@ export async function listSessionIdsForProject(projectId: string): Promise<strin
   return rows.map((row) => row.session_id)
 }
 
+// docs/storage-quota-plan.md: when a working directory was last used — a chat's last activity (every message bumps
+// updated_at), a project's own or its newest chat's. Undefined when the row is gone.
+export async function getSessionActivity(sessionId: string): Promise<Date | undefined> {
+  const rows = await pool.query<{ updated_at: Date | string }[]>(`select updated_at from discovery_sessions where session_id = ?`, [sessionId])
+  return rows[0] ? new Date(rows[0].updated_at) : undefined
+}
+
+export async function getProjectActivity(projectId: string): Promise<Date | undefined> {
+  const rows = await pool.query<{ at: Date | string }[]>(
+    `select greatest(p.updated_at, coalesce((select max(s.updated_at) from discovery_sessions s where s.project_id = p.project_id), p.updated_at)) as at
+     from discovery_projects p where p.project_id = ?`,
+    [projectId],
+  )
+  return rows[0] ? new Date(rows[0].at) : undefined
+}
+
 // Per-user skills — api/migrations/001_init.sql's `custom_skills` table.
 // `content` (2026-09-14) no longer lives in this row — it's fetched from/
 // written to object storage (services/gateway/src/object-storage.ts) by

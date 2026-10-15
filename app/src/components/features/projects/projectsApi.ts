@@ -2,6 +2,7 @@
 // its data-analysis chats. Mirrors services/gateway's /projects shapes.
 
 import type { Runtime } from "../../../runtime.ts";
+import { StorageFullError, storageCodeOf } from "../settings/storageApi.ts";
 
 export interface Project {
   projectId: string;
@@ -59,7 +60,12 @@ export function uploadProjectFile(
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(event.loaded / event.total);
     };
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)));
+    xhr.onload = () => {
+      const storage = storageCodeOf(xhr.status, xhr.responseText);
+      if (storage) return reject(new StorageFullError(storage));
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`HTTP ${xhr.status}`));
+    };
     xhr.onerror = () => reject(new Error("upload failed"));
     xhr.send(file);
   });

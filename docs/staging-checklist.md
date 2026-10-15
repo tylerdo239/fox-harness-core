@@ -82,6 +82,9 @@ Thiếu là gateway không khởi động:
 - [ ] `ALLOWED_ORIGINS`: để trống nếu app và API cùng domain (mặc định là vậy).
 - [ ] `FOX_RUNTIME_COUNT`, `MAX_CONCURRENT_SESSIONS`, `MAX_SESSIONS_PER_USER`, `SESSION_TOKEN_BUDGET`, `FOX_DS_WORKERS`.
 - [ ] `S3_SSE` nếu yêu cầu mã hoá phía server.
+- [ ] Bucket có dung lượng cố định (12 GB): `S3_BUCKET_CAPACITY_BYTES=12884901888`, `USER_FILE_QUOTA_BYTES` (mặc
+      định 500 MB), tuỳ chọn `FILE_RETENTION_DAYS` (xem `docs/storage-quota-plan.md`). Kiểm tra bucket **không bật
+      versioning** (`aws s3api get-bucket-versioning`): bật thì file đã xoá vẫn chiếm chỗ.
 - [ ] Secret lấy từ secret manager, không ghi thẳng vào manifest.
 
 ### Sandbox (chọn một)
@@ -150,6 +153,10 @@ Dùng cả tài khoản admin và tài khoản `user`.
 - [ ] Restart pod backend: hội thoại cũ vẫn còn (kiểm tra PVC `/data`).
 - [ ] Upload 1 file và chạy python sinh 1 file trong chat data-analysis; sau ~2 phút log có `workspace_archive uploaded=…`, và trên bucket có `files/users/<userId>/<sessionId>/…`.
 - [ ] Xoá chat đó: hết object dưới `files/users/<userId>/<sessionId>/` và `sessions/<userId>/<sessionId>/`.
+- [ ] Log khởi động có `storage_usage bucketBytes=… percent=…` (không có `storage_scan_failed`).
+- [ ] Cài đặt > Dung lượng: thấy file của mình, xoá được; admin thấy bucket và dung lượng từng user.
+- [ ] Upload vượt quota → báo "hết dung lượng" kèm nút "Quản lý dung lượng"; xoá file cũ rồi upload lại được.
+- [ ] Admin: Dọn file không dùng → "Xem trước" ra số, chưa xoá gì.
 
 ## 9. Data Studio trên staging
 

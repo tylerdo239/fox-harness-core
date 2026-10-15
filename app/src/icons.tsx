@@ -104,4 +104,6 @@ export {
   Check as CheckIcon,
   // Composer's Stop button while a reply is running.
   Square as StopIcon,
+  // Settings dialog's Storage tab (docs/storage-quota-plan.md).
+  HardDrive as StorageIcon,
 } from 'lucide-react'

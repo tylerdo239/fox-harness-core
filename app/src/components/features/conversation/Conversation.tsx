@@ -105,6 +105,7 @@ import {
   SkillApiError,
 } from "../skills/skillsApi.ts";
 import { PendingAttachments, SentAttachments } from "./Attachments.tsx";
+import { showNoSpace } from "../settings/storageApi.ts";
 import { MAX_ATTACHMENTS, splitAttachments, useAttachments, withAttachments } from "./attachments.ts";
 import { ChartView, type ChartSpec } from "./ChartView.tsx";
 import { DataStudioAnswer, PinToDashboardButton } from "./DataStudioAnswer.tsx";
@@ -798,7 +799,11 @@ export function Conversation({
   // docs/chat-attachments-plan.md: files go into the chat's working directory; Data Studio has none to read them
   const canAttach = variant !== "data-studio" && !!runtime.sessionId;
   const [filesVersion, setFilesVersion] = useState(0);
-  const attachments = useAttachments(runtime, () => setFilesVersion((v) => v + 1));
+  const attachments = useAttachments(
+    runtime,
+    () => setFilesVersion((v) => v + 1),
+    (error) => showNoSpace(error, tRef.current),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragDepth, setDragDepth] = useState(0);
   const skillItems = useSkillMenu(runtime);

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { randomId } from "../../../randomId.ts";
 import type { Runtime } from "../../../runtime.ts";
+import { StorageFullError, storageCodeOf } from "../settings/storageApi.ts";
 import { MAX_UPLOAD_BYTES } from "./workspaceApi.ts";
 
 export const MAX_ATTACHMENTS = 5;
@@ -42,7 +43,8 @@ export interface PendingAttachment {
   progress: number;
   // the name the gateway saved it under (`a (2).csv` when `a.csv` was taken)
   savedName?: string;
-  error?: "tooLarge" | "failed";
+  // `noSpace`: the quota or the bucket is full (docs/storage-quota-plan.md) — retrying is useless until files are deleted
+  error?: "tooLarge" | "failed" | "noSpace";
   previewUrl?: string;
 }
 
@@ -62,6 +64,8 @@ function upload(
       if (event.lengthComputable) onProgress(event.loaded / event.total);
     };
     xhr.onload = () => {
+      const storage = storageCodeOf(xhr.status, xhr.responseText);
+      if (storage) return reject(new StorageFullError(storage));
       if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(`HTTP ${xhr.status}`));
       try {
         resolve((JSON.parse(xhr.responseText) as { path: string }).path);
@@ -82,7 +86,7 @@ function discard(runtime: Runtime, sessionId: string, name: string): Promise<unk
 }
 
 /** The composer's pending attachments for the current chat; uploads start as files are added. */
-export function useAttachments(runtime: Runtime, onUploaded: () => void) {
+export function useAttachments(runtime: Runtime, onUploaded: () => void, onNoSpace?: (error: StorageFullError) => void) {
   const [items, setItems] = useState<PendingAttachment[]>([]);
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -126,8 +130,11 @@ export function useAttachments(runtime: Runtime, onUploaded: () => void) {
         patch(item.id, { status: "ready", progress: 1, savedName });
         onUploaded();
       })
-      .catch(() => {
-        if (!removed.current.has(item.id)) patch(item.id, { status: "error", error: "failed" });
+      .catch((error: unknown) => {
+        if (removed.current.has(item.id)) return;
+        const noSpace = error instanceof StorageFullError;
+        patch(item.id, { status: "error", error: noSpace ? "noSpace" : "failed" });
+        if (noSpace) onNoSpace?.(error);
       })
       .finally(() => requests.current.delete(item.id));
   }
@@ -158,7 +165,7 @@ export function useAttachments(runtime: Runtime, onUploaded: () => void) {
 
   function retry(id: string): void {
     const item = itemsRef.current.find((i) => i.id === id);
-    if (!item || item.error === "tooLarge") return;
+    if (!item || item.error === "tooLarge" || item.error === "noSpace") return;
     removed.current.delete(id);
     patch(id, { status: "uploading", progress: 0, error: undefined });
     start(item);

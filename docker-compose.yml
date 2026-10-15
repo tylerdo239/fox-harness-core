@@ -117,6 +117,9 @@ services:
   # Query engine Data Studio runs its SQL through (OSS: no row/column policies — roles are enforced in api/).
   dremio:
     image: dremio/dremio-oss
+    # Dremio exits by design (code 3, "Node lost its master status") when its embedded ZooKeeper misses the 60 s
+    # election — e.g. after the Mac or the Docker VM slept. Brought back up instead of staying dead.
+    restart: unless-stopped
     ports:
       - '127.0.0.1:9047:9047'
     volumes:

@@ -41,7 +41,7 @@ export function PendingAttachments({
             </span>
             <span className="fh-attach-size">
               {item.status === "error"
-                ? t(item.error === "tooLarge" ? "attach.tooLarge" : "attach.failed")
+                ? t(item.error === "tooLarge" ? "attach.tooLarge" : item.error === "noSpace" ? "attach.noSpace" : "attach.failed")
                 : formatSize(item.file.size)}
             </span>
           </span>

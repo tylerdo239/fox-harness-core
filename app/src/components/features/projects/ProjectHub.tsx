@@ -28,6 +28,7 @@ import {
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
+import { showNoSpace, StorageFullError } from "../settings/storageApi.ts";
 import {
   fetchWorkspaceFile,
   formatSize,
@@ -244,7 +245,12 @@ function ProjectPage({
           setProgress(Math.round(((index + fraction) / picked.length) * 100)),
         );
         toast.success(t("workspace.uploaded", { name: file.name }));
-      } catch {
+      } catch (error) {
+        if (error instanceof StorageFullError) {
+          // the rest would be refused too
+          showNoSpace(error, t);
+          break;
+        }
         toast.error(t("workspace.uploadFailed", { name: file.name }));
       }
     }
