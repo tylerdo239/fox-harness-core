@@ -19,7 +19,7 @@ def plot_heatmap(matrix: pd.DataFrame, output: str) -> None:
         import matplotlib.pyplot as plt
         import seaborn as sns
     except ImportError:
-        print("matplotlib and seaborn required: pip install matplotlib seaborn")
+        print("matplotlib and seaborn are required but not installed in this environment")
         return
 
     # Drop the cohort size column for the heatmap
@@ -50,7 +50,7 @@ def plot_curves(matrix: pd.DataFrame, output: str) -> None:
     try:
         import matplotlib.pyplot as plt
     except ImportError:
-        print("matplotlib required: pip install matplotlib")
+        print("matplotlib is required but not installed in this environment")
         return
 
     period_cols = [c for c in matrix.columns if c.startswith("Period")]

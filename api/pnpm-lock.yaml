@@ -112,6 +112,9 @@ importers:
       '@deepseek-ai/dsh-token-meter':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(0dc27235d4f629a319340c5074ee129f)
+      '@deepseek-ai/dsh-tools':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(504584c796ab61133252fa0989dc130e)
       '@deepseek-ai/schemastery':
         specifier: 3.18.2
         version: 3.18.2

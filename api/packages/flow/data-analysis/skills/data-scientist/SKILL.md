@@ -153,7 +153,7 @@ Thu thập dữ liệu bằng khả năng môi trường đang có: file local, 
 database MCP tool hoặc API. Dù nguồn là gì, hãy lưu thành file và đưa qua
 `profile_data.py` để mọi công việc bắt đầu tại cùng một cổng kiểm tra.
 
-Nếu session có skill `dataviz`, hãy đọc nó trước khi viết code vẽ biểu đồ. Nếu
+Nếu session có skill `data-visualization`, hãy đọc nó trước khi viết code vẽ biểu đồ. Nếu
 không, chỉ tạo một số ít biểu đồ thực sự cần thiết: mỗi biểu đồ trong sản phẩm
 bàn giao phải hỗ trợ một kết luận cụ thể.
 
