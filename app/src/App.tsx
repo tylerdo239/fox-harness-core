@@ -24,7 +24,8 @@ import { Conversation } from "./components/features/conversation/Conversation.ts
 import { SessionTitleBar } from "./components/features/conversation/SessionTitleBar.tsx";
 import { LanguageSelect } from "./components/features/LanguageSelect.tsx";
 import { ProjectChatBar, ProjectHub } from "./components/features/projects/ProjectHub.tsx";
-import { SettingsDialog } from "./components/features/settings/SettingsDialog.tsx";
+import { SettingsDialog, type SettingsTab } from "./components/features/settings/SettingsDialog.tsx";
+import { OPEN_STORAGE_EVENT } from "./components/features/settings/storageApi.ts";
 import { SkillsDialog } from "./components/features/skills/SkillsDialog.tsx";
 import { DataStudioDashboards } from "./components/features/data-studio/DataStudioDashboards.tsx";
 import { DataStudioDataSources } from "./components/features/data-studio/DataStudioDataSources.tsx";
@@ -349,7 +350,17 @@ function AppInner() {
   const [gatewayUrl] = useState(defaultGatewayUrl());
   const [selectedModel, setSelectedModel] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>();
   const [skillsOpen, setSkillsOpen] = useState(false);
+  // docs/storage-quota-plan.md: an upload refused for space (anywhere) opens Settings > Storage
+  useEffect(() => {
+    const openStorage = () => {
+      setSettingsTab("storage");
+      setSettingsOpen(true);
+    };
+    window.addEventListener(OPEN_STORAGE_EVENT, openStorage);
+    return () => window.removeEventListener(OPEN_STORAGE_EVENT, openStorage);
+  }, []);
   // docs/rlm-transfer-plan.md 9.1: the data-analysis project hub replaces the
   // chat in the center column while set (`projectId` null = the project list).
   const [projectView, setProjectView] = useState<{ projectId: string | null } | null>(null);
@@ -1113,7 +1124,10 @@ function AppInner() {
             dataAnalysisActive={projectView !== null || chatInDataArea}
             onOpenDataStudio={() => startNewSession("data-studio")}
             newSessionDisabled={!hasChatted && projectView === null}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={() => {
+              setSettingsTab(undefined);
+              setSettingsOpen(true);
+            }}
             onOpenSkills={() => setSkillsOpen(true)}
             onLogout={handleLogout}
           />
@@ -1164,6 +1178,7 @@ function AppInner() {
 
       <SettingsDialog
         open={settingsOpen}
+        initialTab={settingsTab}
         onClose={() => setSettingsOpen(false)}
         onLogout={handleLogout}
       />

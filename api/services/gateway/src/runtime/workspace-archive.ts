@@ -19,7 +19,9 @@ import {
   setWorkspaceStamp,
   workspaceStamps,
 } from '../redis.ts'
+import { noteUploaded } from './bucket-usage.ts'
 import { isUuid, removeTree } from './paths.ts'
+import { deleteWorkspaceFile } from './workspace-files.ts'
 
 const PREFIX = 'files/'
 // a file still being written is left for the next sweep
@@ -53,7 +55,7 @@ interface WorkspaceFile {
   size: number
 }
 
-async function filesOf(dir: string): Promise<WorkspaceFile[]> {
+export async function filesOf(dir: string): Promise<WorkspaceFile[]> {
   const out: WorkspaceFile[] = []
   for (const entry of await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => [])) {
     if (!entry.isFile()) continue
@@ -88,9 +90,12 @@ async function workspaceDirs(): Promise<{ dirKey: string; dir: string }[]> {
 }
 
 let sweeping: Promise<void> | undefined
+// clearWorkspace running: a pass would upload a file it is deleting back to S3
+let paused = 0
 
 /** One pass over every working directory: upload changed files, delete removed ones, evict old directories. */
 export function sweepWorkspaces(): Promise<void> {
+  if (paused > 0) return Promise.resolve()
   sweeping ??= (async () => {
     const now = Date.now()
     const retentionMs = config.sessionArchive.localRetentionDays * 86_400_000
@@ -158,6 +163,7 @@ export function sweepWorkspaces(): Promise<void> {
       }
     }
 
+    noteUploaded(bytes)
     if (uploaded > 0 || removed > 0 || evicted > 0) {
       log('workspace_archive', { uploaded, dirs: dirs.size, bytes, ms: Date.now() - now, deleted: removed, evictedFromDisk: evicted })
     }
@@ -227,4 +233,76 @@ export async function deleteWorkspaceArchive(dir: string): Promise<void> {
   if (!enabled() || !dirKey) return
   await deleteArchivePrefix(`${PREFIX}${dirKey}/`)
   await forgetWorkspace(dirKey)
+}
+
+export interface DirUsage {
+  bytes: number
+  files: { path: string; size: number; mtimeMs: number }[]
+  /** on S3 only (left the disk): `files` is what Redis recorded of the copies */
+  evicted: boolean
+}
+
+/** What a working directory takes: its files on the disk, or, once it left the disk, its copies on S3. */
+export async function dirUsage(dir: string): Promise<DirUsage> {
+  const dirKey = dirKeyOf(dir)
+  if (enabled() && dirKey && (await isWorkspaceEvicted(dirKey))) {
+    const files = Object.entries(await workspaceStamps(dirKey)).map(([path, stamp]) => {
+      const [mtime, size] = stamp.split(':').map(Number)
+      return { path, size: size || 0, mtimeMs: mtime || 0 }
+    })
+    return { bytes: files.reduce((sum, f) => sum + f.size, 0), files, evicted: true }
+  }
+  const files = (await filesOf(dir)).map((f) => ({ path: f.path, size: f.size, mtimeMs: f.mtimeMs }))
+  return { bytes: files.reduce((sum, f) => sum + f.size, 0), files, evicted: false }
+}
+
+/**
+ * Deletes one file of a directory that left the disk, on S3 only (no download of the whole directory to delete one
+ * file of it). False when there is no such copy. A directory on the disk goes through deleteWorkspaceFile instead.
+ */
+export async function deleteEvictedFile(dir: string, path: string): Promise<boolean> {
+  const dirKey = dirKeyOf(dir)
+  if (!enabled() || !dirKey || !(await isWorkspaceEvicted(dirKey))) return false
+  const stamps = await workspaceStamps(dirKey)
+  if (!(path in stamps)) return false
+  await deleteArchiveObject(objectKey(dirKey, path))
+  await dropWorkspaceStamps(dirKey, [path])
+  return true
+}
+
+export const isEvictedDir = async (dir: string): Promise<boolean> => {
+  const dirKey = dirKeyOf(dir)
+  return enabled() && dirKey !== undefined && (await isWorkspaceEvicted(dirKey))
+}
+
+/**
+ * docs/storage-quota-plan.md: every visible file of a directory (uploads, outputs) gone from the disk and from S3 —
+ * the chat and its hidden state (`.dsh/`, `.fox/`, the python marker) stay, so this is safe on an open chat too.
+ * Needs no s3:ListBucketVersions (one DeleteObject per file). The archive sweep is held off meanwhile, or it could
+ * upload a file back while it is being deleted. Returns what it freed.
+ */
+export async function clearWorkspace(dir: string): Promise<{ files: number; bytes: number }> {
+  const dirKey = dirKeyOf(dir)
+  if (!dirKey) return { files: 0, bytes: 0 }
+  paused += 1
+  try {
+    await sweeping
+    const usage = await dirUsage(dir)
+    const targets = usage.files.filter((f) => !f.path.split('/').some((part) => part.startsWith('.')))
+    const stamps = enabled() ? await workspaceStamps(dirKey) : {}
+    let files = 0
+    let bytes = 0
+    for (const f of targets) {
+      if (!usage.evicted && !(await deleteWorkspaceFile(dir, f.path))) continue
+      if (usage.evicted || f.path in stamps) {
+        await deleteArchiveObject(objectKey(dirKey, f.path))
+        await dropWorkspaceStamps(dirKey, [f.path])
+      }
+      files += 1
+      bytes += f.size
+    }
+    return { files, bytes }
+  } finally {
+    paused -= 1
+  }
 }

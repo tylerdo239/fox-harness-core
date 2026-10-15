@@ -34,10 +34,10 @@
 // plugin catalog it controlled is gone; every user now gets the same
 // fixed capability set.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useLocale } from '../../../i18n/locale.tsx'
-import { CloseIcon, GearIcon, LogOutIcon, MoonIcon, ProfileIcon, SunIcon, UsersIcon } from '../../../icons.tsx'
+import { CloseIcon, GearIcon, LogOutIcon, MoonIcon, ProfileIcon, StorageIcon, SunIcon, UsersIcon } from '../../../icons.tsx'
 import { useRuntime } from '../../../runtime.ts'
 import { useTheme } from '../../../useTheme.ts'
 import { Button } from '../../primitives/Button.tsx'
@@ -45,11 +45,24 @@ import { IconButton } from '../../primitives/IconButton.tsx'
 import { MenuItem } from '../../primitives/MenuItem.tsx'
 import { SelectableCard } from '../../primitives/SelectableCard.tsx'
 import { LanguageSelect } from '../LanguageSelect.tsx'
+import { StorageTab } from './StorageTab.tsx'
 import { UsersTab } from './UsersTab.tsx'
 
-type Tab = 'general' | 'profile' | 'users'
+export type SettingsTab = 'general' | 'profile' | 'storage' | 'users'
+type Tab = SettingsTab
 
-export function SettingsDialog({ open, onClose, onLogout }: { open: boolean; onClose: () => void; onLogout: () => void }) {
+export function SettingsDialog({
+  open,
+  onClose,
+  onLogout,
+  initialTab,
+}: {
+  open: boolean
+  onClose: () => void
+  onLogout: () => void
+  // opened for something specific (an upload refused for space opens Storage)
+  initialTab?: SettingsTab
+}) {
   const { t } = useLocale()
   const { theme, setTheme } = useTheme()
   const runtime = useRuntime()
@@ -59,6 +72,10 @@ export function SettingsDialog({ open, onClose, onLogout }: { open: boolean; onC
   // 'users' left over from an admin login on this tab falls back to General for a user.
   const tab: Tab = tabState === 'users' && !isAdmin ? 'general' : tabState
   const setTab = setTabState
+
+  useEffect(() => {
+    if (open && initialTab) setTabState(initialTab)
+  }, [open, initialTab])
 
   if (!open) return null
 
@@ -81,6 +98,10 @@ export function SettingsDialog({ open, onClose, onLogout }: { open: boolean; onC
             <MenuItem variant="nav" active={tab === 'profile'} onClick={() => setTab('profile')}>
               <ProfileIcon size={16} />
               {t('settings.profileTab')}
+            </MenuItem>
+            <MenuItem variant="nav" active={tab === 'storage'} onClick={() => setTab('storage')}>
+              <StorageIcon size={16} />
+              {t('settings.storageTab')}
             </MenuItem>
             {isAdmin && (
               <MenuItem variant="nav" active={tab === 'users'} onClick={() => setTab('users')}>
@@ -137,6 +158,8 @@ export function SettingsDialog({ open, onClose, onLogout }: { open: boolean; onC
                 </div>
               </>
             )}
+
+            {tab === 'storage' && <StorageTab />}
 
             {tab === 'users' && isAdmin && <UsersTab onClose={onClose} />}
           </div>

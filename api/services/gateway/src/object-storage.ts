@@ -199,6 +199,22 @@ export async function listArchiveKeys(prefix: string): Promise<string[]> {
   return keys
 }
 
+/** What the objects under `prefix` ('' = the whole bucket) take: docs/storage-quota-plan.md's bucket scan. */
+export async function measureArchivePrefix(prefix: string): Promise<{ bytes: number; objects: number }> {
+  let bytes = 0
+  let objects = 0
+  let token: string | undefined
+  do {
+    const page = await client.send(new ListObjectsV2Command({ Bucket: config.s3Bucket, Prefix: prefix || undefined, ContinuationToken: token }))
+    for (const o of page.Contents ?? []) {
+      bytes += o.Size ?? 0
+      objects += 1
+    }
+    token = page.IsTruncated ? page.NextContinuationToken : undefined
+  } while (token)
+  return { bytes, objects }
+}
+
 export async function getArchiveObject(key: string): Promise<Buffer> {
   const res = await client.send(new GetObjectCommand({ Bucket: config.s3Bucket, Key: key }))
   return Buffer.from(await res.Body!.transformToByteArray())

@@ -18,7 +18,7 @@ server {
 
   # The backend's HTTP API and the chat WebSocket (/sessions/new, /sessions/<id>). `/chat/<id>` is NOT here: it is
   # a browser route handled by the SPA below.
-  location ~ ^/(auth|sessions|projects|skills|custom-skills|models|users|data-studio|healthz|readyz)(/|$) {
+  location ~ ^/(auth|sessions|projects|skills|custom-skills|models|users|storage|admin|data-studio|healthz|readyz)(/|$) {
     proxy_pass ${BACKEND_URL};
     proxy_http_version 1.1;
     proxy_set_header Host $host;

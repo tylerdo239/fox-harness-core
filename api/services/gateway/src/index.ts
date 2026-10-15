@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, stat } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { posix } from 'node:path'
 import { Readable } from 'node:stream'
 import { WebSocketServer } from 'ws'
 
@@ -96,10 +97,11 @@ import {
 } from './data-studio-db.ts'
 import { callAdmin, runAdminBridge, stopAdminWorker } from './data-studio-bridge.ts'
 import { isLive, liveCount, track as trackConnection, checkQuota } from './runtime/live.ts'
-import { ensurePlacement, isUuid, placementFor, projectDirFor } from './runtime/paths.ts'
+import { ensurePlacement, isUuid, placementFor, projectDirFor, sessionDir } from './runtime/paths.ts'
 import { deleteProjectData, purgeSessionData, workspaceDirForSession } from './runtime/sessions.ts'
 import { ensureLocal as ensureSessionLogLocal, startArchiver, stopArchiver } from './runtime/session-archive.ts'
-import { ensureWorkspaceLocal } from './runtime/workspace-archive.ts'
+import { deleteEvictedFile, ensureWorkspaceLocal, isEvictedDir, clearWorkspace, dirUsage } from './runtime/workspace-archive.ts'
+import { checkUpload, cleanupOldFiles, noteFreed, startStorageJobs, stopStorageJobs, storageOverview, userStorage } from './runtime/storage.ts'
 import { syncSkills } from './runtime/skills-sync.ts'
 import { RuntimeSupervisor } from './runtime/supervisor.ts'
 import {
@@ -151,6 +153,7 @@ const CUSTOM_SKILL_PATH = /^\/custom-skills\/([^/]+)$/
 // An upload's file name: no path separators, no leading dot.
 const UPLOAD_NAME_RE = /^[^/\\.][^/\\]{0,199}$/
 const WORKSPACE_FILES_PATH = /^\/(sessions|projects)\/([^/]+)\/files(?:\/(.+))?$/
+const STORAGE_DIR_PATH = /^\/storage\/(sessions|projects)\/([^/]+)$/
 // Projects (docs/rlm-transfer-plan.md 9.1). Project ids are UUIDs, the same
 // shape SESSION_ID_RE checks.
 const PROJECTS_PATH = /^\/projects$/
@@ -1436,19 +1439,41 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       if (!allowed) return sendJson(res, 404, { error: 'not found' })
       const owner = `${kind}/${id}`
       let dir: string | undefined
-      if (kind === 'projects') dir = projectDirFor(id)
-      else {
+      // whose quota an upload counts against: the folder's owner (an admin may upload into someone's folder)
+      let ownerId: number | undefined
+      if (kind === 'projects') {
+        dir = projectDirFor(id)
+        ownerId = await getProjectOwnerId(id)
+      } else {
         const info = await getSessionRuntimeInfo(id)
         dir = info ? workspaceDirForSession(info, id) : undefined
+        ownerId = info?.projectId !== undefined ? await getProjectOwnerId(info.projectId) : info?.ownerId
       }
       if (!dir) return sendJson(res, 404, { error: 'no working directory' })
 
       try {
+        // a file of a folder that left the disk is deleted on S3 directly, not after downloading the whole folder
+        if (req.method === 'DELETE' && (await isEvictedDir(dir))) {
+          const relativePath = resolveInside(dir, decodeURIComponent(path)) ? posix.normalize(decodeURIComponent(path)) : undefined
+          const size = relativePath ? (await dirUsage(dir)).files.find((f) => f.path === relativePath)?.size ?? 0 : 0
+          if (!relativePath || !(await deleteEvictedFile(dir, relativePath))) return sendJson(res, 404, { error: 'file not found' })
+          noteFreed(size)
+          log('workspace_delete', { owner, userId: identity.userId, bytes: size, fromS3Only: true })
+          res.writeHead(204).end()
+          return
+        }
         await ensureWorkspaceLocal(dir)
         if (req.method === 'POST') {
           if (!(await costlyAllowed('upload', identity.userId))) return rateLimited(res)
           const name = url.searchParams.get('name') ?? ''
           if (!UPLOAD_NAME_RE.test(name)) return sendJson(res, 400, { error: 'invalid file name' })
+          // docs/storage-quota-plan.md: the user's quota and the bucket's size, before a byte is written
+          const incoming = Number(req.headers['content-length']) || 0
+          const decision = await checkUpload(ownerId ?? identity.userId, incoming)
+          if (!decision.ok) {
+            log('upload_refused', { owner, userId: identity.userId, code: decision.code, incoming, usedBytes: decision.usedBytes, quotaBytes: decision.quotaBytes }, 'warn')
+            return sendJson(res, decision.status, { error: decision.error, code: decision.code, usedBytes: decision.usedBytes, quotaBytes: decision.quotaBytes })
+          }
           let saved: string
           try {
             saved = await saveUpload(dir, name, req, { unique: url.searchParams.get('unique') === '1' })
@@ -1460,8 +1485,11 @@ function route(req: IncomingMessage, res: ServerResponse): void {
           return sendJson(res, 201, { path: saved })
         }
         if (req.method === 'DELETE') {
+          const target = resolveInside(dir, decodeURIComponent(path))
+          const size = target ? ((await stat(target).catch(() => undefined))?.size ?? 0) : 0
           if (!(await deleteWorkspaceFile(dir, decodeURIComponent(path)))) return sendJson(res, 404, { error: 'file not found' })
-          log('workspace_delete', { owner, userId: identity.userId })
+          noteFreed(size)
+          log('workspace_delete', { owner, userId: identity.userId, bytes: size })
           res.writeHead(204).end()
           return
         }
@@ -1476,6 +1504,75 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         if (!res.headersSent) sendJson(res, 500, { error: 'files unavailable' })
         else res.end()
       }
+    })
+    return
+  }
+
+  // docs/storage-quota-plan.md — GET /storage: what the caller's files take against their quota, every file, the
+  // biggest folders first. DELETE /storage/(sessions|projects)/:id: every file of that folder (the chat stays).
+  if (url.pathname === '/storage' && req.method === 'GET') {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      sendJson(res, 200, await userStorage(identity.userId))
+    })
+    return
+  }
+
+  const storageDirMatch = STORAGE_DIR_PATH.exec(url.pathname)
+  if (storageDirMatch && req.method === 'DELETE') {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const [, kind, id] = storageDirMatch
+      let dir: string | undefined
+      if (kind === 'projects') {
+        if (await canAccessProject(identity, id)) dir = projectDirFor(id)
+      } else if (SESSION_ID_RE.test(id) && (await canAccessSession(identity, id))) {
+        // a project chat's files are the project's: they are cleared from the project
+        const info = await getSessionRuntimeInfo(id)
+        if (info && info.projectId === undefined) dir = sessionDir(info.ownerId, id)
+      }
+      if (!dir) return sendJson(res, 404, { error: 'not found' })
+      const freed = await clearWorkspace(dir)
+      noteFreed(freed.bytes)
+      log('storage_dir_cleared', { owner: `${kind}/${id}`, userId: identity.userId, files: freed.files, bytes: freed.bytes })
+      sendJson(res, 200, freed)
+    })
+    return
+  }
+
+  // Admin (ADMIN_ONLY_PATHS): GET /admin/storage — the bucket's measure and every user's usage;
+  // POST /admin/storage/cleanup {olderThanDays, userId?, dryRun?} — delete the files of chats/projects unused that long.
+  if (url.pathname === '/admin/storage' && req.method === 'GET') {
+    handle(res, async () => sendJson(res, 200, await storageOverview()))
+    return
+  }
+
+  if (url.pathname === '/admin/storage/cleanup' && req.method === 'POST') {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      let body: { olderThanDays?: unknown; userId?: unknown; dryRun?: unknown }
+      try {
+        body = JSON.parse(await readBody(req))
+      } catch {
+        return sendJson(res, 400, { error: 'invalid JSON body', code: 'invalid_json' })
+      }
+      const days = body.olderThanDays
+      if (typeof days !== 'number' || !Number.isInteger(days) || days < 1) {
+        return sendJson(res, 400, { error: 'olderThanDays must be a whole number of days, at least 1', code: 'invalid_days' })
+      }
+      if (body.userId !== undefined && (typeof body.userId !== 'number' || !Number.isInteger(body.userId))) {
+        return sendJson(res, 400, { error: 'userId must be a user id', code: 'invalid_user' })
+      }
+      const result = await cleanupOldFiles({
+        olderThanDays: days,
+        userId: body.userId as number | undefined,
+        dryRun: body.dryRun === true,
+        by: `admin:${identity.userId}`,
+      })
+      sendJson(res, 200, result)
     })
     return
   }
@@ -1557,7 +1654,7 @@ const USER_DATA_STUDIO_PATHS = [
   /^\/data-studio\/dashboards\/meta\/available-charts$/,
   /^\/data-studio\/charts\/[^/]+$/,
 ]
-const ADMIN_ONLY_PATHS = [/^\/auth\/register$/, /^\/users$/, /^\/users\/[^/]+$/]
+const ADMIN_ONLY_PATHS = [/^\/auth\/register$/, /^\/users$/, /^\/users\/[^/]+$/, /^\/admin\//]
 
 function needsAdmin(req: IncomingMessage, pathname: string): boolean {
   if (req.method === 'OPTIONS') return false
@@ -1754,6 +1851,7 @@ void checkS3()
 async function main(): Promise<void> {
   await runtime.start()
   await startArchiver()
+  startStorageJobs()
   server.listen(config.port, () => {
     log('listening', { port: config.port, runtimes: config.runtimeCount, dataDir: config.dataDir, sandbox: config.sandboxMode })
   })
@@ -1768,6 +1866,7 @@ async function shutdown(signal: string): Promise<void> {
   server.close()
   for (const client of wss.clients) client.close(1001, 'server shutting down')
   stopAdminWorker()
+  stopStorageJobs()
   await runtime.stop()
   await stopArchiver() // the runtimes have flushed: archive the last turns
   process.exit(0)

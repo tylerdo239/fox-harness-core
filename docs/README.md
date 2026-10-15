@@ -5,6 +5,7 @@ Current:
 - `deploy.md` — deploying the two images (`app/`, `api/`).
 - `admin-guide.md` — admin manual (users, Data Studio sources and who may query them); the user manual is `/docs` (`app/docs-site/`).
 - `chat-attachments-plan.md` — attaching files in chat (default + data-analysis), done 2026-10-08.
+- `storage-quota-plan.md` — keeping the 12 GB bucket (no lifecycle rule allowed) from filling up: per-user quota, bucket measure and upload block, Settings > Storage, admin/scheduled cleanup of unused files, done 2026-10-15.
 - `workspace-archive-plan.md` — uploads and python/agent output (chat and project folders) on S3 as the main copy, restore on reopen, delete on purge, done 2026-10-14.
 - `session-archive-plan.md` — session logs archived to S3 (kept until deleted, restore on reopen, delete on purge), done 2026-10-07.
 - `core-readiness-review-2026-10-05.md` — what is ready, what is not, verified results.

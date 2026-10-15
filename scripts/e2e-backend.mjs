@@ -741,6 +741,68 @@ const tests = {
     const bad = rows.filter(([, got, want]) => got !== want)
     return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks, ${keys.length} object(s)` }
   },
+
+  // docs/storage-quota-plan.md (e2e-up.sh sets USER_FILE_QUOTA_BYTES=2 MB): an upload past the quota is refused with
+  // storage_quota until the user deletes files; GET /storage lists them; a folder can be emptied; the admin cleanup
+  // deletes the files of a chat unused for N days (dry run first), also of a folder that left the disk.
+  async storageQuota() {
+    const rows = []
+    const u = await newUser('quota')
+    const c = chat(u.token); await c.opened; await c.ready(); c.close()
+    const id = c.sessionId
+    const MB = 1024 * 1024
+    const up = (name, bytes) => api('POST', `/sessions/${id}/files?name=${name}`, u.token, 'x'.repeat(bytes), true)
+    rows.push(['1.5 MB upload', (await up('big.bin', 1.5 * MB)).status, 201])
+    const refused = await up('more.bin', MB)
+    rows.push(['past the quota', `${refused.status} ${refused.json?.code}`, '507 storage_quota'])
+    const listed = (await api('GET', '/storage', u.token)).json
+    rows.push(['GET /storage', `${listed.usedBytes >= 1.5 * MB} ${listed.quotaBytes} ${listed.dirs[0]?.files.map((f) => f.path).join(',')}`, `true ${2 * MB} big.bin`])
+    rows.push(['delete a file', (await api('DELETE', `/sessions/${id}/files/big.bin`, u.token)).status, 204])
+    rows.push(['upload again', (await up('more.bin', MB)).status, 201])
+    const cleared = await api('DELETE', `/storage/sessions/${id}`, u.token)
+    rows.push(['empty the folder', `${cleared.status} ${cleared.json?.files}`, '200 1'])
+    rows.push(['nothing left', (await api('GET', '/storage', u.token)).json.dirs.length, 0])
+    rows.push(['someone else cannot', (await api('DELETE', `/storage/sessions/${id}`, (await users()).b.token)).status, 404])
+
+    // unused for 40 days: the session row and the file, both dated back
+    rows.push(['old upload', (await up('old.csv', 1000)).status, 201])
+    const dir = workspaceOf(id)
+    const dirKey = dir.replace(/^\/data\//, '')
+    const key = `files/${dirKey}/old.csv`
+    const old = Math.floor(Date.now() / 1000) - 40 * 86400
+    dx('touch', '-d', `@${old}`, `${dir}/old.csv`)
+    execFileSync('docker', ['exec', 'foxe2e-mariadb', 'mariadb', '-uroot', '-px', 'discovery-agent', '-e',
+      `update discovery_sessions set updated_at = now() - interval 40 day where session_id = '${id}'`])
+    for (let i = 0; i < 20 && !s3('versions', key).includes(key); i++) await sleep(1000)
+    rows.push(['archived', s3('versions', key).includes(key), true])
+    rows.push(['user cannot run the cleanup', (await api('POST', '/admin/storage/cleanup', u.token, { olderThanDays: 30 })).status, 403])
+    const dry = (await api('POST', '/admin/storage/cleanup', await admin(), { olderThanDays: 30, userId: u.id, dryRun: true })).json
+    rows.push(['dry run', `${dry.dirs} ${dry.files} ${dry.bytes}`, '1 1 1000'])
+    rows.push(['dry run deletes nothing', (await api('GET', `/sessions/${id}/files/old.csv`, u.token)).status, 200])
+    const done = (await api('POST', '/admin/storage/cleanup', await admin(), { olderThanDays: 30, userId: u.id })).json
+    rows.push(['cleanup', `${done.dirs} ${done.files}`, '1 1'])
+    rows.push(['gone from the disk', (await api('GET', `/sessions/${id}/files/old.csv`, u.token)).status, 404])
+    rows.push(['gone from S3', s3('versions', key).includes(key), false])
+    rows.push(['the chat stays', (await api('GET', `/sessions/${id}/files`, u.token)).status, 200])
+
+    // a folder that left the disk (evicted): listed from what Redis recorded, a delete goes to S3 only
+    rows.push(['upload to evict', (await up('far.csv', 500)).status, 201])
+    const farKey = `files/${dirKey}/far.csv`
+    for (let i = 0; i < 20 && !s3('versions', farKey).includes(farKey); i++) await sleep(1000)
+    execFileSync('docker', ['exec', 'foxe2e-redis', 'redis-cli', 'sadd', 'fh:workspace-evicted', dirKey])
+    dx('sh', '-c', `rm -rf ${dir}`)
+    const evicted = (await api('GET', '/storage', u.token)).json
+    rows.push(['evicted folder listed', evicted.dirs[0]?.files.map((f) => f.path).join(','), 'far.csv'])
+    rows.push(['delete from S3 only', (await api('DELETE', `/sessions/${id}/files/far.csv`, u.token)).status, 204])
+    rows.push(['not downloaded to delete it', dx('sh', '-c', `test -e ${dir}/far.csv && echo yes || echo no`).trim(), 'no'])
+    rows.push(['gone from S3 (evicted)', s3('versions', farKey).includes(farKey), false])
+
+    const overview = (await api('GET', '/admin/storage', await admin())).json
+    rows.push(['bucket measured', typeof overview.bucket.usedBytes, 'number'])
+    rows.push(['user listed', overview.users.some((x) => x.email === u.email), true])
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks` }
+  },
 }
 
 const only = process.argv.slice(2)
