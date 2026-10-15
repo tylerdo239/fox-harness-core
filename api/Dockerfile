@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
 # system pip refuses global installs (PEP 668). The list is repeated in packages/flow/data-analysis/src/index.ts's prompt.
 RUN python3 -m venv /opt/fox-py \
   && /opt/fox-py/bin/pip install --no-cache-dir ipython pandas numpy matplotlib scipy scikit-learn seaborn openpyxl pyarrow \
-    statsmodels duckdb pillow lightgbm xgboost-cpu
+    statsmodels duckdb pillow lightgbm xgboost-cpu pypdf python-docx
 ENV FOX_PYTHON=/opt/fox-py/bin/python
 # `python`/`python3` inside a cell's subprocess (a skill's scripts/*.py) must be this venv too.
 ENV PATH=/opt/fox-py/bin:$PATH

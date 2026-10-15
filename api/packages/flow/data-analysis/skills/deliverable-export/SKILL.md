@@ -11,9 +11,11 @@ một đoạn văn. Skill này lo chặng cuối đó.
 ## Công cụ có sẵn trong sandbox
 
 `openpyxl` (Excel), `pandas` (`to_excel`/`to_csv`/`to_parquet`),
-`matplotlib`/`seaborn` (ảnh biểu đồ), `pyarrow`. **Không có** `python-docx`
-hay thư viện PDF — đừng hứa xuất `.docx`/`.pdf`; nếu người dùng cần định
-dạng đó, nói thẳng là hiện chưa hỗ trợ và đề xuất `.xlsx` hoặc `.md`.
+`matplotlib`/`seaborn` (ảnh biểu đồ), `pyarrow`, `python-docx` (Word `.docx`:
+tiêu đề, đoạn văn, bảng, chèn ảnh biểu đồ). PDF: `pypdf` chỉ để **đọc**; xuất
+`.pdf` được với một hình matplotlib (`savefig("x.pdf")`), nhưng **không có**
+thư viện dựng PDF văn bản — người dùng cần báo cáo dạng văn bản thì xuất
+`.docx` và nói thẳng là PDF văn bản chưa hỗ trợ.
 
 ## Kỷ luật
 
