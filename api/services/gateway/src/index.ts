@@ -96,6 +96,7 @@ import {
 } from './data-studio-db.ts'
 import { callAdmin, runAdminBridge, stopAdminWorker } from './data-studio-bridge.ts'
 import { isLive, liveCount, track as trackConnection, checkQuota } from './runtime/live.ts'
+import { refreshDatasetCards } from './runtime/dataset-cards.ts'
 import { ensurePlacement, isUuid, placementFor, projectDirFor } from './runtime/paths.ts'
 import { deleteProjectData, purgeSessionData, workspaceDirForSession } from './runtime/sessions.ts'
 import { ensureLocal as ensureSessionLogLocal, startArchiver, stopArchiver } from './runtime/session-archive.ts'
@@ -1674,6 +1675,8 @@ server.on('upgrade', (req, socket, head) => {
         )
       }
       await ensurePlacement(placement)
+      // a folder whose tables were uploaded before dataset cards existed gets them now (a no-op when current)
+      refreshDatasetCards(placement.cwd)
       target = await runtime.target(sessionId)
     } catch (error) {
       return reject('502 Bad Gateway', 'ws_runtime_unavailable', { sessionId, ...errorFields(error) })

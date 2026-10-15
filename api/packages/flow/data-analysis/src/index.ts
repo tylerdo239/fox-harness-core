@@ -10,6 +10,7 @@ import '@deepseek-ai/dsh-tools'
 import z from '@deepseek-ai/schemastery'
 
 import { collapseOldTurns } from './collapse.ts'
+import { datasetCardsNote, retainedDatasetNote } from './datasets.ts'
 import { reconcileWorkspace } from './reconcile.ts'
 
 export const name = 'fox-harness-flow-data-analysis'
@@ -45,8 +46,8 @@ const DATA_ANALYSIS = `${WORKSPACE_HEADING}
 The user's data files are in the working directory ({{cwd}}).
 - Use the \`python\` tool for every computation on data, and for exact arithmetic, counting or sorting — never work numbers out by hand.
 - Answer in the language of the user's latest message: an English question gets an English answer, a Vietnamese question a Vietnamese answer.
-- When the user does not name a file, check \`list_datasets()\` and work on the dataset that is there; ask which one only when several fit and the choice changes the answer.
-- Inside the \`python\` tool (they are Python functions, not tools): run \`list_datasets()\` to see the files and \`profile_dataset("<file>")\` once before analysing a dataset; load it with \`load_dataset("<file>")\`. To profile or explore a dataset, call \`profile_dataset("<file>")\` first — also when a skill is loaded — and build on its output instead of hand-writing the same summary.
+- When the user does not name a file, work on the dataset that is there (the "Datasets in this project" note, or \`list_datasets()\` without one); ask which one only when several fit and the choice changes the answer.
+- Inside the \`python\` tool (they are Python functions, not tools): load a dataset with \`load_dataset("<file>")\`. A "Datasets in this project" note already gives each uploaded file's rows, columns, types and missing values: build on it, and do not run \`list_datasets()\` or \`profile_dataset()\` just to learn those again. Without that note, run \`list_datasets()\` to see the files and \`profile_dataset("<file>")\` once before analysing a dataset. To profile or explore a dataset beyond the note (distributions, value ranges), call \`profile_dataset("<file>")\` — also when a skill is loaded — and build on its output instead of hand-writing the same summary.
 - Python state persists between calls and turns, and a note lists the variables in memory. Reuse them instead of reloading files or recomputing; reload only when the note says the session restarted. Keep a cleaned dataset in one variable and build on it, so every turn works on the same data.
 - Tool steps of older turns may be collapsed to a short note; \`print(history(n))\` inside \`python\` shows turn n in full (messages, code, outputs).
 - If the conversation was compacted, the checkpoint's \`## Standing instructions\` section is still in force: re-read it before answering and keep every rule in it (answer format, rounding, required closing line, things to avoid), exactly as if the user had just repeated it.
@@ -61,7 +62,6 @@ The user's data files are in the working directory ({{cwd}}).
 - When a skill in the catalog clearly matches the task, load it with the \`skill\` tool before starting.
 - When a loaded skill bundles a script that already does the job (\`scripts/*.py\`, e.g. profile_data.py, funnel_analyzer.py), run it instead of writing equivalent code again: inside \`python\`, \`subprocess.run([sys.executable, "<full path of the script>", ...], capture_output=True, text=True)\` and print its stdout and stderr. When the user asks for a skill's script, run exactly that script; its code never enters the conversation, only its output.
 - Before the final answer, run one adversarial check on the number the answer rests on: recompute it a different way (a different filter, join or aggregation) in a \`python\` call — in the same cell as the main computation is fine — and say what its printed output showed. A check counts only if a tool result in this turn shows it: never present code you did not run, or a match you did not see, as a check.
-- End every answer that states numbers or an analysis with one line written in the same language as the rest of the answer, labels included: a Vietnamese answer ends with \`Nguồn: <file + phép tính> · Độ tươi: <mốc dữ liệu mới nhất> · Đã kiểm: <phép kiểm đã chạy> · Tin cậy: <cao/vừa/thấp>\`, an English one with \`Source: <file + computation> · Freshness: <latest date in the data> · Checked: <the check you ran> · Confidence: <high/medium/low>\`. This includes one-line answers; only a greeting or an explanation with no numbers at all skips it. When the user asked for a specific last line, theirs comes last and this one goes right before it.
 - In the final answer, state the result first, then material assumptions, data limitations and remaining uncertainty.
 - When asked to write a report, model card or brief, write it in full in the answer itself. Save it as a file only when the user asks for a file, and then with \`save_artifact()\`.`
 
@@ -90,6 +90,20 @@ export function apply(ctx: Context, config: Config) {
     state.wrappedUp = true
     const note = createUserMessage({ content: [{ type: 'text', text: WRAP_UP }], source: { kind: 'plugin', plugin: name } })
     return { kind: 'enter', messages: [...decision.messages, note] }
+  })
+
+  // Dataset cards: the uploaded tables' schema, pushed before the model asks (datasets.ts). Registered after
+  // the wrap-up listener, so the wrap-up note stays the last thing the model reads in a step (a waterfall's
+  // post-`next()` code runs inner listener first).
+  ctx.on('agent/pre-step', async (payload, next) => {
+    const decision = await next()
+    if (decision.kind === 'reject') return decision
+    const session = payload.agent.session
+    const cwd = session.header.cwd
+    const note = cwd === undefined ? undefined : await datasetCardsNote(cwd)
+    if (note === undefined || retainedDatasetNote(session, name) === note) return decision
+    const message = createUserMessage({ content: [{ type: 'text', text: note }], source: { kind: 'plugin', plugin: name } })
+    return { ...decision, messages: [...decision.messages, message] }
   })
 
   ctx.on('tools/post-execute', async (exec, result, next) => {

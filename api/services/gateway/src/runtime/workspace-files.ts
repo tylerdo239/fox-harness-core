@@ -17,6 +17,7 @@ import { pipeline } from 'node:stream/promises'
 import type { WorkspaceFile } from '../api-types.ts'
 
 import { config } from '../config.ts'
+import { refreshDatasetCards } from './dataset-cards.ts'
 
 export class UploadTooLargeError extends Error {}
 
@@ -153,6 +154,7 @@ export async function saveUpload(dir: string, requested: string, body: IncomingM
     await pipeline(body, limit, createWriteStream(partial))
     await rename(partial, target)
     await updateSources(dir, (sources) => sources.add(name.split(sep).join('/')))
+    refreshDatasetCards(dir)
     return name
   } catch (error) {
     await rm(partial, { force: true })
@@ -168,6 +170,7 @@ export async function deleteWorkspaceFile(dir: string, path: string): Promise<bo
   await rm(target)
   const recorded = relative(dir, target).split(sep).join('/')
   await updateSources(dir, (sources) => sources.delete(recorded))
+  refreshDatasetCards(dir)
   return true
 }
 
