@@ -148,7 +148,7 @@ export class DataStudioKernel {
       try {
         fields = { ...(JSON.parse(line) as Record<string, unknown>) }
       } catch {
-        fields = { line }
+        fields = { event: 'python_output', line }
       }
       console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'data-studio-agent', ...fields }))
     })

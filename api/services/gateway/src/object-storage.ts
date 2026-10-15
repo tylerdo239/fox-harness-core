@@ -136,8 +136,9 @@ export async function checkS3(): Promise<void> {
     await client.send(new HeadBucketCommand({ Bucket: config.s3Bucket }))
     log('s3_check', { ok: true, bucket: config.s3Bucket, endpoint: ENDPOINT, forcePathStyle: config.s3ForcePathStyle })
   } catch (error) {
-    // the s3_failed line has the detail
-    log('s3_check', { ok: false, bucket: config.s3Bucket, endpoint: ENDPOINT, ...errorFields(error) })
+    // the s3_failed line has the detail; a missing bucket is created at the first write, if the key may
+    const fields = errorFields(error)
+    log('s3_check', { ok: false, bucket: config.s3Bucket, endpoint: ENDPOINT, ...fields }, fields.status === 404 ? 'warn' : undefined)
   }
 }
 

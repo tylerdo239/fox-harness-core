@@ -12,12 +12,33 @@ import { delimiter, join } from 'node:path'
 import { WebSocket } from 'ws'
 
 import { config } from '../config.ts'
-import { errorFields, log as baseLog } from '../log.ts'
+import { errorFields, log as baseLog, type Level } from '../log.ts'
 import { materializeProfile, PROFILE_NAME } from './materialize.ts'
 import { dshHome } from './paths.ts'
 
-function log(event: string, fields: Record<string, unknown> = {}): void {
-  baseLog(event, { component: 'runtime', ...fields })
+function log(event: string, fields: Record<string, unknown> = {}, level?: Level): void {
+  baseLog(event, { component: 'runtime', ...fields }, level)
+}
+
+/**
+ * One line a runtime printed, in the gateway's own format (log.ts: LOG_FORMAT json|text) with `shard` added.
+ * The runtime's logs (packages/agent-core transport, the data-studio-agent tool) are JSON objects: kept as they are,
+ * their own `service` and `level` included. Anything else (dsh's own output, a stack trace) becomes `runtime_output`.
+ */
+function relayLine(shard: number, stream: string, line: string): void {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(line)
+  } catch {
+    parsed = undefined
+  }
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const { ts: _ts, level, event, ...fields } = parsed as Record<string, unknown>
+    const known = level === 'info' || level === 'warn' || level === 'error' ? level : undefined
+    baseLog(typeof event === 'string' ? event : 'runtime_output', { component: 'runtime', shard, ...fields }, known)
+    return
+  }
+  baseLog('runtime_output', { component: 'runtime', shard, stream, line: line.slice(0, 4000) }, stream === 'stderr' ? 'warn' : 'info')
 }
 
 export interface RuntimeTarget {
@@ -154,7 +175,7 @@ export class RuntimeSupervisor {
       log('sandbox_disabled', {
         mode: 'none',
         warning: 'FOX_SANDBOX_MODE=none: model-written code (bash, python) runs WITHOUT isolation and can read every user\'s files; internal testing only',
-      })
+      }, 'warn')
       return
     }
     const why = this.sandboxProblem()
@@ -162,7 +183,7 @@ export class RuntimeSupervisor {
     if (config.requireSandbox) {
       throw new Error(`fox-harness-gateway: FOX_REQUIRE_SANDBOX is on but the strict sandbox is unusable (${why}). Refusing to start: model-run code would see every user's files.`)
     }
-    log('sandbox_unavailable', { why, warning: 'bash/python are NOT confined to a session workspace; development only' })
+    log('sandbox_unavailable', { why, warning: 'bash/python are NOT confined to a session workspace; development only' }, 'warn')
   }
 
   /** `undefined` when the strict runner demonstrably works on this host; otherwise why not. */
@@ -244,10 +265,9 @@ export class RuntimeSupervisor {
         pending += chunk.toString()
         const lines = pending.split('\n')
         pending = lines.pop() ?? ''
-        for (const line of lines) if (line.trim()) process.stdout.write(`[runtime-${shard.index}] ${line}\n`)
+        for (const line of lines) if (line.trim()) relayLine(shard.index, name, line)
       })
       stream.on('error', () => undefined)
-      void name
     }
     relay(child.stdout!, 'stdout')
     relay(child.stderr!, 'stderr')

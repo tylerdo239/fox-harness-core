@@ -416,13 +416,16 @@ const tests = {
     const cu = chat(a.token, { params: { flow: 'default' } }); await cu.opened; await cu.ready()
     const ca = chat(adm, { params: { flow: 'default' } }); await ca.opened; await ca.ready()
     await sleep(500)
-    const logs = execFileSync('docker', ['logs', BACKEND], { encoding: 'utf8' })
-    const roleOf = (id) => (logs.match(new RegExp(`"ws_connect","sessionId":"${id}"[^\\n]*"role":"(\\w+)"`)) ?? [])[1]
+    // the runtime's ws_connect (it carries the role the agent runs with), one JSON object per log line
+    const connects = (id) => execFileSync('docker', ['logs', BACKEND], { encoding: 'utf8' }).split('\n')
+      .map((line) => { try { return JSON.parse(line) } catch { return undefined } })
+      .filter((r) => r?.event === 'ws_connect' && r.service === 'transport' && r.sessionId === id)
+      .map((r) => r.role)
+    const roleOf = (id) => connects(id)[0]
     const ru = roleOf(cu.sessionId), ra = roleOf(ca.sessionId)
     // an admin opening the USER's session still runs it with the owner's role
     const view = chat(adm, { session: cu.sessionId }); await view.opened; await view.ready(); await sleep(300)
-    const logs2 = execFileSync('docker', ['logs', BACKEND], { encoding: 'utf8' })
-    const viewRoles = [...logs2.matchAll(new RegExp(`"ws_connect","sessionId":"${cu.sessionId}"[^\\n]*"role":"(\\w+)"`, 'g'))].map((m) => m[1])
+    const viewRoles = connects(cu.sessionId)
     cu.close(); ca.close(); view.close()
     return { ok: ru === 'user' && ra === 'admin' && viewRoles.every((r) => r === 'user'), detail: `user session role=${ru}, admin session role=${ra}, admin viewing the user's session -> ${JSON.stringify(viewRoles)}` }
   },

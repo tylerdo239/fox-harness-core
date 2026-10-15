@@ -78,7 +78,7 @@ The web container makes no outbound call.
   flushes its session logs; give it 40 s. A runtime killed mid-turn loses only the reply being streamed.
 - **Health**: `GET /healthz` (process answers) and `GET /readyz` (the gateway and every runtime can take a
   chat; 503 otherwise). The image's `HEALTHCHECK` uses `/readyz`.
-- Runtime output appears in the container log prefixed `[runtime-N]`; gateway lines are JSON with `sessionId`.
+- Logs: one JSON object per line (`ts level service event …`, `LOG_FORMAT=text` for a readable line instead). The runtimes' lines are re-printed by the gateway in the same format with `component: "runtime"` and `shard`; their `service` is `transport` (chat connections) or `data-studio-agent` (the Data Studio pipeline). Output that is not a log line becomes `runtime_output`.
 
 ## Sizing
 
