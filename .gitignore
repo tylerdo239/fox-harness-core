@@ -1,5 +1,8 @@
 node_modules/
+# tsc output of api/ packages and app/; NOT app/src/ref/lib/, which is source (the Data Profile screens import
+# @/lib/api, @/lib/types, ... from it — ignored by mistake from a60c984 until 2026-10-15, so a clean clone failed to build)
 lib/
+!/app/src/ref/lib/
 dist/
 *.tsbuildinfo
 *.log
