@@ -17,6 +17,9 @@ importers:
       '@fox-harness/dsh-llm-openai-compat':
         specifier: workspace:*
         version: link:packages/llm/openai-compat
+      '@fox-harness/dsh-tool-canvas':
+        specifier: workspace:*
+        version: link:packages/tool/canvas
       '@fox-harness/dsh-tool-create-skill':
         specifier: workspace:*
         version: link:packages/tool/create-skill
@@ -148,6 +151,27 @@ importers:
         version: 5.9.3
 
   packages/skills: {}
+
+  packages/tool/canvas:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.2
+        version: 4.0.2(@deepseek-ai/cordis-plugin-include@1.0.7)(@deepseek-ai/cordis-plugin-loader@1.0.3)
+      '@deepseek-ai/dsh-agent':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(4a5a7e09e688278072cd93f4db91fc7f)
+      '@deepseek-ai/dsh-session':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(28490f951e60d7d9052a928973f3dd51)
+      '@deepseek-ai/dsh-tools':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(504584c796ab61133252fa0989dc130e)
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
   packages/tool/create-skill:
     devDependencies:

@@ -1452,7 +1452,10 @@ function route(req: IncomingMessage, res: ServerResponse): void {
           if (!UPLOAD_NAME_RE.test(name)) return sendJson(res, 400, { error: 'invalid file name' })
           let saved: string
           try {
-            saved = await saveUpload(dir, name, req, { unique: url.searchParams.get('unique') === '1' })
+            saved = await saveUpload(dir, name, req, {
+              unique: url.searchParams.get('unique') === '1',
+              canvas: url.searchParams.get('purpose') === 'canvas',
+            })
           } catch (error) {
             if (error instanceof UploadTooLargeError) return sendJson(res, 413, { error: error.message })
             throw error
@@ -1467,7 +1470,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
           return
         }
         if (!path) return sendJson(res, 200, { files: await listWorkspaceFiles(dir) })
-        const target = resolveInside(dir, decodeURIComponent(path))
+        const target = resolveInside(dir, decodeURIComponent(path), { canvas: true })
         const info = target ? await stat(target).catch(() => undefined) : undefined
         if (!target || !info?.isFile()) return sendJson(res, 404, { error: 'file not found' })
         res.writeHead(200, { 'content-type': contentTypeFor(target), 'content-length': info.size })

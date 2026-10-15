@@ -19,7 +19,10 @@ dạng đó, nói thẳng là hiện chưa hỗ trợ và đề xuất `.xlsx` h
 
 1. **Ghi vào workspace**, đặt tên tệp nói được nội dung và mốc thời gian
    (`doanh-thu-theo-thang-2026-09.xlsx`), không phải `output.xlsx`.
-2. **Nêu đường dẫn tệp** trong câu trả lời — người dùng phải biết tải ở đâu.
+2. **Đưa tệp lên canvas** bằng `canvas_write` với `kind:"file"` và `path` là
+   tệp vừa ghi, để người dùng xem ngay trong panel bên phải (có nút tải về),
+   và nêu đường dẫn tệp trong câu trả lời. Dùng `id` riêng cho mỗi định dạng
+   của cùng nội dung (vd. `bao-cao-xlsx`, `bao-cao-csv`).
 3. **Excel nhiều sheet có trật tự**: sheet đầu là tóm tắt đọc được ngay,
    các sheet sau là dữ liệu chi tiết. Đặt tiêu đề cột rõ ràng, định dạng số
    đúng kiểu (tiền tệ, phần trăm, ngày), cố định hàng tiêu đề.

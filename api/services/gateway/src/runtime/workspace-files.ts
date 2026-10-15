@@ -27,13 +27,24 @@ function isHidden(relativePath: string): boolean {
   return relativePath.split(sep).some((part) => part.startsWith('.'))
 }
 
+// The canvas panel's snapshots and in-panel edits (app/src/components/features/canvas): hidden, so they never show
+// in the file list or count as the folder's sources, but readable by path so the panel can show old versions.
+export const CANVAS_DIR = '.canvas'
+
 // A client-supplied relative path resolved inside `dir`, or undefined when it
-// escapes the directory or names a hidden path.
-export function resolveInside(dir: string, relativePath: string): string | undefined {
+// escapes the directory or names a hidden path (with `canvas`, a file directly in CANVAS_DIR is allowed).
+export function resolveInside(dir: string, relativePath: string, { canvas = false } = {}): string | undefined {
   const target = resolve(dir, relativePath)
   const inside = relative(dir, target)
-  if (!inside || inside.startsWith('..') || isHidden(inside)) return undefined
+  if (!inside || inside.startsWith('..')) return undefined
+  if (canvas && dirnameOf(inside) === CANVAS_DIR && !basename(inside).startsWith('.')) return target
+  if (isHidden(inside)) return undefined
   return target
+}
+
+function dirnameOf(path: string): string {
+  const parts = path.split(sep)
+  return parts.slice(0, -1).join(sep)
 }
 
 const SOURCES_FILE = join('.fox', 'sources.json')
@@ -138,11 +149,14 @@ async function freeName(dir: string, name: string): Promise<string> {
 // Streams the request body to `<dir>/<name>` through a hidden partial file; returns the name it was saved as.
 // `unique` (chat attachments): never replace an existing file — an earlier message may refer to it — but save
 // under the next free name instead. Without it a re-upload replaces the file (project sources).
-export async function saveUpload(dir: string, requested: string, body: IncomingMessage, { unique = false } = {}): Promise<string> {
-  await mkdir(dir, { recursive: true })
-  const name = unique ? await freeName(dir, requested) : requested
-  const target = join(dir, name)
-  const partial = join(dir, `.${name}.part`)
+// `canvas`: a canvas snapshot or in-panel edit, saved under CANVAS_DIR (never replacing one) and returned as that
+// relative path — not one of the folder's sources, so no source record and no dataset card.
+export async function saveUpload(dir: string, requested: string, body: IncomingMessage, { unique = false, canvas = false } = {}): Promise<string> {
+  const base = canvas ? join(dir, CANVAS_DIR) : dir
+  await mkdir(base, { recursive: true })
+  const name = unique || canvas ? await freeName(base, requested) : requested
+  const target = join(base, name)
+  const partial = join(base, `.${name}.part`)
   let received = 0
   const limit = new Transform({
     transform(chunk: Buffer, _encoding, done) {
@@ -153,6 +167,7 @@ export async function saveUpload(dir: string, requested: string, body: IncomingM
   try {
     await pipeline(body, limit, createWriteStream(partial))
     await rename(partial, target)
+    if (canvas) return `${CANVAS_DIR}/${name}`
     await updateSources(dir, (sources) => sources.add(name.split(sep).join('/')))
     refreshDatasetCards(dir)
     return name

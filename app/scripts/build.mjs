@@ -14,7 +14,7 @@
 // either).
 
 import { build } from 'esbuild'
-import { copyFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,13 +23,17 @@ import { fileURLToPath } from 'node:url'
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
 const entry = join(appRoot, 'src/main.tsx')
+// ESM with code splitting (2026-10-15): the canvas panel's libraries (CodeMirror, ExcelJS, docx-preview, JSZip —
+// together larger than the rest of the app) are loaded only when a canvas opens, as public/chunks/*.js. main.js is
+// still the one entry index.html loads (now as `type="module"`).
+rmSync(join(appRoot, 'public/chunks'), { recursive: true, force: true })
 await build({
-  entryPoints: [entry],
+  entryPoints: { main: entry },
   bundle: true,
-  outfile: join(appRoot, 'public/main.js'),
-  // A plain classic script (index.html has no `type="module"` — nothing in
-  // this bundle needs real ESM semantics), one self-contained IIFE.
-  format: 'iife',
+  outdir: join(appRoot, 'public'),
+  chunkNames: 'chunks/[name]-[hash]',
+  splitting: true,
+  format: 'esm',
   platform: 'browser',
   target: 'es2022',
   jsx: 'automatic',
@@ -56,3 +60,10 @@ const refCssOut = join(appRoot, 'public/ref.css')
 const refCss = await postcss([tailwind(join(appRoot, 'tailwind.ref.config.cjs'))]).process(readFileSync(refCssIn, 'utf8'), { from: refCssIn, to: refCssOut })
 writeFileSync(refCssOut, refCss.css)
 console.log(`[build] tailwind ${refCssIn} -> ${refCssOut}`)
+
+// The canvas panel and the components ported with it (src/tw/tw.css, tailwind.canvas.config.cjs), scoped to .fh-tw.
+const twCssIn = join(appRoot, 'src/tw/tw.css')
+const twCssOut = join(appRoot, 'public/tw.css')
+const twCss = await postcss([tailwind(join(appRoot, 'tailwind.canvas.config.cjs'))]).process(readFileSync(twCssIn, 'utf8'), { from: twCssIn, to: twCssOut })
+writeFileSync(twCssOut, twCss.css)
+console.log(`[build] tailwind ${twCssIn} -> ${twCssOut}`)

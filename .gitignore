@@ -32,7 +32,9 @@ api/packages/tool/data-studio-agent/python/debug/
 
 # app/: the esbuild bundle is build output (app/Dockerfile builds it)
 /app/public/main.js
+/app/public/chunks/
 /app/public/ref.css
+/app/public/tw.css
 
 # Local benchmark cases (DABStep and its variants, repros), not part of the shared suite
 /api/scripts/bench/cases/dabstep-*.json

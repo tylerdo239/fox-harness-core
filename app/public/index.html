@@ -50,6 +50,8 @@
     <link rel="stylesheet" href="/style.css" />
     <!-- the reference data-profile screens (src/ref/, Tailwind scoped to .fh-ref; scripts/build.mjs) -->
     <link rel="stylesheet" href="/ref.css" />
+    <!-- the canvas side panel and the components ported with it (Tailwind scoped to .fh-tw; scripts/build.mjs) -->
+    <link rel="stylesheet" href="/tw.css" />
   </head>
   <body>
     <!-- The entire app is one real React tree (app/src/App.tsx,
@@ -61,6 +63,6 @@
        targets. -->
     <div id="root"></div>
 
-    <script src="/main.js"></script>
+    <script type="module" src="/main.js"></script>
   </body>
 </html>

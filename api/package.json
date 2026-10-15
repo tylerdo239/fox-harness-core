@@ -24,6 +24,7 @@
     "@fox-harness/dsh-tool-serper-web-search": "workspace:*",
     "@fox-harness/dsh-tool-create-skill": "workspace:*",
     "@fox-harness/dsh-tool-python-repl": "workspace:*",
-    "@fox-harness/dsh-tool-data-studio-agent": "workspace:*"
+    "@fox-harness/dsh-tool-data-studio-agent": "workspace:*",
+    "@fox-harness/dsh-tool-canvas": "workspace:*"
   }
 }
