@@ -32,6 +32,6 @@ Fox Harness là công cụ nội bộ. Không tải lên dữ liệu mà bạn k
 | Đăng nhập sai   | 10 lần mỗi phút cho mỗi email                          |
 | Phiên đăng nhập | Hết hạn sau 1 giờ không dùng                           |
 | Skill           | 50 skill mỗi người, nội dung tối đa 64 KB              |
-| Dung lượng tệp  | 500 MB mỗi người (mọi tệp tải lên và tệp chat tạo ra). Hết dung lượng thì không tải tệp mới lên được cho tới khi bạn xoá bớt tệp cũ trong **Cài đặt > Dung lượng** |
+| Dung lượng tệp  | 200 MB mỗi người (mọi tệp tải lên và tệp chat tạo ra). Hết dung lượng thì không tải tệp mới lên được cho tới khi bạn xoá bớt tệp cũ trong **Cài đặt > Dung lượng** |
 
 Mức cụ thể có thể khác tuỳ cấu hình của đơn vị triển khai.

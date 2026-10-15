@@ -83,7 +83,7 @@ Thiếu là gateway không khởi động:
 - [ ] `FOX_RUNTIME_COUNT`, `MAX_CONCURRENT_SESSIONS`, `MAX_SESSIONS_PER_USER`, `SESSION_TOKEN_BUDGET`, `FOX_DS_WORKERS`.
 - [ ] `S3_SSE` nếu yêu cầu mã hoá phía server.
 - [ ] Bucket có dung lượng cố định (12 GB): `S3_BUCKET_CAPACITY_BYTES=12884901888`, `USER_FILE_QUOTA_BYTES` (mặc
-      định 500 MB), tuỳ chọn `FILE_RETENTION_DAYS` (xem `docs/storage-quota-plan.md`). Kiểm tra bucket **không bật
+      định 200 MB), tuỳ chọn `FILE_RETENTION_DAYS` (xem `docs/storage-quota-plan.md`). Kiểm tra bucket **không bật
       versioning** (`aws s3api get-bucket-versioning`): bật thì file đã xoá vẫn chiếm chỗ.
 - [ ] Secret lấy từ secret manager, không ghi thẳng vào manifest.
 

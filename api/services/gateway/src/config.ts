@@ -131,7 +131,7 @@ export const config = {
   storage: {
     // what one user's files (uploads and chat outputs, in every chat and project) may take; an upload past it is
     // refused until the user deletes old files. 0 = no limit.
-    userQuotaBytes: envIntOr('USER_FILE_QUOTA_BYTES', 500 * 1024 * 1024),
+    userQuotaBytes: envIntOr('USER_FILE_QUOTA_BYTES', 200 * 1024 * 1024),
     // the bucket's size (e.g. 12 GB): measured every scan; uploads stop at blockPercent. 0 = not measured.
     bucketCapacityBytes: envIntOr('S3_BUCKET_CAPACITY_BYTES', 0),
     warnPercent: envIntOr('STORAGE_WARN_PERCENT', 80),
