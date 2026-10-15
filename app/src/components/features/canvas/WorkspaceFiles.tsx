@@ -1,5 +1,5 @@
-// The chat's files as cards (replaces the old one-line "Files (n)" toggle, conversation/WorkspacePanel.tsx). Ported in
-// part from local-fox-harness-core's workspace-files.tsx: every file opens in the canvas panel (which has its own
+// The chat's files as folders by origin (source / shared / this chat / other chats), each opening onto its files
+// (replaces the old one-line "Files (n)" toggle, conversation/WorkspacePanel.tsx). Ported in part from local-fox-harness-core's workspace-files.tsx: every file opens in the canvas panel (which has its own
 // Download), "Download all" zips them in the browser, and a turn that wrote an Excel/Word/PDF file without putting
 // it on the canvas gets it opened anyway.
 //
@@ -7,7 +7,7 @@
 // versions (canvas-<id>-vN.ext) show as one card, the latest; Office/PDF snapshots show none (the original has one).
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, File as FileGeneric, FileCode2, FileImage, FileSpreadsheet, FileText, FileType2, FolderDown, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, File as FileGeneric, FileCode2, FileImage, FileSpreadsheet, FileText, FileType2, Folder, FolderDown, FolderOpen, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useLocale } from '../../../i18n/locale.tsx'
@@ -30,12 +30,12 @@ type Group = { key: 'source' | 'shared' | 'own' | 'other'; label: TranslationKey
 
 function fileKind(path: string): { Icon: typeof FileGeneric; tone: string } {
   const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
-  if (['.csv', '.tsv', '.xlsx', '.xls', '.parquet'].includes(ext)) return { Icon: FileSpreadsheet, tone: 'text-status-success bg-status-success/10' }
-  if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) return { Icon: FileImage, tone: 'text-accent bg-accent/10' }
-  if (ext === '.pdf') return { Icon: FileType2, tone: 'text-status-danger bg-status-danger/10' }
-  if (['.py', '.js', '.ts', '.json', '.html', '.sql', '.sh'].includes(ext)) return { Icon: FileCode2, tone: 'text-muted bg-bg-hover' }
-  if (['.md', '.txt', '.docx'].includes(ext)) return { Icon: FileText, tone: 'text-accent-text bg-accent/10' }
-  return { Icon: FileGeneric, tone: 'text-muted bg-bg-hover' }
+  if (['.csv', '.tsv', '.xlsx', '.xls', '.parquet'].includes(ext)) return { Icon: FileSpreadsheet, tone: 'text-status-success' }
+  if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) return { Icon: FileImage, tone: 'text-accent' }
+  if (ext === '.pdf') return { Icon: FileType2, tone: 'text-status-danger' }
+  if (['.py', '.js', '.ts', '.json', '.html', '.sql', '.sh'].includes(ext)) return { Icon: FileCode2, tone: 'text-muted' }
+  if (['.md', '.txt', '.docx'].includes(ext)) return { Icon: FileText, tone: 'text-accent-text' }
+  return { Icon: FileGeneric, tone: 'text-muted' }
 }
 
 function relativeTime(ms: number, locale: string): string {
@@ -77,6 +77,7 @@ export function WorkspaceFiles({ version = 0, running }: { version?: number; run
   const [open, setOpen] = useState(false)
   const [zipping, setZipping] = useState(false)
   const [opening, setOpening] = useState<string | undefined>()
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ own: true })
 
   async function refresh(): Promise<WorkspaceFile[] | undefined> {
     if (!sessionId) return undefined
@@ -217,40 +218,45 @@ export function WorkspaceFiles({ version = 0, running }: { version?: number; run
           </button>
         </div>
         {open ? (
-          <div className="max-h-64 overflow-y-auto border-t border-border px-3 pb-3">
-            {groups.map((group) => (
-              <section key={group.key} className="mt-2.5">
-                <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
-                  <span>{t(group.label)}</span>
-                  <span className="tabular-nums opacity-70">{group.cards.length}</span>
-                </div>
-                <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2 p-0">
-                  {group.cards.map((card) => {
-                    const { Icon, tone } = fileKind(card.file.path)
-                    return (
-                      <li key={card.file.path}>
-                        <button
-                          type="button"
-                          title={`${card.file.path} — ${t('workspace.openInCanvas')}`}
-                          onClick={() => { void openCard(card) }}
-                          className="flex w-full items-center gap-2.5 rounded-lg border border-border-subtle bg-bg px-2.5 py-2 text-left transition-colors duration-100 ease-fh hover:border-border hover:bg-bg-raised"
-                        >
-                          <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-md ${tone}`}>
-                            {opening === card.file.path ? <Loader2 size={15} className="animate-spin" /> : <Icon size={16} />}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-xs font-medium text-fg">{card.name}</span>
-                            <span className="block truncate text-[11px] text-muted">
-                              {formatSize(card.file.sizeBytes)} · {relativeTime(card.modified, locale)}
-                            </span>
-                          </span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            ))}
+          <div className="max-h-64 overflow-y-auto border-t border-border p-2">
+            {groups.map((group) => {
+              const expanded = openGroups[group.key] === true
+              return (
+                <section key={group.key}>
+                  <button
+                    type="button"
+                    onClick={() => { setOpenGroups((previous) => ({ ...previous, [group.key]: !expanded })) }}
+                    className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs hover:bg-bg-hover"
+                  >
+                    {expanded ? <ChevronDown size={13} className="flex-none text-muted" /> : <ChevronRight size={13} className="flex-none text-muted" />}
+                    {expanded ? <FolderOpen size={14} className="flex-none text-accent" /> : <Folder size={14} className="flex-none text-accent" />}
+                    <span className="min-w-0 flex-1 truncate text-fg">{t(group.label)}</span>
+                    <span className="flex-none tabular-nums text-muted">{group.cards.length}</span>
+                  </button>
+                  {expanded ? (
+                    <ul className="m-0 ml-3 list-none border-l border-border py-0.5 pl-1.5">
+                      {group.cards.map((card) => {
+                        const { Icon, tone } = fileKind(card.file.path)
+                        return (
+                          <li key={card.file.path}>
+                            <button
+                              type="button"
+                              title={`${card.file.path} · ${relativeTime(card.modified, locale)} — ${t('workspace.openInCanvas')}`}
+                              onClick={() => { void openCard(card) }}
+                              className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xs hover:bg-bg-hover"
+                            >
+                              {opening === card.file.path ? <Loader2 size={13} className="flex-none animate-spin text-muted" /> : <Icon size={13} className={`flex-none ${tone}`} />}
+                              <span className="min-w-0 flex-1 truncate text-accent-text">{card.name}</span>
+                              <span className="flex-none tabular-nums text-muted">{formatSize(card.file.sizeBytes)}</span>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  ) : null}
+                </section>
+              )
+            })}
           </div>
         ) : null}
       </div>
