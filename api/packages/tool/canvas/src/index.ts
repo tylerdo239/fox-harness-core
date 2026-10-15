@@ -59,11 +59,20 @@ export const name = 'fox-harness-tool-canvas'
 export const inject = ['tools']
 
 // Mirrors create-skill's NAME_RE convention: kebab-case, predictable as a
-// filename fragment. Optional in the tool call (defaults to "main" — most
-// turns want exactly one canvas) but never optional once resolved, since it
-// becomes part of a real path on disk.
+// filename fragment. Optional in the tool call but never optional once
+// resolved, since it becomes part of a real path on disk.
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/
 const DEFAULT_ID = 'main'
+
+/**
+ * The id a call without one gets: its title as a slug. A fixed "main" made every id-less call the next
+ * version of one canvas (QA 2026-10-15: a markdown report replaced the Excel canvas of the turn before).
+ */
+function idFromTitle(title: string): string {
+  const slug = title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 48).replace(/-+$/, '')
+  return slug === '' ? DEFAULT_ID : slug
+}
 const MAX_TITLE_CHARS = 200
 // Generous on purpose: unlike create_skill's 64 KB cap (a skill is read into
 // every future prompt), a canvas's content never re-enters the model's
@@ -177,7 +186,7 @@ export function apply(ctx: Context): void {
       parameters: {
         id: {
           type: 'string',
-          description: `kebab-case slug identifying this canvas across turns, e.g. "main" or "weekly-report". Reuse it to update the same canvas (read its current file first — see above); a new id opens an additional one. Defaults to "${DEFAULT_ID}".`,
+          description: `kebab-case slug identifying this canvas across turns, e.g. "main" or "weekly-report". Reuse it to update the same canvas (read its current file first — see above); a new id opens an additional one. Defaults to the title as a slug.`,
         },
         kind: {
           type: 'string',
@@ -242,13 +251,13 @@ export function apply(ctx: Context): void {
         },
       },
       async execute(args, exec) {
-        const id = (args.id ?? DEFAULT_ID).trim() || DEFAULT_ID
-        if (!ID_RE.test(id)) throw new Error(`invalid id "${id}": use kebab-case, e.g. "main" or "weekly-report"`)
         const kind: CanvasKind = args.kind
         const title = args.title.trim()
         if (title === '' || title.length > MAX_TITLE_CHARS) {
           throw new Error(`title is required and at most ${String(MAX_TITLE_CHARS)} characters`)
         }
+        const id = args.id?.trim() || idFromTitle(title)
+        if (!ID_RE.test(id)) throw new Error(`invalid id "${id}": use kebab-case, e.g. "main" or "weekly-report"`)
         const cwd = exec.agent?.session.header.cwd
         if (cwd === undefined) throw new Error('no working directory for this session')
         // A project chat (cwd carries the ownership ledger) writes its canvases

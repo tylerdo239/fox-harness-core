@@ -34,8 +34,13 @@ export async function datasetCardsNote(cwd: string): Promise<string | undefined>
   } catch {
     return undefined // a card being replaced; the next step reads the new one
   }
-  const usable = (Array.isArray(cards) ? cards : []).filter((card) => card.error === undefined && Array.isArray(card.columns))
-  if (usable.length === 0) return undefined
+  const all = Array.isArray(cards) ? cards : []
+  const usable = all.filter((card) => card.error === undefined && Array.isArray(card.columns))
+  // Said too: without it the model guessed what an empty or broken upload held (QA 2026-10-15: "rong.csv
+  // looks malformed", a corrupt .xlsx summed up as "an Excel file with some data").
+  const unreadable = all.filter((card) => card.error !== undefined).slice(0, MAX_LISTED)
+    .map((card) => `- ${card.name}: could not be read — ${card.error}`)
+  if (usable.length === 0 && unreadable.length === 0) return undefined
   const lines = usable.slice(0, MAX_LISTED).map((card) => {
     const rows = card.rows === undefined ? '?' : `${card.sampled ? '≥' : ''}${card.rows}`
     const total = card.columnCount ?? card.columns!.length
@@ -47,7 +52,7 @@ export async function datasetCardsNote(cwd: string): Promise<string | undefined>
     return `- ${card.name}: ${rows} rows × ${total} columns — ${columns}${total > MAX_COLUMNS ? ', …' : ''}${noNulls}`
   })
   const more = usable.length > MAX_LISTED ? `\n(${usable.length - MAX_LISTED} more: list_datasets())` : ''
-  return `${DATASET_NOTE_PREFIX} (already profiled: rows, columns, types, missing values — load one with load_dataset("<name>"); call profile_dataset only for what this does not show, such as distributions or value ranges):\n${lines.join('\n')}${more}`
+  return `${DATASET_NOTE_PREFIX} (already profiled: rows, columns, types, missing values — load one with load_dataset("<name>"); call profile_dataset only for what this does not show, such as distributions or value ranges):\n${[...lines, ...unreadable].join('\n')}${more}`
 }
 
 /** Latest dataset note still on the model-visible surface, so the same note is not pushed twice. */

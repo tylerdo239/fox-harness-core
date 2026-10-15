@@ -26,10 +26,12 @@ MAX_COLUMNS = 25
 def read(path):
     """(frame of at most SAMPLE_ROWS rows, exact row count or None)."""
     suffix = path.suffix.lower()
-    if suffix == ".csv":
-        return pd.read_csv(path, nrows=SAMPLE_ROWS), None
-    if suffix == ".tsv":
-        return pd.read_csv(path, sep="\t", nrows=SAMPLE_ROWS), None
+    if suffix in {".csv", ".tsv"}:
+        sep = "\t" if suffix == ".tsv" else ","
+        try:
+            return pd.read_csv(path, sep=sep, nrows=SAMPLE_ROWS), None
+        except UnicodeDecodeError:  # a Windows-saved CSV; the python tool's pd.read_csv falls back the same way
+            return pd.read_csv(path, sep=sep, nrows=SAMPLE_ROWS, encoding="cp1258", encoding_errors="replace"), None
     if suffix in {".xlsx", ".xls"}:
         return pd.read_excel(path, sheet_name=0, nrows=SAMPLE_ROWS), None
     import pyarrow.parquet as pq
