@@ -124,7 +124,7 @@ Chi tiết từng dòng ở `docs/deploy-security-checklist.md`.
 
 ## 7. Sau khi lên: khởi tạo
 
-- [ ] Log backend không có lỗi khi khởi động; có dòng `[runtime-N]` cho mỗi runtime.
+- [ ] Log backend không có lỗi khi khởi động; có dòng `runtime_started` và `runtimes_ready`.
 - [ ] `GET /readyz` qua domain staging trả `200` và mọi shard `up`.
 - [ ] Tạo admin đầu tiên **trong container**, không qua HTTP:
       `docker exec <backend> node scripts/create-admin.mjs <email> <password>` (k8s: `kubectl exec`).
@@ -168,7 +168,7 @@ Dùng cả tài khoản admin và tài khoản `user`.
 ## 10. Vận hành
 
 - [ ] Backup: PVC `/data`, MariaDB, MongoDB. Thử khôi phục ít nhất một lần.
-- [ ] Log: gom log container (gateway log JSON có `sessionId`; runtime có tiền tố `[runtime-N]`).
+- [ ] Log: gom log container (mỗi dòng một JSON có `level`; dòng của runtime có `component=runtime` và `shard`; `LOG_FORMAT=text` nếu cần đọc bằng mắt).
 - [ ] Theo dõi: `/readyz`, memory của pod backend, số session đang stream.
 - [ ] Ghi lại tag image đang chạy và cách rollback về tag trước.
 

@@ -60,8 +60,25 @@ function send(ws: WebSocket, frame: ServerToClient): void {
 // services/gateway/src/index.ts and services/orchestrator/src/index.ts for
 // the other two; same structured-JSON convention, duplicated per this
 // project's established "mirrored, not imported" boundary rule).
+// One JSON object per line; services/gateway (runtime/supervisor.ts) re-prints it in the gateway's format
+// (LOG_FORMAT json|text, `shard` added). A line with an `error` field is an error.
 function log(event: string, fields: Record<string, unknown> = {}): void {
-  console.log(JSON.stringify({ ts: new Date().toISOString(), service: 'transport', event, ...fields }))
+  const level = fields.error !== undefined ? 'error' : 'info'
+  console.log(JSON.stringify({ ts: new Date().toISOString(), level, service: 'transport', event, ...fields }))
+}
+
+// What a log line needs about an error (services/gateway/src/log.ts's errorFields, mirrored): String(error) drops
+// the code under a network failure (ECONNREFUSED, ...) and where a programming error happened.
+function errorFields(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) return { error: String(error) }
+  const e = error as Error & { code?: string; cause?: unknown }
+  const cause = e.cause instanceof Error ? (e.cause as Error & { code?: string }) : undefined
+  const fields: Record<string, unknown> = { error: e.message, errorName: e.name, errorCode: e.code ?? cause?.code, cause: cause?.message }
+  if (['TypeError', 'ReferenceError', 'RangeError', 'SyntaxError'].includes(e.name) && e.stack) {
+    fields.stack = e.stack.split('\n').slice(1, 4).map((line) => line.trim()).join(' | ')
+  }
+  for (const key of Object.keys(fields)) if (fields[key] === undefined) delete fields[key]
+  return fields
 }
 
 function toUserMessage(text: string): UserMessage {
@@ -149,7 +166,8 @@ class Hub {
       this.handles.set(sessionId, handle)
       return handle.agent.session
     } catch (error) {
-      log('resume_failed', { sessionId, error: String(error) })
+      // the gateway's readiness probe (runtime/supervisor.ts) asks for a session that never exists, at every start
+      if (sessionId !== '__readiness_probe__') log('resume_failed', { sessionId, ...errorFields(error) })
       return undefined
     }
   }
@@ -208,7 +226,7 @@ class Hub {
         disposed += 1
         log('session_disposed_idle', { sessionId })
       } catch (error) {
-        log('session_dispose_failed', { sessionId, error: String(error) })
+        log('session_dispose_failed', { sessionId, ...errorFields(error) })
       }
     }
     return disposed
@@ -432,7 +450,7 @@ export function startTransportServer(ctx: Context, port: number, host: string): 
   const hub = new Hub(ctx)
   const server = createServer((req, res) => {
     void handleHttpRequest(ctx, hub, req, res).catch((error: unknown) => {
-      log('http_failed', { error: String(error) })
+      log('http_failed', errorFields(error))
       if (!res.headersSent) res.writeHead(500)
       res.end()
     })
@@ -459,7 +477,7 @@ export function startTransportServer(ctx: Context, port: number, host: string): 
     })
   })
   server.on('error', (error) => {
-    console.error('fox-harness-transport: server error:', error)
+    log('server_error', errorFields(error))
   })
   server.listen(port, host)
 

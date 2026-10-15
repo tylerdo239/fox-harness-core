@@ -94,4 +94,4 @@ session log; `FOX_SHUTDOWN_GRACE_MS`, default 20 s, then `SIGKILL`).
 ## Logs
 
 JSON lines to stdout with `sessionId`: `ws_connect`/`ws_disconnect`/`ws_*_rejected`, `purge_ok`, `skills_sync_*`,
-`runtime_started`/`runtime_exited`, `admin_gate_denied`, `route_failed`, `unhandled_rejection`. Runtime output is relayed prefixed `[runtime-N]`.
+`runtime_started`/`runtime_exited`, `admin_gate_denied`, `route_failed`, `unhandled_rejection`. Runtime lines are re-printed in the same format (log.ts, `LOG_FORMAT`) with `component: "runtime"` and `shard`.
