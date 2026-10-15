@@ -35,7 +35,9 @@ export const Config: z<Config> = z.object({
  * dropped: here the model calls the `python` tool instead of writing
  * ```repl``` blocks.
  */
-const DATA_ANALYSIS = `## Data analysis workspace
+// Also how compaction.ts tells a data-analysis agent apart: only this flow's prompt carries it.
+export const WORKSPACE_HEADING = '## Data analysis workspace'
+const DATA_ANALYSIS = `${WORKSPACE_HEADING}
 The user's data files are in the working directory ({{cwd}}).
 - Use the \`python\` tool for every computation on data, and for exact arithmetic, counting or sorting — never work numbers out by hand.
 - Answer in the language of the user's latest message: an English question gets an English answer, a Vietnamese question a Vietnamese answer.

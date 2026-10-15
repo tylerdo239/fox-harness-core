@@ -2,6 +2,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
 import { BlockAssembler, createUserMessage, type ContentBlock, type Message, type TokenUsage, type ToolSchema } from '@deepseek-ai/dsh-llm'
 
+import { WORKSPACE_HEADING } from './index.ts'
+
 // Structural copies of dsh-compaction-basic's SummarizationInput / SummaryResult, which its entry
 // point does not export.
 interface SummarizationInput {
@@ -53,6 +55,10 @@ const INSTRUCTION = [
  */
 export default class DataAnalysisCompaction extends BasicCompactionEngine {
   protected override async summarize(input: SummarizationInput, agent: Agent, signal?: AbortSignal): Promise<SummaryResult> {
+    // `compaction` is one service per runtime (a preset cannot register its own), so this engine is
+    // the profile's only one: other flows keep the default coding-assistant summary.
+    // (the default summarizer is the same single llm.stream call, i.e. the local SummaryResult shape)
+    if (!input.system?.includes(WORKSPACE_HEADING)) return super.summarize(input, agent, signal) as Promise<SummaryResult>
     const configured = this.config.summarizationProvider.length > 0
       ? { provider: this.config.summarizationProvider, model: this.config.summarizationModel }
       : undefined
