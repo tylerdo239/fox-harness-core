@@ -32,6 +32,6 @@ Fox Harness is an internal tool. Don't upload data you are not allowed to share.
 | Failed logins | 10 per minute per email                              |
 | Login session | Expires after 1 hour without use                     |
 | Skills        | 50 per person, content up to 64 KB                   |
-| File storage  | 500 MB per person (every upload and every file a chat wrote). When it is full, uploads are refused until you delete old files in **Settings > Storage** |
+| File storage  | 200 MB per person (every upload and every file a chat wrote). When it is full, uploads are refused until you delete old files in **Settings > Storage** |
 
 The exact values can differ depending on how your organisation set it up.
