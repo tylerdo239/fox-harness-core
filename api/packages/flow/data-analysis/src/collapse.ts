@@ -101,11 +101,16 @@ function isStepNote(event: SessionEvent): boolean {
 function collapsedNote(events: readonly SessionEvent[], turnOf: readonly number[], n: number): string {
   const counts = new Map<string, number>()
   const assigned = new Set<string>()
+  const skills = new Set<string>()
   let failed = 0
   events.forEach((event, seq) => {
     if (turnOf[seq] !== n) return
     if (event.type === 'tool/call') {
       counts.set(event.data.name, (counts.get(event.data.name) ?? 0) + 1)
+      if (event.data.name === 'skill') {
+        const loaded = skillName(event.data.arguments)
+        if (loaded !== undefined) skills.add(loaded)
+      }
       for (const match of codeOf(event.data.arguments).matchAll(ASSIGNMENT)) assigned.add(match[1]!)
     } else if (event.type === 'tool/result' && isAppendSurfaceEvent(event) && event.data.message.content[0]!.isError) {
       failed += 1
@@ -116,6 +121,7 @@ function collapsedNote(events: readonly SessionEvent[], turnOf: readonly number[
   const tail = outputTail(events, turnOf, n)
   return (
     `[Turn ${n}: tool steps (${calls}${failed > 0 ? `, ${failed} failed` : ''}) collapsed to save context.` +
+    (skills.size > 0 ? ` Skills loaded: ${[...skills].join(', ')}.` : '') +
     (names.length > 0 ? ` Variables assigned: ${names.join(', ')}.` : '') +
     (tail ? ` Last output of the turn: ${tail}` : '') +
     ` Full code and output: print(history(${n})) in the python tool.]`
@@ -137,6 +143,21 @@ function outputTail(events: readonly SessionEvent[], turnOf: readonly number[], 
   const collapsed = text.replace(/\s+/g, ' ').trim()
   if (collapsed === '') return ''
   return collapsed.length > KEPT_OUTPUT_CHARS ? `…${collapsed.slice(-KEPT_OUTPUT_CHARS)}` : collapsed
+}
+
+/**
+ * Which skill a collapsed `skill` call loaded. Without it the note says only `skill ×1`, and the model
+ * then answers about its own earlier steps from guesswork: asked in two separate runs (local-fox-harness-core)
+ * whether it had loaded a skill, it said "none" both times, once naming the very skill it had loaded as the
+ * one it "should have used".
+ */
+function skillName(args: string): string | undefined {
+  try {
+    const name = (JSON.parse(args || '{}') as { name?: unknown }).name
+    return typeof name === 'string' ? name : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function codeOf(args: string): string {

@@ -96,7 +96,15 @@ export function proxyToWorker(
     if (browserWs.readyState === browserWs.OPEN) browserWs.send(data.toString())
   })
 
+  // A long tool call (a Python cell runs up to 5 minutes) sends no frame at all, and a proxy in front of us
+  // (Kubernetes ingress, load balancer: often 60 s) drops a WebSocket that is silent for that long. The browser
+  // answers a ping by itself, so the socket is never idle longer than this.
+  const keepAlive = setInterval(() => {
+    if (browserWs.readyState === browserWs.OPEN) browserWs.ping()
+  }, 25_000)
+
   const closeBoth = () => {
+    clearInterval(keepAlive)
     if (browserWs.readyState === browserWs.OPEN || browserWs.readyState === browserWs.CONNECTING) browserWs.close()
     if (workerWs.readyState === workerWs.OPEN || workerWs.readyState === workerWs.CONNECTING) workerWs.close()
   }

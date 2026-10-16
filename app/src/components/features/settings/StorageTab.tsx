@@ -11,13 +11,16 @@ import { useRuntime } from '../../../runtime.ts'
 import { Button } from '../../primitives/Button.tsx'
 import { formatSize } from '../conversation/workspaceApi.ts'
 import {
+  clearCanvasHistory,
   clearStorageDir,
+  deleteStorageCanvas,
   deleteStorageFile,
   getAdminStorage,
   getStorage,
   runCleanup,
   type AdminStorage,
   type CleanupResult,
+  type StorageCanvas,
   type StorageDir,
   type UserStorage,
 } from './storageApi.ts'
@@ -71,8 +74,36 @@ export function StorageTab() {
     }
   }
 
+  // docs/canvas-storage-plan.md: the assistant's canvas versions, and the panel's own history
+  async function freeCanvas(dir: StorageDir, action: { canvas: StorageCanvas; keepLatest: boolean } | 'history'): Promise<void> {
+    const name = action === 'history' ? dirTitle(dir) : action.canvas.id
+    const question =
+      action === 'history'
+        ? t('storage.canvasHistoryConfirm', { name })
+        : action.keepLatest
+          ? t('storage.canvasKeepLatestConfirm', { name, n: String(action.canvas.versions - 1) })
+          : t('storage.canvasDeleteConfirm', { name })
+    if (!window.confirm(question)) return
+    setBusy(`${dir.id}/canvas`)
+    try {
+      const freed =
+        action === 'history'
+          ? await clearCanvasHistory(runtime, dir)
+          : await deleteStorageCanvas(runtime, dir, action.canvas.id, action.keepLatest)
+      toast.success(t('storage.cleared', { n: String(freed.files), size: formatSize(freed.bytes) }))
+      await load()
+    } catch {
+      toast.error(t('storage.deleteFailed'))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const fileCount = (dir: StorageDir) =>
+    dir.files.length + dir.canvases.reduce((sum, c) => sum + c.versions, 0) + dir.canvasHistory.files
+
   async function clearDir(dir: StorageDir): Promise<void> {
-    if (!window.confirm(t('storage.clearConfirm', { name: dirTitle(dir), n: String(dir.files.length) }))) return
+    if (!window.confirm(t('storage.clearConfirm', { name: dirTitle(dir), n: String(fileCount(dir)) }))) return
     setBusy(dir.id)
     try {
       const freed = await clearStorageDir(runtime, dir)
@@ -128,7 +159,7 @@ export function StorageTab() {
                       {dirTitle(dir)}
                     </span>
                     <span className="ds-muted">
-                      {t(dir.kind === 'project' ? 'storage.kindProject' : 'storage.kindChat')} · {t('storage.fileCount', { n: String(dir.files.length) })}
+                      {t(dir.kind === 'project' ? 'storage.kindProject' : 'storage.kindChat')} · {t('storage.fileCount', { n: String(fileCount(dir)) })}
                       {dir.modified && ` · ${new Date(dir.modified).toLocaleDateString(dateLocale)}`}
                     </span>
                   </button>
@@ -158,6 +189,35 @@ export function StorageTab() {
                         </button>
                       </li>
                     ))}
+                    {dir.canvases.map((canvas) => (
+                      <li key={`canvas:${canvas.id}`} className="fh-storage-file">
+                        <span className="fh-storage-file-name" title={canvas.latest}>
+                          {t('storage.canvasRow', { name: canvas.id, n: String(canvas.versions) })}
+                        </span>
+                        <span className="fh-storage-size">{formatSize(canvas.bytes)}</span>
+                        <span className="fh-storage-actions">
+                          {canvas.versions > 1 && (
+                            <Button variant="outline" disabled={busy === `${dir.id}/canvas`} onClick={() => void freeCanvas(dir, { canvas, keepLatest: true })}>
+                              {t('storage.canvasKeepLatest')}
+                            </Button>
+                          )}
+                          <Button variant="outline" disabled={busy === `${dir.id}/canvas`} onClick={() => void freeCanvas(dir, { canvas, keepLatest: false })}>
+                            {t('storage.canvasDeleteAll')}
+                          </Button>
+                        </span>
+                      </li>
+                    ))}
+                    {dir.canvasHistory.files > 0 && (
+                      <li className="fh-storage-file">
+                        <span className="fh-storage-file-name">{t('storage.canvasHistory', { n: String(dir.canvasHistory.files) })}</span>
+                        <span className="fh-storage-size">{formatSize(dir.canvasHistory.bytes)}</span>
+                        <span className="fh-storage-actions">
+                          <Button variant="outline" disabled={busy === `${dir.id}/canvas`} onClick={() => void freeCanvas(dir, 'history')}>
+                            {t('storage.canvasHistoryClear')}
+                          </Button>
+                        </span>
+                      </li>
+                    )}
                   </ul>
                 )}
               </li>

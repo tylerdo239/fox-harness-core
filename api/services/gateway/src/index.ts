@@ -12,11 +12,10 @@
 // checks it before proxying anywhere.
 
 import { randomUUID } from 'node:crypto'
-import { createReadStream } from 'node:fs'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { posix } from 'node:path'
-import { Readable } from 'node:stream'
+import { pipeline, Readable } from 'node:stream'
 import { WebSocketServer } from 'ws'
 
 import {
@@ -97,14 +96,18 @@ import {
 } from './data-studio-db.ts'
 import { callAdmin, runAdminBridge, stopAdminWorker } from './data-studio-bridge.ts'
 import { isLive, liveCount, track as trackConnection, checkQuota } from './runtime/live.ts'
+import { refreshDatasetCards } from './runtime/dataset-cards.ts'
 import { ensurePlacement, isUuid, placementFor, projectDirFor, sessionDir } from './runtime/paths.ts'
 import { deleteProjectData, purgeSessionData, workspaceDirForSession } from './runtime/sessions.ts'
 import { ensureLocal as ensureSessionLogLocal, startArchiver, stopArchiver } from './runtime/session-archive.ts'
 import { deleteEvictedFile, ensureWorkspaceLocal, isEvictedDir, clearWorkspace, dirUsage } from './runtime/workspace-archive.ts'
 import { checkUpload, cleanupOldFiles, noteFreed, startStorageJobs, stopStorageJobs, storageOverview, userStorage } from './runtime/storage.ts'
+import { canvasHistory, CANVAS_ID_RE, clearHistory, deleteCanvas, deleteHistoryFile, recordEdit, snapshotFile } from './runtime/canvas-history.ts'
+import { openInside } from './runtime/safe-fs.ts'
 import { syncSkills } from './runtime/skills-sync.ts'
 import { RuntimeSupervisor } from './runtime/supervisor.ts'
 import {
+  CANVAS_DIR,
   contentTypeFor,
   deleteWorkspaceFile,
   listWorkspaceFiles,
@@ -152,8 +155,10 @@ const CUSTOM_SKILL_PATH = /^\/custom-skills\/([^/]+)$/
 // chat, or of a project (9.1) — shared by that project's chats.
 // An upload's file name: no path separators, no leading dot.
 const UPLOAD_NAME_RE = /^[^/\\.][^/\\]{0,199}$/
-const WORKSPACE_FILES_PATH = /^\/(sessions|projects)\/([^/]+)\/files(?:\/(.+))?$/
-const STORAGE_DIR_PATH = /^\/storage\/(sessions|projects)\/([^/]+)$/
+// …/files[/<path>], and …/canvas (the canvas history index, docs/canvas-storage-plan.md)
+const WORKSPACE_FILES_PATH = /^\/(sessions|projects)\/([^/]+)\/(?:files(?:\/(.+))?|(canvas))$/
+// …/:id clears every file; …/:id/canvas-history the canvas history; …/:id/canvases/:canvasId one canvas's versions
+const STORAGE_DIR_PATH = /^\/storage\/(sessions|projects)\/([^/]+)(?:\/(canvas-history)|\/canvases\/([^/]+))?$/
 // Projects (docs/rlm-transfer-plan.md 9.1). Project ids are UUIDs, the same
 // shape SESSION_ID_RE checks.
 const PROJECTS_PATH = /^\/projects$/
@@ -1428,12 +1433,14 @@ function route(req: IncomingMessage, res: ServerResponse): void {
   const workspaceMatch = WORKSPACE_FILES_PATH.exec(url.pathname)
   if (
     workspaceMatch &&
-    (req.method === 'GET' || (req.method === 'POST' && !workspaceMatch[3]) || (req.method === 'DELETE' && workspaceMatch[3]))
+    (req.method === 'GET' ||
+      (req.method === 'POST' && !workspaceMatch[4] && (!workspaceMatch[3] || url.searchParams.get('snapshot') === '1')) ||
+      (req.method === 'DELETE' && workspaceMatch[3]))
   ) {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const [, kind, id, path] = workspaceMatch
+      const [, kind, id, path, canvasIndex] = workspaceMatch
       const allowed =
         kind === 'projects' ? await canAccessProject(identity, id) : SESSION_ID_RE.test(id) && (await canAccessSession(identity, id))
       if (!allowed) return sendJson(res, 404, { error: 'not found' })
@@ -1453,7 +1460,8 @@ function route(req: IncomingMessage, res: ServerResponse): void {
 
       try {
         // a file of a folder that left the disk is deleted on S3 directly, not after downloading the whole folder
-        if (req.method === 'DELETE' && (await isEvictedDir(dir))) {
+        const isHistory = path !== undefined && decodeURIComponent(path).startsWith(`${CANVAS_DIR}/`)
+        if (req.method === 'DELETE' && !isHistory && (await isEvictedDir(dir))) {
           const relativePath = resolveInside(dir, decodeURIComponent(path)) ? posix.normalize(decodeURIComponent(path)) : undefined
           const size = relativePath ? (await dirUsage(dir)).files.find((f) => f.path === relativePath)?.size ?? 0 : 0
           if (!relativePath || !(await deleteEvictedFile(dir, relativePath))) return sendJson(res, 404, { error: 'file not found' })
@@ -1463,6 +1471,22 @@ function route(req: IncomingMessage, res: ServerResponse): void {
           return
         }
         await ensureWorkspaceLocal(dir)
+        if (canvasIndex) return sendJson(res, 200, { canvases: await canvasHistory(dir) })
+        // docs/canvas-storage-plan.md: a workspace file snapshotted into `.canvas/` server-side, once per state of it
+        if (req.method === 'POST' && path) {
+          const canvasId = url.searchParams.get('canvas') ?? ''
+          if (!CANVAS_ID_RE.test(canvasId)) return sendJson(res, 400, { error: 'invalid canvas id' })
+          const relativePath = decodeURIComponent(path)
+          if (!resolveInside(dir, relativePath)) return sendJson(res, 404, { error: 'file not found' })
+          const result = await snapshotFile(dir, posix.normalize(relativePath), canvasId, async (bytes) => {
+            const decision = await checkUpload(ownerId ?? identity.userId, bytes)
+            if (decision.ok) return decision
+            log('upload_refused', { owner, userId: identity.userId, code: decision.code, incoming: bytes, usedBytes: decision.usedBytes, quotaBytes: decision.quotaBytes, purpose: 'canvas-snapshot' }, 'warn')
+            return { ok: false, status: decision.status, body: { error: decision.error, code: decision.code, usedBytes: decision.usedBytes, quotaBytes: decision.quotaBytes } }
+          })
+          if (!result.ok) return sendJson(res, result.status, result.body)
+          return sendJson(res, result.created ? 201 : 200, result.entry)
+        }
         if (req.method === 'POST') {
           if (!(await costlyAllowed('upload', identity.userId))) return rateLimited(res)
           const name = url.searchParams.get('name') ?? ''
@@ -1476,29 +1500,48 @@ function route(req: IncomingMessage, res: ServerResponse): void {
           }
           let saved: string
           try {
-            saved = await saveUpload(dir, name, req, { unique: url.searchParams.get('unique') === '1' })
+            saved = await saveUpload(dir, name, req, {
+              unique: url.searchParams.get('unique') === '1',
+              canvas: url.searchParams.get('purpose') === 'canvas',
+            })
           } catch (error) {
             if (error instanceof UploadTooLargeError) return sendJson(res, 413, { error: error.message })
             throw error
           }
           log('workspace_upload', { owner, userId: identity.userId })
+          // a saved canvas edit is recorded in the canvas history (still there after a reload)
+          const canvasId = url.searchParams.get('canvas')
+          const version = Number(url.searchParams.get('version'))
+          if (url.searchParams.get('purpose') === 'canvas' && canvasId && CANVAS_ID_RE.test(canvasId) && Number.isInteger(version) && version > 0) {
+            const entry = await recordEdit(dir, canvasId, saved, version, incoming)
+            return sendJson(res, 201, { path: saved, version: entry.version })
+          }
           return sendJson(res, 201, { path: saved })
         }
+        if (req.method === 'DELETE' && isHistory) {
+          const freed = await deleteHistoryFile(dir, posix.normalize(decodeURIComponent(path)))
+          if (!freed) return sendJson(res, 404, { error: 'file not found' })
+          noteFreed(freed.bytes)
+          log('canvas_deleted', { owner, userId: identity.userId, what: 'version', files: freed.files, bytes: freed.bytes })
+          res.writeHead(204).end()
+          return
+        }
         if (req.method === 'DELETE') {
-          const target = resolveInside(dir, decodeURIComponent(path))
-          const size = target ? ((await stat(target).catch(() => undefined))?.size ?? 0) : 0
-          if (!(await deleteWorkspaceFile(dir, decodeURIComponent(path)))) return sendJson(res, 404, { error: 'file not found' })
+          const size = await deleteWorkspaceFile(dir, decodeURIComponent(path))
+          if (size === undefined) return sendJson(res, 404, { error: 'file not found' })
           noteFreed(size)
           log('workspace_delete', { owner, userId: identity.userId, bytes: size })
           res.writeHead(204).end()
           return
         }
         if (!path) return sendJson(res, 200, { files: await listWorkspaceFiles(dir) })
-        const target = resolveInside(dir, decodeURIComponent(path))
-        const info = target ? await stat(target).catch(() => undefined) : undefined
-        if (!target || !info?.isFile()) return sendJson(res, 404, { error: 'file not found' })
-        res.writeHead(200, { 'content-type': contentTypeFor(target), 'content-length': info.size })
-        createReadStream(target).pipe(res)
+        const relativePath = decodeURIComponent(path)
+        // docs/workspace-symlink-isolation-plan.md: opened through safe-fs — a link the model's python put in the
+        // folder (to /proc/self/environ, to another user's folder) answers 404 like a missing file
+        const opened = resolveInside(dir, relativePath, { canvas: true }) ? await openInside(dir, relativePath) : undefined
+        if (!opened) return sendJson(res, 404, { error: 'file not found' })
+        res.writeHead(200, { 'content-type': contentTypeFor(relativePath), 'content-length': opened.info.size })
+        pipeline(opened.handle.createReadStream(), res, () => void opened.handle.close().catch(() => undefined))
       } catch (error) {
         log('workspace_files_failed', { owner, ...errorFields(error) })
         if (!res.headersSent) sendJson(res, 500, { error: 'files unavailable' })
@@ -1524,7 +1567,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const [, kind, id] = storageDirMatch
+      const [, kind, id, history, canvasId] = storageDirMatch
       let dir: string | undefined
       if (kind === 'projects') {
         if (await canAccessProject(identity, id)) dir = projectDirFor(id)
@@ -1534,6 +1577,22 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         if (info && info.projectId === undefined) dir = sessionDir(info.ownerId, id)
       }
       if (!dir) return sendJson(res, 404, { error: 'not found' })
+      // docs/canvas-storage-plan.md: the canvas history, or one canvas's versions
+      if (history || canvasId) {
+        if (canvasId && !CANVAS_ID_RE.test(canvasId)) return sendJson(res, 404, { error: 'not found' })
+        const keepLatest = url.searchParams.get('keep') === 'latest'
+        let freed
+        if (history) {
+          freed = await clearHistory(dir)
+        } else {
+          // the index is changed too (all versions of a canvas take its history with them): the folder must be local
+          await ensureWorkspaceLocal(dir)
+          freed = await deleteCanvas(dir, canvasId!, { keepLatest })
+        }
+        noteFreed(freed.bytes)
+        log('canvas_deleted', { owner: `${kind}/${id}`, userId: identity.userId, what: history ? 'history' : keepLatest ? `older:${canvasId}` : `canvas:${canvasId}`, files: freed.files, bytes: freed.bytes })
+        return sendJson(res, 200, freed)
+      }
       const freed = await clearWorkspace(dir)
       noteFreed(freed.bytes)
       log('storage_dir_cleared', { owner: `${kind}/${id}`, userId: identity.userId, files: freed.files, bytes: freed.bytes })
@@ -1771,6 +1830,8 @@ server.on('upgrade', (req, socket, head) => {
         )
       }
       await ensurePlacement(placement)
+      // a folder whose tables were uploaded before dataset cards existed gets them now (a no-op when current)
+      refreshDatasetCards(placement.cwd)
       target = await runtime.target(sessionId)
     } catch (error) {
       return reject('502 Bad Gateway', 'ws_runtime_unavailable', { sessionId, ...errorFields(error) })

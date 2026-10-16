@@ -21,6 +21,7 @@ Fox Harness là công cụ nội bộ. Không tải lên dữ liệu mà bạn k
 | Xoá một đoạn chat     | Xoá hẳn lịch sử, tệp làm việc và mọi bản lưu trữ; không khôi phục được |
 | Xoá dự án             | Xoá luôn mọi đoạn chat và tệp của dự án                                |
 | Xoá tệp               | **Cài đặt > Dung lượng**: xoá từng tệp, hoặc mọi tệp của một chat/dự án (đoạn chat vẫn còn) |
+| Canvas                | Các phiên bản canvas trợ lý tạo và lịch sử canvas (bản chụp tệp khi mở trong canvas, bản bạn sửa) đều tính vào dung lượng. Trong **Cài đặt > Dung lượng**: "Giữ bản mới nhất" hoặc "Xoá hết" cho từng canvas, "Xoá lịch sử" cho lịch sử canvas. Mỗi canvas giữ 10 bản lịch sử mới nhất |
 | Tệp lâu không dùng    | Quản trị viên có thể xoá tệp của các chat/dự án lâu không ai dùng; đoạn chat vẫn còn |
 
 ## Giới hạn

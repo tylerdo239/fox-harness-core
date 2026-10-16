@@ -1,0 +1,42 @@
+/* Input of public/tw.css (scripts/build.mjs, tailwind.canvas.config.cjs): the canvas panel and the components
+   ported with it, written in Tailwind like their source app. `.fh-tw` wraps each of them; utilities apply to
+   DESCENDANTS of it only (Tailwind's `important` selector), so the wrapper itself carries plain CSS. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The part of Tailwind's preflight these components rely on, scoped: `border` without a style draws nothing, and
+   the app's global button rules would otherwise restyle every icon button. */
+.fh-tw,
+.fh-tw *,
+.fh-tw ::before,
+.fh-tw ::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: var(--fh-border);
+}
+.fh-tw button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+  line-height: inherit;
+  cursor: pointer;
+}
+.fh-tw button:disabled {
+  cursor: default;
+}
+.fh-tw a {
+  color: inherit;
+  text-decoration: inherit;
+}
+.fh-tw table {
+  border-collapse: collapse;
+}
+.fh-tw svg,
+.fh-tw img,
+.fh-tw iframe {
+  display: block;
+}

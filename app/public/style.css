@@ -1918,65 +1918,7 @@ button:disabled {
   object-fit: cover;
 }
 
-/* Files bar of a data-analysis chat (WorkspacePanel.tsx), top of the composer. */
-.fh-workspace-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-}
-
-.fh-workspace-bar .fh-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35em;
-}
-
-.fh-workspace-list {
-  list-style: none;
-  margin: 0.4em 0 0;
-  padding: 0;
-  max-height: 12em;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.fh-workspace-file {
-  display: flex;
-  justify-content: space-between;
-  gap: 1em;
-  width: 100%;
-  padding: 0.4em 0.75em;
-  background: none;
-  color: var(--fg);
-  border: none;
-  border-radius: 0;
-  text-align: left;
-  font-size: 0.85em;
-  cursor: pointer;
-}
-
-.fh-workspace-file:hover {
-  background: var(--bg-hover);
-}
-
-.fh-workspace-file-path {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fh-workspace-file-size,
-.fh-workspace-empty {
-  color: var(--fg-muted, var(--fg));
-  opacity: 0.7;
-  font-size: 0.85em;
-}
-
-.fh-workspace-empty {
-  padding: 0.5em 0.75em;
-}
-
+/* Image preview dialog (Attachments.tsx, ProjectHub.tsx). */
 .fh-workspace-preview {
   position: fixed;
   inset: 0;
@@ -2376,6 +2318,17 @@ button:disabled {
 .fh-storage-delete:hover {
   background: var(--bg-hover);
   color: var(--status-danger);
+}
+/* canvas rows (docs/canvas-storage-plan.md): their buttons stay on one line; on a phone they wrap under the name */
+.fh-storage-actions {
+  display: flex;
+  flex: none;
+  gap: 0.4em;
+}
+@media (max-width: 560px) {
+  .fh-storage-file:has(.fh-storage-actions) {
+    flex-wrap: wrap;
+  }
 }
 
 .fh-storage-cleanup {
@@ -4530,4 +4483,50 @@ button.fh-data-studio-tab-active {
   body.ds-printing .ds-dash-widget {
     break-inside: avoid;
   }
+}
+
+/* ── Canvas side panel (src/components/features/canvas/CanvasColumn.tsx) ── the frame's 3rd and 4th grid columns
+ * (drag handle, panel), or a fixed overlay below the sidebar's auto-collapse breakpoint. The panel's own contents
+ * are Tailwind scoped to .fh-tw (public/tw.css). */
+.fh-canvas-col {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.fh-canvas-handle {
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid transparent;
+  transition: background var(--fh-duration-fast) var(--fh-ease);
+}
+.fh-canvas-handle:hover,
+.fh-canvas-handle:active {
+  background: color-mix(in srgb, var(--fh-accent) 25%, transparent);
+}
+/* dragging follows the pointer: the frame's column transition would make it lag behind */
+#app:has(.fh-canvas-handle:active) {
+  transition: none;
+}
+.fh-canvas-overlay {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(100vw, 560px);
+  z-index: 40;
+  box-shadow: var(--fh-shadow-lv3);
+}
+.fh-canvas-chip-row {
+  display: flex;
+  margin: 4px 0;
+}
+.fh-canvas-reopen-row {
+  display: flex;
+  padding: 8px 0 0;
+  flex: none;
+}
+/* The chat's files as cards, right above the composer (src/components/features/canvas/WorkspaceFiles.tsx). */
+.fh-workspace-files {
+  margin: 0 1em 0.5em;
+  flex: none;
 }

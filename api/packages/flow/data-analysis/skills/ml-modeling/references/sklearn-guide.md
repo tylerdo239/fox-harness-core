@@ -29,10 +29,6 @@ scikit-learn is the standard Python library for classical machine learning. It p
 - **Optional**: `matplotlib`, `seaborn` for visualization
 - **Data**: Tabular data as NumPy arrays or pandas DataFrames
 
-```bash
-pip install scikit-learn numpy pandas matplotlib seaborn
-```
-
 ## Quick Start
 
 ```python

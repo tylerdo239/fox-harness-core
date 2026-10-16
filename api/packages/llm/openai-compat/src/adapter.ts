@@ -138,6 +138,8 @@ export class OpenAiCompatAdapter extends LlmAdapter {
           'content-type': 'application/json',
           accept: 'text/event-stream',
           ...attributionHeaders(),
+          // one stable id per conversation: OpenCode Go refuses requests without it; other servers ignore it
+          ...(options.sessionId ? { 'x-opencode-session': options.sessionId } : {}),
         },
         body: JSON.stringify(body),
         signal: options.signal,

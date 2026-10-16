@@ -4,8 +4,8 @@
 // the working copy (python and bash read files there), a sweep uploads what changed and deletes on S3 what was
 // deleted on the disk, a directory untouched for SESSION_LOCAL_RETENTION_DAYS (and fully archived) leaves the disk,
 // opening it again downloads it first, and deleting the chat or project deletes every copy. Nothing expires on S3.
-import { mkdir, readdir, readFile, stat } from 'node:fs/promises'
-import { dirname, join, posix, relative, sep } from 'node:path'
+import { lstat, mkdir, readdir } from 'node:fs/promises'
+import { join, posix, relative, sep } from 'node:path'
 
 import { config } from '../config.ts'
 import { getProjectOwnerId, getSessionOwnerId } from '../db.ts'
@@ -21,6 +21,7 @@ import {
 } from '../redis.ts'
 import { noteUploaded } from './bucket-usage.ts'
 import { isUuid, removeTree } from './paths.ts'
+import { createInside, openInside, removeInside, renameInside } from './safe-fs.ts'
 import { deleteWorkspaceFile } from './workspace-files.ts'
 
 const PREFIX = 'files/'
@@ -29,7 +30,7 @@ const SETTLE_MS = 5_000
 // Not archived: `.dsh/` is the user's skills, written again from S3 on every connect; `.python-session` a marker;
 // caches. A partial upload (`.<name>.part`), a half-written sources record and a half-restored file are temporary.
 const SKIPPED_DIRS = new Set(['.dsh', '.python-session', '__pycache__', '.ipynb_checkpoints'])
-const TEMPORARY = /^\..+\.(part|restore)$|^sources\.json\.\d+\.\w+$/
+const TEMPORARY = /^\..+\.(part|restore)$|^(sources|datasets|index)\.json\.\d+\.\w+$/
 
 const enabled = () => config.sessionArchive.enabled
 const objectKey = (dirKey: string, path: string) => `${PREFIX}${dirKey}/${path}`
@@ -62,8 +63,9 @@ export async function filesOf(dir: string): Promise<WorkspaceFile[]> {
     const full = join(entry.parentPath, entry.name)
     const path = relative(dir, full).split(sep).join('/')
     if (skipped(path)) continue
-    const info = await stat(full).catch(() => undefined)
-    if (info) out.push({ path, full, mtimeMs: info.mtimeMs, size: info.size })
+    // lstat: a file swapped for a link since the listing is skipped, not measured through the link
+    const info = await lstat(full).catch(() => undefined)
+    if (info?.isFile()) out.push({ path, full, mtimeMs: info.mtimeMs, size: info.size })
   }
   return out
 }
@@ -131,7 +133,11 @@ export function sweepWorkspaces(): Promise<void> {
           continue
         }
         try {
-          await putArchiveObject(objectKey(dirKey, f.path), await readFile(f.full))
+          // read through safe-fs: the file may have been swapped for a link to anything since the listing
+          const opened = await openInside(dir, f.path)
+          if (!opened) continue
+          const body = await opened.handle.readFile().finally(() => opened.handle.close())
+          await putArchiveObject(objectKey(dirKey, f.path), body)
           await setWorkspaceStamp(dirKey, f.path, stampOf(f))
           uploaded += 1
           bytes += f.size
@@ -209,16 +215,27 @@ async function restore(dirKey: string, dir: string, evicted: boolean): Promise<v
   const keys = await listArchiveKeys(prefix)
   let files = 0
   let bytes = 0
+  await mkdir(dir, { recursive: true })
   for (const key of keys) {
     const path = key.slice(prefix.length)
     // only what this module writes: a relative path that stays inside the directory
     const normal = posix.normalize(path)
     if (!path || normal !== path || path.startsWith('/') || path.split('/').includes('..')) continue
     const full = join(dir, ...path.split('/'))
-    if (await stat(full).catch(() => undefined)) continue
-    await mkdir(dirname(full), { recursive: true })
-    await downloadArchiveObject(key, full)
-    const info = await stat(full)
+    // lstat: anything under that name, a link the model made included, is left as it is
+    if (await lstat(full).catch(() => undefined)) continue
+    // written through safe-fs, never through a link the model put on the way (docs/workspace-symlink-isolation-plan.md)
+    const partial = posix.join(posix.dirname(path), `.${posix.basename(path)}.restore`)
+    await removeInside(dir, partial, { anyEntry: true })
+    const file = await createInside(dir, partial)
+    try {
+      await downloadArchiveObject(key, file.createWriteStream())
+      await renameInside(dir, partial, path)
+    } catch (error) {
+      await removeInside(dir, partial, { anyEntry: true }).catch(() => undefined)
+      throw error
+    }
+    const info = await lstat(full)
     await setWorkspaceStamp(dirKey, path, stampOf(info))
     files += 1
     bytes += info.size
@@ -276,24 +293,27 @@ export const isEvictedDir = async (dir: string): Promise<boolean> => {
 }
 
 /**
- * docs/storage-quota-plan.md: every visible file of a directory (uploads, outputs) gone from the disk and from S3 —
- * the chat and its hidden state (`.dsh/`, `.fox/`, the python marker) stay, so this is safe on an open chat too.
- * Needs no s3:ListBucketVersions (one DeleteObject per file). The archive sweep is held off meanwhile, or it could
- * upload a file back while it is being deleted. Returns what it freed.
+ * Deletes the files of `dir` that `select` picks, on the disk and on S3 (with their Redis stamps); for a directory
+ * that left the disk, on S3 only. Visible files go through deleteWorkspaceFile (source record, dataset cards), hidden
+ * ones (`.canvas/`) through safe-fs. Needs no s3:ListBucketVersions (one DeleteObject per file). The archive sweep is
+ * held off meanwhile, or it could upload a file back while it is being deleted. Returns what it freed.
  */
-export async function clearWorkspace(dir: string): Promise<{ files: number; bytes: number }> {
+export async function deleteFiles(dir: string, select: (path: string) => boolean): Promise<{ files: number; bytes: number }> {
   const dirKey = dirKeyOf(dir)
   if (!dirKey) return { files: 0, bytes: 0 }
   paused += 1
   try {
     await sweeping
     const usage = await dirUsage(dir)
-    const targets = usage.files.filter((f) => !f.path.split('/').some((part) => part.startsWith('.')))
+    const targets = usage.files.filter((f) => select(f.path))
     const stamps = enabled() ? await workspaceStamps(dirKey) : {}
     let files = 0
     let bytes = 0
     for (const f of targets) {
-      if (!usage.evicted && !(await deleteWorkspaceFile(dir, f.path))) continue
+      if (!usage.evicted) {
+        const removed = isVisible(f.path) ? await deleteWorkspaceFile(dir, f.path) : await removeInside(dir, f.path, { anyEntry: true })
+        if (removed === undefined) continue
+      }
       if (usage.evicted || f.path in stamps) {
         await deleteArchiveObject(objectKey(dirKey, f.path))
         await dropWorkspaceStamps(dirKey, [f.path])
@@ -305,4 +325,15 @@ export async function clearWorkspace(dir: string): Promise<{ files: number; byte
   } finally {
     paused -= 1
   }
+}
+
+const isVisible = (path: string) => !path.split('/').some((part) => part.startsWith('.'))
+
+/**
+ * docs/storage-quota-plan.md: every file of a directory the user has (uploads, outputs, the canvas history in
+ * `.canvas/`) gone from the disk and from S3 — the chat and its hidden state (`.dsh/`, `.fox/`, the python marker)
+ * stay, so this is safe on an open chat too.
+ */
+export function clearWorkspace(dir: string): Promise<{ files: number; bytes: number }> {
+  return deleteFiles(dir, (path) => isVisible(path) || path.startsWith('.canvas/'))
 }

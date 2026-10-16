@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { existsSync, writeFileSync } from 'node:fs'
+import { closeSync, constants, existsSync, openSync, unlinkSync, writeSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
@@ -105,12 +105,14 @@ export class PythonKernel {
     // the 120-second limit killed the session, and the variables it took with it produced three
     // more failures across the following turns (NameError on perm_v2, KeyError on residual_v2, a
     // missing file) — one slow cell cost four errors.
-    const late = reply === 'timeout' ? await this.interrupt() : undefined
+    // The user pressing Stop is the same case: it stops this cell, not the variables of the whole chat.
+    const late = reply === 'timeout' || reply === 'aborted' ? await this.interrupt() : undefined
     this.reply = undefined
     if (late !== undefined) {
       this.noteVariables(late.variables, turn)
+      const why = reply === 'timeout' ? `stopped after ${timeoutMs / 1000} seconds` : 'stopped at the user\'s request'
       throw new Error(
-        `The code was stopped after ${timeoutMs / 1000} seconds. Variables from earlier calls are still in memory; only this call's own work is lost.\n${late.output}`.trim(),
+        `The code was ${why}. Variables from earlier calls are still in memory; only this call's own work is lost.\n${late.output}`.trim(),
       )
     }
 
@@ -119,7 +121,7 @@ export class PythonKernel {
       throw new Error(
         reply === 'timeout'
           ? `The code ran longer than ${timeoutMs / 1000} seconds and did not stop, so the Python session was stopped. Variables are gone; files in the working directory are still there.`
-          : 'Cancelled; the Python session was stopped.',
+          : 'Cancelled, and the code ignored the interrupt, so the Python session was stopped. Variables are gone; files in the working directory are still there.',
       )
     }
     if (reply === undefined) {
@@ -216,7 +218,7 @@ export class PythonKernel {
   private start(cwd: string, outputDir?: string): string {
     const marker = join(cwd, SESSION_MARKER)
     const restarted = existsSync(marker)
-    writeFileSync(marker, `${new Date().toISOString()}\n`)
+    writeMarker(marker, `${new Date().toISOString()}\n`)
 
     // Minimal environment: model-written code must not be able to read the
     // runtime's API keys.
@@ -225,8 +227,8 @@ export class PythonKernel {
     // runs under that bwrap-compatible runner (docker/fox-confine.sh) so it sees only
     // its own workspace — without it the process can read every other user's files, because it
     // shares the runtime's filesystem. The runner mounts nothing but a minimal system, the venv,
-    // the workspace (read-write) and, read-only, the directory FOX_CONFINE_RO names (this
-    // package's runner.py + helpers).
+    // the workspace (read-write) and, read-only, the directories FOX_CONFINE_RO names (this
+    // package's runner.py + helpers, and the shared skills).
     const python = globalThis.process.env.FOX_PYTHON ?? 'python3'
     const confine = globalThis.process.env.FOX_CONFINE_RUNNER
     const [program, ...programArgs] = confine
@@ -243,7 +245,9 @@ export class PythonKernel {
         LANG: 'C.UTF-8',
         PYTHONIOENCODING: 'utf-8',
         MPLBACKEND: 'Agg',
-        ...(confine ? { MPLCONFIGDIR: '/tmp/mpl', FOX_CONFINE_RO: dirname(RUNNER), FOX_PYTHON: python } : {}),
+        // Read-only: this package's runner + helpers, and the shared skill directories the gateway names
+        // (FOX_CONFINE_RO, runtime/supervisor.ts) — a skill's scripts/*.py are run from here.
+        ...(confine ? { MPLCONFIGDIR: '/tmp/mpl', FOX_CONFINE_RO: [dirname(RUNNER), globalThis.process.env.FOX_CONFINE_RO].filter(Boolean).join(':'), FOX_PYTHON: python } : {}),
         // Output folder for figures and save_artifact(): a project chat's own subfolder. Per
         // SESSION now (agentOptions.outputDir, set by packages/agent-core (transport) from what the gateway
         // passes) — the process-wide env var only remains as the fallback for one-session-per-process use.
@@ -278,5 +282,27 @@ export class PythonKernel {
     })
     this.process = child
     return restarted ? RESTARTED_NOTE : ''
+  }
+}
+
+/**
+ * The session marker, written from the runtime (outside the sandbox): python could replace it with a link to any
+ * file, which a plain writeFileSync would then overwrite (docs/workspace-symlink-isolation-plan.md). O_NOFOLLOW
+ * refuses a link at the name — removed and written again — and the folder itself is the runtime's own.
+ */
+function writeMarker(path: string, text: string): void {
+  const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW
+  let fd: number
+  try {
+    fd = openSync(path, flags, 0o644)
+  } catch (error) {
+    if ((error as { code?: string }).code !== 'ELOOP') throw error
+    unlinkSync(path)
+    fd = openSync(path, flags, 0o644)
+  }
+  try {
+    writeSync(fd, text)
+  } finally {
+    closeSync(fd)
   }
 }

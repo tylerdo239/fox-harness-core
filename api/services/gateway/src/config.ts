@@ -139,6 +139,8 @@ export const config = {
     scanIntervalMs: envIntOr('STORAGE_SCAN_INTERVAL_MS', 60 * 60 * 1000),
     // the files of a chat/project nobody used for this many days are deleted (the chat itself stays). 0 = never.
     fileRetentionDays: envIntOr('FILE_RETENTION_DAYS', 0),
+    // docs/canvas-storage-plan.md: snapshots and user edits kept per canvas in `.canvas/` (the oldest go first)
+    canvasHistoryMax: envIntOr('CANVAS_HISTORY_MAX', 10),
   },
   // docs/data-studio-mongodb-plan.md: Data Studio's semantic layer + chat history live in MongoDB,
   // shared with every worker container (Python) and with bot-data-studio-api. `MongoDBWrite` is the

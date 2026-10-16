@@ -17,6 +17,7 @@ import { errorFields, log } from '../log.ts'
 import { bucketFull, bucketStatus, noteUploaded, scanBucket, type BucketStatus } from './bucket-usage.ts'
 import { isLive } from './live.ts'
 import { isUuid, projectDirFor, sessionDir } from './paths.ts'
+import { historyUsage, modelCanvases, type ModelCanvas } from './canvas-history.ts'
 import { clearWorkspace, dirUsage } from './workspace-archive.ts'
 
 export interface StorageFile {
@@ -32,7 +33,12 @@ export interface StorageDir {
   bytes: number
   /** the newest file's */
   modified: string | undefined
+  /** visible files other than the model's canvas versions */
   files: StorageFile[]
+  /** the model's canvas versions (`canvas-<id>-vN`), one row per canvas (docs/canvas-storage-plan.md) */
+  canvases: ModelCanvas[]
+  /** the canvas panel's own history in `.canvas/`: snapshots and the user's saved edits */
+  canvasHistory: { files: number; bytes: number }
 }
 
 interface OwnedDir {
@@ -86,13 +92,18 @@ export async function userStorage(userId: number): Promise<UserStorage> {
   for (const { kind, id, dir } of await ownedDirs(userId)) {
     const usage = await dirUsage(dir)
     usedBytes += usage.bytes
-    const files = usage.files
-      .filter((f) => visible(f.path))
+    const shown = usage.files.filter((f) => visible(f.path))
+    const { canvases, versionPaths } = modelCanvases(shown)
+    const canvasHistory = historyUsage(usage.files)
+    const files = shown
+      .filter((f) => !versionPaths.has(f.path))
       .map((f) => ({ path: f.path, sizeBytes: f.size, modified: new Date(f.mtimeMs).toISOString() }))
       .sort((a, b) => b.sizeBytes - a.sizeBytes)
-    if (files.length === 0) continue
-    const modified = files.reduce((newest, f) => (f.modified > newest ? f.modified : newest), files[0].modified)
-    dirs.push({ kind, id, title: titles.get(id) ?? null, bytes: usage.bytes, modified, files })
+    if (files.length === 0 && canvases.length === 0 && canvasHistory.files === 0) continue
+    const modified = shown.length === 0
+      ? undefined
+      : new Date(Math.max(...shown.map((f) => f.mtimeMs))).toISOString()
+    dirs.push({ kind, id, title: titles.get(id) ?? null, bytes: usage.bytes, modified, files, canvases, canvasHistory })
   }
   dirs.sort((a, b) => b.bytes - a.bytes)
   return {
@@ -194,11 +205,14 @@ async function runCleanup({ olderThanDays, userId, dryRun = false, by }: { older
   let firstFailure: unknown
   for (const entry of await allDirs(userId)) {
     try {
-      // only what the user sees: `.fox/sources.json` is rewritten by every upload, `.dsh/` by every connect
-      const files = (await dirUsage(entry.dir)).files.filter((f) => visible(f.path))
+      const all = (await dirUsage(entry.dir)).files
+      // what is deleted: the user's files and the canvas history (`.canvas/`)
+      const files = all.filter((f) => visible(f.path) || f.path.startsWith('.canvas/'))
       if (files.length === 0) continue
+      // last use from what the user sees only: `.fox/sources.json` is rewritten by every upload, `.dsh/` by every
+      // connect, `.canvas/` by opening a file in the panel
       const activity = entry.kind === 'chat' ? await getSessionActivity(entry.id) : await getProjectActivity(entry.id)
-      const lastUsed = Math.max(activity?.getTime() ?? 0, ...files.map((f) => f.mtimeMs))
+      const lastUsed = Math.max(activity?.getTime() ?? 0, ...all.filter((f) => visible(f.path)).map((f) => f.mtimeMs))
       if (lastUsed >= cutoff) continue
       if (await inUse(entry.kind, entry.id)) {
         result.skippedLive += 1

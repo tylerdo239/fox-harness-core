@@ -29,6 +29,7 @@ FE ẩn mục admin, nhưng chặn thật ở gateway.
 | Project      | Cùng quy tắc chủ sở hữu; chat trong project phải là project của mình, luôn flow `data-analysis`                                          |
 | File, skill  | Lọc theo chủ sở hữu (B đọc file của A → 404, xoá session của A → 403)                                                                    |
 | Workspace    | Thư mục riêng `data/users/<userId>/<sessionId>/`; `workspace-guard` chặn tool đọc/ghi ngoài thư mục (kể cả symlink), subagent thừa hưởng |
+| File (gateway) | Tải, upload, xoá, "Đưa vào dự án", đẩy lên/khôi phục từ S3 đều đi qua `runtime/safe-fs.ts`: symlink python tạo trong thư mục không làm gateway đọc/ghi/xoá file ở ngoài (`docs/workspace-symlink-isolation-plan.md`) |
 | bash, python | Sandbox `bwrap`: không mạng, không capability, chỉ thấy thư mục session                                                                  |
 | Runtime      | 1 process cho mọi user; gateway ↔ runtime qua loopback + secret nội bộ mỗi lần boot; session đang mở từ chối kết nối khác user/role      |
 | Hạn mức      | Giới hạn session đồng thời theo user và toàn hệ thống                                                                                    |
@@ -75,6 +76,6 @@ Tài khoản test local: `rbac-admin@local.test` / `rbac-admin-pw-123`, `rbac-us
 | Admin đổi role của user                                   | Tab của user đó bị đăng xuất ở request kế  |
 
 Tự động: `sh scripts/e2e-up.sh && node scripts/e2e-backend.mjs` — `ownership`, `crossUserIsolation`,
-`subagentIsolation`, `roleGate` (30 check), `roleReachesRuntime`, `sandboxNoNetwork`, `tokensHashedInRedis`.
+`subagentIsolation`, `roleGate` (30 check), `roleReachesRuntime`, `sandboxNoNetwork`, `tokensHashedInRedis`, `symlinkIsolation`.
 Data Studio: `api/packages/tool/data-studio-agent/python/tests/role_authz_test.py`,
 `tests/pipeline_v4/test_catalog_roles.py`.
