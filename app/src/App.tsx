@@ -21,6 +21,7 @@ import { Toaster, toast } from "sonner";
 import { ConnectForm } from "./components/features/auth/ConnectForm.tsx";
 import { ThemeToggle } from "./components/features/auth/ThemeToggle.tsx";
 import { Conversation } from "./components/features/conversation/Conversation.tsx";
+import { CanvasColumn, useCanvasLayout } from "./components/features/canvas/CanvasColumn.tsx";
 import { SessionTitleBar } from "./components/features/conversation/SessionTitleBar.tsx";
 import { LanguageSelect } from "./components/features/LanguageSelect.tsx";
 import { ProjectChatBar, ProjectHub } from "./components/features/projects/ProjectHub.tsx";
@@ -1038,7 +1039,17 @@ function AppInner() {
     sidebarCollapsed ? 0 : SIDEBAR_EXPANDED_WIDTH,
     0,
   );
-  const gridTemplateColumns = `${cols.sidebar}px ${cols.center}px`;
+  // The canvas side panel (components/features/canvas/CanvasColumn.tsx): a chat view only — not Data Studio
+  // (its agent has no canvas tool) and not a project page.
+  const canvasLayout = useCanvasLayout(
+    viewportWidth,
+    cols.sidebar,
+    narrow,
+    !dataStudioMode && !projectView && !!sessionId,
+  );
+  const gridTemplateColumns = canvasLayout.inGrid
+    ? `${cols.sidebar}px ${cols.center - canvasLayout.handleWidth - canvasLayout.width}px ${canvasLayout.handleWidth}px ${canvasLayout.width}px`
+    : `${cols.sidebar}px ${cols.center}px`;
 
   // Follow-up (2026-09-08): a real, previously-undiscovered UX gap — the
   // login/register form used to render INSIDE the same grid frame as the
@@ -1174,6 +1185,7 @@ function AppInner() {
             </>
           )}
         </div>
+        {sessionId && <CanvasColumn layout={canvasLayout} sessionId={sessionId} />}
       </div>
 
       <SettingsDialog

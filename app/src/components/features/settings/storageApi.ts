@@ -13,13 +13,25 @@ export interface StorageFile {
   modified: string;
 }
 
+/** The assistant's versions of one canvas (`canvas-<id>-vN`), docs/canvas-storage-plan.md. */
+export interface StorageCanvas {
+  id: string;
+  versions: number;
+  bytes: number;
+  latest: string;
+}
+
 export interface StorageDir {
   kind: "chat" | "project";
   id: string;
   title: string | null;
   bytes: number;
   modified?: string;
+  // visible files other than the canvas versions below
   files: StorageFile[];
+  canvases: StorageCanvas[];
+  // the canvas panel's own history (.canvas/): file snapshots and saved edits
+  canvasHistory: { files: number; bytes: number };
 }
 
 export interface UserStorage {
@@ -114,6 +126,17 @@ export async function deleteStorageFile(runtime: Runtime, dir: StorageDir, path:
 /** Every file of a chat or project; the chat itself stays. */
 export async function clearStorageDir(runtime: Runtime, dir: StorageDir): Promise<{ files: number; bytes: number }> {
   return json(await runtime.authedFetch(`/storage${base(dir)}`, { method: "DELETE" }));
+}
+
+/** One canvas's versions: all of them (with its saved edits), or all but the newest. */
+export async function deleteStorageCanvas(runtime: Runtime, dir: StorageDir, canvasId: string, keepLatest: boolean): Promise<{ files: number; bytes: number }> {
+  const query = keepLatest ? "?keep=latest" : "";
+  return json(await runtime.authedFetch(`/storage${base(dir)}/canvases/${encodeURIComponent(canvasId)}${query}`, { method: "DELETE" }));
+}
+
+/** The canvas history of a chat or project (.canvas/); the originals and the assistant's versions stay. */
+export async function clearCanvasHistory(runtime: Runtime, dir: StorageDir): Promise<{ files: number; bytes: number }> {
+  return json(await runtime.authedFetch(`/storage${base(dir)}/canvas-history`, { method: "DELETE" }));
 }
 
 export async function getAdminStorage(runtime: Runtime): Promise<AdminStorage> {

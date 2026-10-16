@@ -11,15 +11,20 @@ một đoạn văn. Skill này lo chặng cuối đó.
 ## Công cụ có sẵn trong sandbox
 
 `openpyxl` (Excel), `pandas` (`to_excel`/`to_csv`/`to_parquet`),
-`matplotlib`/`seaborn` (ảnh biểu đồ), `pyarrow`. **Không có** `python-docx`
-hay thư viện PDF — đừng hứa xuất `.docx`/`.pdf`; nếu người dùng cần định
-dạng đó, nói thẳng là hiện chưa hỗ trợ và đề xuất `.xlsx` hoặc `.md`.
+`matplotlib`/`seaborn` (ảnh biểu đồ), `pyarrow`, `python-docx` (Word `.docx`:
+tiêu đề, đoạn văn, bảng, chèn ảnh biểu đồ). PDF: `pypdf` chỉ để **đọc**; xuất
+`.pdf` được với một hình matplotlib (`savefig("x.pdf")`), nhưng **không có**
+thư viện dựng PDF văn bản — người dùng cần báo cáo dạng văn bản thì xuất
+`.docx` và nói thẳng là PDF văn bản chưa hỗ trợ.
 
 ## Kỷ luật
 
 1. **Ghi vào workspace**, đặt tên tệp nói được nội dung và mốc thời gian
    (`doanh-thu-theo-thang-2026-09.xlsx`), không phải `output.xlsx`.
-2. **Nêu đường dẫn tệp** trong câu trả lời — người dùng phải biết tải ở đâu.
+2. **Đưa tệp lên canvas** bằng `canvas_write` với `kind:"file"` và `path` là
+   tệp vừa ghi, để người dùng xem ngay trong panel bên phải (có nút tải về),
+   và nêu đường dẫn tệp trong câu trả lời. Dùng `id` riêng cho mỗi định dạng
+   của cùng nội dung (vd. `bao-cao-xlsx`, `bao-cao-csv`).
 3. **Excel nhiều sheet có trật tự**: sheet đầu là tóm tắt đọc được ngay,
    các sheet sau là dữ liệu chi tiết. Đặt tiêu đề cột rõ ràng, định dạng số
    đúng kiểu (tiền tệ, phần trăm, ngày), cố định hàng tiêu đề.

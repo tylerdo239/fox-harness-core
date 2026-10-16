@@ -61,11 +61,12 @@ lại ngay, nên lệnh chặn upload được gỡ luôn, không phải chờ l
 
 | Route                                   | Ai          | Làm gì                                                                 |
 | --------------------------------------- | ----------- | ---------------------------------------------------------------------- |
-| `GET /storage`                          | user        | `{usedBytes, quotaBytes, warnPercent, bucketFull, dirs[{kind,id,title,bytes,modified,files[]}]}` |
-| `DELETE /storage/(sessions\|projects)/:id` | chủ / admin | Xoá mọi file nhìn thấy của chat (không thuộc dự án) hoặc của dự án; giữ `.dsh/`, `.fox/`, nên chat đang mở vẫn chạy |
+| `GET /storage`                          | user        | `{usedBytes, quotaBytes, warnPercent, bucketFull, dirs[{kind,id,title,bytes,modified,files[],canvases[],canvasHistory}]}` |
+| `DELETE /storage/(sessions\|projects)/:id` | chủ / admin | Xoá mọi file nhìn thấy của chat (không thuộc dự án) hoặc của dự án, và lịch sử canvas `.canvas/`; giữ `.dsh/`, `.fox/`, nên chat đang mở vẫn chạy |
 | `DELETE /…/files/<path>` (đã có)        | chủ / admin | Thư mục đã rời đĩa (chỉ còn trên S3) thì xoá thẳng trên S3, không tải cả thư mục về |
 | `GET /admin/storage`                    | admin       | `{bucket, quotaBytes, fileRetentionDays, users[]}`                     |
 | `POST /admin/storage/cleanup`           | admin       | `{olderThanDays ≥ 1, userId?, dryRun?}`                                |
+| `DELETE /storage/(sessions\|projects)/:id/canvas-history`, `…/canvases/:canvasId[?keep=latest]` | chủ / admin | Lịch sử canvas (`.canvas/`), hoặc phiên bản canvas của trợ lý: `docs/canvas-storage-plan.md` |
 
 Web nginx (`app/nginx.conf.template`) chuyển thêm `/storage` và `/admin` sang backend.
 

@@ -12,3 +12,9 @@
   name: '@fox-harness/dsh-tool-python-repl'
 - id: flow-data-analysis
   name: '@fox-harness/dsh-flow-data-analysis'
+  # 8 steps / 10 min (the code defaults) cut real analyses short: reading, cleaning, computing, charting and
+  # fixing an error each take a step. 25 steps is what the dev deployment and the bench ran with; 20 min leaves
+  # room for 25 steps when some Python cells run for minutes (one cell is still capped at 5 min).
+  config:
+    maxSteps: 25
+    turnDeadlineMs: 1200000

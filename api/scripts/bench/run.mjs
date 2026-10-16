@@ -20,7 +20,7 @@
 // Deliberately sequential: running cases in parallel would measure the host
 // (one runtime process serves them all), not the harness.
 
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -83,7 +83,7 @@ async function runCase(token, testCase, run) {
         body: await readFile(join(HERE, 'fixtures', fixture)),
       })
     }
-    const transcript = await ask(token, projectId, testCase, started)
+    const transcript = await ask(await wsTicket(token), projectId, testCase, started)
     // What the chat wrote: everything in its own output folder (the workspace files API's
     // workspace-files.ts marks those `origin: 'chat'`).
     const listed = await (await api(token, `/projects/${projectId}/files`)).json()
@@ -102,8 +102,13 @@ async function runCase(token, testCase, run) {
 // Speaks the same WebSocket protocol as the browser (packages/agent-core/src/transport/server.ts):
 // `{type:'session'}` on connect, `{type:'event'}` per session event, and the
 // client sends `{type:'followup'}`. Resolves at `turn/end`.
-function ask(token, projectId, testCase, started) {
-  const url = `${BASE.replace(/^http/, 'ws')}/sessions/new?project=${projectId}&token=${encodeURIComponent(token)}`
+// The gateway takes a single-use ticket on the socket, never the login token (POST /auth/ws-ticket).
+async function wsTicket(token) {
+  return (await (await api(token, '/auth/ws-ticket', { method: 'POST' })).json()).ticket
+}
+
+function ask(ticket, projectId, testCase, started) {
+  const url = `${BASE.replace(/^http/, 'ws')}/sessions/new?project=${projectId}&ticket=${encodeURIComponent(ticket)}`
   const timeoutCheck = testCase.checks.find((check) => check.kind === 'maxSeconds')
   const hardLimitMs = ((timeoutCheck?.value ?? 600) + 120) * 1000
   // A case is one message, or several sent in order — one turn each, the way a person types them.
@@ -229,6 +234,12 @@ function grade(testCase, transcript) {
       case 'answer': {
         const raw = readAnswer(transcript.answerText, check.name)
         if (raw === undefined) return { check: `answer:${check.name}`, ok: false, detail: 'không có trong câu trả lời' }
+        if (check.set !== undefined) {
+          // a list whose order is not part of the answer (DABStep's fee IDs)
+          const items = (t) => [...new Set(normalize(t).split(',').map((x) => x.trim()).filter(Boolean))].sort().join(',')
+          const ok = items(raw) === items(check.set)
+          return { check: `answer:${check.name}`, ok, detail: `${raw} (đúng: ${check.set})` }
+        }
         if (check.text !== undefined) {
           const ok = normalize(raw) === normalize(check.text)
           return { check: `answer:${check.name}`, ok, detail: `${raw} (đúng: ${check.text})` }
@@ -368,6 +379,7 @@ async function main() {
   const summary = summarize(results)
   const report = { startedAt: new Date().toISOString(), suite: args.suite, repeat: args.repeat, base: BASE, results, summary }
   const out = args.out ?? join(HERE, 'reports', `${new Date().toISOString().replace(/[:.]/g, '-')}.json`)
+  await mkdir(dirname(out), { recursive: true })
   await writeFile(out, `${JSON.stringify(report, null, 2)}\n`)
 
   console.log('\n| bài | đỗ | bước TB | giây TB | lỗi công cụ TB |')

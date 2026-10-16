@@ -8,7 +8,8 @@
         "@fox-harness/dsh-agent-core",
         "@fox-harness/dsh-llm-openai-compat",
         "@fox-harness/dsh-tool-serper-web-search",
-        "@fox-harness/dsh-tool-create-skill"
+        "@fox-harness/dsh-tool-create-skill",
+        "@fox-harness/dsh-tool-canvas"
       ]
     }
   }

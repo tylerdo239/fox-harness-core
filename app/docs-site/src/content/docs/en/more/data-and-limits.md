@@ -21,6 +21,7 @@ Fox Harness is an internal tool. Don't upload data you are not allowed to share.
 | Deleting a chat      | Removes its history, working files and every archived copy; it cannot be undone |
 | Deleting a project   | Also deletes all of the project's chats and files                               |
 | Deleting files       | **Settings > Storage**: one file, or every file of a chat/project (the chat stays) |
+| Canvas               | The assistant's canvas versions and the canvas history (snapshots of files opened in the canvas, your saved edits) count toward your storage. In **Settings > Storage**: "Keep latest" or "Delete all" per canvas, "Clear history" for the canvas history. Each canvas keeps its 10 newest history entries |
 | Files left unused    | An admin may delete the files of chats/projects nobody used for a long time; the chats stay |
 
 ## Limits

@@ -32,7 +32,7 @@ try:
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import OneHotEncoder, StandardScaler
 except ImportError:
-    sys.exit("scikit-learn is required: pip install scikit-learn")
+    sys.exit("scikit-learn is required but not installed in this environment")
 
 SEED = 42
 ID_UNIQUE_RATIO = 0.98

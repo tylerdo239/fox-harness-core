@@ -1,5 +1,7 @@
-import { mkdir, readdir, readFile, rename } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readdir } from 'node:fs/promises'
+import { join } from 'node:path'
+
+import { moveInside, readTextInside } from './safe-fs.ts'
 
 /**
  * Every file in a project folder must be exactly one of three things: a file the user uploaded
@@ -42,9 +44,9 @@ export async function reconcileWorkspace(cwd: string, sessionId: string): Promis
       } else if (entry.isFile() && !sources.has(path)) {
         // A stray file under generated/ keeps its name, not a generated/generated/… path.
         const inside = path.startsWith('generated/') ? path.slice('generated/'.length) : path
-        const target = join(cwd, own, inside)
-        await mkdir(dirname(target), { recursive: true })
-        await rename(join(cwd, path), target).then(
+        // through safe-fs (docs/workspace-symlink-isolation-plan.md): this runs outside the sandbox, and python can
+        // swap generated/<this chat> for a link to another user's folder — a plain rename then moved the files there
+        await moveInside(cwd, path, `${own}/${inside}`).then(
           () => moved.push(`${path} → ${own}/${inside}`),
           () => undefined, // a file that vanished or is being written to is picked up next turn
         )
@@ -58,7 +60,7 @@ export async function reconcileWorkspace(cwd: string, sessionId: string): Promis
 
 async function readSources(cwd: string): Promise<Set<string>> {
   try {
-    return new Set(JSON.parse(await readFile(join(cwd, '.fox', 'sources.json'), 'utf-8')) as string[])
+    return new Set(JSON.parse((await readTextInside(cwd, '.fox/sources.json')) ?? '[]') as string[])
   } catch {
     return new Set() // no manifest: a chat of its own, where every file is that chat's
   }

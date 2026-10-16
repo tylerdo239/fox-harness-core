@@ -803,6 +803,248 @@ const tests = {
     const bad = rows.filter(([, got, want]) => got !== want)
     return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks` }
   },
+
+  // docs/workspace-symlink-isolation-plan.md: links the model's python could put in its own folder (planted here
+  // with docker exec) never make the gateway read, write or delete what they point to.
+  async symlinkIsolation() {
+    const rows = []
+    const a = await newUser('linka')
+    const b = await newUser('linkb')
+    const ca = chat(a.token); await ca.opened; await ca.ready(); ca.close()
+    const cb = chat(b.token); await cb.opened; await cb.ready(); cb.close()
+    const up = (token, id, name, body) => api('POST', `/sessions/${id}/files?name=${encodeURIComponent(name)}`, token, body, true)
+    rows.push(['A uploads', (await up(a.token, ca.sessionId, 'ok.csv', 'a,b\n1,2\n')).status, 201])
+    rows.push(['B uploads', (await up(b.token, cb.sessionId, 'secret.csv', 'B-SECRET')).status, 201])
+    const aDir = workspaceOf(ca.sessionId)
+    const bDir = workspaceOf(cb.sessionId)
+    const bait = '/data/bait.txt'
+    dx('sh', '-c', `printf BAIT > ${bait}
+      cd ${aDir} && ln -s /proc/self/environ env.txt && ln -s ${bDir}/secret.csv other.csv && ln -s ${bDir} dir_link \
+        && ln -s ${bait} .up.csv.part`)
+    const cat = (path) => { try { return dx('cat', path) } catch { return '(missing)' } }
+    const get = (path) => api('GET', `/sessions/${ca.sessionId}/files/${path}`, a.token)
+
+    const env = await get('env.txt')
+    rows.push(['env link → 404', env.status, 404])
+    rows.push(['no gateway env in the answer', /S3_SECRET_ACCESS_KEY|DATABASE_URL/.test(env.text), false])
+    rows.push(["link to B's file → 404", (await get('other.csv')).status, 404])
+    rows.push(["B's file through a linked folder → 404", (await get('dir_link/secret.csv')).status, 404])
+    const ok = await get('ok.csv')
+    rows.push(['a real file still downloads', `${ok.status} ${ok.text}`, '200 a,b\n1,2\n'])
+    rows.push(['links not listed', (await api('GET', `/sessions/${ca.sessionId}/files`, a.token)).json.files.map((f) => f.path).sort().join(','), 'ok.csv'])
+
+    rows.push(["delete B's file through a linked folder → 404", (await api('DELETE', `/sessions/${ca.sessionId}/files/dir_link/secret.csv`, a.token)).status, 404])
+    rows.push(["B's file still there", cat(`${bDir}/secret.csv`), 'B-SECRET'])
+    rows.push(['delete a link → 404', (await api('DELETE', `/sessions/${ca.sessionId}/files/other.csv`, a.token)).status, 404])
+
+    rows.push(['upload past a planted .part link', (await up(a.token, ca.sessionId, 'up.csv', 'UPLOADED')).status, 201])
+    rows.push(['the link target is untouched', cat(bait), 'BAIT'])
+    rows.push(['the upload landed', (await get('up.csv')).text, 'UPLOADED'])
+
+    // the archive sweep reads through safe-fs too: a link is never copied to S3
+    const dirKey = aDir.replace(/^\/data\//, '')
+    // a fresh MinIO has no bucket until the first sweep writes one
+    const listed = (prefix) => { try { return s3('versions', prefix) } catch { return [] } }
+    for (let i = 0; i < 30 && !listed(`files/${dirKey}/up.csv`).length; i++) await sleep(1000)
+    const archived = listed(`files/${dirKey}/`).map((key) => key.slice(`files/${dirKey}/`.length)).filter((p) => !p.startsWith('.')).sort().join(',')
+    rows.push(['archived: the real files only', archived, 'ok.csv,up.csv'])
+
+    // a restore writes through safe-fs: the folder left the disk, a link waits where the restore writes its partial
+    execFileSync('docker', ['exec', 'foxe2e-redis', 'redis-cli', 'sadd', 'fh:workspace-evicted', dirKey])
+    dx('sh', '-c', `rm -rf ${aDir} && mkdir -p ${aDir} && ln -s ${bait} ${aDir}/.ok.csv.restore && ln -s ${bait} ${aDir}/up.csv`)
+    rows.push(['restore on open', (await api('GET', `/sessions/${ca.sessionId}/files`, a.token)).status, 200])
+    rows.push(['restored ok.csv is the real file', cat(`${aDir}/ok.csv`), 'a,b\n1,2\n'])
+    rows.push(['restore wrote nothing through the links', cat(bait), 'BAIT'])
+
+    // "Đưa vào dự án": a chat output that is a link is refused; an outputs/ link is replaced, not written through
+    const project = (await api('POST', '/projects', a.token, { name: 'symlink e2e' })).json
+    const pid = project.projectId ?? project.id
+    const cp = chat(a.token, { params: { project: pid } }); await cp.opened; await cp.ready(); cp.close()
+    const pDir = `/data/projects/${pid}`
+    dx('sh', '-c', `mkdir -p ${pDir}/generated/${cp.sessionId} ${pDir}/outputs && cd ${pDir} \
+      && ln -s ${bDir}/secret.csv generated/${cp.sessionId}/leak.csv \
+      && printf REPORT > generated/${cp.sessionId}/report.csv && ln -s ${bait} outputs/report.csv`)
+    const promote = (path) => api('POST', `/projects/${pid}/promote`, a.token, { sessionId: cp.sessionId, path })
+    rows.push(['promote a link → 404', (await promote('leak.csv')).status, 404])
+    rows.push(['promote a real file', (await promote('report.csv')).status, 201])
+    rows.push(['outputs/report.csv is the real copy', cat(`${pDir}/outputs/report.csv`), 'REPORT'])
+    rows.push(['the bait behind outputs/ untouched', cat(bait), 'BAIT'])
+
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
+  },
+
+  // docs/canvas-storage-plan.md: the canvas history (.canvas/) is deduplicated, indexed, capped, counted, shown and
+  // deletable; the assistant's canvas versions can be thinned or deleted.
+  async canvasStorage() {
+    const rows = []
+    const u = await newUser('canvasstore')
+    const c = chat(u.token); await c.opened; await c.ready(); c.close()
+    const id = c.sessionId
+    const dir = workspaceOf(id)
+    const files = `/sessions/${id}/files`
+    const ls = (sub) => dx('sh', '-c', `ls -1 ${dir}/${sub} 2>/dev/null || true`).trim().split('\n').filter(Boolean)
+    const history = async () => (await api('GET', `/sessions/${id}/canvas`, u.token)).json?.canvases ?? {}
+    const snap = (path, canvas) => api('POST', `${files}/${path}?snapshot=1&canvas=${canvas}`, u.token)
+    const storageDir = async () => (await api('GET', '/storage', u.token)).json.dirs.find((d) => d.id === id)
+    const used = async () => (await api('GET', '/storage', u.token)).json.usedBytes
+
+    // 1. the same file in the same state is snapshotted once
+    await api('POST', `${files}?name=bang.xlsx`, u.token, 'X'.repeat(300_000), true)
+    const first = await snap('bang.xlsx', 'ws-bang')
+    const again = await snap('bang.xlsx', 'ws-bang')
+    const third = await snap('bang.xlsx', 'ws-bang')
+    rows.push(['snapshot created', first.status, 201])
+    rows.push(['opened again: same snapshot', `${again.status} ${third.status} ${again.json?.path === first.json?.path}`, '200 200 true'])
+    rows.push(['one file in .canvas', ls('.canvas').filter((f) => f !== 'index.json').length, 1])
+    // 2. the file changed (mtime): one more
+    dx('touch', '-d', `@${Math.floor(Date.now() / 1000) + 60}`, `${dir}/bang.xlsx`)
+    rows.push(['changed file: new snapshot', (await snap('bang.xlsx', 'ws-bang')).status, 201])
+    rows.push(['indexed twice', (await history())['ws-bang']?.length, 2])
+
+    // 3. 5 saved edits of one canvas: the 3 newest stay (CANVAS_HISTORY_MAX=3 in scripts/e2e-up.sh)
+    for (let v = 1; v <= 5; v++) {
+      await api('POST', `${files}?name=rep-${v}.md&purpose=canvas&canvas=rep&version=${v}`, u.token, `edit ${v}`, true)
+    }
+    const rep = (await history()).rep ?? []
+    rows.push(['edits kept', `${rep.length} ${rep[0]?.version} ${rep.at(-1)?.version}`, '3 3 5'])
+    rows.push(['oldest edits gone from the disk', ls('.canvas').filter((f) => /^rep-(1|2)\.md$/.test(f)).length, 0])
+
+    // 4. a file in .canvas that no index names (older than 10 minutes) goes at the next index write
+    dx('sh', '-c', `printf JUNK > ${dir}/.canvas/junk.bin && touch -d @${Math.floor(Date.now() / 1000) - 3600} ${dir}/.canvas/junk.bin`)
+    await api('POST', `${files}?name=rep-6.md&purpose=canvas&canvas=rep&version=6`, u.token, 'edit 6', true)
+    rows.push(['unindexed file pruned', ls('.canvas').includes('junk.bin'), false])
+
+    // 5. counted, shown, and cleared
+    const before = await storageDir()
+    rows.push(['history shown', before?.canvasHistory?.files > 0 && before?.canvasHistory?.bytes > 600_000, true])
+    const usedBefore = await used()
+    const cleared = await api('DELETE', `/storage/sessions/${id}/canvas-history`, u.token)
+    rows.push(['clear history', cleared.status, 200])
+    rows.push(['usage drops by what was freed', usedBefore - (await used()), cleared.json?.bytes])
+    rows.push(['.canvas empty', ls('.canvas').length, 0])
+    rows.push(['the original stays', (await api('GET', `${files}/bang.xlsx`, u.token)).status, 200])
+
+    // 6. the assistant's versions of a canvas: shown as one row, thinned, deleted
+    dx('sh', '-c', `mkdir -p ${dir}/generated/${id} && for v in 1 2 3; do printf "v$v" > ${dir}/generated/${id}/canvas-rpt-v$v.md; done`)
+    const shown = (await storageDir())?.canvases?.find((x) => x.id === 'rpt')
+    rows.push(['canvas row', `${shown?.versions} ${shown?.latest}`, `3 generated/${id}/canvas-rpt-v3.md`])
+    rows.push(['not also listed as files', (await storageDir()).files.some((f) => f.path.includes('canvas-rpt')), false])
+    rows.push(['keep latest', (await api('DELETE', `/storage/sessions/${id}/canvases/rpt?keep=latest`, u.token)).json?.files, 2])
+    rows.push(['v3 stays', ls(`generated/${id}`).join(','), 'canvas-rpt-v3.md'])
+    rows.push(['a deleted version answers 404', (await api('GET', `${files}/generated/${id}/canvas-rpt-v1.md`, u.token)).status, 404])
+    rows.push(['delete the canvas', (await api('DELETE', `/storage/sessions/${id}/canvases/rpt`, u.token)).json?.files, 1])
+
+    // 7. no room: the snapshot is refused before a byte is written (another user: uploads are rate-limited per user)
+    const u2 = await newUser('canvasstore2')
+    const c2 = chat(u2.token); await c2.opened; await c2.ready(); c2.close()
+    const id2 = c2.sessionId
+    const dir2 = workspaceOf(id2)
+    const files2 = `/sessions/${id2}/files`
+    const ls2 = (sub) => dx('sh', '-c', `ls -1 ${dir2}/${sub} 2>/dev/null || true`).trim().split('\n').filter(Boolean)
+    const snap2 = (path, canvas) => api('POST', `${files2}/${path}?snapshot=1&canvas=${canvas}`, u2.token)
+    await api('POST', `${files2}?name=lon.csv`, u2.token, 'y'.repeat(1_200_000), true)
+    const full = await snap2('lon.csv', 'ws-lon')
+    rows.push(['snapshot past the quota', `${full.status} ${full.json?.code}`, '507 storage_quota'])
+    rows.push(['nothing written', ls2('.canvas').filter((f) => f !== 'index.json').length, 0])
+
+    // 8. "delete every file" takes the history too
+    await api('POST', `${files2}?name=nho.csv`, u2.token, 'a,b\n1,2\n', true)
+    await api('DELETE', `${files2}/lon.csv`, u2.token)
+    await snap2('nho.csv', 'ws-nho')
+    rows.push(['history before clearing', ls2('.canvas').filter((f) => f !== 'index.json').length, 1])
+    await api('DELETE', `/storage/sessions/${id2}`, u2.token)
+    rows.push(['clear all files: history gone', ls2('.canvas').filter((f) => f !== 'index.json').length, 0])
+
+    // 9. .canvas swapped for a link: a snapshot cannot write through it
+    await api('POST', `${files2}?name=nho.csv`, u2.token, 'a,b\n1,2\n', true)
+    dx('sh', '-c', `mkdir -p /data/canvas-bait-dir && rm -rf ${dir2}/.canvas && ln -s /data/canvas-bait-dir ${dir2}/.canvas`)
+    const linked = await snap2('nho.csv', 'ws-nho')
+    rows.push(['snapshot through a linked .canvas refused', linked.status >= 400, true])
+    rows.push(['nothing in the link target', dx('sh', '-c', 'ls -A /data/canvas-bait-dir | wc -l').trim(), '0'])
+
+    // 10. a chat outside a project: the canvas lands in generated/<chat>/ and is still there after the turn
+    const da = chat(u.token, { params: { flow: 'data-analysis' } }); await da.opened; await da.ready()
+    da.send(`CALL canvas_write ${JSON.stringify({ id: 'note', kind: 'markdown', title: 'Note', content: '# note' })}`)
+    await da.turnEnds(1, 90000); await sleep(300)
+    const marker = toolText(da.events).match(/→ (\S+canvas-note-v1\.md)/)?.[1]
+    da.close()
+    rows.push(['canvas path', marker, `generated/${da.sessionId}/canvas-note-v1.md`])
+    rows.push(['still there after the turn', (await api('GET', `/sessions/${da.sessionId}/files/${marker}`, u.token)).status, 200])
+
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
+  },
+
+  // The same for the canvas tool (C1/C2), which runs in the runtime, outside the sandbox. Links are made by the
+  // model's own python (in the sandbox) where python can reach the path, by docker exec where it cannot.
+  async canvasSymlinkIsolation() {
+    const rows = []
+    const a = await newUser('canvasa')
+    const b = await newUser('canvasb')
+    const cb = chat(b.token); await cb.opened; await cb.ready(); cb.close()
+    await api('POST', `/sessions/${cb.sessionId}/files?name=secret.csv`, b.token, 'B-SECRET', true)
+    const bDir = workspaceOf(cb.sessionId)
+    const cat = (path) => { try { return dx('cat', path) } catch { return '(missing)' } }
+    const leaked = (text) => /B-SECRET|OPENAI_API_KEY|FOX_INTERNAL_SECRET|MONGODB_URL/.test(text)
+
+    const project = (await api('POST', '/projects', a.token, { name: 'canvas symlink e2e' })).json
+    const pid = project.projectId ?? project.id
+    const pDir = `/data/projects/${pid}`
+    const cp = chat(a.token, { params: { project: pid } }); await cp.opened; await cp.ready()
+    let turns = 0
+    const call = async (tool, args) => {
+      cp.send(`CALL ${tool} ${JSON.stringify(args)}`)
+      await cp.turnEnds(++turns, 90000)
+      await sleep(300) // the result event can trail the turn's end by a frame
+      return toolText(cp.events)
+    }
+    const canvas = (args) => call('canvas_write', { title: 'Report', ...args })
+
+    // the python session marker is written from the runtime: a link there must not overwrite its target
+    const bait = '/data/canvas-bait.txt'
+    dx('sh', '-c', `printf BAIT > ${bait} && ln -s ${bait} ${pDir}/.python-session`)
+
+    // C1, read: links made by python itself, in the sandbox
+    const own = `${pDir}/generated/${cp.sessionId}`
+    const planted = await call('python', { code: `import os
+os.makedirs(${JSON.stringify(own)}, exist_ok=True)
+open(${JSON.stringify(`${own}/real.md`)}, 'w').write('# real report')
+os.symlink('/proc/self/environ', ${JSON.stringify(`${own}/env.txt`)})
+os.symlink(${JSON.stringify(`${bDir}/secret.csv`)}, ${JSON.stringify(`${own}/other.csv`)})
+print('planted')` })
+    rows.push(['python planted the links', planted.includes('planted'), true])
+    rows.push(['marker link: target untouched', cat(bait), 'BAIT'])
+    for (const [label, path] of [['/proc/self/environ link', 'env.txt'], ["B's file link", 'other.csv']]) {
+      const result = await canvas({ id: 'leak', kind: 'file', path: `${own}/${path}` })
+      rows.push([`${label}: refused`, /no file at|outside this session's workspace/.test(result), true])
+      rows.push([`${label}: nothing leaked`, leaked(result), false])
+    }
+    // a real file: read (with the strict runner: by the sandboxed cat) and written as v1
+    const first = await canvas({ id: 'r', kind: 'markdown', path: `${own}/real.md` })
+    rows.push(['real file → v1', /canvas-r-v1\.md/.test(first), true])
+    rows.push(['v1 holds the real file', cat(`${own}/canvas-r-v1.md`), '# real report'])
+
+    // C2, write: python swaps this chat's output folder for a link to B's folder
+    dx('sh', '-c', `mv ${own} ${own}.moved && ln -s ${bDir} ${own}`)
+    const second = await canvas({ id: 'r', kind: 'markdown', content: 'WRITTEN-BY-A' })
+    rows.push(['write through a linked output folder: refused', /isError":true/.test(second), true])
+    // the end-of-turn reconcile moves stray files into generated/<this chat>/ — now a link to B's folder
+    dx('sh', '-c', `printf STRAY > ${pDir}/stray.txt`)
+    await call('python', { code: 'print(1)' })
+    rows.push(["nothing moved or written into B's folder", dx('ls', bDir).trim(), 'secret.csv'])
+    cp.close()
+    rows.push(["no secret in A's project folder", dx('sh', '-c', `grep -rlE 'B-SECRET|OPENAI_API_KEY|FOX_INTERNAL_SECRET' ${pDir}.moved ${own}.moved 2>/dev/null || true`).trim(), ''])
+
+    // layer 2 on its own: the sandboxed cat the canvas uses cannot follow a link out of the folder
+    const runner = '/repo/docker/fox-confine.sh'
+    const direct = dx('sh', '-c', `${runner} --ro-bind / / --bind ${pDir} ${pDir} -- /usr/bin/cat -- ${own}.moved/other.csv 2>&1; echo "exit=$?"`)
+    rows.push(['sandboxed cat of a link: fails', /exit=0/.test(direct) || direct.includes('B-SECRET'), false])
+    rows.push(['sandboxed cat of a real file', cat(`${own}.moved/real.md`) === '# real report' ? dx('sh', '-c', `${runner} --ro-bind / / --bind ${pDir} ${pDir} -- /usr/bin/cat -- ${own}.moved/real.md`) : '(no real.md)', '# real report'])
+
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
+  },
 }
 
 const only = process.argv.slice(2)

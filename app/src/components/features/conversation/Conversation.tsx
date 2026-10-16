@@ -112,7 +112,10 @@ import { DataStudioAnswer, PinToDashboardButton } from "./DataStudioAnswer.tsx";
 import type { ProgressItem } from "./DataStudioProgress.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
-import { WorkspacePanel } from "./WorkspacePanel.tsx";
+import { WorkspaceFiles } from "../canvas/WorkspaceFiles.tsx";
+import { loadCanvasHistory, parseCanvasMarker, receiveCanvasMarker, stripCanvasMarker } from "../canvas/canvas.ts";
+import { CanvasChip, CanvasReopenBar, type CanvasChipEntry } from "../canvas/CanvasChip.tsx";
+import { useCanvasStore } from "../canvas/store.ts";
 
 // docs/skill-transfer-plan.md, giai đoạn 3: the `create_skill` tool only
 // validates inside the worker, which never knows who the user is. The browser,
@@ -292,7 +295,9 @@ type LogEntry =
       // the steps of the run so far (`fox/data-studio-progress` events), shown live — see DataStudioProgress.tsx
       progress: ProgressItem[];
     }
-  | { kind: "bubble"; id: string; role: "user" | "assistant"; text: string };
+  | { kind: "bubble"; id: string; role: "user" | "assistant"; text: string }
+  // a canvas_write result: a chip that opens the side panel (components/features/canvas)
+  | ({ kind: "canvas"; id: string } & CanvasChipEntry);
 
 interface LiveBubble {
   text: string;
@@ -652,6 +657,27 @@ function DataStudioResultPill({
   );
 }
 
+// What the status row says the agent is doing: retrying the model, running a named tool, or thinking.
+const TOOL_LABELS: Partial<Record<string, TranslationKey>> = {
+  python: "tool.python",
+  web_search: "tool.web_search",
+  canvas_write: "tool.canvas_write",
+  read: "tool.read",
+  write: "tool.write",
+  skill: "tool.skill",
+  analyze_data: "tool.analyze_data",
+};
+
+function runStatusLabel(
+  run: { tools: number; tool?: string; retry?: { n: number; max?: number } },
+  t: (key: TranslationKey, params?: Record<string, string>) => string,
+): string {
+  if (run.retry) return t("conversation.retrying", { n: String(run.retry.n), max: run.retry.max === undefined ? "∞" : String(run.retry.max) });
+  if (run.tools === 0) return t("conversation.thinking");
+  const key = run.tool === undefined ? undefined : TOOL_LABELS[run.tool];
+  return key ? t("conversation.runningNamed", { what: t(key) }) : t("conversation.runningTool");
+}
+
 function formatElapsed(
   ms: number,
   t: (key: TranslationKey, params?: Record<string, string>) => string,
@@ -723,6 +749,8 @@ function LogEntryView({
           t={t}
         />
       );
+    case "canvas":
+      return <CanvasChip entry={entry} />;
     case "bubble":
       if (entry.role === "user") {
         // a message with attachments ends with their marker line (attachments.ts): cards above the text
@@ -760,6 +788,17 @@ export function Conversation({
 } = {}) {
   const runtime = useRuntime();
   const { t, locale } = useLocale();
+  // The canvas store follows this conversation's session; frames are handled by a listener subscribed once, so it
+  // reads the session id through a ref.
+  const sessionIdRef = useRef(runtime.sessionId);
+  sessionIdRef.current = runtime.sessionId;
+  useEffect(() => {
+    const store = useCanvasStore.getState();
+    if (store.sessionId !== (runtime.sessionId || undefined)) store.reset(runtime.sessionId || undefined);
+  }, [runtime.sessionId]);
+  useEffect(() => {
+    useCanvasStore.getState().setFetch(runtime.authedFetch);
+  }, [runtime.authedFetch]);
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [liveBubbles, setLiveBubbles] = useState<Map<string, LiveBubble>>(
     new Map(),
@@ -783,9 +822,14 @@ export function Conversation({
   // The reply in progress: set on send / `turn/start`, cleared on `turn/end`.
   // `tools` counts tool calls still waiting for their result. Drives the
   // status row under the chat and the Send ⇄ Stop button.
-  const [run, setRun] = useState<{ startedAt: number; tools: number } | null>(
-    null,
-  );
+  // `tool`: the latest tool still running, named in the status row; `retry`: the model request failed and is being
+  // retried (dsh-llm-retry's `llm/retry` event), cleared once the model answers again.
+  const [run, setRun] = useState<{
+    startedAt: number;
+    tools: number;
+    tool?: string;
+    retry?: { n: number; max?: number };
+  } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const running = run !== null;
   useEffect(() => {
@@ -912,7 +956,13 @@ export function Conversation({
     event: { type: string; seq: number; time: number; data: unknown },
     live: boolean,
   ): void {
+    if (event.seq > useCanvasStore.getState().lastSeq) useCanvasStore.setState({ lastSeq: event.seq });
     switch (event.type) {
+      case "llm/retry": {
+        const data = event.data as { retry: number; maxRetries?: number };
+        setRun((prev) => prev && { ...prev, retry: { n: data.retry, max: data.maxRetries } });
+        break;
+      }
       case "turn/start":
         // Deliberately not rendered (2026-09-10, user: "hide hết ... làm
         // UI UX lại cho casual như các platform ai agent") — used to push
@@ -1055,6 +1105,7 @@ export function Conversation({
           step: number;
           chunk: StreamChunk;
         };
+        setRun((prev) => (prev?.retry ? { ...prev, retry: undefined } : prev));
         const key = stepKey(data.turn, data.step);
         const chunk = data.chunk;
         // Deltas extracted to a plain-string const BEFORE the setState
@@ -1121,7 +1172,7 @@ export function Conversation({
           name: string;
           arguments: string;
         };
-        setRun((prev) => prev && { ...prev, tools: prev.tools + 1 });
+        setRun((prev) => prev && { ...prev, tools: prev.tools + 1, tool: data.name, retry: undefined });
         if (data.name === WEB_SEARCH_TOOL) {
           searchCallIdsRef.current.add(data.callId);
           upsertSearchEntry(
@@ -1207,7 +1258,11 @@ export function Conversation({
           error?: { message?: string; name: string };
           meta?: unknown;
         };
-        setRun((prev) => prev && { ...prev, tools: Math.max(0, prev.tools - 1) });
+        setRun((prev) => {
+          if (!prev) return prev;
+          const tools = Math.max(0, prev.tools - 1);
+          return { ...prev, tools, tool: tools === 0 ? undefined : prev.tool };
+        });
         const block = data.message.content[0];
         const callId = block?.toolCallId;
         const isError = !!(data.error || block?.isError);
@@ -1275,7 +1330,19 @@ export function Conversation({
           );
           break;
         }
-        const blockText = block ? contentToText(block.content) : "";
+        const marker = isError ? undefined : parseCanvasMarker(event);
+        if (marker && callId) {
+          setEntries((prev) =>
+            prev.map((entry) =>
+              entry.id === `tool-${callId}`
+                ? { kind: "canvas", id: entry.id, canvasId: marker.id, canvasKind: marker.kind, path: marker.path, title: marker.title, version: marker.version }
+                : entry,
+            ),
+          );
+          if (sessionIdRef.current) receiveCanvasMarker(sessionIdRef.current, marker, event.seq);
+          break;
+        }
+        const blockText = block ? stripCanvasMarker(contentToText(block.content)) : "";
         const resultText = isError
           ? (data.error?.name ?? blockText)
           : truncate(blockText, 500);
@@ -1307,11 +1374,14 @@ export function Conversation({
   function handleFrame(frame: ServerToClient): void {
     switch (frame.type) {
       case "snapshot":
+        useCanvasStore.getState().reset(sessionIdRef.current || undefined);
         setEntries([]);
         setLiveBubbles(new Map());
         setRun(null);
         pendingDeltasRef.current.clear();
         for (const event of frame.events) handleEvent(event, false);
+        // the panel's own history (saved edits, file snapshots): docs/canvas-storage-plan.md
+        if (sessionIdRef.current) void loadCanvasHistory(sessionIdRef.current).catch(() => undefined);
         break;
       case "event":
         handleEvent(frame.event, true);
@@ -1501,6 +1571,7 @@ export function Conversation({
     <div
       className={`fh-conversation-root${isEmpty ? " fh-conversation-empty" : ""}`}
     >
+      {variant === "default" && <CanvasReopenBar />}
       {!isEmpty && (
         <div id="log" ref={logRef}>
           {entries.map((entry) => (
@@ -1533,11 +1604,7 @@ export function Conversation({
                     <i />
                     <i />
                   </span>
-                  <span>
-                    {run.tools > 0
-                      ? t("conversation.runningTool")
-                      : t("conversation.thinking")}
-                  </span>
+                  <span>{runStatusLabel(run, t)}</span>
                   <span className="fh-run-elapsed">
                     {formatElapsed(now - run.startedAt, t)}
                   </span>
@@ -1555,6 +1622,7 @@ export function Conversation({
           <h2>{t("conversation.emptyHeading")}</h2>
         </div>
       )}
+      {variant === "default" && <WorkspaceFiles version={filesVersion} running={!!run} />}
       <form
         id="send-form"
         onSubmit={onSubmit}
@@ -1575,7 +1643,6 @@ export function Conversation({
         }}
       >
         {dragDepth > 0 && <div className="fh-composer-drop-hint">{t("attach.dropHint")}</div>}
-        <WorkspacePanel version={filesVersion} />
         {menuItems.length > 0 && (
           <SkillMenu
             items={menuItems}

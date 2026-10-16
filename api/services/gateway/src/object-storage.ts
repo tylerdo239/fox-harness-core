@@ -8,10 +8,7 @@
 // gateway-only concern with no event-sourcing/torn-tail/content-addressing
 // requirements, so a plain client suffices.
 
-import { createWriteStream } from 'node:fs'
-import { rename } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
-import type { Readable } from 'node:stream'
+import type { Readable, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import {
@@ -221,11 +218,10 @@ export async function getArchiveObject(key: string): Promise<Buffer> {
 }
 
 /** Downloads an object straight to `path` (via a temporary file next to it), without holding it in memory. */
-export async function downloadArchiveObject(key: string, path: string): Promise<void> {
+/** Streams one object into `target` (the caller opened it: runtime/safe-fs.ts decides where it may write). */
+export async function downloadArchiveObject(key: string, target: Writable): Promise<void> {
   const res = await client.send(new GetObjectCommand({ Bucket: config.s3Bucket, Key: key }))
-  const partial = join(dirname(path), `.${basename(path)}.restore`)
-  await pipeline(res.Body as Readable, createWriteStream(partial))
-  await rename(partial, path)
+  await pipeline(res.Body as Readable, target)
 }
 
 export async function deleteArchiveObject(key: string): Promise<void> {

@@ -98,7 +98,20 @@ def _read_csv(path, sep=None, **options):
     the one that yields more real numbers wins — a decision made from the data, not a guess.
     """
     raw = _pandas_originals.get("read_csv", pd.read_csv)
-    frame = raw(path, sep=sep, engine="python", **options) if sep is None else raw(path, sep=sep, **options)
+
+    def first_read():
+        return raw(path, sep=sep, engine="python", **options) if sep is None else raw(path, sep=sep, **options)
+
+    try:
+        frame = first_read()
+    except UnicodeDecodeError:
+        # Excel on Windows saves CSV in the system code page, not UTF-8 (QA 2026-10-15: a latin-1
+        # upload failed every read). cp1258 is Windows Vietnamese; it misreads a few Western letters (ã → ă), hence the hint.
+        if "encoding" in options:
+            raise
+        options = {**options, "encoding": "cp1258", "encoding_errors": "replace"}
+        frame = first_read()
+        print(f"Note: {Path(path).name} is not UTF-8; it was read with encoding='cp1258' (Windows Vietnamese). If accented letters look wrong, re-read it with encoding='latin-1'.")
     if _numeric_columns(frame) == len(frame.columns):
         return frame
     with open(path, encoding="utf-8", errors="replace") as handle:
