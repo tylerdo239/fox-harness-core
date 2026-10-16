@@ -25,6 +25,9 @@ const FLOW_TOOL_MASK: Record<string, 'all' | readonly string[]> = {
     'bash', 'str_replace_editor', 'job_kill', 'job_list', 'job_output', 'workflow', 'ralph',
     'subagent', 'subagent_fork', 'list_agents', 'interrupt_agent', 'send_message',
     'create_goal', 'get_goal', 'update_goal', 'exit_plan_mode', 'todo_write', ...NO_IMAGE_INPUT,
+    // QA 2026-10-16: the model used `edit` to patch a canvas file in place, so the panel never got the new
+    // version (canvas_write makes versions). `write` and python cover every other file change here.
+    'edit',
   ],
 }
 
@@ -49,5 +52,11 @@ export async function joinFlow(ctx: Context, agentCtx: Context, flow: string): P
     const globalTools = ctx.tools.schemas().map((schema) => schema.name)
     const deny = mask === 'all' ? globalTools : globalTools.filter((name) => mask.includes(name))
     if (deny.length > 0) agentCtx.tools.restrict({ deny })
+    // A hidden tool's plugin still adds its usage section ("tool:<name>") to the system prompt. Measured
+    // 2026-10-16 (data-analysis, 24k window): ~2,300 characters about bash, jobs, goals, workflow and ralph,
+    // none of which the model can call, sent on every request. A scoped section shadows the global one
+    // with the same name, and an empty section is dropped.
+    const sections = new Set(deny.map((tool) => (tool.startsWith('job_') ? 'tool:jobs' : tool.endsWith('_goal') ? 'tool:goal' : `tool:${tool}`)))
+    for (const section of sections) agentCtx.systemPrompt.section({ name: section, order: 100, text: '' })
   }
 }

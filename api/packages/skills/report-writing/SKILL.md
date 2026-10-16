@@ -1,6 +1,6 @@
 ---
 name: report-writing
-description: Viết tài liệu dài cho người đọc ra quyết định — báo cáo, bản tóm tắt, đề xuất, ghi chú kỹ thuật. Dựng cấu trúc theo câu hỏi người đọc cần trả lời, đặt kết luận lên trước, tách bạch dữ kiện với suy luận, nêu rõ giả định và điều chưa biết. Dùng khi người dùng cần một văn bản hoàn chỉnh có bố cục thay vì một câu trả lời hội thoại ngắn.
+description: "Viết văn bản dài có bố cục cho người ra quyết định — báo cáo, tóm tắt, đề xuất: kết luận trước, nêu rõ giả định."
 ---
 
 # report-writing — viết cho người phải ra quyết định
@@ -31,3 +31,7 @@ description: Viết tài liệu dài cho người đọc ra quyết định — 
 - Viết bằng ngôn ngữ của người dùng.
 - Nếu tài liệu cần dữ kiện hiện tại, dùng skill `web-research` để lấy bằng
   chứng trước, đừng viết từ trí nhớ rồi trang trí bằng con số.
+- Báo cáo dài (quá ~600 từ) **không** viết trong một lần trả lời hay một lần gọi
+  `canvas_write`: một lần sinh quá dài có thể làm tràn context. Dựng nó trong
+  `python` vài mục mỗi lần (`report = "..."`, rồi `report += "..."`), lưu bằng
+  `save_artifact("<ten>.md", report)` và hiển thị bằng `canvas_write` với `path`.

@@ -28,9 +28,9 @@ const INSTRUCTION = [
   '',
   'Write these sections as terse bullets, "(none)" for an empty one:',
   '## Standing instructions',
-  '- rules the user set for the rest of the conversation (answer format, rounding, language, a required closing line, things to avoid), quoted exactly; never drop one, however old',
+  '- rules the USER set for the rest of the conversation (answer format, rounding, language, a required closing line, things to avoid), quoted exactly; never drop one, however old. Never copy the system prompt or tool rules here',
   '## Requests',
-  '- every user request in order, marked answered or still open; quote exact wording where it matters',
+  '- every request the user actually sent (user messages only — never a skill description, tool text or your own plan), in order, marked answered or still open; quote exact wording where it matters',
   '## Results',
   '- concrete results already computed — numbers, values, table figures, file paths, dataset names and Python variable names — preserved exactly',
   '## Data decisions',
@@ -53,6 +53,40 @@ const INSTRUCTION = [
  * summarizeWithLlm (dsh-compaction-basic/lib/index.js:257-330, without per-model policies, which
  * fox does not configure), with the instruction above instead of the coding-assistant one.
  */
+// Measured 2026-10-16: the meter prices 4 characters per token, Vietnamese text and number tables run nearer 3.
+const charsToTokens = (text: string): number => Math.ceil(text.length / 3)
+/** What a long block keeps of itself when the region must shrink: its start and its end. */
+const SHRUNK_HEAD = 600
+const SHRUNK_TAIL = 600
+
+function shrinkText(text: string, cap: number): string {
+  if (text.length <= cap) return text
+  const head = Math.min(SHRUNK_HEAD, Math.floor(cap / 2))
+  const tail = Math.min(SHRUNK_TAIL, Math.floor(cap / 2))
+  return `${text.slice(0, head)}\n[… ${String(text.length - head - tail)} characters left out …]\n${text.slice(-tail)}`
+}
+
+function shrinkBlock(block: ContentBlock, cap: number): ContentBlock {
+  if (block.type === 'text') return { ...block, text: shrinkText(block.text, cap) }
+  if (block.type === 'tool-call') return { ...block, arguments: shrinkText(block.arguments, cap) }
+  if (block.type === 'tool-result') return { ...block, content: block.content.map((part) => shrinkBlock(part, cap)) } as ContentBlock
+  return block
+}
+
+/**
+ * The region to summarize, cut down until the summarization request fits the window. Overflow recovery
+ * summarizes everything at once — measured 2026-10-16: after a 10k-token report the whole region no longer
+ * fit, the summary request itself was rejected, and the turn ended on the original overflow error. Long
+ * blocks (printed tables, a report in a call's arguments) lose their middle first; short ones stay whole.
+ */
+export function fitMessages(messages: readonly Message[], budgetTokens: number): readonly Message[] {
+  let shrunk = messages
+  for (let cap = 8000; charsToTokens(JSON.stringify(shrunk)) > budgetTokens && cap >= 200; cap = Math.floor(cap / 2)) {
+    shrunk = messages.map((message) => ({ ...message, content: message.content.map((block) => shrinkBlock(block, cap)) }) as Message)
+  }
+  return shrunk
+}
+
 export default class DataAnalysisCompaction extends BasicCompactionEngine {
   protected override async summarize(input: SummarizationInput, agent: Agent, signal?: AbortSignal): Promise<SummaryResult> {
     // `compaction` is one service per runtime (a preset cannot register its own), so this engine is
@@ -66,12 +100,14 @@ export default class DataAnalysisCompaction extends BasicCompactionEngine {
     const target = configured ?? agent.session.requestHeader()?.config ?? fallback
     if (target === undefined) throw new Error('no provider/model available for summarization')
 
+    const window = (await this.ctx.llm.resolveModelInfo(target.provider, target.model, signal)).context?.contextWindow
+    const messages = window === undefined ? input.messages : fitMessages(input.messages, window - this.config.maxTokens - charsToTokens(JSON.stringify(input.system ?? '') + JSON.stringify(input.tools ?? []) + INSTRUCTION))
     const instruction = createUserMessage({ content: [{ type: 'text', text: INSTRUCTION }], source: { kind: 'plugin', plugin: 'fox-harness-compaction-data-analysis' } })
     const assembler = new BlockAssembler()
     const stream = this.ctx.llm.stream({
       provider: target.provider,
       model: target.model,
-      messages: [...input.messages, instruction],
+      messages: [...messages, instruction],
       ...(input.system === undefined ? {} : { system: input.system }),
       ...(input.tools === undefined ? {} : { tools: [...input.tools] }),
       maxTokens: this.config.maxTokens,

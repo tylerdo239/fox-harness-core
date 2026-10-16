@@ -1,6 +1,6 @@
 ---
 name: time-series-analysis
-description: Temporal pattern detection and forecasting. Use when analyzing trends over time, detecting seasonality, identifying anomalies in time series, or building simple forecasting models for planning.
+description: "Chuỗi thời gian: xu hướng, mùa vụ, bất thường theo thời gian, dự báo đơn giản."
 user-invocable: false
 ---
 

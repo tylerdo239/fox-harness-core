@@ -1,6 +1,6 @@
 ---
 name: ml-modeling
-description: Xây dựng và thẩm định mô hình máy học cổ điển trên dữ liệu bảng — thiết kế feature an toàn không rò rỉ, chọn và huấn luyện mô hình (linear, tree ensemble, SVM, clustering, giảm chiều), tinh chỉnh siêu tham số, rồi đánh giá bằng baseline thật, chỉ số khớp bài toán kinh doanh, khoảng tin cậy, phân tích lỗi theo lát cắt và kiểm tra hiệu chuẩn. Dùng khi cần dự đoán, phân loại, phân cụm, hoặc khi cần phán quyết một mô hình đã huấn luyện có nên đưa vào dùng hay không.
+description: "Mô hình máy học trên dữ liệu bảng — dự đoán, phân loại, phân cụm: huấn luyện, so với baseline, quyết định có dùng được không."
 ---
 
 # ml-modeling — từ feature tới phán quyết go/no-go

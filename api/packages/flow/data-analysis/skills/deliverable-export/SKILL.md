@@ -1,6 +1,6 @@
 ---
 name: deliverable-export
-description: Xuất kết quả phân tích thành tệp bàn giao được trong workspace — bảng tính Excel nhiều sheet có định dạng và công thức, CSV/Parquet sạch, biểu đồ ảnh, hoặc báo cáo Markdown kèm số liệu. Dùng khi người dùng muốn nhận lại một tệp để tải về, gửi đi hay mở bằng Excel, thay vì chỉ đọc kết quả trong hội thoại.
+description: "Xuất kết quả thành tệp để tải về hoặc gửi đi: Excel nhiều sheet, CSV/Parquet, Word, ảnh biểu đồ, báo cáo Markdown."
 ---
 
 # deliverable-export — biến kết quả thành tệp bàn giao được

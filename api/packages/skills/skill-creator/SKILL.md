@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Thiết kế và lưu một skill riêng cho người dùng — chọn phạm vi không chồng lấn skill sẵn có, viết description để model chọn đúng lúc, rồi lưu bằng tool create_skill sau khi người dùng duyệt. Dùng khi người dùng muốn tạo skill mới, ví dụ "tạo skill", "viết skill", "skill mới".
+description: "Tạo và lưu một skill riêng cho người dùng, ví dụ \"tạo skill\", \"viết skill\", \"skill mới\"."
 ---
 
 # skill-creator — viết một skill được chọn đúng lúc

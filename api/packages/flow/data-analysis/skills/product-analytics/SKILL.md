@@ -1,6 +1,6 @@
 ---
 name: product-analytics
-description: Phân tích hành vi người dùng theo lát cắt — giữ chân theo nhóm đăng ký (cohort/retention), phễu chuyển đổi và điểm rơi rụng giữa các bước, và phân khúc khách hàng cùng chân dung từng nhóm. Dùng khi cần biết nhóm người dùng nào ở lại hay rời bỏ theo thời gian, người dùng rớt ở bước nào trong một hành trình nhiều bước, hoặc cần chia tập khách hàng thành các nhóm có ý nghĩa hành động được.
+description: "Phân tích hành vi người dùng: cohort/retention, phễu chuyển đổi và điểm rơi rụng, phân khúc khách hàng."
 ---
 
 # product-analytics — cắt lát hành vi người dùng

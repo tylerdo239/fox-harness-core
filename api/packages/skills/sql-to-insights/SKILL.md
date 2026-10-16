@@ -1,6 +1,6 @@
 ---
 name: sql-to-insights
-description: Turns SQL query results into a decision-ready business narrative with a headline finding, drivers, recommendation, and suitable chart. Use when the user shares query results (or a table) and asks what they mean or wants a non-technical summary.
+description: "Biến kết quả truy vấn hoặc một bảng thành tóm tắt kinh doanh dễ hiểu: phát hiện chính, nguyên nhân, đề xuất."
 user-invocable: false
 ---
 

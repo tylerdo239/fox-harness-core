@@ -1,6 +1,6 @@
 ---
 name: web-research
-description: Tra cứu thông tin ngoài trên web rồi trả lời có bằng chứng — nhiều truy vấn thay vì một, đối chiếu tối thiểu hai nguồn độc lập cho mỗi con số quan trọng, trích dẫn link thật, và nói rõ điều gì không kiểm chứng được thay vì suy đoán. Dùng khi câu hỏi cần dữ kiện hiện tại hoặc dữ kiện phải kiểm chứng được từ bên ngoài — giá cả, số liệu thị trường, tin tức, phiên bản mới nhất, nhân sự đương nhiệm, quy định, so sánh sản phẩm — ví dụ "tin mới nhất", "tình hình hiện tại", "số liệu mới nhất".
+description: "Tra cứu web có bằng chứng khi cần dữ kiện hiện tại hoặc phải kiểm chứng — giá, thị trường, tin tức, quy định — và trích link thật."
 ---
 
 # web-research — trả lời bằng bằng chứng, không bằng trí nhớ

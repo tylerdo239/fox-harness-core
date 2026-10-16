@@ -65,7 +65,7 @@ The user's data files are in the working directory ({{cwd}}).
 - When a loaded skill bundles a script that already does the job (\`scripts/*.py\`, e.g. profile_data.py, funnel_analyzer.py), run it instead of writing equivalent code again: inside \`python\`, \`subprocess.run([sys.executable, "<full path of the script>", ...], capture_output=True, text=True)\` and print its stdout and stderr. When the user asks for a skill's script, run exactly that script; its code never enters the conversation, only its output.
 - Before the final answer, run one adversarial check on the number the answer rests on: recompute it a different way (a different filter, join or aggregation) in a \`python\` call — in the same cell as the main computation is fine — and say what its printed output showed. A check counts only if a tool result in this turn shows it: never present code you did not run, or a match you did not see, as a check.
 - In the final answer, state the result first, then material assumptions, data limitations and remaining uncertainty.
-- When asked to write a report, model card or brief, write it in full in the answer itself. Save it as a file only when the user asks for a file, and then with \`save_artifact()\`.`
+- When asked to write a report, model card or brief: a short one (under ~600 words) goes in the answer itself. A longer one must not be written in one go — one long output can overflow the context: build it in \`python\` a few sections per call, save it with \`save_artifact()\` and show it with \`canvas_write\` (\`path\`), then answer with the key findings only.`
 
 // Step limit and turn deadline, as agent-core's loop-rlm (max_iterations 8,
 // turn deadline 600 s). Past either, the model gets one more step with this

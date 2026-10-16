@@ -1,6 +1,6 @@
 ---
 name: data-profiling
-description: Lập hồ sơ và kiểm định chất lượng một dataset — cấu trúc, kiểu dữ liệu, tỷ lệ null, phân phối, giá trị bất thường, bản ghi trùng, toàn vẹn tham chiếu, độ tươi của dữ liệu, và đối chiếu với quy tắc nghiệp vụ. Dùng khi gặp một bảng/tệp mới chưa biết gì về nó, khi cần kiểm tra dữ liệu trước lúc phân tích hay đưa vào production, hoặc khi cần một bảng điểm chất lượng cho một data asset.
+description: "Lập hồ sơ và kiểm tra chất lượng một dataset mới — kiểu dữ liệu, null, trùng, bất thường, phân phối — trước khi phân tích."
 ---
 
 # data-profiling — hiểu và kiểm định một dataset
