@@ -1,6 +1,6 @@
 ---
 name: statistical-analysis
-description: Áp dụng các phương pháp thống kê, gồm thống kê mô tả, phân tích xu hướng, phát hiện ngoại lệ và kiểm định giả thuyết. Sử dụng khi phân tích phân phối, kiểm định ý nghĩa thống kê, phát hiện bất thường, tính tương quan hoặc diễn giải kết quả thống kê.
+description: "Thống kê mô tả, xu hướng, ngoại lệ, tương quan và kiểm định giả thuyết; diễn giải kết quả thống kê."
 user-invocable: false
 ---
 

@@ -36,7 +36,9 @@
     searchProvider: serper
 
 # Compaction for a small context window (OPENAI_CONTEXT_WINDOW): compact earlier than the 0.8 default and
-# cap the summary so the summarization request still fits. dsh-compaction-basic with the data-analysis
+# cap the summary so the summarization request still fits. 0.6, not 0.7 (measured 2026-10-16, 24k window):
+# a step may still write several thousand tokens after the check, and the meter prices new text at 4
+# characters per token where Vietnamese runs ~2.7, so new content is underpriced by about a third. dsh-compaction-basic with the data-analysis
 # summary for that flow's agents (one `compaction` service per runtime; other flows keep the default).
 - id: compaction-basic
   disabled: true
@@ -44,7 +46,7 @@
     - id: fox-harness-compaction
       name: '@fox-harness/dsh-flow-data-analysis/compaction'
       config:
-        thresholdRatio: 0.7
+        thresholdRatio: 0.6
         maxTokens: 4096
 
 # The data-analysis flow's own skills, next to the built-in ones ($DSH_BUNDLED_SKILL_DIR). Per-user skills

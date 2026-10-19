@@ -1,6 +1,6 @@
 ---
 name: support-tone
-description: Chuẩn hoá giọng văn khi người dùng báo lỗi, khiếu nại hoặc gặp sự cố — ví dụ "khiếu nại", "sự cố", "lỗi mạng", "không dùng được", "không kết nối được", "báo lỗi". Xác nhận vấn đề, hỏi thông tin còn thiếu, đề xuất bước xử lý tiếp theo.
+description: "Giọng văn khi người dùng báo lỗi, khiếu nại hoặc gặp sự cố, ví dụ \"khiếu nại\", \"lỗi mạng\", \"không dùng được\", \"không kết nối được\"."
 ---
 
 # support-tone — trả lời người đang gặp sự cố
