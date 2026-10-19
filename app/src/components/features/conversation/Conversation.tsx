@@ -76,6 +76,7 @@ import {
 import { toast } from "sonner";
 
 import {
+  ArrowDownIcon,
   BrandIcon,
   ChevronDownIcon,
   DataAnalysisIcon,
@@ -115,6 +116,7 @@ import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
 import { WorkspaceFiles } from "../canvas/WorkspaceFiles.tsx";
 import { loadCanvasHistory, parseCanvasMarker, receiveCanvasMarker, stripCanvasMarker } from "../canvas/canvas.ts";
 import { CanvasChip, CanvasReopenBar, type CanvasChipEntry } from "../canvas/CanvasChip.tsx";
+import { useStickToBottom } from "./useStickToBottom.ts";
 import { useCanvasStore } from "../canvas/store.ts";
 
 // docs/skill-transfer-plan.md, giai đoạn 3: the `create_skill` tool only
@@ -1397,6 +1399,7 @@ export function Conversation({
   function handleFrame(frame: ServerToClient): void {
     switch (frame.type) {
       case "snapshot":
+        jumpPendingRef.current = true;
         useCanvasStore.getState().reset(sessionIdRef.current || undefined);
         setEntries([]);
         setLiveBubbles(new Map());
@@ -1435,10 +1438,15 @@ export function Conversation({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Scrolling (useStickToBottom.ts): follow new content only while the reader is at the bottom.
+  const { atBottom, scrollToBottom, jumpToBottom } = useStickToBottom(logRef);
+  // A chat just opened (its snapshot replayed): land at the end once it has rendered, without animating.
+  const jumpPendingRef = useRef(false);
   useEffect(() => {
-    const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [entries, liveBubbles, running]);
+    if (!jumpPendingRef.current) return;
+    jumpPendingRef.current = false;
+    requestAnimationFrame(jumpToBottom);
+  }, [entries, jumpToBottom]);
 
   // Auto-grow the composer with content (`text` dependency covers both
   // typing AND the `setText('')` reset after send, so it collapses back
@@ -1526,6 +1534,8 @@ export function Conversation({
     if ((!trimmed && attachments.ready === 0) || run || !runtime.connected || attachments.uploading) return;
     runtime.send({ type: "followup", text: withAttachments(trimmed, attachments.take()) });
     setText("");
+    // the reader's own message: back to the bottom, following the reply
+    scrollToBottom();
     // The status row shows right away instead of waiting for `turn/start`.
     setRun({ startedAt: Date.now(), tools: 0 });
   }
@@ -1604,7 +1614,10 @@ export function Conversation({
               isExpanded={(id) => expandedDetails.has(id)}
               onToggleExpanded={toggleDetailExpanded}
               alwaysExpandDataStudio={variant === "data-studio"}
-              onFollowUp={(question) => runtime.send({ type: "followup", text: question })}
+              onFollowUp={(question) => {
+                runtime.send({ type: "followup", text: question });
+                scrollToBottom();
+              }}
               t={t}
               locale={locale}
             />
@@ -1636,6 +1649,18 @@ export function Conversation({
                 <span>{t("conversation.disconnectedWhileRunning")}</span>
               )}
             </div>
+          )}
+          {/* the reader is above the end: one click glides back down and follows again */}
+          {!atBottom && (
+            <button
+              type="button"
+              className="fh-scroll-latest"
+              onClick={scrollToBottom}
+              title={t("conversation.scrollToLatest")}
+              aria-label={t("conversation.scrollToLatest")}
+            >
+              <ArrowDownIcon size={16} />
+            </button>
           )}
         </div>
       )}

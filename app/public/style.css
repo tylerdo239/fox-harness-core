@@ -1213,6 +1213,42 @@ button:disabled {
   flex-shrink: 0;
 }
 
+/* "Jump to latest" (useStickToBottom.ts, 2026-10-19): shown only while the reader is above the end. Sticky inside
+ * the log, so it floats at the bottom of the visible part; the negative margin cancels its own height and the log's
+ * gap, so it never shifts the messages above it. */
+#log > .fh-scroll-latest {
+  position: sticky;
+  bottom: 12px;
+  z-index: 2;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  margin-top: calc(-32px - 1rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--shadow-lv2);
+  cursor: pointer;
+  animation: fh-scroll-latest-in 160ms ease-out;
+  transition: background 120ms ease, transform 120ms ease;
+}
+#log > .fh-scroll-latest:hover {
+  background: var(--bg-hover, var(--surface));
+  transform: translateY(1px);
+}
+@keyframes fh-scroll-latest-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #log > .fh-scroll-latest { animation: none; transition: none; }
+}
+
 /* Phase 14: real dsh bubble radius (`MessageItem.module.css`, 22px) — the
  * SAME radius the composer card below uses, a deliberate real visual echo
  * between the two, not independently chosen values. */

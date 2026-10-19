@@ -187,6 +187,7 @@ export const vi = {
   "conversation.emptyHeading": "Bắt đầu cuộc trò chuyện",
   "conversation.placeholder": "Nhắn cho agent…",
   "conversation.send": "Gửi",
+  "conversation.scrollToLatest": "Xuống tin mới nhất",
   // Status row and Stop button while a reply runs (Conversation.tsx).
   "conversation.stop": "Dừng",
   "conversation.thinking": "Đang suy nghĩ…",
@@ -719,6 +720,7 @@ export const en: Record<TranslationKey, string> = {
   "conversation.emptyHeading": "Start a conversation",
   "conversation.placeholder": "Message the agent…",
   "conversation.send": "Send",
+  "conversation.scrollToLatest": "Jump to latest",
   "conversation.stop": "Stop",
   "conversation.thinking": "Thinking…",
   "conversation.runningTool": "Running a tool…",

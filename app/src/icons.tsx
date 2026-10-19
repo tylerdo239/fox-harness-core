@@ -45,6 +45,8 @@ export {
   // the bare native `<select>` with a real styled dropdown matching the
   // Theme picker's own polish right above it.
   ChevronDown as ChevronDownIcon,
+  // Conversation.tsx's "jump to latest" button (useStickToBottom.ts)
+  ArrowDown as ArrowDownIcon,
   // HistoryChat.tsx's per-row "..." menu (2026-09-10) — `MoreIcon` (already
   // exists, reused) is the row's trigger; `TrashIcon` is the popup's Delete
   // item, next to the existing `PencilIcon` Rename item.
