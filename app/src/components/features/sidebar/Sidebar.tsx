@@ -17,6 +17,7 @@ import { Input } from "../../primitives/Input.tsx";
 import { MenuItem } from "../../primitives/MenuItem.tsx";
 import { AccountMenu } from "./AccountMenu.tsx";
 import { HistoryChat } from "./HistoryChat.tsx";
+import { SidebarProjects } from "./SidebarProjects.tsx";
 
 // Phase 15 (2026-09-08) — rebuilt against dsh-client-ui-sidebar's real
 // structure. Follow-up the same day: user shared a real screenshot of the
@@ -54,6 +55,7 @@ export function Sidebar({
   onToggleCollapse,
   onNewSession,
   onOpenDataAnalysis,
+  onOpenProject,
   dataAnalysisActive,
   onOpenDataStudio,
   newSessionDisabled,
@@ -67,6 +69,7 @@ export function Sidebar({
   // docs/rlm-transfer-plan.md 9.1: shows the data-analysis project hub in the
   // center column — data chats live inside projects, as in agent-core.
   onOpenDataAnalysis: () => void;
+  onOpenProject: (projectId: string | null) => void;
   dataAnalysisActive: boolean;
   // docs/data-studio-agent-transfer-plan.md: `analyze_data` is a plain tool
   // in every session's default profile already — no flow/hub to open, so
@@ -192,6 +195,7 @@ export function Sidebar({
       </MenuItem>
 
       <div className="fh-sidebar-region">
+        <SidebarProjects onOpenProject={onOpenProject} />
         <HistoryChat query={query} />
       </div>
 

@@ -66,6 +66,7 @@ export {
   BarChart3 as DataAnalysisIcon,
   Paperclip as PaperclipIcon,
   Folder as FolderIcon,
+  FolderOpen as FolderOpenIcon,
   // Project hub (docs/rlm-transfer-plan.md 9.1) — same glyphs as agent-core's ui-projects.
   ArrowLeft as ArrowLeftIcon,
   FileOutput as FileOutputIcon,
