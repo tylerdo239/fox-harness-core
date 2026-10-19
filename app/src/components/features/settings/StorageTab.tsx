@@ -231,11 +231,12 @@ export function StorageTab() {
   )
 }
 
+const DEFAULT_CLEANUP_DAYS = 90
+
 function AdminStorageSection({ onChanged }: { onChanged: () => Promise<void> }) {
   const runtime = useRuntime()
   const { t, locale } = useLocale()
   const [overview, setOverview] = useState<AdminStorage>()
-  const [days, setDays] = useState('90')
   const [preview, setPreview] = useState<CleanupResult>()
   const [running, setRunning] = useState(false)
 
@@ -252,8 +253,9 @@ function AdminStorageSection({ onChanged }: { onChanged: () => Promise<void> }) 
     void load()
   }, [load])
 
-  const olderThanDays = Number(days)
-  const validDays = Number.isInteger(olderThanDays) && olderThanDays >= 1
+  // no days to type in: the gateway's own FILE_RETENTION_DAYS, or 90 when automatic cleanup is off
+  const olderThanDays = overview && overview.fileRetentionDays > 0 ? overview.fileRetentionDays : DEFAULT_CLEANUP_DAYS
+  const validDays = overview !== undefined
 
   async function cleanup(dryRun: boolean): Promise<void> {
     if (!validDays) return
@@ -309,7 +311,7 @@ function AdminStorageSection({ onChanged }: { onChanged: () => Promise<void> }) 
                 <span className="fh-storage-file-name">{user.email}</span>
                 <span className="fh-storage-size">
                   {formatSize(user.usedBytes)}
-                  {overview.quotaBytes > 0 && ` / ${formatSize(overview.quotaBytes)}`}
+                  {user.quotaBytes > 0 && ` / ${formatSize(user.quotaBytes)}`}
                 </span>
               </li>
             ))}
@@ -319,24 +321,12 @@ function AdminStorageSection({ onChanged }: { onChanged: () => Promise<void> }) 
       <div className="fh-settings-field-group">
         <div className="fh-settings-section-title">{t('storage.cleanup')}</div>
         <p className="ds-muted fh-storage-hint">
-          {t('storage.cleanupHint')}{' '}
+          {t('storage.cleanupHint', { days: String(olderThanDays) })}{' '}
           {overview.fileRetentionDays > 0
             ? t('storage.retentionOn', { days: String(overview.fileRetentionDays) })
             : t('storage.retentionOff')}
         </p>
         <div className="ds-field-row fh-storage-cleanup">
-          <label className="ds-field">
-            <span>{t('storage.olderThan')}</span>
-            <input
-              type="number"
-              min={1}
-              value={days}
-              onChange={(event) => {
-                setDays(event.target.value)
-                setPreview(undefined)
-              }}
-            />
-          </label>
           <Button variant="outline" disabled={!validDays || running} onClick={() => void cleanup(true)}>
             {t('storage.preview')}
           </Button>

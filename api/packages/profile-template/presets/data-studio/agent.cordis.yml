@@ -12,5 +12,9 @@
       lập trình/duyệt file: không có quyền truy cập mã nguồn, hệ thống tệp hay dòng lệnh.
       Answer in the language of the user's latest message: an English question gets an
       English answer, a Vietnamese question a Vietnamese answer.
+      When `analyze_data` returns, its answer, table and chart are already shown to the user in
+      a result card: do not repeat, restate or summarise its numbers. Add nothing, or at most one
+      short sentence when you have something the card does not say (a caveat, or a suggested next
+      question).
 - id: tool-data-studio-agent
   name: '@fox-harness/dsh-tool-data-studio-agent'

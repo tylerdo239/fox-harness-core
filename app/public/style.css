@@ -3248,10 +3248,11 @@ button.fh-data-studio-tab:hover {
   background: var(--surface);
 }
 
+/* the brand orange (2026-10-19), like the data-profile screens' own buttons and links (src/ref/ref.css) */
 button.fh-data-studio-tab-active {
-  color: var(--fg);
-  border-color: var(--border);
-  background: var(--surface);
+  color: var(--accent-text);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .fh-data-studio-relationship-arrow {

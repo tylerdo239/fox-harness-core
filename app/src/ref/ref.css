@@ -7,6 +7,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The app's brand orange (public/style.css), captured on :root where --accent still means the app's: inside .fh-ref
+   --accent is the reference's own (a neutral hover background). tailwind.ref.config.cjs points `primary` and `ring`
+   at these, so buttons, links and active states follow the app theme, dark mode and a design-system override. */
+:root {
+  --fh-ref-brand: var(--accent);
+  --fh-ref-brand-text: var(--accent-text);
+  --fh-ref-brand-contrast: var(--accent-contrast);
+}
+
 .fh-ref {
   --background: 0 0% 100%;
   --foreground: 20 14% 12%;

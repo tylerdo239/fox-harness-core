@@ -13,7 +13,7 @@ Vì vậy mọi giới hạn dưới đây chỉ tính **file** (upload và file
 
 | Lớp                    | Cách                                                                                                                          | Cấu hình                                                    |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Quota mỗi user         | Trước mỗi upload: tổng file của user (mọi chat và dự án của họ) + cỡ file sắp lên > quota → **507 `storage_quota`**, không ghi byte nào | `USER_FILE_QUOTA_BYTES` (mặc định 200 MB, 0 = tắt)          |
+| Quota mỗi user         | Trước mỗi upload: tổng file của user (mọi chat và dự án của họ) + cỡ file sắp lên > quota → **507 `storage_quota`**, không ghi byte nào | `USER_FILE_QUOTA_BYTES` (mặc định 200 MB, 0 = tắt). **Admin không bị giới hạn** (từ 2026-10-19); giới hạn bucket đầy vẫn áp cho admin |
 | Chặn khi bucket đầy    | Đo bucket mỗi `STORAGE_SCAN_INTERVAL_MS` (1 lượt `ListObjectsV2` cả bucket); giữa 2 lần đo cộng thêm những gì đã đẩy lên. Từ `STORAGE_BLOCK_PERCENT` mọi upload → **507 `storage_full`** | `S3_BUCKET_CAPACITY_BYTES` (0 = không đo), `STORAGE_WARN_PERCENT` 80, `STORAGE_BLOCK_PERCENT` 95, `STORAGE_SCAN_INTERVAL_MS` 1 giờ |
 | Dọn file không dùng    | Xoá mọi file của chat/dự án không ai dùng quá N ngày. **Đoạn chat vẫn còn**, chỉ mất file. Chạy theo lịch, hoặc admin bấm      | `FILE_RETENTION_DAYS` (0 = không tự dọn); admin: `POST /admin/storage/cleanup` |
 

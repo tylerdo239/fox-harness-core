@@ -30,10 +30,7 @@ import { OPEN_STORAGE_EVENT } from "./components/features/settings/storageApi.ts
 import { SkillsDialog } from "./components/features/skills/SkillsDialog.tsx";
 import { DataStudioDashboards } from "./components/features/data-studio/DataStudioDashboards.tsx";
 import { DataStudioDataSources } from "./components/features/data-studio/DataStudioDataSources.tsx";
-import { DataStudioGlossary } from "./components/features/data-studio/DataStudioGlossary.tsx";
-import { DataStudioMetrics } from "./components/features/data-studio/DataStudioMetrics.tsx";
 import { DataStudioProfile } from "./components/features/data-studio/DataStudioProfile.tsx";
-import { DataStudioRelationships } from "./components/features/data-studio/DataStudioRelationships.tsx";
 import {
   DataStudioSidebar,
   type DataStudioSection,
@@ -1117,6 +1114,11 @@ function AppInner() {
             // Explicit non-`undefined` flow bypasses startNewSession's "already on an empty session" no-op
             // guard — a deliberate context switch, not a redundant "New chat" click.
             onBackToMain={() => startNewSession("default")}
+            onOpenSettings={() => {
+              setSettingsTab(undefined);
+              setSettingsOpen(true);
+            }}
+            onLogout={handleLogout}
           />
         ) : (
           <Sidebar
@@ -1152,12 +1154,6 @@ function AppInner() {
               </>
             ) : visibleDataStudioSection === "data-sources" ? (
               <DataStudioDataSources />
-            ) : visibleDataStudioSection === "glossary" ? (
-              <DataStudioGlossary />
-            ) : visibleDataStudioSection === "relationships" ? (
-              <DataStudioRelationships />
-            ) : visibleDataStudioSection === "metrics" ? (
-              <DataStudioMetrics />
             ) : visibleDataStudioSection === "profile" ? (
               <DataStudioProfile />
             ) : (

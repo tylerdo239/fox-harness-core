@@ -36,6 +36,9 @@ const BACKEND = new URL(process.env.BACKEND_URL)
 // The API paths come from nginx.conf.template itself, so the dev server and the web container never disagree.
 const nginxConf = readFileSync(fileURLToPath(new URL('../nginx.conf.template', import.meta.url)), 'utf8')
 const API_PATH = new RegExp(/location ~ (\^\/\([^)]*\)\(\/\|\$\))/.exec(nginxConf)[1])
+// Browser routes under an API prefix (the Data Studio pages): every `location ~ <re> {` that serves /index.html.
+const SPA_PATHS = [...nginxConf.matchAll(/location ~ (\S+) \{\s*try_files \/index\.html/g)].map((m) => new RegExp(m[1]))
+const isApi = (pathname) => API_PATH.test(pathname) && !SPA_PATHS.some((re) => re.test(pathname))
 
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -89,7 +92,7 @@ function proxyHttp(req, res) {
 
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost')
-  if (API_PATH.test(url.pathname)) return proxyHttp(req, res)
+  if (isApi(url.pathname)) return proxyHttp(req, res)
   const requestedPathname = decodeURIComponent(url.pathname)
   let pathname = requestedPathname
   if (pathname === '/') pathname = '/index.html'
@@ -122,7 +125,7 @@ const server = createServer((req, res) => {
 // The chat WebSocket: hand the upgrade request to the backend byte for byte and splice the two sockets.
 server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url ?? '/', 'http://localhost')
-  if (!API_PATH.test(url.pathname)) return socket.destroy()
+  if (!isApi(url.pathname)) return socket.destroy()
   const port = Number(BACKEND.port || (BACKEND.protocol === 'https:' ? 443 : 80))
   const upstream = BACKEND.protocol === 'https:'
     ? tlsConnect({ host: BACKEND.hostname, port, servername: BACKEND.hostname })

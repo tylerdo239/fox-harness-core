@@ -3,6 +3,10 @@
 // .fh-ref instead), every utility scoped to .fh-ref (`important`) so it neither leaks into the rest of the app
 // nor loses to the app's global `button` / `input[type=text]` rules, and dark mode follows the app's own
 // [data-theme] / prefers-color-scheme switch (src/useTheme.ts) instead of a `.dark` class.
+// `primary` (buttons, links, active states) and `ring` are the app's brand orange, not the reference's brown
+// (2026-10-19): src/ref/ref.css captures it as --fh-ref-brand*. As text it is the legible --accent-text variant,
+// the same split public/style.css makes. color-mix keeps the opacity modifiers (bg-primary/10, text-primary/80).
+const brand = (variable) => `color-mix(in srgb, var(${variable}) calc(<alpha-value> * 100%), transparent)`
 module.exports = {
   content: ['./src/ref/**/*.{ts,tsx}', './src/components/features/data-studio/DataStudioProfile.tsx'],
   important: '.fh-ref',
@@ -13,16 +17,19 @@ module.exports = {
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
+        ring: brand('--fh-ref-brand'),
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
-        primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
+        primary: { DEFAULT: brand('--fh-ref-brand'), foreground: brand('--fh-ref-brand-contrast') },
         secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
         destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
         muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
         accent: { DEFAULT: 'hsl(var(--accent))', foreground: 'hsl(var(--accent-foreground))' },
         popover: { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
         card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
+      },
+      textColor: {
+        primary: { DEFAULT: brand('--fh-ref-brand-text'), foreground: brand('--fh-ref-brand-contrast') },
       },
       borderRadius: { lg: 'var(--radius)', md: 'calc(var(--radius) - 2px)', sm: 'calc(var(--radius) - 4px)' },
     },

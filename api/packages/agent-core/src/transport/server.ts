@@ -27,11 +27,20 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { resolve, sep } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
+import { KNOWN_SESSION_EVENT_TYPES } from '@deepseek-ai/dsh-session'
 import type { MessageId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { WebSocketServer, type WebSocket } from 'ws'
 
 import { FLOW_RE, joinFlow } from './flows.ts'
+
+// Log-only event types our own plugins append to a session (packages/tool/data-studio-agent's progress steps). dsh
+// refuses to resume a log holding a type it does not know, and a plugin can only add its own once it is loaded —
+// which, after a runtime restart, comes after the first resume of such a chat: the Data Studio preset loads with the
+// agent that the resume is building (2026-10-19: every Data Studio chat with a progress step failed to reopen after
+// a restart, SessionFormatUnsupported). Registered here, by the module that does the resuming.
+const PLUGIN_EVENT_TYPES = ['fox/data-studio-progress']
+for (const type of PLUGIN_EVENT_TYPES) (KNOWN_SESSION_EVENT_TYPES as Set<string>).add(type)
 
 type ClientToServer = { type: 'followup'; text: string } | { type: 'steer'; text: string } | { type: 'cancel' }
 

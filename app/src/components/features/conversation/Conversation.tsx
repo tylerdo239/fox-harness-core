@@ -574,6 +574,29 @@ function rowsToMarkdownTable(columns: string[], rows: Record<string, unknown>[])
   return [header, divider, ...body].join("\n");
 }
 
+// Data Studio (2026-10-19): the result card already shows the pipeline's answer, and the model then often wrote
+// the same answer again under it (session 7ba2a86e: the same four counts twice). The persona tells it not to;
+// this hides a reply that still does — most of its numbers are the card's — so the pipeline's answer, the one
+// the chart and SQL come from, is the only one shown. A reply with something new (a caveat, no numbers) stays.
+function numbersOf(text: string): string[] {
+  return (text.match(/\d[\d.,]*/g) ?? []).map((n) => n.replace(/[.,]+$/, "").replace(/[.,]/g, ""));
+}
+export function restatesAnswer(reply: string, answer: string): boolean {
+  const said = numbersOf(reply);
+  if (said.length < 2) return false;
+  const known = new Set(numbersOf(answer));
+  return said.filter((n) => known.has(n)).length / said.length >= 0.6;
+}
+function withoutRestatedAnswers(entries: LogEntry[]): LogEntry[] {
+  let answer: string | undefined;
+  return entries.filter((entry) => {
+    if (entry.kind === "bubble" && entry.role === "user") answer = undefined;
+    if (entry.kind === "data-studio") answer = entry.answer ?? answer;
+    if (entry.kind === "bubble" && entry.role === "assistant" && answer !== undefined) return !restatesAnswer(entry.text, answer);
+    return true;
+  });
+}
+
 // docs/data-studio-agent-transfer-plan.md — result pill for `analyze_data` (default chat only; the Data Studio
 // route renders `DataStudioAnswer` inline instead). Collapsed by default, same `expandedDetails`/
 // `toggleDetailExpanded` state every other pill in this file uses.
@@ -1574,7 +1597,7 @@ export function Conversation({
       {variant === "default" && <CanvasReopenBar />}
       {!isEmpty && (
         <div id="log" ref={logRef}>
-          {entries.map((entry) => (
+          {(variant === "data-studio" ? withoutRestatedAnswers(entries) : entries).map((entry) => (
             <LogEntryView
               key={entry.id}
               entry={entry}

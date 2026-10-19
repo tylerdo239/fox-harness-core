@@ -84,9 +84,6 @@ export {
   Database as DataStudioIcon,
   // DataStudioSidebar.tsx's own section nav.
   Server as DataSourcesIcon,
-  BookOpen as GlossaryIcon,
-  Waypoints as RelationshipsIcon,
-  Gauge as MetricsIcon,
   LayoutDashboard as DashboardsIcon,
   // Conversation.tsx's "pin chart to dashboard" button (docs/data-studio-admin-ui-plan.md phase 5).
   Pin as PinIcon,

@@ -7,6 +7,7 @@ import { config } from '../config.ts'
 import {
   getProjectActivity,
   getSessionActivity,
+  getUserById,
   listProjectsForOwner,
   listSessionPlacementsForOwner,
   listSessionIdsForProject,
@@ -65,6 +66,15 @@ async function ownedDirs(userId: number): Promise<OwnedDir[]> {
   return out
 }
 
+/**
+ * A user's own quota: USER_FILE_QUOTA_BYTES, or 0 (no limit) for an admin (2026-10-19). Read from the database on
+ * every call, so a role change counts at once. The bucket's own limit (bucketFull) still applies to everyone.
+ */
+async function quotaFor(userId: number): Promise<number> {
+  if (config.storage.userQuotaBytes <= 0) return 0
+  return (await getUserById(userId))?.role === 'admin' ? 0 : config.storage.userQuotaBytes
+}
+
 /** Bytes a user's files take. */
 export async function userUsedBytes(userId: number): Promise<number> {
   let bytes = 0
@@ -108,7 +118,7 @@ export async function userStorage(userId: number): Promise<UserStorage> {
   dirs.sort((a, b) => b.bytes - a.bytes)
   return {
     usedBytes,
-    quotaBytes: config.storage.userQuotaBytes,
+    quotaBytes: await quotaFor(userId),
     warnPercent: config.storage.warnPercent,
     bucketFull: bucketFull(),
     dirs,
@@ -124,7 +134,8 @@ export async function checkUpload(userId: number, incoming: number): Promise<Upl
   if (bucketFull(incoming)) {
     return { ok: false, status: 507, code: 'storage_full', error: 'storage is full: delete old files, or ask an admin to free space' }
   }
-  const quotaBytes = config.storage.userQuotaBytes
+  // the folder owner's quota: none for an admin
+  const quotaBytes = await quotaFor(userId)
   if (quotaBytes <= 0) return { ok: true }
   const usedBytes = await userUsedBytes(userId)
   if (usedBytes + incoming <= quotaBytes) return { ok: true }
@@ -147,13 +158,17 @@ export interface AdminStorage {
   bucket: BucketStatus
   quotaBytes: number
   fileRetentionDays: number
-  users: { userId: number; email: string; usedBytes: number }[]
+  /** quotaBytes: that user's own (0 = no limit: an admin) */
+  users: { userId: number; email: string; usedBytes: number; quotaBytes: number }[]
 }
 
 /** GET /admin/storage: the bucket and every user's usage, biggest first. */
 export async function storageOverview(): Promise<AdminStorage> {
   const users: AdminStorage['users'] = []
-  for (const user of await listUsers()) users.push({ userId: user.id, email: user.email, usedBytes: await userUsedBytes(user.id) })
+  for (const user of await listUsers()) {
+    const quotaBytes = user.role === 'admin' ? 0 : config.storage.userQuotaBytes
+    users.push({ userId: user.id, email: user.email, usedBytes: await userUsedBytes(user.id), quotaBytes })
+  }
   users.sort((a, b) => b.usedBytes - a.usedBytes)
   return { bucket: bucketStatus(), quotaBytes: config.storage.userQuotaBytes, fileRetentionDays: config.storage.fileRetentionDays, users }
 }

@@ -29,6 +29,9 @@ The web container makes no outbound call.
 
 - Serves the SPA and forwards `/auth`, `/sessions` (including the chat WebSocket), `/projects`, `/skills`,
   `/custom-skills`, `/models`, `/users`, `/storage`, `/admin`, `/data-studio`, `/healthz`, `/readyz` to `BACKEND_URL`.
+  Except the Data Studio **pages** `/data-studio` and `/data-studio/chat/<id>`: the SPA serves those (the API is
+  `/data-studio/<resource>`). An ingress that routes by path itself must keep that exception, or a reload of a Data
+  Studio page answers `{"error":"not found"}`.
   Point your load balancer / TLS terminator at this container.
 - **`BACKEND_URL` is required** (no default; `app/.env.example`): the backend's internal address, e.g.
   `http://fox-backend:4000`. Without it, or without `http(s)://`, the container refuses to start. It is read at

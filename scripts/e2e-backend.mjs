@@ -150,7 +150,15 @@ const tests = {
     const ready = await waitReady()
     const index = await fetch(`${BASE}/`)
     const spa = await fetch(`${BASE}/chat/${randomUUID()}`)
-    return { ok: ready.ok && ready.shards.length >= 1 && index.status === 200 && (await index.text()).includes('<div id') && spa.status === 200, detail: `readyz shards=${JSON.stringify(ready.shards.map((s) => s.up))}, SPA index+/chat/<id> served by nginx` }
+    // the Data Studio pages share the /data-studio prefix with its API: a reload must get the SPA, the API the backend
+    const isHtml = async (path) => { const r = await fetch(`${BASE}${path}`); return r.status === 200 && (r.headers.get('content-type') ?? '').startsWith('text/html') }
+    const dsPages = (await isHtml('/data-studio')) && (await isHtml(`/data-studio/chat/${randomUUID()}`))
+    const dsApi = await fetch(`${BASE}/data-studio/sources`)
+    const dsApiProxied = dsApi.status === 401 && (dsApi.headers.get('content-type') ?? '').includes('json')
+    return {
+      ok: ready.ok && ready.shards.length >= 1 && index.status === 200 && (await index.text()).includes('<div id') && spa.status === 200 && dsPages && dsApiProxied,
+      detail: `readyz shards=${JSON.stringify(ready.shards.map((s) => s.up))}, SPA index+/chat/<id> served by nginx, /data-studio pages=${dsPages} api proxied=${dsApiProxied}`,
+    }
   },
 
   async chatAndList() {
@@ -677,7 +685,17 @@ const tests = {
     const reopened = await again.ready().then(() => true, () => false)
     const replayed = again.events.filter((e) => e.type === 'fox/data-studio-progress').length
     again.close()
-    return { ok: progress > 0 && reopened && replayed === progress && again.errors.length === 0, detail: `progress events=${progress}, reopened=${reopened}, replayed=${replayed}, errors=${JSON.stringify(again.errors)}` }
+    // the first reopen after a restart (2026-10-19): the runtime resumes the log before the Data Studio plugin has
+    // loaded, so the progress event type must already be known (SessionFormatUnsupported otherwise)
+    execFileSync('docker', ['restart', '-t', '30', BACKEND], { stdio: 'ignore' })
+    await waitReady()
+    const afterRestart = chat(a.token, { session: id }); await afterRestart.opened
+    const reopenedAfterRestart = await afterRestart.ready().then(() => true, () => false)
+    afterRestart.close()
+    return {
+      ok: progress > 0 && reopened && replayed === progress && again.errors.length === 0 && reopenedAfterRestart,
+      detail: `progress events=${progress}, reopened=${reopened}, replayed=${replayed}, after restart=${reopenedAfterRestart}, errors=${JSON.stringify(again.errors)}`,
+    }
   },
 
   // Session logs go to S3 (sessions/<owner>/<session>/...), come back when a chat whose log left the disk is reopened,
@@ -797,9 +815,17 @@ const tests = {
     rows.push(['not downloaded to delete it', dx('sh', '-c', `test -e ${dir}/far.csv && echo yes || echo no`).trim(), 'no'])
     rows.push(['gone from S3 (evicted)', s3('versions', farKey).includes(farKey), false])
 
+    // an admin has no quota of their own (the bucket's limit still applies)
+    const boss = await newUser('quotaadmin', 'admin')
+    const bc = chat(boss.token); await bc.opened; await bc.ready(); bc.close()
+    const bossUp = (name, bytes) => api('POST', `/sessions/${bc.sessionId}/files?name=${name}`, boss.token, 'x'.repeat(bytes), true)
+    rows.push(['admin: past the user quota', `${(await bossUp('a.bin', 1.5 * MB)).status} ${(await bossUp('b.bin', 1.5 * MB)).status}`, '201 201'])
+    rows.push(['admin: no quota in GET /storage', (await api('GET', '/storage', boss.token)).json.quotaBytes, 0])
+
     const overview = (await api('GET', '/admin/storage', await admin())).json
     rows.push(['bucket measured', typeof overview.bucket.usedBytes, 'number'])
     rows.push(['user listed', overview.users.some((x) => x.email === u.email), true])
+    rows.push(['per-user quota in the admin list', `${overview.users.find((x) => x.email === u.email)?.quotaBytes} ${overview.users.find((x) => x.email === boss.email)?.quotaBytes}`, `${2 * MB} 0`])
     const bad = rows.filter(([, got, want]) => got !== want)
     return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${g}, want ${w}`).join('; ')}` : `${rows.length} checks` }
   },

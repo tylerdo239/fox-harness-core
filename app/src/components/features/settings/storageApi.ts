@@ -57,7 +57,8 @@ export interface AdminStorage {
   bucket: BucketStatus;
   quotaBytes: number;
   fileRetentionDays: number;
-  users: { userId: number; email: string; usedBytes: number }[];
+  // quotaBytes: that user's own (0 = no limit: an admin)
+  users: { userId: number; email: string; usedBytes: number; quotaBytes: number }[];
 }
 
 export interface CleanupResult {

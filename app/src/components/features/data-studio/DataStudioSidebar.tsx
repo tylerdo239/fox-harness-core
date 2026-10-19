@@ -11,13 +11,10 @@ import {
   DashboardsIcon,
   DataSourcesIcon,
   DataStudioIcon as BrandMarkIcon,
-  GlossaryIcon,
   MessageSquareIcon,
-  MetricsIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PlusIcon,
-  RelationshipsIcon,
   DataProfileIcon,
 } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
@@ -26,23 +23,19 @@ import { useRuntime } from "../../../runtime.ts";
 import { Button } from "../../primitives/Button.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
 import { MenuItem } from "../../primitives/MenuItem.tsx";
+import { AccountMenu } from "../sidebar/AccountMenu.tsx";
 import { HistoryChat } from "../sidebar/HistoryChat.tsx";
 
 export type DataStudioSection =
   | "chat"
   | "dashboards"
   | "data-sources"
-  | "glossary"
-  | "relationships"
-  | "metrics"
   | "profile";
 
-// Order: Chat first (the real feature), Dashboards right under it (user:
-// "dashboard move lên dưới chat"), then the semantic-layer admin sections —
-// Relationships sits right under Glossary (user: "thiếu relationships dưới
-// Glossary") since both describe how entities relate/are named, mirroring
-// example-data-studio-agent's own route set (src/apis/routes/relationships.py,
-// a real route this nav had missed).
+// Order: Chat first (the real feature), Dashboards right under it (user: "dashboard move lên dưới chat"), then the
+// admin sections. Glossary, Relationships and Metrics are no longer here (2026-10-19): they were pipeline v3's
+// (Mongo business_glossary / metrics, edited outside the search index); their v4 versions are tabs of
+// "Hồ sơ dữ liệu" (DataStudioProfile.tsx), which is where the pipeline reads them from.
 // `adminOnly`: the semantic-layer admin sections — services/gateway 403s their /data-studio/* routes for role
 // `user`, who only gets Chat and the read-only Dashboards.
 const SECTIONS: { key: DataStudioSection; icon: typeof MessageSquareIcon; labelKey: TranslationKey; adminOnly?: boolean }[] = [
@@ -50,9 +43,6 @@ const SECTIONS: { key: DataStudioSection; icon: typeof MessageSquareIcon; labelK
   { key: "dashboards", icon: DashboardsIcon, labelKey: "dataStudio.sectionDashboards" },
   { key: "data-sources", icon: DataSourcesIcon, labelKey: "dataStudio.sectionDataSources", adminOnly: true },
   { key: "profile", icon: DataProfileIcon, labelKey: "dataStudio.sectionProfile", adminOnly: true },
-  { key: "glossary", icon: GlossaryIcon, labelKey: "dataStudio.sectionGlossary", adminOnly: true },
-  { key: "relationships", icon: RelationshipsIcon, labelKey: "dataStudio.sectionRelationships", adminOnly: true },
-  { key: "metrics", icon: MetricsIcon, labelKey: "dataStudio.sectionMetrics", adminOnly: true },
 ];
 
 export function DataStudioSidebar({
@@ -63,6 +53,8 @@ export function DataStudioSidebar({
   onNewChat,
   newChatDisabled,
   onBackToMain,
+  onOpenSettings,
+  onLogout,
 }: {
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -71,6 +63,8 @@ export function DataStudioSidebar({
   onNewChat: () => void;
   newChatDisabled: boolean;
   onBackToMain: () => void;
+  onOpenSettings: () => void;
+  onLogout: () => void;
 }) {
   const { t } = useLocale();
   const { userRole } = useRuntime();
@@ -136,11 +130,15 @@ export function DataStudioSidebar({
         </MenuItem>
       ))}
 
-      {activeSection === "chat" && (
-        <div className="fh-sidebar-region">
-          <HistoryChat query="" flowFilter="data-studio" />
-        </div>
-      )}
+      {/* always there, empty outside Chat: it fills the column so the account row stays at the bottom */}
+      <div className="fh-sidebar-region">
+        {activeSection === "chat" && <HistoryChat query="" flowFilter="data-studio" />}
+      </div>
+
+      {/* the same account row as the main sidebar (Settings, Logout) */}
+      <div className="fh-sidebar-foot">
+        <AccountMenu onOpenSettings={onOpenSettings} onLogout={onLogout} />
+      </div>
     </div>
   );
 }

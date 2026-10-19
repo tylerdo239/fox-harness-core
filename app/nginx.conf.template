@@ -16,6 +16,15 @@ server {
   client_max_body_size 80m;
   proxy_request_buffering off;
 
+  # Browser routes that share a prefix with the API below: the Data Studio pages (`/data-studio`,
+  # `/data-studio/chat/<id>`, src/App.tsx) are the SPA's, the API is `/data-studio/<resource>`. Without this a
+  # reload of either page went to the backend ({"error":"not found"} / 401). A regex location wins by order, so it
+  # stays above the API one; scripts/serve.mjs reads it from here too.
+  location ~ ^/data-studio(/chat/[^/]+)?/?$ {
+    try_files /index.html =404;
+    add_header Cache-Control "no-cache";
+  }
+
   # The backend's HTTP API and the chat WebSocket (/sessions/new, /sessions/<id>). `/chat/<id>` is NOT here: it is
   # a browser route handled by the SPA below.
   location ~ ^/(auth|sessions|projects|skills|custom-skills|models|users|storage|admin|data-studio|healthz|readyz)(/|$) {
