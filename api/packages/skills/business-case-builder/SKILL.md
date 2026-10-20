@@ -1,6 +1,6 @@
 ---
 name: business-case-builder
-description: Xây dựng kịch bản kinh doanh đầy đủ — khung KPI có công thức, phân tích kinh doanh (thị trường/cạnh tranh/mô hình doanh thu), phân tích khoa học (định lượng có căn cứ, kịch bản best/base/worst) và phân tích nội bộ (SWOT/năng lực/rủi ro). Dùng khi người dùng cần xây business case, đánh giá cơ hội kinh doanh mới, chuẩn bị pitch cho nhà đầu tư/stakeholder, hoặc cần 1 bộ KPI + phân tích đầy đủ để ra quyết định kinh doanh. Ví dụ: business plan, phân tích thị trường, SWOT.
+description: "Xây dựng kịch bản kinh doanh đầy đủ — khung KPI có công thức, phân tích kinh doanh (thị trường/cạnh tranh/mô hình doanh thu), phân tích khoa học (định lượng có căn cứ, kịch bản best/base/worst) và phân tích nội bộ (SWOT/năng lực/rủi ro). Dùng khi người dùng cần xây business case, đánh giá cơ hội kinh doanh mới, chuẩn bị pitch cho nhà đầu tư/stakeholder, hoặc cần 1 bộ KPI + phân tích đầy đủ để ra quyết định kinh doanh. Ví dụ: business plan, phân tích thị trường, SWOT."
 ---
 
 # Business Case Builder
