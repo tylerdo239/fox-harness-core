@@ -5,6 +5,7 @@ import { isAppendSurfaceEvent, type Session } from '@deepseek-ai/dsh-session'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
 import { PythonKernel, type HostRequest } from './kernel.ts'
+import { mb, SESSION_BYTES, TOTAL_BYTES } from './memory.ts'
 
 export const name = 'fox-harness-tool-python-repl'
 export const inject = ['tools']
@@ -119,6 +120,7 @@ export function apply(ctx: Context) {
         'Only printed output and the value of the last expression are returned; past 20000 characters only the first 14000 and the last 6000 are kept — print summaries, not whole tables.',
         'Matplotlib figures still open after a successful call, and not saved by the code itself, are saved as PNG files in the output folder and their paths are returned.',
         `A call running longer than ${CELL_TIMEOUT_MS / 1000} seconds is interrupted; variables from earlier calls stay in memory.`,
+        ...(SESSION_BYTES > 0 ? [`This session may use at most ${mb(SESSION_BYTES)} of memory, worker processes included, and shares ${mb(TOTAL_BYTES)} with every other chat: past that the code is stopped. Keep memory small (load the columns you need, sample large data).`] : []),
       ].join(' '),
       parameters: {
         code: { type: 'string', required: true, description: 'Python code to run.' },

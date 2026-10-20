@@ -25,7 +25,7 @@ from IPython.core.interactiveshell import InteractiveShell
 # KeyboardInterrupt. Turn the default handler back on explicitly (a no-op when unconfined).
 signal.signal(signal.SIGINT, signal.default_int_handler)
 
-# Memory cap from the host (kernel.ts, FOX_PY_MEMORY_BYTES): past it an allocation raises MemoryError in the
+# Per-session memory cap from the host (kernel.ts, FOX_PY_MEMORY_BYTES): past it an allocation raises MemoryError in the
 # cell instead of the container running out of memory and taking the whole runtime down.
 # RLIMIT_DATA, not RLIMIT_AS: it counts memory actually allocated (heap, anonymous mappings), not the
 # address space that numpy/BLAS threads reserve without using.
@@ -34,6 +34,16 @@ if os.environ.get("FOX_PY_MEMORY_BYTES"):
 
     _cap = int(os.environ["FOX_PY_MEMORY_BYTES"])
     resource.setrlimit(resource.RLIMIT_DATA, (_cap, _cap))
+
+# n_jobs=-1 in scikit-learn (GridSearchCV, cross_val_score, …) runs on threads instead of loky worker
+# processes: threads share this process's data and its memory cap, where each worker process would copy
+# the data and get a cap of its own. The fits run in C and release the GIL, so they still run in parallel.
+try:
+    import joblib
+
+    joblib.parallel_config(backend="threading")
+except Exception:
+    pass
 
 protocol_out = sys.stdout
 shell = InteractiveShell.instance()

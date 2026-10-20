@@ -63,7 +63,7 @@ fi
 # Mongo/Dremio/Meilisearch settings, ... and dsh's scrub only matches KEY|PASSWORD|SECRET|TOKEN.
 # `--unsetenv` is not enough: bwrap itself (PID 1 of the new PID namespace) keeps the environment
 # it was exec'd with, readable at /proc/1/environ — so the environment is cleared BEFORE bwrap runs.
-allow='^(PATH|HOME|LANG|LC_[A-Z]+|TERM|TZ|PWD|USER|SHELL|FOX_OUTPUT_DIR|FOX_PYTHON|PYTHONUNBUFFERED|PYTHONDONTWRITEBYTECODE|MPLBACKEND|MPLCONFIGDIR)$'
+allow='^(PATH|HOME|LANG|LC_[A-Z]+|TERM|TZ|PWD|USER|SHELL|FOX_OUTPUT_DIR|FOX_PYTHON|FOX_PY_MEMORY_BYTES|PYTHONUNBUFFERED|PYTHONDONTWRITEBYTECODE|MPLBACKEND|MPLCONFIGDIR)$'
 keep=()
 while IFS= read -r -d '' entry; do
   name="${entry%%=*}"

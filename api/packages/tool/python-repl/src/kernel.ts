@@ -1,9 +1,10 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { totalmem } from 'node:os'
+import { existsSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
+
+import { mb, readProcesses, SESSION_BYTES, sessionUsage, TOTAL_BYTES, type SessionUsage } from './memory.ts'
 
 const RUNNER = fileURLToPath(new URL('../python/runner.py', import.meta.url))
 // Long output keeps its start and its end: a traceback printed last must stay visible.
@@ -27,29 +28,6 @@ const MAX_NOTED_RESULTS = 10
 // 30 s, not 5: sklearn/lightgbm training sits in C code that only sees the Ctrl-C between chunks of work —
 // measured 2026-10-20, a forest over the limit outlived 5 s and was killed, taking every variable with it.
 const INTERRUPT_GRACE_MS = 30_000
-/**
- * Memory the interpreter may use: FOX_PY_MEMORY_MB (0 = no cap), else 70% of the container's limit, or of
- * the machine's RAM when the container has none. Per process: a pool of worker processes each gets it.
- */
-const PY_MEMORY_BYTES = ((): number => {
-  const configured = globalThis.process.env.FOX_PY_MEMORY_MB
-  if (configured !== undefined && configured !== '') return Math.max(0, Number(configured) || 0) * 1024 * 1024
-  let limit = totalmem()
-  for (const file of ['/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes']) {
-    const value = Number(readFileOrEmpty(file).trim()) // "max" (no limit) reads as NaN
-    if (value > 0 && value < limit) limit = value
-  }
-  return Math.floor(limit * 0.7)
-})()
-
-function readFileOrEmpty(path: string): string {
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return ''
-  }
-}
-
 const VARIABLES_HEADER = 'Python variables in memory from earlier calls — reuse them instead of reloading files or recomputing:'
 const VARIABLES_GONE = 'The Python session restarted: variables from earlier turns are gone; files are still there. Results already stated in the conversation still hold — reuse them. To rebuild a variable, rerun the same code as before (print(history(n)) shows turn n) instead of writing a new method.'
 const MAX_NOTED_VARIABLES = 30
@@ -71,7 +49,80 @@ export interface HostRequest {
 /** Answers a running cell's host request (`history(n)`) with text; a throw is reported to the cell. */
 export type HostHandler = (request: HostRequest) => string
 
+/** How often the memory watchdog looks; a spike between two looks is what runner.py's own cap is for. */
+const WATCH_MS = 1_000
+const RESERVE_HEADROOM_BYTES = 1024 * 1024 * 1024
+
 export class PythonKernel {
+  /** Sessions with a live interpreter, for the memory watchdog. */
+  private static readonly live = new Set<PythonKernel>()
+  private static watch: ReturnType<typeof setInterval> | undefined
+
+  /**
+   * Keeps every session under its own cap and all of them under the shared budget. Over a limit, the
+   * session is stopped one step at a time, mildest first: its worker processes, then a Ctrl-C to the
+   * running cell, then the session itself — the only step that loses its variables. Over the shared budget
+   * the step falls on the biggest session that is running a cell (an idle one cannot grow), else the biggest.
+   */
+  private static enforceMemory(): void {
+    if (PythonKernel.live.size === 0 || (TOTAL_BYTES === 0 && SESSION_BYTES === 0)) return
+    const table = readProcesses()
+    const usage = new Map<PythonKernel, SessionUsage>()
+    for (const kernel of PythonKernel.live) {
+      const pid = kernel.process?.pid
+      if (pid !== undefined) usage.set(kernel, sessionUsage(pid, table, RUNNER))
+    }
+    let total = 0
+    for (const used of usage.values()) total += used.bytes
+    const acted = new Set<PythonKernel>()
+    for (const [kernel, used] of usage) {
+      if (SESSION_BYTES > 0 && used.bytes > SESSION_BYTES) {
+        kernel.overMemory(used, `the limit of ${mb(SESSION_BYTES)} per chat`)
+        acted.add(kernel)
+      }
+    }
+    if (TOTAL_BYTES > 0 && total > TOTAL_BYTES && acted.size === 0) {
+      const ranked = [...usage].sort((a, b) => b[1].bytes - a[1].bytes)
+      const [kernel, used] = ranked.find(([candidate]) => candidate.busy) ?? ranked[0]!
+      kernel.overMemory(used, `the ${mb(TOTAL_BYTES)} shared by every chat (all chats together use ${mb(total)})`)
+      acted.add(kernel)
+    }
+    for (const kernel of usage.keys()) if (!acted.has(kernel)) kernel.memoryStep = 0
+  }
+
+  /** 0 = within limits; 1 = workers stopped; 2 = cell interrupted, at `memoryStepAt`. */
+  private memoryStep = 0
+  private memoryStepAt = 0
+  /** Why the watchdog stepped in during the current cell, told to the model with the cell's result. */
+  private memoryNote: string | undefined
+
+  private overMemory(used: SessionUsage, limit: string): void {
+    const what = `Python used ${mb(used.bytes)}, over ${limit}.`
+    const advice = 'Use less memory: fewer rows or columns, a smaller model, or fewer parallel jobs (n_jobs).'
+    if (!this.busy || used.main === undefined) {
+      this.memoryNote = `${what} The Python session was stopped; variables are gone. ${advice}`
+      this.stop()
+    } else if (this.memoryStep === 0 && used.workers.length > 0) {
+      this.memoryNote = `${what} Its worker processes were stopped; variables from earlier calls are still in memory. ${advice}`
+      for (const pid of used.workers) {
+        try {
+          globalThis.process.kill(pid, 'SIGKILL')
+        } catch {
+          // already gone
+        }
+      }
+      this.memoryStep = 1
+    } else if (this.memoryStep < 2) {
+      this.memoryNote = `${what} The code was interrupted; variables from earlier calls are still in memory. ${advice}`
+      globalThis.process.kill(used.main, 'SIGINT')
+      this.memoryStep = 2
+      this.memoryStepAt = Date.now()
+    } else if (Date.now() - this.memoryStepAt > INTERRUPT_GRACE_MS) {
+      this.memoryNote = `${what} The code did not stop when interrupted, so the Python session was stopped; variables are gone. ${advice}`
+      this.stop()
+    }
+  }
+
   private process: ChildProcessWithoutNullStreams | undefined
   private reply: ((reply: CellReply | undefined) => void) | undefined
   private host: HostHandler | undefined
@@ -108,6 +159,19 @@ export class PythonKernel {
   }
 
   private async runExclusive(code: string, cwd: string, timeoutMs: number, signal: AbortSignal, turn: number, host: HostHandler, outputDir?: string): Promise<string> {
+    // Not cleared here: a session the watchdog stopped while idle tells the model why on this next call.
+    try {
+      return await this.runCell(code, cwd, timeoutMs, signal, turn, host, outputDir)
+    } catch (error) {
+      if (this.memoryNote === undefined) throw error
+      throw new Error(`${this.memoryNote}\n${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      this.memoryStep = 0
+      this.memoryNote = undefined
+    }
+  }
+
+  private async runCell(code: string, cwd: string, timeoutMs: number, signal: AbortSignal, turn: number, host: HostHandler, outputDir?: string): Promise<string> {
     const note = this.process ? '' : this.start(cwd, outputDir)
     const process = this.process!
     this.host = host
@@ -167,6 +231,8 @@ export class PythonKernel {
     if (reply.figures.length > 0) text += `\nSaved figures: ${reply.figures.join(', ')}`
     if (note) text = `${note}\n${text}`
     if (!reply.ok) throw new Error(text)
+    // Workers stopped but the cell caught the error and finished: still tell the model why.
+    if (this.memoryNote !== undefined) return `${this.memoryNote}\n${text}`.trim()
     return text.trim() || '(no output)'
   }
 
@@ -219,6 +285,7 @@ export class PythonKernel {
   stop(): void {
     this.process?.kill('SIGKILL')
     this.process = undefined
+    PythonKernel.live.delete(this)
     this.variables.clear()
   }
 
@@ -271,9 +338,11 @@ export class PythonKernel {
         LANG: 'C.UTF-8',
         PYTHONIOENCODING: 'utf-8',
         MPLBACKEND: 'Agg',
-        // runner.py caps its own memory with this, so an oversized job fails with MemoryError instead of
-        // driving the whole container out of memory — which kills the runtime and every running turn with it.
-        ...(PY_MEMORY_BYTES > 0 ? { FOX_PY_MEMORY_BYTES: String(PY_MEMORY_BYTES) } : {}),
+        // runner.py caps its own allocations: a sudden huge one fails with MemoryError at once, before the
+        // once-a-second watchdog would see it. The cap counts reserved memory, not used memory (measured: 18
+        // BLAS/joblib threads put an idle interpreter at 786 MB reserved for 149 MB used), so it sits 1 GB
+        // above the per-session limit; holding the session to that limit is the watchdog's job (it reads RSS).
+        ...(SESSION_BYTES > 0 ? { FOX_PY_MEMORY_BYTES: String(SESSION_BYTES + RESERVE_HEADROOM_BYTES) } : {}),
         // Read-only: this package's runner + helpers, and the shared skill directories the gateway names
         // (FOX_CONFINE_RO, runtime/supervisor.ts) — a skill's scripts/*.py are run from here.
         ...(confine ? { MPLCONFIGDIR: '/tmp/mpl', FOX_CONFINE_RO: [dirname(RUNNER), globalThis.process.env.FOX_CONFINE_RO].filter(Boolean).join(':'), FOX_PYTHON: python } : {}),
@@ -306,10 +375,16 @@ export class PythonKernel {
       if (this.process === child) {
         this.process = undefined
         this.variables.clear()
+        PythonKernel.live.delete(this)
       }
       this.reply?.(undefined)
     })
     this.process = child
+    PythonKernel.live.add(this)
+    if (PythonKernel.watch === undefined) {
+      PythonKernel.watch = setInterval(() => PythonKernel.enforceMemory(), WATCH_MS)
+      PythonKernel.watch.unref()
+    }
     return restarted ? RESTARTED_NOTE : ''
   }
 }
