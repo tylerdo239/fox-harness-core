@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { totalmem } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
@@ -23,7 +24,32 @@ const RESULTS_HEADER = 'Values already computed in this conversation — reuse t
 /** Ledger length: enough to carry a conversation's real numbers, short enough to stay cheap. */
 const MAX_NOTED_RESULTS = 10
 /** How long a cell gets to end itself after the interrupt before the session is killed instead. */
-const INTERRUPT_GRACE_MS = 5_000
+// 30 s, not 5: sklearn/lightgbm training sits in C code that only sees the Ctrl-C between chunks of work —
+// measured 2026-10-20, a forest over the limit outlived 5 s and was killed, taking every variable with it.
+const INTERRUPT_GRACE_MS = 30_000
+/**
+ * Memory the interpreter may use: FOX_PY_MEMORY_MB (0 = no cap), else 70% of the container's limit, or of
+ * the machine's RAM when the container has none. Per process: a pool of worker processes each gets it.
+ */
+const PY_MEMORY_BYTES = ((): number => {
+  const configured = globalThis.process.env.FOX_PY_MEMORY_MB
+  if (configured !== undefined && configured !== '') return Math.max(0, Number(configured) || 0) * 1024 * 1024
+  let limit = totalmem()
+  for (const file of ['/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes']) {
+    const value = Number(readFileOrEmpty(file).trim()) // "max" (no limit) reads as NaN
+    if (value > 0 && value < limit) limit = value
+  }
+  return Math.floor(limit * 0.7)
+})()
+
+function readFileOrEmpty(path: string): string {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
 const VARIABLES_HEADER = 'Python variables in memory from earlier calls — reuse them instead of reloading files or recomputing:'
 const VARIABLES_GONE = 'The Python session restarted: variables from earlier turns are gone; files are still there. Results already stated in the conversation still hold — reuse them. To rebuild a variable, rerun the same code as before (print(history(n)) shows turn n) instead of writing a new method.'
 const MAX_NOTED_VARIABLES = 30
@@ -245,6 +271,9 @@ export class PythonKernel {
         LANG: 'C.UTF-8',
         PYTHONIOENCODING: 'utf-8',
         MPLBACKEND: 'Agg',
+        // runner.py caps its own memory with this, so an oversized job fails with MemoryError instead of
+        // driving the whole container out of memory — which kills the runtime and every running turn with it.
+        ...(PY_MEMORY_BYTES > 0 ? { FOX_PY_MEMORY_BYTES: String(PY_MEMORY_BYTES) } : {}),
         // Read-only: this package's runner + helpers, and the shared skill directories the gateway names
         // (FOX_CONFINE_RO, runtime/supervisor.ts) — a skill's scripts/*.py are run from here.
         ...(confine ? { MPLCONFIGDIR: '/tmp/mpl', FOX_CONFINE_RO: [dirname(RUNNER), globalThis.process.env.FOX_CONFINE_RO].filter(Boolean).join(':'), FOX_PYTHON: python } : {}),
