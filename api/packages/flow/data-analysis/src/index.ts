@@ -11,7 +11,7 @@ import z from '@deepseek-ai/schemastery'
 
 import { collapseOldTurns } from './collapse.ts'
 import { datasetCardsNote, retainedDatasetNote } from './datasets.ts'
-import { reconcileWorkspace } from './reconcile.ts'
+import { lockSources, reconcileWorkspace } from './reconcile.ts'
 
 export const name = 'fox-harness-flow-data-analysis'
 export const inject = ['systemPrompt', 'tokenMeter']
@@ -57,6 +57,7 @@ The user's data files are in the working directory ({{cwd}}).
 - Never type data rows or values into code (a hand-written list or dict of the table): load them from the file or reuse the variable that holds them. Typed-in rows are how invented records end up in a report.
 - Run checks proportionate to the claim: shape, types, missing values, duplicates, ranges, and reconcile important totals.
 - A result of 0, 100%, -100%, an empty table or \"no data\" is usually a sign that something was read, filtered or joined wrongly, not a finding: before stating it, run one check (row count, the column list, \`list_datasets()\`) and say what that check showed.
+- The uploaded data files are read-only originals that every chat in the project shares: never overwrite, change, replace or delete them, even when asked (say they are read-only; do not offer a workaround). Keep cleaned or changed data in a variable, and save it as a new file with \`save_artifact()\` when a file is needed.
 - Keep printed output small: aggregates and a few rows, never whole tables. Save charts and files only with \`save_artifact()\` (open matplotlib figures are saved automatically) — never write into the working directory directly, e.g. \`plt.savefig("chart.png")\` — and name the returned paths in the answer.
 - If a call fails, read the error and change approach; do not repeat an identical call.
 - Installed Python libraries: pandas, numpy, scipy, scikit-learn, statsmodels, matplotlib, seaborn, duckdb, lightgbm, xgboost, pyarrow, openpyxl, pillow, pypdf (read PDF), python-docx (read/write .docx). Never try to install packages; if a task needs another library (for example torch), tell the user and solve it with the installed ones.
@@ -102,6 +103,7 @@ export function apply(ctx: Context, config: Config) {
     if (decision.kind === 'reject') return decision
     const session = payload.agent.session
     const cwd = session.header.cwd
+    if (cwd !== undefined) await lockSources(cwd)
     const note = cwd === undefined ? undefined : await datasetCardsNote(cwd)
     if (note === undefined || retainedDatasetNote(session, name) === note) return decision
     const message = createUserMessage({ content: [{ type: 'text', text: note }], source: { kind: 'plugin', plugin: name } })

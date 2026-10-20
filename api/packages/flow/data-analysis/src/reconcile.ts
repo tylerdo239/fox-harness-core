@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename } from 'node:fs/promises'
+import { chmod, mkdir, readdir, readFile, rename, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 /**
@@ -54,6 +54,16 @@ export async function reconcileWorkspace(cwd: string, sessionId: string): Promis
 
   await walk('')
   return moved
+}
+
+/** Makes every uploaded original read-only — also the ones uploaded before uploads were locked on save. */
+export async function lockSources(cwd: string): Promise<void> {
+  for (const path of await readSources(cwd)) {
+    const file = join(cwd, path)
+    // only when needed: a chmod bumps ctime, which the write tool reads as "file changed since it was read"
+    const info = await stat(file).catch(() => undefined)
+    if (info && (info.mode & 0o222) !== 0) await chmod(file, 0o444).catch(() => undefined)
+  }
 }
 
 async function readSources(cwd: string): Promise<Set<string>> {

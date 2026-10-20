@@ -8,7 +8,7 @@
 // (docs/qa-report-2026-09-15.md N2).
 
 import { createWriteStream } from 'node:fs'
-import { copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import { basename, extname, join, relative, resolve, sep } from 'node:path'
 import { Transform } from 'node:stream'
@@ -168,6 +168,9 @@ export async function saveUpload(dir: string, requested: string, body: IncomingM
     await pipeline(body, limit, createWriteStream(partial))
     await rename(partial, target)
     if (canvas) return `${CANVAS_DIR}/${name}`
+    // Uploaded originals are read-only, so model code cannot overwrite them (a re-upload or a delete still
+    // works: both act on the directory). Ignored where the filesystem has no modes.
+    await chmod(target, 0o444).catch(() => undefined)
     await updateSources(dir, (sources) => sources.add(name.split(sep).join('/')))
     refreshDatasetCards(dir)
     return name
