@@ -11,7 +11,7 @@ import z from '@deepseek-ai/schemastery'
 
 import { collapseOldTurns } from './collapse.ts'
 import { datasetCardsNote, retainedDatasetNote } from './datasets.ts'
-import { reconcileWorkspace } from './reconcile.ts'
+import { lockSources, reconcileWorkspace } from './reconcile.ts'
 
 export const name = 'fox-harness-flow-data-analysis'
 export const inject = ['systemPrompt', 'tokenMeter']
@@ -57,6 +57,7 @@ The user's data files are in the working directory ({{cwd}}).
 - Never type data rows or values into code (a hand-written list or dict of the table): load them from the file or reuse the variable that holds them. Typed-in rows are how invented records end up in a report.
 - Run checks proportionate to the claim: shape, types, missing values, duplicates, ranges, and reconcile important totals.
 - A result of 0, 100%, -100%, an empty table or \"no data\" is usually a sign that something was read, filtered or joined wrongly, not a finding: before stating it, run one check (row count, the column list, \`list_datasets()\`) and say what that check showed.
+- The uploaded data files are read-only originals that every chat in the project shares: never overwrite, change, replace or delete them, even when asked (say they are read-only; do not offer a workaround). Keep cleaned or changed data in a variable, and save it as a new file with \`save_artifact()\` when a file is needed.
 - Keep printed output small: aggregates and a few rows, never whole tables. Save charts and files only with \`save_artifact()\` (open matplotlib figures are saved automatically) — never write into the working directory directly, e.g. \`plt.savefig("chart.png")\` — and name the returned paths in the answer.
 - If a call fails, read the error and change approach; do not repeat an identical call.
 - Installed Python libraries: pandas, numpy, scipy, scikit-learn, statsmodels, matplotlib, seaborn, duckdb, lightgbm, xgboost, pyarrow, openpyxl, pillow, pypdf (read PDF), python-docx (read/write .docx). Never try to install packages; if a task needs another library (for example torch), tell the user and solve it with the installed ones.
@@ -102,8 +103,30 @@ export function apply(ctx: Context, config: Config) {
     if (decision.kind === 'reject') return decision
     const session = payload.agent.session
     const cwd = session.header.cwd
+    if (cwd !== undefined) await lockSources(cwd)
     const note = cwd === undefined ? undefined : await datasetCardsNote(cwd)
     if (note === undefined || retainedDatasetNote(session, name) === note) return decision
+    const message = createUserMessage({ content: [{ type: 'text', text: note }], source: { kind: 'plugin', plugin: name } })
+    return { ...decision, messages: [...decision.messages, message] }
+  })
+
+  // A loaded skill's file list, held until the next step and given as a user-role note: appended to the skill's
+  // tool result it was ignored (measured 2026-10-20: the model answered with made-up file contents instead).
+  const skillNotes = new WeakMap<object, string>()
+  // Safety net for the same failure: a turn that loaded a skill with bundled files, opened none of them and is
+  // about to close gets one more step, once (the turn-stopping hook: a steer runs another step).
+  const skillUse = new WeakMap<object, { base: string; opened: boolean; nudged: boolean }>()
+  ctx.on('agent/turn-stopping', ({ agent }) => {
+    const use = skillUse.get(agent)
+    if (!use || use.opened || use.nudged) return void skillUse.delete(agent)
+    use.nudged = true
+    agent.steer(createUserMessage({ content: [{ type: 'text', text: SKILL_NUDGE }], source: { kind: 'plugin', plugin: name } }))
+  })
+  ctx.on('agent/pre-step', async (payload, next) => {
+    const decision = await next()
+    const note = skillNotes.get(payload.agent)
+    if (decision.kind === 'reject' || note === undefined) return decision
+    skillNotes.delete(payload.agent)
     const message = createUserMessage({ content: [{ type: 'text', text: note }], source: { kind: 'plugin', plugin: name } })
     return { ...decision, messages: [...decision.messages, message] }
   })
@@ -118,12 +141,22 @@ export function apply(ctx: Context, config: Config) {
     // directory and leaves the model to build each path itself. Measured in local-fox-harness-core over
     // 769 stored conversations: 234 skill loads produced 13 reads of a bundled reference (5.6%), and in
     // two runs the model loaded the right skill and then worked from memory.
+    const use = exec.agent ? skillUse.get(exec.agent) : undefined
+    if (use && (exec.name === 'read' || exec.name === 'python') && JSON.stringify(exec.arguments).includes(use.base)) use.opened = true
+
     if (exec.name === 'skill') {
       const base = SKILL_BASE.exec(text)?.[1]
       const files = base === undefined ? [] : await skillResources(base)
       if (files.length === 0) return decision
-      const listing = `Files bundled with this skill — read one with the \`read\` tool when the task calls for it; run a script from \`python\` (see the working rules):\n${files.join('\n')}`
-      return { kind: 'accept', content: [...content, { type: 'text', text: listing }] }
+      const listing =
+        `The skill you just loaded bundles these files — read a text file (.md, .txt, .sql, .html, .json, .yaml, .csv, .js, …) with the \`read\` tool; ` +
+        `open a binary one (.xlsx, .docx, .pdf) and run a script from \`python\` (see the working rules). ` +
+        `Their contents are NOT in this conversation until a tool result shows them: never state what a bundled file contains or outputs without opening or running it first.\n${files.join('\n')}`
+      if (exec.agent) {
+        skillNotes.set(exec.agent, listing)
+        skillUse.set(exec.agent, { base: base!, opened: false, nudged: false })
+      }
+      return decision
     }
 
     // A model that sent the wrong argument names (measured: \`write\` called with \`path\` instead of
@@ -158,17 +191,20 @@ export function apply(ctx: Context, config: Config) {
   })
 }
 
+const SKILL_NUDGE =
+  'You loaded a skill but opened none of its bundled files, so their contents are unknown to you. If your answer describes, quotes or relies on any of them, open those files now (`read`, or `python` for binary files and scripts) and answer again from the tool results; otherwise say plainly that you did not open them.'
+
 const SKILL_BASE = /Base directory for this skill:\s*(\S+)/
-/** Sub-directories of a skill that hold something the model can read or run; `assets/` holds output templates. */
-const RESOURCE_DIRS = ['references', 'checklists', 'templates', 'scripts']
 /** The widest skill here bundles 20 files; the cap keeps a future one from filling the window. */
 const MAX_LISTED = 20
 
+/** Every file a skill bundles besides SKILL.md, in any sub-directory (references/, scripts/, templates/, assets/, …). */
 async function skillResources(base: string): Promise<string[]> {
-  const found: string[] = []
-  for (const dir of RESOURCE_DIRS) {
-    const entries = await readdir(join(base, dir), { withFileTypes: true }).catch(() => [])
-    for (const entry of entries) if (entry.isFile()) found.push(join(base, dir, entry.name))
-  }
-  return found.sort().slice(0, MAX_LISTED)
+  const entries = await readdir(base, { recursive: true, withFileTypes: true }).catch(() => [])
+  return entries
+    .filter((entry) => entry.isFile() && !entry.name.startsWith('.'))
+    .map((entry) => join(entry.parentPath, entry.name))
+    .filter((path) => path !== join(base, 'SKILL.md'))
+    .sort()
+    .slice(0, MAX_LISTED)
 }

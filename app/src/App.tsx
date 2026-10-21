@@ -1134,6 +1134,7 @@ function AppInner() {
               startNewSession();
             }}
             onOpenDataAnalysis={() => openDataView(null)}
+            onOpenProject={openDataView}
             dataAnalysisActive={projectView !== null || chatInDataArea}
             onOpenDataStudio={() => startNewSession("data-studio")}
             newSessionDisabled={!hasChatted && projectView === null}
@@ -1175,8 +1176,9 @@ function AppInner() {
                   the `/chat/<id>` URL itself, App.tsx's own `hasChatted`
                   comments have the full history) — a session with no first
                   message yet has no real title to show or edit. */}
-              {sessionId && hasChatted && <SessionTitleBar />}
+              {/* Header 1A (2026-10-19): project link above the chat title. */}
               <ProjectChatBar onOpenProject={openDataView} onChatPlace={reconcileChatPlace} />
+              {sessionId && hasChatted && <SessionTitleBar />}
               <Conversation />
             </>
           )}

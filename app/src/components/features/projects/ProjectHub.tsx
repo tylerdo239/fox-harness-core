@@ -17,7 +17,6 @@ import {
   FileSpreadsheetIcon,
   FileTextIcon,
   FolderIcon,
-  MessageSquareIcon,
   PaperclipIcon,
   PencilIcon,
   PlusIcon,
@@ -99,6 +98,7 @@ export function ProjectHub({
     if (!trimmed) return;
     try {
       const created = await createProject(runtime, trimmed);
+      runtime.bumpSessionsVersion();
       onOpenProject(created.projectId);
     } catch {
       toast.error(t("projects.saveFailed"));
@@ -201,6 +201,7 @@ function ProjectPage({
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [title, setTitle] = useState(project.name);
   const [prompt, setPrompt] = useState("");
+  const [loaded, setLoaded] = useState(false);
   const [progress, setProgress] = useState<number | undefined>();
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -213,6 +214,7 @@ function ProjectPage({
       listWorkspaceFiles(runtime, base).catch(() => []),
     ]);
     setChats(chatList);
+    setLoaded(true);
     setFiles(fileList ?? []);
   }
 
@@ -297,6 +299,7 @@ function ProjectPage({
     try {
       await renameProject(runtime, project.projectId, trimmed);
       setTitle(trimmed);
+      runtime.bumpSessionsVersion();
     } catch {
       toast.error(t("projects.saveFailed"));
     }
@@ -306,6 +309,7 @@ function ProjectPage({
     if (!window.confirm(t("projects.deleteConfirm", { name: title }))) return;
     try {
       await deleteProject(runtime, project.projectId);
+      runtime.bumpSessionsVersion();
       onBack();
     } catch {
       toast.error(t("projects.saveFailed"));
@@ -318,61 +322,157 @@ function ProjectPage({
     { key: "outputs", label: t("projects.tabOutputs"), count: projectOutputs.length + chatOutputs.length + otherOutputs.length },
   ] as const;
 
-  return (
-    <div className="fh-hub-scroll">
-      <section className="fh-hub" aria-label={title}>
-        <div className="fh-hub-header">
-          <button type="button" className="fh-hub-icon-btn fh-hub-back" onClick={onBack} title={t("projects.back")} aria-label={t("projects.back")}>
-            <ArrowLeftIcon size={18} />
-          </button>
-          <FolderIcon size={25} />
-          {renaming ? (
-            <input
-              autoFocus
-              className="fh-hub-title-input"
-              value={renameValue}
-              maxLength={PROJECT_NAME_MAX}
-              onChange={(event) => setRenameValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.nativeEvent.isComposing) void commitRename();
-                else if (event.key === "Escape") setRenaming(false);
-              }}
-              onBlur={() => setRenaming(false)}
-            />
-          ) : (
-            <h1>{title}</h1>
-          )}
-          <button
-            type="button"
-            className="fh-hub-icon-btn fh-hub-rename"
-            title={t("projects.rename")}
-            aria-label={t("projects.rename")}
-            onClick={() => {
-              setRenameValue(title);
-              setRenaming(true);
-            }}
-          >
-            <PencilIcon size={16} />
-          </button>
-          <button type="button" className="fh-hub-icon-btn fh-hub-delete" title={t("projects.delete")} aria-label={t("projects.delete")} onClick={() => void remove()}>
-            <TrashIcon size={16} />
-          </button>
-        </div>
+  const fresh = loaded && chats.length === 0;
 
-        <form
-          className="fh-hub-composer"
-          onSubmit={(event) => {
+  const titleNode = renaming ? (
+    <input
+      autoFocus
+      className="fh-hub-title-input"
+      value={renameValue}
+      maxLength={PROJECT_NAME_MAX}
+      onChange={(event) => setRenameValue(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && !event.nativeEvent.isComposing) void commitRename();
+        else if (event.key === "Escape") setRenaming(false);
+      }}
+      onBlur={() => setRenaming(false)}
+    />
+  ) : (
+    <h1>{title}</h1>
+  );
+
+  const backButton = (
+    <button type="button" className="fh-hub-icon-btn fh-hub-back" onClick={onBack} title={t("projects.back")} aria-label={t("projects.back")}>
+      <ArrowLeftIcon size={18} />
+    </button>
+  );
+
+  const editButtons = (
+    <>
+      <button
+        type="button"
+        className="fh-hub-icon-btn fh-hub-rename"
+        title={t("projects.rename")}
+        aria-label={t("projects.rename")}
+        onClick={() => {
+          setRenameValue(title);
+          setRenaming(true);
+        }}
+      >
+        <PencilIcon size={16} />
+      </button>
+      <button type="button" className="fh-hub-icon-btn fh-hub-delete" title={t("projects.delete")} aria-label={t("projects.delete")} onClick={() => void remove()}>
+        <TrashIcon size={16} />
+      </button>
+    </>
+  );
+
+  const dataChips = (
+    <div className="fh-hub-data-chips">
+      {sources.length > 0 && <span>{t("projects.dataLabel")}</span>}
+      {sources.map((file) => (
+        <button type="button" key={file.path} className="fh-hub-data-chip" onClick={() => void openFile(file.path)}>
+          <FileSpreadsheetIcon size={15} />
+          <strong>{file.path}</strong>
+          <small>{formatSize(file.sizeBytes)}</small>
+        </button>
+      ))}
+      <button type="button" className="fh-hub-data-add" onClick={() => inputRef.current?.click()} disabled={progress !== undefined}>
+        <PlusIcon size={14} />
+        {progress !== undefined ? `${progress}%` : t(sources.length > 0 ? "projects.addFile" : "projects.addDataFile")}
+      </button>
+    </div>
+  );
+
+  function submit(): void {
+    if (prompt.trim()) onStartChat(project.projectId, prompt.trim());
+  }
+
+  // Composer redesign (2026-10-19 mockup): a big chat-style box — docked at
+  // the bottom once the project has chats, centred while it has none.
+  const composer = (
+    <form
+      className="fh-hub-ask"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <textarea
+        value={prompt}
+        rows={fresh ? 3 : 2}
+        onChange={(event) => setPrompt(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            if (prompt.trim()) onStartChat(project.projectId, prompt.trim());
-          }}
-        >
-          <PlusIcon size={20} />
-          <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t("projects.composer", { name: title })} />
-          <button type="submit" className="fh-hub-pill fh-hub-pill-primary" disabled={!prompt.trim()}>
-            {t("projects.start")}
-          </button>
-        </form>
+            submit();
+          }
+        }}
+        placeholder={t("projects.composer", { name: title })}
+      />
+      <div className="fh-hub-ask-bar">
+        <button type="button" className="fh-hub-ask-clip" title={t("projects.addFile")} aria-label={t("projects.addFile")} onClick={() => inputRef.current?.click()}>
+          <PaperclipIcon size={16} />
+        </button>
+        <button type="submit" className="fh-hub-pill fh-hub-pill-primary" disabled={!prompt.trim()}>
+          {t("projects.start")}
+        </button>
+      </div>
+    </form>
+  );
 
+  return (
+    <div className="fh-hub-page">
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={(event) => {
+          void upload(event.target.files);
+          event.target.value = "";
+        }}
+      />
+      {fresh ? (
+        <div className="fh-hub-fresh">
+          <div className="fh-hub-fresh-top">
+            {backButton}
+            <span className="fh-hub-fresh-spacer" />
+            {editButtons}
+          </div>
+          <section className="fh-hub-fresh-center" aria-label={title}>
+            <span className="fh-hub-folder">
+              <FolderIcon size={24} />
+            </span>
+            {titleNode}
+            <p>{t("projects.freshIntro")}</p>
+            {composer}
+            {dataChips}
+            <small>{t("projects.freshHint")}</small>
+          </section>
+        </div>
+      ) : (
+        <>
+          <div className="fh-hub-scroll">
+            <section className="fh-hub" aria-label={title}>
+              <div className="fh-hub-header">
+                {backButton}
+                <span className="fh-hub-folder">
+                  <FolderIcon size={20} />
+                </span>
+                <div className="fh-hub-header-title">
+                  {titleNode}
+                  <small>
+                    {t("projects.meta", {
+                      chats: String(chats.length),
+                      sources: String(sources.length),
+                      outputs: String(projectOutputs.length + chatOutputs.length + otherOutputs.length),
+                    })}
+                  </small>
+                </div>
+                {editButtons}
+              </div>
+              {sources.length > 0 && dataChips}
         <div className="fh-hub-tabs" role="tablist">
           {tabs.map((item) => (
             <button
@@ -393,7 +493,6 @@ function ProjectPage({
           <div className="fh-hub-list">
             {chats.map((chat) => (
               <button type="button" key={chat.sessionId} className="fh-hub-content-row" onClick={() => runtime.switchSession(chat.sessionId, project.projectId)}>
-                <MessageSquareIcon size={18} />
                 <span>
                   <strong>{chat.title ?? t("historyChat.untitled", { id: chat.sessionId.slice(0, 8) })}</strong>
                   <small>{dateLabel(chat.updatedAt, t)}</small>
@@ -406,16 +505,6 @@ function ProjectPage({
 
         {tab === "sources" && (
           <div className="fh-hub-sources">
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              hidden
-              onChange={(event) => {
-                void upload(event.target.files);
-                event.target.value = "";
-              }}
-            />
             <button type="button" className="fh-hub-dropzone" onClick={() => inputRef.current?.click()} disabled={progress !== undefined}>
               <PaperclipIcon size={24} />
               <strong>{t("projects.dropTitle")}</strong>
@@ -524,7 +613,15 @@ function ProjectPage({
               </section>
             )}
           </div>
-        )}      </section>
+        )}
+            </section>
+          </div>
+          <div className="fh-hub-dock">
+            {composer}
+            <small>{t("projects.askHint")}</small>
+          </div>
+        </>
+      )}
       {preview && (
         <div className="fh-workspace-preview" role="dialog" onClick={closePreview}>
           <img src={preview.url} alt={preview.path} />
@@ -581,8 +678,7 @@ export function ProjectChatBar({
   return (
     <div className="fh-chat-project-bar">
       <button type="button" onClick={() => onOpenProject(project.projectId)}>
-        <ArrowLeftIcon size={14} />
-        <FolderIcon size={14} />
+        <FolderIcon size={13} />
         {project.name}
       </button>
     </div>

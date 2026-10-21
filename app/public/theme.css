@@ -35,6 +35,8 @@
    * mistake to "correct". `--fh-accent-contrast: #ffffff` in both themes. */
   --fh-accent: #ff7a1f;
   --fh-accent-contrast: #ffffff;
+  /* filled orange buttons: white on --fh-accent is only ~2.6:1 */
+  --fh-accent-fill: #c84f0a;
   /* accent used AS TEXT directly on the page's own surface (not on an
    * accent-colored background) still needs its own darker value in light
    * mode for legibility — plain accent text only reaches ~2.5:1 against

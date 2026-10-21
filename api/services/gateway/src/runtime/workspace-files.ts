@@ -184,6 +184,11 @@ export async function saveUpload(dir: string, requested: string, body: IncomingM
     // a partial left by an earlier upload (or a link put there) is removed, never written through
     await removeInside(dir, partial, { anyEntry: true })
     const file = await createInside(dir, partial)
+    // Uploaded originals are read-only, so model code cannot overwrite them (a re-upload or a delete still
+    // works: both act on the directory). Set on the open handle, never by path: a path could be a link the
+    // model swapped in. The handle was opened for writing, so the body is still written. Ignored where the
+    // filesystem has no modes.
+    if (!canvas) await file.chmod(0o444).catch(() => undefined)
     await pipeline(body, limit, file.createWriteStream())
     await renameInside(dir, partial, `${base}${name}`)
     if (canvas) return `${CANVAS_DIR}/${name}`

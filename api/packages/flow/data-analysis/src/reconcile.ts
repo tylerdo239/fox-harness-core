@@ -1,7 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { moveInside, readTextInside } from './safe-fs.ts'
+import { moveInside, openInside, readTextInside } from './safe-fs.ts'
 
 /**
  * Every file in a project folder must be exactly one of three things: a file the user uploaded
@@ -56,6 +56,22 @@ export async function reconcileWorkspace(cwd: string, sessionId: string): Promis
 
   await walk('')
   return moved
+}
+
+/** Makes every uploaded original read-only — also the ones uploaded before uploads were locked on save. */
+export async function lockSources(cwd: string): Promise<void> {
+  for (const path of await readSources(cwd)) {
+    // opened without following links, and changed through the handle: a source the model replaced with a
+    // link must not lock (or reach) the link's target
+    const opened = await openInside(cwd, path).catch(() => undefined)
+    if (!opened) continue
+    try {
+      // only when needed: a chmod bumps ctime, which the write tool reads as "file changed since it was read"
+      if ((opened.info.mode & 0o222) !== 0) await opened.handle.chmod(0o444).catch(() => undefined)
+    } finally {
+      await opened.handle.close().catch(() => undefined)
+    }
+  }
 }
 
 async function readSources(cwd: string): Promise<Set<string>> {
