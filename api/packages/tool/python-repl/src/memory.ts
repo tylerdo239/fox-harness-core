@@ -54,7 +54,13 @@ export interface ProcessTable {
 export function readProcesses(): ProcessTable {
   const rss = new Map<number, number>()
   const children = new Map<number, number[]>()
-  for (const name of readdirSync('/proc')) {
+  let names: string[]
+  try {
+    names = readdirSync('/proc')
+  } catch {
+    return { rss, children } // no /proc (macOS): nothing is measured, so no limit is enforced
+  }
+  for (const name of names) {
     const pid = Number(name)
     if (!Number.isInteger(pid)) continue
     const stat = readOrEmpty(`/proc/${pid}/stat`)

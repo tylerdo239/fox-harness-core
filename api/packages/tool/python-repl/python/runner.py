@@ -33,7 +33,15 @@ if os.environ.get("FOX_PY_MEMORY_BYTES"):
     import resource
 
     _cap = int(os.environ["FOX_PY_MEMORY_BYTES"])
-    resource.setrlimit(resource.RLIMIT_DATA, (_cap, _cap))
+    # Never above a hard limit already set (fox-noconfine.sh's prlimit): raising it fails with ValueError,
+    # which would stop the interpreter from starting at all.
+    _soft, _hard = resource.getrlimit(resource.RLIMIT_DATA)
+    if _hard != resource.RLIM_INFINITY:
+        _cap = min(_cap, _hard)
+    try:
+        resource.setrlimit(resource.RLIMIT_DATA, (_cap, _cap))
+    except (ValueError, OSError):
+        pass  # the host watchdog (memory.ts) still holds the session to its limit
 
 # n_jobs=-1 in scikit-learn (GridSearchCV, cross_val_score, …) runs on threads instead of loky worker
 # processes: threads share this process's data and its memory cap, where each worker process would copy

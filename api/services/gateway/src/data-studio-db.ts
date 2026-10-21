@@ -42,6 +42,8 @@ export interface DataSourceRow {
   status: string
   last_synced_at: string | null
   is_exposed_to_agent: 0 | 1
+  /** tables and views imported from it (not deprecated) — for the admin's source cards */
+  entity_count?: number
 }
 
 function toDataSourceRow(d: Doc): DataSourceRow {
@@ -58,7 +60,21 @@ function toDataSourceRow(d: Doc): DataSourceRow {
 }
 
 export async function listDataSources(): Promise<DataSourceRow[]> {
-  return (await col('data_sources').find(ACTIVE).sort({ name: 1 }).toArray()).map(toDataSourceRow)
+  const rows = (await col('data_sources').find(ACTIVE).sort({ name: 1 }).toArray()).map(toDataSourceRow)
+  const counts = await countBy('entities', 'data_source_id', rows.map((r) => r.id))
+  return rows.map((row) => ({ ...row, entity_count: counts.get(row.id) ?? 0 }))
+}
+
+/** How many live (not deprecated) documents of `collection` each of `ids` has in `field`: one aggregate, not N finds. */
+async function countBy(collection: string, field: string, ids: string[]): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map()
+  const groups = await col(collection)
+    .aggregate<{ _id: string; n: number }>([
+      { $match: { [field]: { $in: ids }, is_deprecated: { $ne: true } } },
+      { $group: { _id: `$${field}`, n: { $sum: 1 } } },
+    ])
+    .toArray()
+  return new Map(groups.map((g) => [g._id, g.n]))
 }
 
 export async function getDataSource(id: string): Promise<DataSourceRow | undefined> {
@@ -97,6 +113,8 @@ export interface EntityRow {
   /** Role `user` may query this table (allowed_roles contains 'user'; python/src/security/role.py). Admin always may. */
   allow_user: 0 | 1
   row_count_est: number | null
+  /** its columns (not deprecated) — for the admin's table cards */
+  column_count?: number
 }
 
 function toEntityRow(d: Doc): EntityRow {
@@ -119,7 +137,9 @@ function toEntityRow(d: Doc): EntityRow {
 }
 
 export async function listEntitiesForSource(dataSourceId: string): Promise<EntityRow[]> {
-  return (await col('entities').find({ data_source_id: dataSourceId }).sort({ physical_name: 1 }).toArray()).map(toEntityRow)
+  const rows = (await col('entities').find({ data_source_id: dataSourceId }).sort({ physical_name: 1 }).toArray()).map(toEntityRow)
+  const counts = await countBy('entity_columns', 'entity_id', rows.map((r) => r.id))
+  return rows.map((row) => ({ ...row, column_count: counts.get(row.id) ?? 0 }))
 }
 
 export async function getEntity(id: string): Promise<EntityRow | undefined> {

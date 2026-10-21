@@ -114,7 +114,11 @@ export class PythonKernel {
       this.memoryStep = 1
     } else if (this.memoryStep < 2) {
       this.memoryNote = `${what} The code was interrupted; variables from earlier calls are still in memory. ${advice}`
-      globalThis.process.kill(used.main, 'SIGINT')
+      try {
+        globalThis.process.kill(used.main, 'SIGINT')
+      } catch {
+        // the interpreter exited since the look: nothing left to interrupt
+      }
       this.memoryStep = 2
       this.memoryStepAt = Date.now()
     } else if (Date.now() - this.memoryStepAt > INTERRUPT_GRACE_MS) {
@@ -382,7 +386,14 @@ export class PythonKernel {
     this.process = child
     PythonKernel.live.add(this)
     if (PythonKernel.watch === undefined) {
-      PythonKernel.watch = setInterval(() => PythonKernel.enforceMemory(), WATCH_MS)
+      PythonKernel.watch = setInterval(() => {
+        // a throw here would be uncaught and take the whole runtime (every chat on it) down
+        try {
+          PythonKernel.enforceMemory()
+        } catch (error) {
+          console.error('[python-repl] memory watchdog:', error)
+        }
+      }, WATCH_MS)
       PythonKernel.watch.unref()
     }
     return restarted ? RESTARTED_NOTE : ''

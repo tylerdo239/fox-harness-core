@@ -28,7 +28,7 @@ if [ -n "$ws" ]; then
 fi
 
 # Same allow-list as fox-confine.sh.
-allow='^(PATH|HOME|LANG|LC_[A-Z]+|TERM|TZ|PWD|USER|SHELL|FOX_OUTPUT_DIR|FOX_PYTHON|PYTHONUNBUFFERED|PYTHONDONTWRITEBYTECODE|MPLBACKEND|MPLCONFIGDIR)$'
+allow='^(PATH|HOME|LANG|LC_[A-Z]+|TERM|TZ|PWD|USER|SHELL|FOX_OUTPUT_DIR|FOX_PYTHON|FOX_PY_MEMORY_BYTES|PYTHONUNBUFFERED|PYTHONDONTWRITEBYTECODE|MPLBACKEND|MPLCONFIGDIR)$'
 keep=()
 # (compgen, not `env -0`: also works with macOS's bash 3.2 and BSD env when developing on a Mac)
 for name in $(compgen -e); do
