@@ -102,6 +102,7 @@ import { deleteProjectData, purgeSessionData, workspaceDirForSession } from './r
 import { ensureLocal as ensureSessionLogLocal, startArchiver, stopArchiver } from './runtime/session-archive.ts'
 import { deleteEvictedFile, ensureWorkspaceLocal, isEvictedDir, clearWorkspace, dirUsage } from './runtime/workspace-archive.ts'
 import { checkUpload, cleanupOldFiles, noteFreed, startStorageJobs, stopStorageJobs, storageOverview, userStorage } from './runtime/storage.ts'
+import { cachedUsageReport, parseUsageQuery, recordAdminUsage, startUsageIngest, stopUsageIngest, userUsage } from './runtime/usage.ts'
 import { canvasHistory, CANVAS_ID_RE, clearHistory, deleteCanvas, deleteHistoryFile, recordEdit, snapshotFile } from './runtime/canvas-history.ts'
 import { openInside } from './runtime/safe-fs.ts'
 import { syncSkills } from './runtime/skills-sync.ts'
@@ -1198,7 +1199,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         // Sync walks Dremio's real catalog tree, so it legitimately takes
         // longer than the browse call above — same generous ceiling
         // packages/tool/data-studio-agent gives the chat-side pipeline.
-        const reply = await runAdminBridge({ op: 'sync', source_names: sourceNames, datasets }, 240_000)
+        const reply = await runAdminBridge({ op: 'sync', source_names: sourceNames, datasets }, 240_000, identity.userId)
         if (!reply.ok) log('data_studio_dremio_sync_failed', { status: reply.status, error: reply.error })
         return reply.ok
           ? sendJson(res, 200, { summary: reply.summary, reindexSummary: reply.reindex_summary })
@@ -1216,7 +1217,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     handle(res, async () => {
       const identity = await identityFromRequest(req, url)
       if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
-      const reply = await callAdmin({ op: 'datasets', source_name: decodeURIComponent(datasetsMatch[1]) }, 120_000)
+      const reply = await callAdmin({ op: 'datasets', source_name: decodeURIComponent(datasetsMatch[1]) }, 120_000, identity.userId)
       return reply.ok ? sendJson(res, 200, { datasets: reply.datasets }) : sendJson(res, reply.status ?? 502, { error: reply.error })
     })
     return
@@ -1255,7 +1256,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         body_b64?: string; content_type?: string; content_disposition?: string | null
       }
       const request = { op: 'data_profile', method: req.method, path, query, body, user: user?.email ?? `user-${identity.userId}` }
-      const reply: ProfileReply = await (slow ? runAdminBridge(request, 600_000) : callAdmin(request, 60_000)).catch((error: unknown): ProfileReply => ({ ok: false, status: 502, error: String(error) }))
+      const reply: ProfileReply = await (slow ? runAdminBridge(request, 600_000, identity.userId) : callAdmin(request, 60_000, identity.userId)).catch((error: unknown): ProfileReply => ({ ok: false, status: 502, error: String(error) }))
       if (!reply.ok) {
         // 4xx is the user's input (shown to them); 5xx is the bridge, Dremio or Mongo failing
         if ((reply.status ?? 502) >= 500) log('data_profile_failed', { method: req.method, path, status: reply.status, error: reply.error })
@@ -1601,6 +1602,28 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     return
   }
 
+  // Admin (ADMIN_ONLY_PATHS), docs/admin-usage-dashboard-plan.md §5: GET /admin/usage/report?from&to&group (or days)
+  // — the agents' usage over a period; GET /admin/usage/users/:id?from&to&offset — one user's chats in it.
+  // (Not /admin/usage itself: that path is the dashboard page, served by nginx as the app.)
+  if (url.pathname === '/admin/usage/report' && req.method === 'GET') {
+    handle(res, async () => {
+      const query = parseUsageQuery(url.searchParams)
+      if ('error' in query) return sendJson(res, 400, { error: query.error, code: 'invalid_range' })
+      sendJson(res, 200, await cachedUsageReport(query))
+    })
+    return
+  }
+  const usageUserMatch = /^\/admin\/usage\/users\/(\d{1,12})$/.exec(url.pathname)
+  if (usageUserMatch && req.method === 'GET') {
+    handle(res, async () => {
+      const query = parseUsageQuery(url.searchParams)
+      if ('error' in query) return sendJson(res, 400, { error: query.error, code: 'invalid_range' })
+      const offset = Math.max(0, Math.floor(Number(url.searchParams.get('offset') ?? 0)) || 0)
+      sendJson(res, 200, await userUsage(Number(usageUserMatch[1]), query, offset))
+    })
+    return
+  }
+
   // Admin (ADMIN_ONLY_PATHS): GET /admin/storage — the bucket's measure and every user's usage;
   // POST /admin/storage/cleanup {olderThanDays, userId?, dryRun?} — delete the files of chats/projects unused that long.
   if (url.pathname === '/admin/storage' && req.method === 'GET') {
@@ -1913,6 +1936,7 @@ async function main(): Promise<void> {
   await runtime.start()
   await startArchiver()
   startStorageJobs()
+  startUsageIngest()
   server.listen(config.port, () => {
     log('listening', { port: config.port, runtimes: config.runtimeCount, dataDir: config.dataDir, sandbox: config.sandboxMode })
   })
@@ -1930,6 +1954,7 @@ async function shutdown(signal: string): Promise<void> {
   stopStorageJobs()
   await runtime.stop()
   await stopArchiver() // the runtimes have flushed: archive the last turns
+  await stopUsageIngest() // and load their last usage records
   process.exit(0)
 }
 process.on('SIGTERM', () => void shutdown('SIGTERM'))

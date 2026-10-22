@@ -34,6 +34,14 @@ const pool = mariadb.createPool({
   connectionLimit: config.dbConnectionLimit,
 })
 
+// The usage tables (runtime/usage.ts, api/migrations/002_usage.sql) are queried there, through these two.
+export function dbQuery<T>(sql: string, params: unknown[] = []): Promise<T> {
+  return pool.query<T>(sql, params)
+}
+export function dbBatch(sql: string, rows: unknown[][]): Promise<unknown> {
+  return pool.batch(sql, rows)
+}
+
 export type Role = 'admin' | 'user'
 
 export interface UserRecord {

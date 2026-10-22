@@ -54,6 +54,7 @@ export function DataStudioSidebar({
   newChatDisabled,
   onBackToMain,
   onOpenSettings,
+  onOpenUsage,
   onLogout,
 }: {
   collapsed: boolean;
@@ -64,6 +65,8 @@ export function DataStudioSidebar({
   newChatDisabled: boolean;
   onBackToMain: () => void;
   onOpenSettings: () => void;
+  /** admins: the usage dashboard (/admin/usage) */
+  onOpenUsage?: () => void;
   onLogout: () => void;
 }) {
   const { t } = useLocale();
@@ -137,7 +140,7 @@ export function DataStudioSidebar({
 
       {/* the same account row as the main sidebar (Settings, Logout) */}
       <div className="fh-sidebar-foot">
-        <AccountMenu onOpenSettings={onOpenSettings} onLogout={onLogout} />
+        <AccountMenu onOpenSettings={onOpenSettings} onLogout={onLogout} onOpenUsage={onOpenUsage} />
       </div>
     </div>
   );

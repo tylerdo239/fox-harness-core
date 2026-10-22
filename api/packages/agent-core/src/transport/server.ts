@@ -39,7 +39,7 @@ import { FLOW_RE, joinFlow } from './flows.ts'
 // which, after a runtime restart, comes after the first resume of such a chat: the Data Studio preset loads with the
 // agent that the resume is building (2026-10-19: every Data Studio chat with a progress step failed to reopen after
 // a restart, SessionFormatUnsupported). Registered here, by the module that does the resuming.
-const PLUGIN_EVENT_TYPES = ['fox/data-studio-progress']
+const PLUGIN_EVENT_TYPES = ['fox/data-studio-progress', 'fox/usage']
 for (const type of PLUGIN_EVENT_TYPES) (KNOWN_SESSION_EVENT_TYPES as Set<string>).add(type)
 
 type ClientToServer = { type: 'followup'; text: string } | { type: 'steer'; text: string } | { type: 'cancel' }
@@ -71,14 +71,14 @@ function send(ws: WebSocket, frame: ServerToClient): void {
 // project's established "mirrored, not imported" boundary rule).
 // One JSON object per line; services/gateway (runtime/supervisor.ts) re-prints it in the gateway's format
 // (LOG_FORMAT json|text, `shard` added). A line with an `error` field is an error.
-function log(event: string, fields: Record<string, unknown> = {}): void {
+export function log(event: string, fields: Record<string, unknown> = {}): void {
   const level = fields.error !== undefined ? 'error' : 'info'
   console.log(JSON.stringify({ ts: new Date().toISOString(), level, service: 'transport', event, ...fields }))
 }
 
 // What a log line needs about an error (services/gateway/src/log.ts's errorFields, mirrored): String(error) drops
 // the code under a network failure (ECONNREFUSED, ...) and where a programming error happened.
-function errorFields(error: unknown): Record<string, unknown> {
+export function errorFields(error: unknown): Record<string, unknown> {
   if (!(error instanceof Error)) return { error: String(error) }
   const e = error as Error & { code?: string; cause?: unknown }
   const cause = e.cause instanceof Error ? (e.cause as Error & { code?: string }) : undefined

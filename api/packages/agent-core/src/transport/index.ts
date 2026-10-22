@@ -4,6 +4,7 @@ import '@deepseek-ai/dsh-agent'
 import '@deepseek-ai/dsh-session'
 
 import { startTransportServer } from './server.ts'
+import { startUsageRecorder } from './usage-recorder.ts'
 import { workspaceGuard } from './workspace-guard.ts'
 
 export const name = 'fox-harness-transport'
@@ -45,4 +46,6 @@ export function apply(ctx: Context, config: Config) {
   // refused. FOX_SHARED_READ_DIRS (the built-in skills) stay readable.
   const sharedReadDirs = (process.env.FOX_SHARED_READ_DIRS ?? '').split(':').filter(Boolean)
   ctx.effect(() => ctx.tools.guard(workspaceGuard(sharedReadDirs)), 'fox-harness-transport.workspace-guard')
+  // docs/admin-usage-dashboard-plan.md §3: tokens, latency and outcomes of every chat, for the admin dashboard
+  ctx.effect(() => startUsageRecorder(ctx) ?? (() => undefined), 'fox-harness-transport.usage-recorder')
 }

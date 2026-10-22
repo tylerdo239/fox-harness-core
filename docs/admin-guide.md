@@ -30,6 +30,24 @@ Cả hai việc đều **đăng xuất người đó khỏi mọi thiết bị**
 
 Hiện chưa có chức năng xoá hay khoá tài khoản.
 
+## Thống kê sử dụng agent
+
+Menu tài khoản (góc dưới sidebar) → **Thống kê sử dụng**, hoặc mở `/admin/usage`. Chỉ admin xem được; người dùng
+thường bị đưa về trang chủ và API trả 403.
+
+- **Chọn khoảng thời gian:** 7 / 30 / 90 ngày, tháng này, tháng trước, hoặc tự chọn từ – đến (tối đa 366 ngày); gộp theo
+  ngày, tuần (bắt đầu thứ Hai) hoặc tháng. Ngày tính theo giờ Việt Nam (+07:00). Mỗi số có mũi tên so với kỳ trước cùng độ dài.
+- **Thẻ số liệu:** người dùng hoạt động, cuộc chat, lượt chat, token (vào · ra · cache), thời gian phản hồi trung bình và
+  trung vị, tỉ lệ thành công, số lần gọi công cụ (và lỗi), file đính kèm.
+- **Biểu đồ:** token, lượt chat, người dùng, thời gian phản hồi theo thời gian; lượt chat theo giờ và theo thứ.
+- **Kết quả lượt chat**, **theo chế độ** (Chat / Phân tích dữ liệu / Data Studio), **theo model**, **công cụ dùng nhiều
+  nhất** (tô đỏ khi lỗi từ 5%).
+- **Data Studio:** số câu hỏi, token của pipeline, token embedding, token dựng hồ sơ dữ liệu (tác vụ của admin).
+- **Theo người dùng:** bảng sắp xếp được, xuất CSV; bấm một dòng để xem các cuộc chat của người đó trong kỳ.
+
+Chỉ có số liệu: không lưu nội dung tin nhắn. Số liệu bắt đầu từ khi bản cập nhật chạy (không có số liệu cũ), làm mới mỗi
+phút, giữ 400 ngày (`USAGE_RETENTION_DAYS`). Cần chạy `api/migrations/002_usage.sql` một lần trên DB đã có.
+
 ## Nguồn dữ liệu Data Studio
 
 Các màn này nằm trong thanh bên Data Studio, chỉ admin thấy. Chúng quyết định Data Studio **hỏi được dữ liệu nào** và

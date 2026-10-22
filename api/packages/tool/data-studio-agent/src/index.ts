@@ -13,6 +13,8 @@ import type { ProgressItem } from './kernel.ts'
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     'fox/data-studio-progress': { callId: string; item: ProgressItem }
+    // the pipeline's own model calls (docs/admin-usage-dashboard-plan.md §3.4), read by agent-core's usage recorder
+    'fox/usage': { callId: string; calls: unknown[] }
   }
 }
 
@@ -21,6 +23,7 @@ declare module '@deepseek-ai/dsh-session/types' {
 // ("unknown session"). dsh has no registration surface for plugin events yet; its known-type set is the one the
 // persistence read path checks, so the type joins it when this plugin loads — before any chat is resumed.
 ;(KNOWN_SESSION_EVENT_TYPES as Set<string>).add('fox/data-studio-progress')
+;(KNOWN_SESSION_EVENT_TYPES as Set<string>).add('fox/usage')
 
 export const name = 'fox-harness-tool-data-studio-agent'
 export const inject = ['tools', 'agents']
@@ -154,6 +157,9 @@ export function apply(ctx: Context) {
             }
           : undefined
         const reply = await pool.ask(args.question, roleOf(ctx, exec.agent), TIMEOUT_MS, exec.signal, onProgress, ownerOf(ctx, exec.agent))
+        // what the pipeline's own model calls used — recorded for failed questions too (bridge/runner.py)
+        const calls = (reply as { usage?: unknown }).usage
+        if (session && Array.isArray(calls) && calls.length > 0) session.append('fox/usage', { callId: exec.callId, calls })
         if (!reply.ok) throw new Error(reply.error ?? 'analyze_data: unknown error')
         return {
           answer: reply.answer ?? '',

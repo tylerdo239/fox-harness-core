@@ -1169,6 +1169,65 @@ print('planted')` })
     const bad = rows.filter(([, got, want]) => got !== want)
     return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
   },
+
+  // docs/admin-usage-dashboard-plan.md: a chat's turns and model calls (and Data Studio's pipeline calls) reach
+  // MariaDB through the runtime's usage files and the gateway's sweep, and come back out of /admin/usage/report.
+  async usageDashboard() {
+    const user = await newUser('usage')
+    const adminToken = await admin()
+    const db = (sql) => execFileSync('docker', ['exec', 'foxe2e-mariadb', 'mariadb', '-uroot', '-px', 'discovery-agent', '-N', '-e', sql], { encoding: 'utf8' }).trim()
+    const rows = []
+    const c = chat(user.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    c.send(`CALL read ${JSON.stringify({ file_path: 'missing.txt' })}`)
+    await c.turnEnds(1, 60000)
+    c.send('hello'); await c.turnEnds(2, 60000)
+    const sid = c.sessionId; c.close()
+    const d = chat(user.token, { params: { flow: 'data-studio' } }); await d.opened; await d.ready()
+    d.send(`CALL analyze_data ${JSON.stringify({ question: 'Có bao nhiêu workflow?' })}`)
+    await d.turnEnds(1, 180000).catch(() => {})
+    const dsUsageEvents = d.events.filter((e) => e.type === 'fox/usage').length
+    d.close()
+
+    const report = async () => api('GET', '/admin/usage/report?days=1', adminToken)
+    const mine = (r) => r.json?.users?.find((u) => u.email === user.email)
+    let r = await report()
+    for (let i = 0; i < 20 && !(mine(r)?.turns >= 3); i++) { await sleep(1500); r = await report() }
+    const me = mine(r)
+    rows.push(['report 200', r.status, 200])
+    rows.push(['the user is listed with 3 turns', me?.turns, 3])
+    rows.push(['2 chats', me?.chats, 2])
+    rows.push(['tokens counted (mock usage 10 in / 5 out per call)', (me?.inputTokens ?? 0) >= 30 && (me?.outputTokens ?? 0) >= 15, true])
+    rows.push(['read in the report tools', r.json?.tools?.some((t) => t.tool === 'read'), true])
+    rows.push(["this turn's tools: read, failed once", db(`select tools from discovery_usage_turns where session_id = '${sid}' and turn = 1`), '[{"name":"read","calls":1,"errors":1}]'])
+    rows.push(['flows default + data-studio', ['default', 'data-studio'].every((f) => r.json?.flows?.some((x) => x.flow === f)), true])
+    rows.push(['the model is named', r.json?.models?.some((m) => m.model === 'mock'), true])
+    rows.push(['30 day buckets for days=30', (await api('GET', '/admin/usage/report?days=30', adminToken)).json?.series?.length, 30])
+    rows.push(['Data Studio pipeline calls recorded', dsUsageEvents > 0 ? Number(db(`select count(*) from discovery_usage_steps where session_id = '${d.sessionId}' and purpose in ('data-studio', 'embedding')`)) > 0 : 'no fox/usage event', true])
+
+    // what one user did, for the drill-down
+    const drill = await api('GET', `/admin/usage/users/${user.id}?days=1`, adminToken)
+    rows.push(['drill-down lists the chat', drill.json?.chats?.some((x) => x.sessionId === sid && x.turns === 2), true])
+
+    // a sweep that read a file again (crash before its offset was saved) counts nothing twice
+    const before = db(`select count(*) from discovery_usage_steps where user_id = ${user.id}`) + '/' + db(`select count(*) from discovery_usage_turns where user_id = ${user.id}`)
+    db('update discovery_usage_ingest set read_offset = 0')
+    await sleep(6000)
+    const after = db(`select count(*) from discovery_usage_steps where user_id = ${user.id}`) + '/' + db(`select count(*) from discovery_usage_turns where user_id = ${user.id}`)
+    rows.push(['re-read: no double count', after, before])
+    rows.push(['offsets caught up again', Number(db('select min(read_offset) from discovery_usage_ingest')) > 0, true])
+
+    // access and routing
+    rows.push(['a user gets 403', (await api('GET', '/admin/usage/report', user.token)).status, 403])
+    rows.push(['no login: 401', (await api('GET', '/admin/usage/report')).status, 401])
+    rows.push(['bad range: 400', (await api('GET', '/admin/usage/report?from=2026-13-01', adminToken)).status, 400])
+    rows.push(['not a date: 400', (await api('GET', '/admin/usage/report?to=2026-02-30', adminToken)).status, 400])
+    const page = await fetch(`${BASE}/admin/usage`)
+    rows.push(['/admin/usage reload serves the app', `${page.status} ${(page.headers.get('content-type') ?? '').split(';')[0]}`, '200 text/html'])
+    rows.push(['no message text stored', db(`select count(*) from discovery_usage_turns where tools like '%missing.txt%'`), '0'])
+
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
+  },
 }
 
 const only = process.argv.slice(2)

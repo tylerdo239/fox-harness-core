@@ -1,6 +1,6 @@
 # Plan: admin agent-usage dashboard (`/admin/usage`) (2026-10-22)
 
-Status: **plan, not started.** Decisions U1–U5 taken 2026-10-22 (§8). Reference: `examples/pynote-be/packages/bundle-core/src/{reports,call-usage}.ts`,
+Status: **implemented 2026-10-22** (decisions U1–U5, §8). What changed from the plan while building it (§10). Reference: `examples/pynote-be/packages/bundle-core/src/{reports,call-usage}.ts`,
 `packages/llm/openai-compat/src/usage-meter.ts`, and `examples/pynote-fe/components/features/reports/reports.tsx`.
 
 **DB change: yes, MariaDB only** — one new migration `api/migrations/002_usage.sql` that **adds** 3 tables
@@ -58,7 +58,7 @@ can show overhead separately.
 - The runtime appends to `<dataDir>/usage/<shard>/<YYYY-MM-DD>.jsonl` (no DB, no network; a failed write is
   logged and never breaks a turn).
 - The gateway sweep (next to the session-archive sweep, every 60 s) reads new bytes from each file and inserts
-  in batches; its position per file is kept in `fox_usage_ingest(file, offset)`. Inserts are idempotent
+  in batches; its position per file is kept in `discovery_usage_ingest(file, offset)`. Inserts are idempotent
   (unique keys below), so a crash between insert and offset update only re-inserts duplicates that are ignored.
 - Files older than 7 days and fully ingested are deleted.
 
@@ -90,7 +90,7 @@ duration) on every run, the final event of a streamed run included.
 
 ### 4.1 Migration `002_usage.sql`
 ```sql
-create table fox_usage_steps (
+create table discovery_usage_steps (
   id bigint auto_increment primary key,
   at datetime(3) not null, ms int not null,
   user_id int not null, session_id char(36) not null, flow varchar(32) not null, project_id varchar(64) null,
@@ -102,7 +102,7 @@ create table fox_usage_steps (
   unique key (session_id, turn, step, purpose),
   key (at), key (user_id, at)
 );
-create table fox_usage_turns (
+create table discovery_usage_turns (
   id bigint auto_increment primary key,
   at datetime(3) not null, ms int not null,
   user_id int not null, session_id char(36) not null, flow varchar(32) not null, project_id varchar(64) null,
@@ -111,14 +111,14 @@ create table fox_usage_turns (
   unique key (session_id, turn),
   key (at), key (user_id, at)
 );
-create table fox_usage_ingest (file varchar(255) primary key, offset bigint not null, updated_at datetime not null);
+create table discovery_usage_ingest (file varchar(255) primary key, offset bigint not null, updated_at datetime not null);
 ```
 Size: ~150 B / step row; 10k sessions × 10 turns × 3 steps = 300k rows ≈ 50 MB / month. Fine.
 
 Retention: `USAGE_RETENTION_DAYS` (default 400) — the daily cleanup deletes older rows.
 
 Per-tool counts: `tools` JSON on the turn row; the tool ranking query uses `JSON_TABLE` (MariaDB ≥ 10.6) —
-check the staging MariaDB version; fallback: a third table `fox_usage_tools(session_id, turn, tool, calls,
+check the staging MariaDB version; fallback: a third table `discovery_usage_tools(session_id, turn, tool, calls,
 errors)`.
 
 ### 4.2 Backfill (optional, one-off)
@@ -207,3 +207,22 @@ this period". Refresh every 60 s while visible. i18n vi / en (`dashboard.usage.*
 3. `/admin/usage` API + drill-down — 1–1.5 days.
 4. FE route + screen — 2 days.
 5. e2e + harness screenshots — 1 day.
+
+## 10. As built (2026-10-22)
+
+| Part | Where |
+|---|---|
+| Records | `api/packages/agent-core/src/transport/usage-recorder.ts` — listens to `session/event` (one listener for the process) instead of editing the loop: `turn/start`, `step/start`, `assistant/message` (usage, model), `tool/call` / `tool/result` (per-tool calls and errors), `compaction/summary` (usage), `turn/end`, and `fox/usage` |
+| Token fix | `api/packages/llm/openai-compat/src/translate.ts` (`cached_tokens` / `prompt_cache_hit_tokens`, `reasoning_tokens`) |
+| Data Studio | `python/src/usage_meter.py` wraps the openai SDK's `chat.completions.create` / `embeddings.create` once (agno, the data profile's sync client and the embeddings all go through it); `bridge/runner.py` returns `usage` with every reply, failed ones included; the tool appends a `fox/usage` session event (registered type, so old chats still resume). Admin jobs (`bridge/admin_runner.py`: data profile, sync, reindex) are recorded by the gateway (`data-studio-bridge.ts` → `recordAdminUsage`) under the admin who asked |
+| Storage | `api/migrations/002_usage.sql` (`discovery_usage_steps`, `discovery_usage_turns` with `tool_calls` and per-tool JSON, `discovery_usage_ingest.read_offset`) |
+| Ingest / report | `api/services/gateway/src/runtime/usage.ts` (owner / flow / project joined from `discovery_sessions` at ingest) |
+| API | `GET /admin/usage/report`, `GET /admin/usage/users/:id` — **not** `/admin/usage`, which is the page (nginx SPA exception) |
+| Page | `app/src/components/features/admin/UsageDashboard.tsx`, `usageApi.ts`; route in `App.tsx`; account-menu entry (admins) |
+| Tests | e2e `usageDashboard` (`scripts/e2e-backend.mjs`); headless screenshots light / dark / phone |
+
+Differences from the plan:
+- Report cache in the gateway's memory (one gateway process), `USAGE_REPORT_CACHE_MS`, not Redis.
+- Session titles are not counted: dsh's title plugin calls the model without recording usage anywhere.
+- A subagent's turns are recorded under its own session id; its owner comes from the agent options when it has
+  no `discovery_sessions` row (else user 0, "unknown").

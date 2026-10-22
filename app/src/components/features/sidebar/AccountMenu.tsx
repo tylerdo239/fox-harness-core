@@ -20,11 +20,11 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { useLocale } from '../../../i18n/locale.tsx'
-import { BookIcon, GearIcon, LogOutIcon, MoreIcon } from '../../../icons.tsx'
+import { BookIcon, GearIcon, LogOutIcon, MoreIcon, UsageIcon } from '../../../icons.tsx'
 import { useRuntime } from '../../../runtime.ts'
 import { MenuItem } from '../../primitives/MenuItem.tsx'
 
-export function AccountMenu({ onOpenSettings, onLogout }: { onOpenSettings: () => void; onLogout: () => void }) {
+export function AccountMenu({ onOpenSettings, onLogout, onOpenUsage }: { onOpenSettings: () => void; onLogout: () => void; onOpenUsage?: () => void }) {
   const runtime = useRuntime()
   const { t, locale } = useLocale()
   const [open, setOpen] = useState(false)
@@ -93,6 +93,18 @@ export function AccountMenu({ onOpenSettings, onLogout }: { onOpenSettings: () =
               <GearIcon size={15} />
               {t('sidebar.settings')}
             </MenuItem>
+            {onOpenUsage && runtime.userRole === 'admin' && (
+              <MenuItem
+                variant="popup"
+                onClick={() => {
+                  setOpen(false)
+                  onOpenUsage()
+                }}
+              >
+                <UsageIcon size={15} />
+                {t('usage.menu')}
+              </MenuItem>
+            )}
             <MenuItem
               variant="popup"
               onClick={() => {

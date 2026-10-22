@@ -124,3 +124,14 @@ DATABASE_URL=mariadb://<user>:<password>@<host>:<port>/discovery-agent
 
 The `mariadb://` scheme is required as written (the driver rejects anything
 else).
+
+## `002_usage.sql` (2026-10-22)
+
+Agent usage for the admin dashboard (`docs/admin-usage-dashboard-plan.md`). Adds three tables, changes none;
+run once on an existing database (`if not exists`):
+
+- `discovery_usage_steps` — one model request (tokens in / out / cache / reasoning, latency, model, purpose, outcome).
+- `discovery_usage_turns` — one chat turn (duration, how it ended, tool calls and errors per tool as JSON).
+- `discovery_usage_ingest` — how far the gateway has read each runtime usage file.
+
+`at` is UTC. Rows older than `USAGE_RETENTION_DAYS` (default 400) are deleted daily. Message text is never stored.

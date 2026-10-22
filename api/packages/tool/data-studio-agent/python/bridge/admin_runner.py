@@ -53,6 +53,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # deployment env can turn it back on. Agno reads it on each agent/team/workflow run.
 os.environ["AGNO_TELEMETRY"] = "false"
 
+from src import usage_meter  # docs/admin-usage-dashboard-plan.md §3.4: the data profile's model calls
+usage_meter.install()
 from src.database.mongodb import check_mongo_connection, ensure_indexes, get_mongo_db
 from src.security import role as role_mod
 from src.services.dremio_client import DremioClient
@@ -145,10 +147,15 @@ async def main() -> None:
         if not line:
             continue
         request = json.loads(line)
+        usage_meter.begin("data-profile")
         try:
             reply = await handle(request, client, emb, vs)
         except Exception as e:  # noqa: BLE001 — surface any crash to the TS side instead of dying
             reply = {"ok": False, "error": str(e)}
+        # recorded by the gateway (data-studio-bridge.ts) under the admin who asked
+        calls = usage_meter.take()
+        if calls and isinstance(reply, dict):
+            reply = {**reply, "usage": calls}
         if "id" in request:
             reply = {**reply, "id": request["id"]}
         # default=str: Mongo documents carry datetimes

@@ -6,7 +6,7 @@ Current:
 - `admin-guide.md` — admin manual (users, Data Studio sources and who may query them); the user manual is `/docs` (`app/docs-site/`).
 - `chat-attachments-plan.md` — attaching files in chat (default + data-analysis), done 2026-10-08.
 - `file-tools-plan.md` — done 2026-10-22: dedicated file tools (`read`/`edit`/`write`/`glob`/`grep` + new `file_manage`) for file work, `bash` kept for everyone only for programs no tool covers, `python` in the default flow, write gaps of the fs tools closed.
-- `admin-usage-dashboard-plan.md` — plan (not started, 2026-10-22): agent usage recorded per LLM call and per turn into MariaDB (migration 002), `/admin/usage` API and dashboard route; Data Studio pipeline tokens included, no cost.
+- `admin-usage-dashboard-plan.md` — done 2026-10-22: agent usage recorded per LLM call and per turn into MariaDB (migration 002), `/admin/usage` API and dashboard route; Data Studio pipeline tokens included, no cost.
 - `storage-quota-plan.md` — keeping the 12 GB bucket (no lifecycle rule allowed) from filling up: per-user quota, bucket measure and upload block, Settings > Storage, admin/scheduled cleanup of unused files, done 2026-10-15.
 - `canvas-storage-plan.md` — done 2026-10-16: canvas history (`.canvas/` snapshots and user edits) deduplicated, indexed, capped, shown and deletable in Settings > Storage; no DB change.
 - `workspace-symlink-isolation-plan.md` — done 2026-10-16 (gateway, canvas, runtime reconcile): stop the gateway and the canvas tool from reading/writing outside a workspace through a symlink the model's python made (fd-checked open, canvas read in the sandbox).

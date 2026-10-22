@@ -5,6 +5,9 @@ MariaDB schema, run by hand (`mariadb ... < 001_init.sql`):
 - `001_init.sql` — the whole current schema in one file: `discovery_users`,
   `discovery_sessions` (incl. `title_source`, `model`, `project_id`), `discovery_projects`,
   `discovery_custom_skills`.
+- `002_usage.sql` (2026-10-22) — agent usage for the admin dashboard (`docs/admin-usage-dashboard-plan.md`): adds
+  `discovery_usage_steps`, `discovery_usage_turns`, `discovery_usage_ingest`; changes no existing table. Run it once on an existing
+  database (`if not exists`, safe to re-run). Without it the gateway keeps working and logs `usage_tables_missing`.
 
 Consolidated 2026-10-02: `002_projects_title_source.sql` was folded into
 `001_init.sql` and deleted. A fresh database only ever needs `001_init.sql`.

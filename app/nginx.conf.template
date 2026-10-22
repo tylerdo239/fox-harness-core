@@ -24,6 +24,11 @@ server {
     try_files /index.html =404;
     add_header Cache-Control "no-cache";
   }
+  # The admin usage dashboard page (docs/admin-usage-dashboard-plan.md §6); its API is /admin/usage/report, /users/<id>.
+  location ~ ^/admin/usage/?$ {
+    try_files /index.html =404;
+    add_header Cache-Control "no-cache";
+  }
 
   # The backend's HTTP API and the chat WebSocket (/sessions/new, /sessions/<id>). `/chat/<id>` is NOT here: it is
   # a browser route handled by the SPA below.

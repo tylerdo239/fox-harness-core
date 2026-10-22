@@ -23,6 +23,10 @@ interface WireDelta {
 interface WireUsage {
   prompt_tokens?: number
   completion_tokens?: number
+  // OpenAI and vLLM/DeepSeek-style servers: the cached part of the prompt, the reasoning part of the completion
+  prompt_tokens_details?: { cached_tokens?: number }
+  completion_tokens_details?: { reasoning_tokens?: number }
+  prompt_cache_hit_tokens?: number
 }
 
 interface WireChunk {
@@ -113,9 +117,14 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
     }
 
     if (chunk.usage) {
+      // docs/admin-usage-dashboard-plan.md §3.3: cache and reasoning tokens kept too (dsh TokenUsage has the fields)
+      const cached = chunk.usage.prompt_tokens_details?.cached_tokens ?? chunk.usage.prompt_cache_hit_tokens
+      const reasoning = chunk.usage.completion_tokens_details?.reasoning_tokens
       usage = {
         inputTokens: chunk.usage.prompt_tokens ?? 0,
         outputTokens: chunk.usage.completion_tokens ?? 0,
+        ...(typeof cached === 'number' ? { cacheReadTokens: cached } : {}),
+        ...(typeof reasoning === 'number' ? { reasoningTokens: reasoning } : {}),
       }
     }
 

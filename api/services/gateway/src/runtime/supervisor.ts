@@ -232,6 +232,8 @@ export class RuntimeSupervisor {
       DSH_BUNDLED_SKILL_DIR: join(config.repoRoot, 'packages/skills'),
       FOX_REPO_ROOT: config.repoRoot,
       FOX_DATA_DIR: config.dataDir,
+      // docs/admin-usage-dashboard-plan.md §3.2: this runtime's usage records, loaded into MariaDB by usage-ingest.ts
+      FOX_USAGE_DIR: join(config.dataDir, 'usage', `shard-${String(shard.index)}`),
       FOX_INTERNAL_SECRET: this.secret,
       FOX_TRANSPORT_HOST: HOST,
       FOX_TRANSPORT_PORT: String(shard.port),

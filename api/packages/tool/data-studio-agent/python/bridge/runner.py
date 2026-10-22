@@ -54,6 +54,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # deployment env can turn it back on. Agno reads it on each agent/team/workflow run.
 os.environ["AGNO_TELEMETRY"] = "false"
 
+from src import usage_meter  # docs/admin-usage-dashboard-plan.md §3.4: every model call's tokens
+usage_meter.install()
 from src.crud_mongo import conversation as conversation_crud
 from src.database.models.enums import MessageRole
 from src.database.mongodb import AttrDatabase, check_mongo_connection, ensure_indexes, get_async_mongo_db, get_mongo_db
@@ -384,6 +386,7 @@ async def main() -> None:
         # begin_question also notes which data sources an admin switched off: their tables are out for every role.
         role_mod.begin_question(get_mongo_db(), request.get("role", role_mod.USER))
         _PROGRESS.reset()
+        usage_meter.begin("data-studio")
         try:
             owner = {"user_id": request.get("user_id"), "session_id": request.get("session_id")}
             if PIPELINE == "v4":
@@ -406,6 +409,8 @@ async def main() -> None:
             # The traceback stays in the log above; the user (and the model) get the error alone — a traceback
             # in the chat showed the backend's file paths and library internals (2026-10-08).
             reply = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        # what the question cost, also when it failed (the tool records it: data-studio-agent/src/index.ts)
+        reply = {**reply, "usage": usage_meter.take()}
         print(json.dumps(reply, ensure_ascii=False), flush=True)
 
 

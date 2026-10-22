@@ -70,6 +70,7 @@ services:
     volumes:
       - mariadb-data:/var/lib/mysql
       - ./api/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+      - ./api/migrations/002_usage.sql:/docker-entrypoint-initdb.d/002_usage.sql:ro
 
   redis:
     image: redis:7-alpine

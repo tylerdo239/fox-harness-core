@@ -60,6 +60,7 @@ export function Sidebar({
   onOpenDataStudio,
   newSessionDisabled,
   onOpenSettings,
+  onOpenUsage,
   onOpenSkills,
   onLogout,
 }: {
@@ -83,6 +84,8 @@ export function Sidebar({
   // this just disables the button so it's not silently inert either).
   newSessionDisabled: boolean;
   onOpenSettings: () => void;
+  /** admins: the usage dashboard (/admin/usage) */
+  onOpenUsage?: () => void;
   onOpenSkills: () => void;
   onLogout: () => void;
 }) {
@@ -200,7 +203,7 @@ export function Sidebar({
       </div>
 
       <div className="fh-sidebar-foot">
-        <AccountMenu onOpenSettings={onOpenSettings} onLogout={onLogout} />
+        <AccountMenu onOpenSettings={onOpenSettings} onLogout={onLogout} onOpenUsage={onOpenUsage} />
       </div>
     </div>
   );

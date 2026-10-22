@@ -116,6 +116,18 @@ export const config = {
   // Server-side encryption for what the gateway stores in S3 (session archives): 'AES256' or 'aws:kms'. Empty =
   // none (a local MinIO without a KMS refuses it).
   s3Sse: process.env.S3_SSE || undefined,
+  // docs/admin-usage-dashboard-plan.md: the runtimes' usage records, loaded into MariaDB (discovery_usage_*) by
+  // runtime/usage.ts and reported at GET /admin/usage/report.
+  usage: {
+    enabled: envOr('USAGE_INGEST', '1') !== '0',
+    intervalMs: envIntOr('USAGE_INGEST_INTERVAL_MS', 60_000),
+    // rows older than this are deleted (checked once a day). 0 = keep.
+    retentionDays: envIntOr('USAGE_RETENTION_DAYS', 400),
+    // days in the report: a fixed UTC offset (Asia/Ho_Chi_Minh has no DST), so MariaDB needs no tz tables
+    utcOffsetMinutes: envIntOr('USAGE_UTC_OFFSET_MINUTES', 7 * 60),
+    // one computed report is reused this long (the page refreshes every minute; several admins may look)
+    reportCacheMs: envIntOr('USAGE_REPORT_CACHE_MS', 30_000),
+  },
   // docs/session-archive-plan.md: dsh session logs copied to S3 under `sessions/` (local disk stays the working copy).
   sessionArchive: {
     enabled: envOr('SESSION_ARCHIVE', '1') !== '0',

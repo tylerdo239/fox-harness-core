@@ -16,6 +16,7 @@ import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 
 import { config } from './config.ts'
+import { recordAdminUsage } from './runtime/usage.ts'
 
 const SERVICE_DIR =
   process.env.DATA_STUDIO_AGENT_DIR ?? fileURLToPath(new URL('../../../packages/tool/data-studio-agent/python', import.meta.url))
@@ -53,7 +54,8 @@ export interface AdminBridgeReply {
   reindex_summary?: Record<string, number>
 }
 
-export function runAdminBridge(request: Record<string, unknown>, timeoutMs = 60_000): Promise<AdminBridgeReply> {
+/** `usageUserId`: the admin the job runs for — its model calls (`usage` in the reply) are recorded under them. */
+export function runAdminBridge(request: Record<string, unknown>, timeoutMs = 60_000, usageUserId?: number): Promise<AdminBridgeReply> {
   return new Promise((resolve, reject) => {
     const env: Record<string, string> = {}
     for (const key of FORWARDED_ENV) {
@@ -84,7 +86,9 @@ export function runAdminBridge(request: Record<string, unknown>, timeoutMs = 60_
       settled = true
       clearTimeout(timer)
       try {
-        resolve(JSON.parse(line) as AdminBridgeReply)
+        const reply = JSON.parse(line) as AdminBridgeReply & { usage?: unknown }
+        void recordAdminUsage(usageUserId, reply.usage)
+        resolve(reply)
       } catch (error) {
         reject(error instanceof Error ? error : new Error(String(error)))
       }
@@ -179,6 +183,7 @@ function startWorker(): ReturnType<typeof spawn> {
 export function callAdmin<T extends Record<string, unknown> = Record<string, unknown>>(
   request: Record<string, unknown> & { id?: never },
   timeoutMs = 60_000,
+  usageUserId?: number,
 ): Promise<AdminBridgeReply & T> {
   worker ??= startWorker()
   const child = worker
@@ -190,7 +195,11 @@ export function callAdmin<T extends Record<string, unknown> = Record<string, unk
       if (worker === child) worker = undefined
       child.kill('SIGKILL') // stuck: the next call starts a fresh one
     }, timeoutMs)
-    pending.set(id, { resolve: resolve as Pending['resolve'], reject, timer })
+    const done = (reply: AdminBridgeReply & T & { usage?: unknown }) => {
+      void recordAdminUsage(usageUserId, reply.usage)
+      resolve(reply)
+    }
+    pending.set(id, { resolve: done as Pending['resolve'], reject, timer })
     child.stdin!.write(JSON.stringify({ ...request, id }) + '\n')
   })
 }

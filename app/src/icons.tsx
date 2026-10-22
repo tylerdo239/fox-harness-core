@@ -106,4 +106,7 @@ export {
   Square as StopIcon,
   // Settings dialog's Storage tab (docs/storage-quota-plan.md).
   HardDrive as StorageIcon,
+  // the admin usage dashboard (docs/admin-usage-dashboard-plan.md): its menu entry and CSV export
+  Gauge as UsageIcon,
+  Download as DownloadIcon,
 } from 'lucide-react'
