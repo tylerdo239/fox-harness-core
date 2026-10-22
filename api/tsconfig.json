@@ -7,6 +7,7 @@
     { "path": "packages/tool/serper-web-search" },
     { "path": "packages/tool/create-skill" },
     { "path": "packages/tool/canvas" },
+    { "path": "packages/tool/file-manage" },
     { "path": "packages/tool/python-repl" },
     { "path": "packages/tool/data-studio-agent" },
     { "path": "services/gateway" }

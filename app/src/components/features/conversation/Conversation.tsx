@@ -80,7 +80,10 @@ import {
   BrandIcon,
   ChevronDownIcon,
   DataAnalysisIcon,
+  FileTextIcon,
+  FolderIcon,
   PaperclipIcon,
+  PencilIcon,
   PinIcon,
   SearchIcon,
   SkillIcon,
@@ -398,6 +401,52 @@ function buildBubbleEntry(
 // than living on the `LogEntry` itself, since expand/collapse is pure
 // local UI state, not server-log data (same separation `liveBubbles`
 // already keeps from `entries`).
+// The file tools (docs/file-tools-plan.md §4.5) say what they did in words — "Read data/a.csv", "Moved a → b" —
+// instead of "Used read" with the arguments as JSON.
+const FILE_TOOLS = new Set(["read", "write", "edit", "glob", "grep", "file_manage"]);
+const FILE_MANAGE_LABELS: Record<string, TranslationKey> = {
+  list: "fileTool.list",
+  mkdir: "fileTool.mkdir",
+  move: "fileTool.move",
+  copy: "fileTool.copy",
+  delete: "fileTool.delete",
+  zip: "fileTool.zip",
+  unzip: "fileTool.unzip",
+};
+
+function fileToolLabel(
+  name: string,
+  argsJson: string,
+  t: (key: TranslationKey, params?: Record<string, string>) => string,
+): { text: string; icon: typeof ToolIcon } | undefined {
+  if (!FILE_TOOLS.has(name)) return undefined;
+  let args: Record<string, unknown>;
+  try {
+    args = JSON.parse(argsJson) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  const str = (key: string) => (typeof args[key] === "string" ? (args[key] as string) : "");
+  const short = (path: string) => (path.length > 60 ? `…${path.slice(-58)}` : path) || ".";
+  switch (name) {
+    case "read":
+      return { text: t("fileTool.read", { target: short(str("file_path")) }), icon: FileTextIcon };
+    case "write":
+      return { text: t("fileTool.write", { target: short(str("file_path")) }), icon: PencilIcon };
+    case "edit":
+      return { text: t("fileTool.edit", { target: short(str("file_path")) }), icon: PencilIcon };
+    case "glob":
+      return { text: t("fileTool.glob", { pattern: str("pattern") }), icon: SearchIcon };
+    case "grep":
+      return { text: t("fileTool.grep", { pattern: str("pattern") }), icon: SearchIcon };
+    default: {
+      const key = FILE_MANAGE_LABELS[str("action")];
+      if (!key) return undefined;
+      return { text: t(key, { target: short(str("path")), to: short(str("to")) }), icon: FolderIcon };
+    }
+  }
+}
+
 function ToolPill({
   entry,
   expanded,
@@ -410,13 +459,19 @@ function ToolPill({
   t: (key: TranslationKey, params?: Record<string, string>) => string;
 }) {
   const params = { name: entry.skill ?? entry.name };
-  const label =
-    entry.status === "running"
+  const file = entry.skill ? undefined : fileToolLabel(entry.name, entry.args, t);
+  const label = file
+    ? entry.status === "running"
+      ? `${file.text}…`
+      : entry.status === "error"
+        ? t("fileTool.failed", { what: file.text })
+        : file.text
+    : entry.status === "running"
       ? t(entry.skill ? "conversation.skillLoading" : "conversation.toolRunning", params)
       : entry.status === "error"
         ? t(entry.skill ? "conversation.skillFailed" : "conversation.toolFailed", params)
         : t(entry.skill ? "conversation.skillLoaded" : "conversation.toolUsed", params);
-  const Icon = entry.skill ? SkillIcon : ToolIcon;
+  const Icon = entry.skill ? SkillIcon : (file?.icon ?? ToolIcon);
   return (
     <div
       className={`tool-pill${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`}
@@ -689,6 +744,10 @@ const TOOL_LABELS: Partial<Record<string, TranslationKey>> = {
   canvas_write: "tool.canvas_write",
   read: "tool.read",
   write: "tool.write",
+  edit: "tool.edit",
+  glob: "tool.search_files",
+  grep: "tool.search_files",
+  file_manage: "tool.file_manage",
   skill: "tool.skill",
   analyze_data: "tool.analyze_data",
 };

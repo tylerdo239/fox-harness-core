@@ -9,7 +9,8 @@
         "@fox-harness/dsh-llm-openai-compat",
         "@fox-harness/dsh-tool-serper-web-search",
         "@fox-harness/dsh-tool-create-skill",
-        "@fox-harness/dsh-tool-canvas"
+        "@fox-harness/dsh-tool-canvas",
+        "@fox-harness/dsh-tool-file-manage"
       ]
     }
   }

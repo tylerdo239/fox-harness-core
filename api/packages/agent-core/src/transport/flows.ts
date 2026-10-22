@@ -19,7 +19,8 @@ import '@deepseek-ai/dsh-tools'
 // (docs/chat-attachments-plan.md). Back when image input is wired through.
 const NO_IMAGE_INPUT = ['read_image']
 const FLOW_TOOL_MASK: Record<string, 'all' | readonly string[]> = {
-  default: NO_IMAGE_INPUT,
+  // str_replace_editor duplicates `edit` (docs/file-tools-plan.md D3): two edit tools cost prompt and the model mixes them.
+  default: [...NO_IMAGE_INPUT, 'str_replace_editor'],
   'data-studio': 'all',
   'data-analysis': [
     'bash', 'str_replace_editor', 'job_kill', 'job_list', 'job_output', 'workflow', 'ralph',

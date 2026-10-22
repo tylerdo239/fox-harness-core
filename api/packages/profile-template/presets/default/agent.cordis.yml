@@ -16,3 +16,7 @@
 # No `analyze_data` here (removed 2026-10-06): offered next to web_search, the model sent a question about FPT
 # Telecom's public business results to the company-data pipeline. Company data is asked in Data Studio, the only
 # flow with that tool.
+# `python` (docs/file-tools-plan.md D2, 2026-10-22): runs code with its variables kept between calls and the memory
+# limits of python-repl, instead of one-off `python3 -c` through bash. bash stays for programs no tool covers.
+- id: tool-python-repl
+  name: '@fox-harness/dsh-tool-python-repl'

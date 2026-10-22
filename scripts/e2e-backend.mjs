@@ -116,6 +116,10 @@ const lastText = (events) => {
   const m = [...events].reverse().find((e) => e.type === 'assistant/message')
   return (m?.data?.message?.content ?? []).map((b) => b.text ?? '').join('')
 }
+// The workspace guard sends a bash command that only does file work (cat, ls, grep, sed…) to the file tools
+// (docs/file-tools-plan.md §4.1). Tests of the SANDBOX still need such commands to reach bash: wrapped in `sh -c`
+// they run a program (sh), which the rule lets through — the sandbox is what must stop them.
+const viaSh = (command) => `sh -c '${command.replace(/'/g, `'\\''`)}'`
 const turnsOf = (events) => events.filter((e) => e.type === 'turn/start').map((e) => e.data.turn)
 
 async function waitReady(ms = 120000) {
@@ -215,11 +219,11 @@ const tests = {
       ['read other user abs', 'read', { file_path: `${bDir}/secret.txt` }, 'SECRET-B-CANARY'],
       ['read ../ traversal', 'read', { file_path: `../../${bId}/${sb}/secret.txt` }, 'SECRET-B-CANARY'],
       ['grep data root', 'grep', { pattern: 'SECRET-B', path: '/data', output_mode: 'content' }, 'SECRET-B-CANARY'],
-      ['bash cat other user', 'bash', { command: `cat ${bDir}/secret.txt`, description: 'cat' }, 'SECRET-B-CANARY'],
-      ['bash cat host file', 'bash', { command: 'cat /data/canary-outside.txt', description: 'cat' }, 'HOSTFILE-CANARY'],
+      ['bash cat other user', 'bash', { command: viaSh(`cat ${bDir}/secret.txt`), description: 'cat' }, 'SECRET-B-CANARY'],
+      ['bash cat host file', 'bash', { command: viaSh('cat /data/canary-outside.txt'), description: 'cat' }, 'HOSTFILE-CANARY'],
       // each entry printed as USERDIR:<name>:END so a short id like `2` cannot match digits elsewhere in the result
-      ['bash list users dir', 'bash', { command: "ls /data/users | sed 's/.*/USERDIR:&:END/'", description: 'ls' }, `USERDIR:${bId}:END`],
-      ['bash /proc/1/environ', 'bash', { command: "cat /proc/1/environ | tr '\\0' '\\n'", description: 'p' }, 'DATABASE_URL'],
+      ['bash list users dir', 'bash', { command: viaSh("ls /data/users | sed 's/.*/USERDIR:&:END/'"), description: 'ls' }, `USERDIR:${bId}:END`],
+      ['bash /proc/1/environ', 'bash', { command: viaSh("cat /proc/1/environ | tr '\\0' '\\n'"), description: 'p' }, 'DATABASE_URL'],
       ['bash env', 'bash', { command: 'env', description: 'env' }, 'S3_SECRET'],
     ]
     const rows = []
@@ -231,7 +235,7 @@ const tests = {
       rows.push([label, !text.includes(marker)])
     }
     // control: the user's own workspace still works
-    ca.send(`CALL bash ${JSON.stringify({ command: 'echo OWN-OK > f.txt && cat f.txt', description: 'own' })}`); n += 1
+    ca.send(`CALL bash ${JSON.stringify({ command: viaSh('echo OWN-OK > f.txt && cat f.txt'), description: 'own' })}`); n += 1
     await ca.turnEnds(n, 40000).catch(() => {})
     const control = toolText(ca.events).includes('OWN-OK')
     ca.close()
@@ -457,7 +461,7 @@ const tests = {
       rows.push([`python -> ${host}:${port}`, toolText(c.events).includes(`NET-OPEN-${port}`)])
     }
     // no capability left (a root bwrap keeps them all by default; measured: CAP_SYS_ADMIN before --cap-drop ALL)
-    c.send(`CALL bash ${JSON.stringify({ command: "grep CapEff /proc/self/status | sed 's/.*:\\s*/CAPS:/'", description: 'caps' })}`); n += 1
+    c.send(`CALL bash ${JSON.stringify({ command: viaSh("grep CapEff /proc/self/status | sed 's/.*:\\s*/CAPS:/'"), description: 'caps' })}`); n += 1
     await c.turnEnds(n, 40000).catch(() => {})
     const caps = (toolText(c.events).match(/CAPS:([0-9a-f]+)/) ?? [])[1]
     // control: the sandbox still runs code
@@ -648,7 +652,7 @@ const tests = {
     const listed = await api('GET', `/sessions/${sid}/files`, a.token)
     rows.push(['listing after them', `${listed.status}:${['p1.csv', 'p2.csv', 'p3.csv'].every((n) => listed.json?.files?.some((f) => f.path === n && f.origin === 'source'))}`, '200:true'])
     const names = JSON.stringify([second.json?.path])
-    c.send(`CALL bash ${JSON.stringify({ command: "cat 'notes (2).txt'", description: 'read attachment' })}\n\n[Attached files in the working directory: ${names}]`)
+    c.send(`CALL read ${JSON.stringify({ file_path: 'notes (2).txt' })}\n\n[Attached files in the working directory: ${names}]`)
     await c.turnEnds(1, 40000).catch(() => {})
     rows.push(['model reads the attachment', toolText(c.events).includes('ATTACHED-CONTENT-42'), true])
     const userText = JSON.stringify(c.events.filter((e) => e.type === 'user/message').map((e) => e.data.message?.content ?? e.data.content))
@@ -1068,6 +1072,100 @@ print('planted')` })
     rows.push(['sandboxed cat of a link: fails', /exit=0/.test(direct) || direct.includes('B-SECRET'), false])
     rows.push(['sandboxed cat of a real file', cat(`${own}.moved/real.md`) === '# real report' ? dx('sh', '-c', `${runner} --ro-bind / / --bind ${pDir} ${pDir} -- /usr/bin/cat -- ${own}.moved/real.md`) : '(no real.md)', '# real report'])
 
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
+  },
+
+  // docs/file-tools-plan.md: the file tools (read / write / edit / glob / grep + file_manage) instead of bash for file
+  // work; bash kept for programs; python in the default flow; uploads, internal folders and canvas versions protected.
+  async fileTools() {
+    const { a } = await users()
+    await clearMock()
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    let n = 0
+    const call = async (tool, args) => {
+      c.send(`CALL ${tool} ${JSON.stringify(args)}`); n += 1
+      await c.turnEnds(n, 90000).catch(() => {})
+      return toolText(c.events)
+    }
+    const rows = []
+    const has = (label, text, needle, want = true) => rows.push([label, text.includes(needle), want])
+
+    // the tools the default flow offers
+    await call('read', { file_path: 'none.txt' })
+    const tools = (await mock()).find((r) => Array.isArray(r.tools) && r.tools.includes('read'))?.tools ?? []
+    for (const name of ['read', 'write', 'edit', 'glob', 'grep', 'file_manage', 'python', 'bash']) rows.push([`default offers ${name}`, tools.includes(name), true])
+    rows.push(['str_replace_editor hidden', tools.includes('str_replace_editor'), false])
+    const ws = workspaceOf(c.sessionId)
+
+    // bash: file-only commands go to the tools, programs run
+    has('bash ls → refused', await call('bash', { command: 'ls -la', description: 'ls' }), 'bash is only for running programs')
+    has('bash cat | head → refused', await call('bash', { command: 'cat a.csv | head -5', description: 'cat' }), 'bash is only for running programs')
+    has('bash heredoc write → refused', await call('bash', { command: 'cat <<EOF > x.txt\nhi\nEOF', description: 'w' }), 'bash is only for running programs')
+    has('bash program runs', await call('bash', { command: 'uname -s', description: 'uname' }), 'Linux')
+    has('bash program | tail runs', await call('bash', { command: 'uname -s | tail -1', description: 'uname' }), 'Linux')
+
+    // python in the default flow, variables kept
+    await call('python', { code: 'x = 41' })
+    has('python keeps variables', await call('python', { code: 'print("PY", x + 1)' }), 'PY 42')
+
+    // write → read → edit → read
+    await call('write', { file_path: 'notes.md', content: 'hello world\n' })
+    has('read after write', await call('read', { file_path: 'notes.md' }), 'hello world')
+    await call('edit', { file_path: 'notes.md', old_string: 'world', new_string: 'fox' })
+    has('edit applied', await call('read', { file_path: 'notes.md' }), 'hello fox')
+    dx('sh', '-c', `printf 'planted\\n' > ${ws}/planted.txt`)
+    has('edit without read → refused', await call('edit', { file_path: 'planted.txt', old_string: 'planted', new_string: 'x' }), 'read the file, then retry')
+
+    // protected: an uploaded original, .fox/, a canvas version
+    dx('sh', '-c', `mkdir -p ${ws}/.fox && printf 'id,v\\n1,2\\n' > ${ws}/orig.csv && chmod 444 ${ws}/orig.csv && echo '["orig.csv"]' > ${ws}/.fox/sources.json && printf '# v1' > ${ws}/canvas-note-v1.md`)
+    await call('read', { file_path: 'orig.csv' })
+    has('write over an upload → refused', await call('write', { file_path: 'orig.csv', content: 'gone' }), 'file the user uploaded')
+    rows.push(['upload unchanged', dx('cat', `${ws}/orig.csv`), 'id,v\n1,2\n'])
+    has('write into .fox → refused', await call('write', { file_path: '.fox/sources.json', content: '[]' }), 'internal')
+    await call('read', { file_path: 'canvas-note-v1.md' })
+    has('edit a canvas version → refused', await call('edit', { file_path: 'canvas-note-v1.md', old_string: 'v1', new_string: 'v2' }), 'canvas_write')
+    has('file_manage delete upload → refused', await call('file_manage', { action: 'delete', path: 'orig.csv' }), 'file the user uploaded')
+    has('file_manage move upload → refused', await call('file_manage', { action: 'move', path: 'orig.csv', to: 'x.csv' }), 'file the user uploaded')
+
+    // file_manage round trip
+    has('copy an upload', await call('file_manage', { action: 'copy', path: 'orig.csv', to: 'work.csv' }), 'Copied orig.csv')
+    rows.push(['the copy is writable', dx('sh', '-c', `stat -c %a ${ws}/work.csv`).trim(), '644'])
+    has('mkdir', await call('file_manage', { action: 'mkdir', path: 'sub/deep' }), 'Folder ready')
+    has('move into a folder keeps the name', await call('file_manage', { action: 'move', path: 'work.csv', to: 'sub' }), 'sub/work.csv')
+    const listing = await call('file_manage', { action: 'list', depth: 3 })
+    has('list shows the tree', listing, 'work.csv')
+    has('list marks the upload', listing, 'uploaded original, read-only')
+    const trashed = await call('file_manage', { action: 'delete', path: 'sub/work.csv' })
+    const trashPath = /\((\.fox\/trash\/[^)]+)\)/.exec(JSON.parse(trashed)?.[0]?.text ?? trashed)?.[1]
+    rows.push(['delete goes to the trash', Boolean(trashPath) && dx('sh', '-c', `test -f ${ws}/${trashPath} && echo yes || echo no`).trim(), 'yes'])
+    has('restore from the trash', await call('file_manage', { action: 'move', path: trashPath ?? '', to: 'sub/work.csv' }), 'Moved')
+    has('zip a folder', await call('file_manage', { action: 'zip', path: 'sub', to: 'sub.zip' }), 'Zipped sub')
+    has('unzip it', await call('file_manage', { action: 'unzip', path: 'sub.zip', to: 'out' }), 'Unzipped sub.zip')
+    rows.push(['unzipped file there', dx('sh', '-c', `cat ${ws}/out/sub/work.csv`), 'id,v\n1,2\n'])
+
+    // review 2026-10-22: overwrite must not reach an upload or a canvas version through a folder copy or an unzip
+    // an upload inside a folder (up/orig2.csv), and a look-alike folder x/up/ copied over it
+    dx('sh', '-c', `mkdir -p ${ws}/up ${ws}/x/up && printf ORIG2 > ${ws}/up/orig2.csv && chmod 444 ${ws}/up/orig2.csv && echo '["orig.csv","up/orig2.csv"]' > ${ws}/.fox/sources.json && printf EVIL > ${ws}/x/up/orig2.csv && cd ${ws} && python3 -c "import zipfile; z=zipfile.ZipFile('o.zip','w'); z.writestr('orig.csv','EVIL'); z.close()"`)
+    has('copy a folder over an upload → refused', await call('file_manage', { action: 'copy', path: 'x/up', to: '', overwrite: true }), 'file the user uploaded')
+    rows.push(['upload in a folder intact', dx('cat', `${ws}/up/orig2.csv`), 'ORIG2'])
+    has('unzip over an upload → refused', await call('file_manage', { action: 'unzip', path: 'o.zip', to: '.', overwrite: true }), 'file the user uploaded')
+    rows.push(['upload still intact', dx('cat', `${ws}/orig.csv`), 'id,v\n1,2\n'])
+    has('copy onto a canvas version name → refused', await call('file_manage', { action: 'copy', path: 'notes.md', to: 'canvas-note-v1.md', overwrite: true }), 'canvas version')
+    // not refused by the rule (no file tool reads outside the workspace); whether the file is there is the sandbox's call
+    has('bash cat of a system file not refused', await call('bash', { command: 'cat /etc/os-release', description: 'os' }), 'bash is only for running programs', false)
+
+    // links are never followed; zip-slip refused
+    dx('sh', '-c', `echo HOSTFILE-CANARY > /data/canary-outside.txt && ln -sfn /data/canary-outside.txt ${ws}/evil && ln -sfn /data ${ws}/evildir`)
+    { const text = await call('file_manage', { action: 'copy', path: 'evil', to: 'stolen.txt' }); rows.push(['copy a link → refused', /links are not followed|outside this session's workspace/.test(text), true]) }
+    has('move into a linked folder → refused', await call('file_manage', { action: 'move', path: 'notes.md', to: 'evildir/notes.md' }), 'links are not followed')
+    has('list shows a link as a link', await call('file_manage', { action: 'list' }), 'link, not followed')
+    dx('sh', '-c', `cd ${ws} && python3 -c "import zipfile; z=zipfile.ZipFile('slip.zip','w'); z.writestr('../../escape.txt','x'); z.close()"`)
+    has('unzip zip-slip → refused', await call('file_manage', { action: 'unzip', path: 'slip.zip', to: 'slip' }), 'not inside the working directory')
+    rows.push(['nothing escaped', dx('sh', '-c', `ls ${ws}/../escape.txt ${ws}/../../escape.txt 2>/dev/null | wc -l`).trim(), '0'])
+    rows.push(['canary never copied in', dx('sh', '-c', `grep -rl HOSTFILE-CANARY ${ws} 2>/dev/null | wc -l`).trim(), '0'])
+
+    c.close()
     const bad = rows.filter(([, got, want]) => got !== want)
     return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
   },

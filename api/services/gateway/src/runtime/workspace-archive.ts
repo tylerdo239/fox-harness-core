@@ -331,9 +331,9 @@ const isVisible = (path: string) => !path.split('/').some((part) => part.startsW
 
 /**
  * docs/storage-quota-plan.md: every file of a directory the user has (uploads, outputs, the canvas history in
- * `.canvas/`) gone from the disk and from S3 — the chat and its hidden state (`.dsh/`, `.fox/`, the python marker)
- * stay, so this is safe on an open chat too.
+ * `.canvas/`, what file_manage put in the trash `.fox/trash/`) gone from the disk and from S3 — the chat and its
+ * hidden state (`.dsh/`, the `.fox/` manifests, the python marker) stay, so this is safe on an open chat too.
  */
 export function clearWorkspace(dir: string): Promise<{ files: number; bytes: number }> {
-  return deleteFiles(dir, (path) => isVisible(path) || path.startsWith('.canvas/'))
+  return deleteFiles(dir, (path) => isVisible(path) || path.startsWith('.canvas/') || path.startsWith('.fox/trash/'))
 }

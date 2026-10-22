@@ -1,0 +1,5 @@
+# Pure ADD (id doesn't exist upstream) — plain `insert:` is correct here, same as packages/tool/create-skill.
+- insert:
+    - id: fox-harness-tool-file-manage
+      name: '@fox-harness/dsh-tool-file-manage'
+      config: {}
