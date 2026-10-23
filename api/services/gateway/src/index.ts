@@ -57,6 +57,7 @@ import {
   updateCustomSkill,
   type Role,
   type TitleSource,
+  dbQuery,
 } from './db.ts'
 import {
   addWidget,
@@ -103,6 +104,8 @@ import { ensureLocal as ensureSessionLogLocal, startArchiver, stopArchiver } fro
 import { deleteEvictedFile, ensureWorkspaceLocal, isEvictedDir, clearWorkspace, dirUsage } from './runtime/workspace-archive.ts'
 import { checkUpload, cleanupOldFiles, noteFreed, startStorageJobs, stopStorageJobs, storageOverview, userStorage } from './runtime/storage.ts'
 import { cachedUsageReport, parseUsageQuery, recordAdminUsage, startUsageIngest, stopUsageIngest, userUsage } from './runtime/usage.ts'
+import * as memoryService from './memory/service.ts'
+import * as memoryStore from './memory/store.ts'
 import { canvasHistory, CANVAS_ID_RE, clearHistory, deleteCanvas, deleteHistoryFile, recordEdit, snapshotFile } from './runtime/canvas-history.ts'
 import { openInside } from './runtime/safe-fs.ts'
 import { syncSkills } from './runtime/skills-sync.ts'
@@ -196,6 +199,14 @@ const PROJECT_NAME_MAX = 120
 
 const builtinSkills = loadBuiltinSkills()
 const builtinSkillNames = new Set(builtinSkills.map((skill) => skill.name))
+
+/** Titles of the given chats (the memory list links each chat memory to its chat). */
+async function chatTitles(sessionIds: string[]): Promise<Map<string, string | null>> {
+  if (sessionIds.length === 0) return new Map()
+  const rows = await dbQuery<{ session_id: string; title: string | null }[]>(
+    `select session_id, title from discovery_sessions where session_id in (${sessionIds.map(() => '?').join(',')})`, sessionIds)
+  return new Map(rows.map((r) => [r.session_id, r.title]))
+}
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json' })
@@ -413,6 +424,132 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     // shard up/down only — ports and restart counts are internal (2026-10-06)
     const shards = health.shards.map((shard) => ({ index: shard.index, up: shard.up }))
     res.end(JSON.stringify({ ok, ...(url.pathname === '/readyz' ? { ready: health.ready, shards } : {}) }))
+    return
+  }
+
+  // ---- long-term memory (docs/memory-plugin-plan.md §4) ----------------------------------------------------------
+  // Internal (runtime plugin → gateway): /internal/memory/recall and /remember. Not proxied by nginx; refused unless
+  // from loopback and with the supervisor's secret. The member is checked again against discovery_sessions.
+  if (url.pathname.startsWith('/internal/')) {
+    const remote = req.socket.remoteAddress ?? ''
+    const loopback = remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1'
+    if (!loopback || req.headers['x-fox-harness-internal-secret'] !== runtime.secret) {
+      log('internal_refused', { path: url.pathname, remote })
+      return sendJson(res, 404, { error: 'not found' })
+    }
+    if (req.method === 'POST' && (url.pathname === '/internal/memory/recall' || url.pathname === '/internal/memory/remember')) {
+      handle(res, async () => {
+        let body: { userId?: unknown; sessionId?: unknown; query?: unknown; messages?: unknown; context?: unknown; turn?: unknown; at?: unknown }
+        try {
+          body = JSON.parse(await readBody(req))
+        } catch {
+          return sendJson(res, 400, { error: 'invalid JSON body' })
+        }
+        const userId = Number(body.userId)
+        const sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
+        if (!Number.isInteger(userId) || userId <= 0 || !/^[0-9a-f-]{36}$/i.test(sessionId)) return sendJson(res, 400, { error: 'userId and sessionId are required' })
+        const turn = Number.isInteger(body.turn) ? Number(body.turn) : undefined
+        if (url.pathname.endsWith('/recall')) {
+          return sendJson(res, 200, await memoryService.recall({ userId, sessionId, query: typeof body.query === 'string' ? body.query : '', ...(turn === undefined ? {} : { turn }) }))
+        }
+        const chatMessages = (list: unknown, max: number) => (Array.isArray(list) ? list : [])
+          .filter((m): m is { role: 'user' | 'assistant'; content: string } => !!m && typeof m === 'object' && ((m as { role?: unknown }).role === 'user' || (m as { role?: unknown }).role === 'assistant') && typeof (m as { content?: unknown }).content === 'string')
+          .slice(0, max)
+          .map((m) => ({ role: m.role, content: m.content.slice(0, 3000) }))
+        const messages = chatMessages(body.messages, 40)
+        // the previous turn (its request and answer): read-only, so "the member accepted the figure" can be judged
+        const context = chatMessages(body.context, 4)
+        if (messages.length === 0) return sendJson(res, 400, { error: 'messages are required' })
+        void memoryService.remember({ userId, sessionId, messages, ...(context.length > 0 ? { context } : {}), ...(turn === undefined ? {} : { turn }), ...(typeof body.at === 'string' ? { at: body.at } : {}) })
+        sendJson(res, 202, { queued: true })
+      })
+      return
+    }
+    return sendJson(res, 404, { error: 'not found' })
+  }
+
+  // The member's own memories (Settings → Memory): GET /memory, PATCH/DELETE /memory/:id {text}, POST /memory/clear
+  // {layer?: user|chat, sessionId?}, PUT /memory/settings {enabled}. Another member's id answers 404.
+  const memoryItemMatch = /^\/memory\/([0-9a-f-]{36})$/i.exec(url.pathname)
+  if (url.pathname === '/memory' || url.pathname === '/memory/clear' || url.pathname === '/memory/settings' || memoryItemMatch) {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const configured = memoryService.memoryConfigured()
+      if (url.pathname === '/memory' && req.method === 'GET') {
+        const [org, mine] = await Promise.all([memoryService.orgEnabled(), memoryService.userEnabled(identity.userId)])
+        if (!configured) return sendJson(res, 200, { configured, orgEnabled: org, enabled: mine, memories: [] })
+        const items = await memoryService.memory().memories(identity.userId)
+        const titles = await chatTitles([...new Set(items.map((m) => m.sessionId).filter(Boolean))])
+        return sendJson(res, 200, {
+          configured, orgEnabled: org, enabled: mine,
+          memories: items.map((m) => ({ id: m.id, layer: m.scope === 'user' ? 'user' : 'chat', ...(m.sessionId ? { sessionId: m.sessionId, chatTitle: titles.get(m.sessionId) ?? null } : {}), schema: m.schema, text: m.text, updatedAt: m.updatedAt })),
+        })
+      }
+      if (url.pathname === '/memory/settings' && req.method === 'PUT') {
+        const body = JSON.parse((await readBody(req)) || '{}') as { enabled?: unknown }
+        if (typeof body.enabled !== 'boolean') return sendJson(res, 400, { error: 'enabled must be true or false' })
+        await memoryStore.setSwitch(`user:${String(identity.userId)}`, body.enabled)
+        return sendJson(res, 200, { enabled: body.enabled })
+      }
+      if (!configured) return sendJson(res, 503, { error: 'memory is not configured', code: 'memory_off' })
+      if (url.pathname === '/memory/clear' && req.method === 'POST') {
+        const body = JSON.parse((await readBody(req)) || '{}') as { layer?: unknown; sessionId?: unknown }
+        const filter = {
+          ...(body.layer === 'user' ? { scope: 'user' as const } : body.layer === 'chat' ? { scope: 'session' as const } : {}),
+          ...(typeof body.sessionId === 'string' ? { sessionId: body.sessionId } : {}),
+        }
+        return sendJson(res, 200, { removed: await memoryService.memory().clear(identity.userId, filter) })
+      }
+      if (memoryItemMatch && req.method === 'PATCH') {
+        const body = JSON.parse((await readBody(req)) || '{}') as { text?: unknown }
+        if (typeof body.text !== 'string' || !body.text.trim() || body.text.length > 2000) return sendJson(res, 400, { error: 'text is required, at most 2000 characters' })
+        const ok = await memoryService.withCalls(identity.userId, (calls) => memoryService.memory().edit(identity.userId, memoryItemMatch[1]!, body.text as string, calls))
+        return ok ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: 'not found' })
+      }
+      if (memoryItemMatch && req.method === 'DELETE') {
+        return (await memoryService.memory().forget(identity.userId, memoryItemMatch[1]!)) ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: 'not found' })
+      }
+      sendJson(res, 405, { error: 'method not allowed' })
+    })
+    return
+  }
+
+  // One chat's memory switch (its owner only): GET/PUT /sessions/:id/memory {enabled}.
+  const sessionMemoryMatch = /^\/sessions\/([0-9a-f-]{36})\/memory$/i.exec(url.pathname)
+  if (sessionMemoryMatch && (req.method === 'GET' || req.method === 'PUT')) {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const sessionId = sessionMemoryMatch[1]!
+      const info = await getSessionRuntimeInfo(sessionId)
+      if (!info || info.ownerId !== identity.userId) return sendJson(res, 404, { error: 'session not found' })
+      if (req.method === 'PUT') {
+        const body = JSON.parse((await readBody(req)) || '{}') as { enabled?: unknown }
+        if (typeof body.enabled !== 'boolean') return sendJson(res, 400, { error: 'enabled must be true or false' })
+        await memoryStore.setSwitch(`session:${sessionId}`, body.enabled)
+      }
+      sendJson(res, 200, {
+        enabled: await memoryService.chatEnabled(sessionId),
+        available: memoryService.memoryConfigured() && info.flow !== 'data-studio' && (await memoryService.orgEnabled()) && (await memoryService.userEnabled(identity.userId)),
+      })
+    })
+    return
+  }
+
+  // The organization switch (ADMIN_ONLY_PATHS): GET/PUT /admin/memory {enabled}.
+  if (url.pathname === '/admin/memory' && (req.method === 'GET' || req.method === 'PUT')) {
+    handle(res, async () => {
+      if (req.method === 'PUT') {
+        // MEMORY_ORG set: the deployment decides, not this switch
+        if (memoryService.orgLocked()) return sendJson(res, 409, { error: 'set by the deployment (MEMORY_ORG)', code: 'memory_org_locked' })
+        const body = JSON.parse((await readBody(req)) || '{}') as { enabled?: unknown }
+        if (typeof body.enabled !== 'boolean') return sendJson(res, 400, { error: 'enabled must be true or false' })
+        await memoryStore.setSwitch('org', body.enabled)
+        log('memory_org_switch', { enabled: body.enabled })
+      }
+      sendJson(res, 200, { enabled: await memoryService.orgEnabled(), configured: memoryService.memoryConfigured(), locked: memoryService.orgLocked() })
+    })
     return
   }
 
@@ -794,6 +931,8 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       try {
         const info = await getSessionRuntimeInfo(sessionId)
         if (info) await purgeSessionData(runtime, sessionId, info)
+        // its chat-scope memories go with it (what the member said to keep from now on stays)
+        if (info) await memoryService.forChatDeleted(info.ownerId, sessionId)
         await deleteSessionRow(sessionId)
         log('purge_ok', { sessionId, userId: identity.userId })
         res.writeHead(204)
@@ -864,6 +1003,7 @@ function route(req: IncomingMessage, res: ServerResponse): void {
         for (const sessionId of await listSessionIdsForProject(projectId)) {
           const info = await getSessionRuntimeInfo(sessionId)
           if (info) await purgeSessionData(runtime, sessionId, info)
+          if (info) await memoryService.forChatDeleted(info.ownerId, sessionId)
           await deleteSessionRow(sessionId)
         }
         await deleteProjectData(projectId)

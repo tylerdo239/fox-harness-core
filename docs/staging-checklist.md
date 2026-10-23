@@ -36,12 +36,13 @@ Thứ tự:
 
 | Thành phần | Cần kiểm tra |
 |---|---|
-| **MariaDB 10.11** | [ ] Có database `discovery-agent` và user riêng. [ ] Đã chạy `api/migrations/001_init.sql` **một lần**. [ ] Các bảng `discovery_*` là `utf8mb4` (nếu DB cũ: xem `api/migrations/README.md`). |
+| **MariaDB 10.11** | [ ] Có database `discovery-agent` và user riêng. [ ] Đã chạy `api/migrations/001_init.sql`, `002_usage.sql`, `003_memory.sql` **một lần** (theo thứ tự). [ ] Các bảng `discovery_*` là `utf8mb4` (nếu DB cũ: xem `api/migrations/README.md`). |
 | **Redis** | [ ] Có mật khẩu. Không cần backup (chỉ giữ token đăng nhập và rate limit). |
 | **S3 / bucket** | [ ] Bucket tồn tại sẵn (gateway chỉ tự tạo khi `HeadBucket` lỗi, trên S3 công ty thường không được quyền tạo). [ ] User S3 có quyền **bắt buộc**: `s3:ListBucket` (cho `HeadBucket` và liệt kê), `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucketVersions` (xoá log và file khi xoá chat/project); bucket bật versioning thì thêm `s3:DeleteObjectVersion`. Không cần quyền lifecycle (gateway không đặt rule nào từ 2026-10-14). S3 giữ log chat (`sessions/`), file upload và file python sinh ra (`files/`), xem `docs/workspace-archive-plan.md`. [ ] Đặt `S3_ENDPOINT` (trừ khi đúng là AWS). [ ] MinIO hoặc S3 kiểu path: `S3_FORCE_PATH_STYLE=true`. |
 | **LLM** | [ ] Endpoint OpenAI-compatible `/chat/completions`, hỗ trợ tool-calling. Không có fallback sang api.openai.com. |
 | **Embedding** | [ ] Endpoint `/embeddings` (Data Studio dùng). |
 | **MongoDB** | [ ] Có DB cho Data Studio (`MONGODB_DATABASE_NAME`, mặc định `bot_data_studio`). Nếu URI có tên DB thì tên trong URI thắng. |
+| **Qdrant ≥ 1.10** (bộ nhớ dài hạn) | [ ] `QDRANT_URL` (+ `QDRANT_API_KEY` nếu có). [ ] Phiên bản ≥ 1.10 (tìm theo từ khoá cần sparse vector có IDF; thấp hơn thì gateway log lỗi và bộ nhớ không chạy). [ ] Dùng chung với môi trường khác thì đặt `MEMORY_COLLECTION_PREFIX` riêng (ví dụ `staging_`). Collection tự tạo lần đầu. Xem `docs/memory-plugin-plan.md`. |
 | **Meilisearch** | [ ] Container riêng có volume `/meili_data`, `MEILI_ENV=production`, `MEILI_MASTER_KEY` ≥ 16 byte, `MEILI_NO_ANALYTICS=true`. |
 | **Dremio** | [ ] Hệ thống bên ngoài: làm hết bước 0 trong `docs/data-studio-dremio-staging-fix-plan.md` (tài khoản, quyền, TLS, proxy). |
 | **Volume `/data`** | [ ] PVC cho backend (RWO đủ cho 1 replica). [ ] Có lịch backup: đây là bản làm việc của hội thoại, workspace, project. Log và file cũng có trên S3 (trừ file > 100 MB), nhưng thay đổi trong 2 phút gần nhất chỉ nằm ở đây. |
@@ -85,6 +86,7 @@ Thiếu là gateway không khởi động:
 - [ ] Bucket có dung lượng cố định (12 GB): `S3_BUCKET_CAPACITY_BYTES=12884901888`, `USER_FILE_QUOTA_BYTES` (mặc
       định 200 MB), tuỳ chọn `FILE_RETENTION_DAYS` (xem `docs/storage-quota-plan.md`). Kiểm tra bucket **không bật
       versioning** (`aws s3api get-bucket-versioning`): bật thì file đã xoá vẫn chiếm chỗ.
+- [ ] Bộ nhớ dài hạn: `MEMORY_ORG=1` bật cho cả tổ chức (`0` tắt; khi đặt, công tắc trong Cài đặt chỉ xem). Không đặt thì admin bật/tắt trong Cài đặt → Bộ nhớ (mặc định tắt). `MEMORY=0` tắt hẳn (plugin không chạy).
 - [ ] Secret lấy từ secret manager, không ghi thẳng vào manifest.
 
 ### Sandbox (chọn một)

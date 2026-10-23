@@ -8,6 +8,7 @@
     { "path": "packages/tool/create-skill" },
     { "path": "packages/tool/canvas" },
     { "path": "packages/tool/file-manage" },
+    { "path": "packages/memory" },
     { "path": "packages/tool/python-repl" },
     { "path": "packages/tool/data-studio-agent" },
     { "path": "services/gateway" }

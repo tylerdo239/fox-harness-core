@@ -82,8 +82,50 @@ function reply(body) {
   return chunks
 }
 
+// Long-term memory's own calls (services/gateway/src/memory/): plain JSON answers, not SSE. The extraction answers
+// with the JSON a test put in a user message after `MEM ` (e.g. `MEM {"events":[...]}`); the other memory prompts
+// (dedup, merge, compress, merging keys, rerank) answer {}. Not recorded in /_requests (no tools, not the chat model).
+const MEMORY_PROMPTS = ['Bạn trích bộ nhớ dài hạn', 'Bạn nén một dòng thời gian', 'Bạn hợp nhất một ghi chú', 'Với mỗi cặp, ghi nhớ MỚI', 'Đây là các khoá của entity', 'Chấm mức hữu ích']
+function memoryAnswer(body) {
+  const system = textOf(body.messages?.find((m) => m.role === 'system')?.content)
+  if (!MEMORY_PROMPTS.some((p) => system.startsWith(p))) return undefined
+  let answer = {}
+  if (system.startsWith('Bạn trích bộ nhớ dài hạn')) {
+    const user = textOf(body.messages?.find((m) => m.role === 'user')?.content)
+    const found = [...user.matchAll(/MEM (\{.*\})\s*$/gm)].pop()
+    if (found) {
+      try { answer = JSON.parse(found[1]) } catch { answer = {} }
+    }
+  }
+  return { id: 'mock-memory', object: 'chat.completion', created: 0, model: body.model ?? 'mock', choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(answer) }, finish_reason: 'stop' }], usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 } }
+}
+
+/** Embeddings: a bag of lower-cased, accent-free words hashed into 64 dims — the same words → cosine 1. */
+function embedding(text) {
+  const v = new Array(64).fill(0)
+  const words = String(text).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/^(query|passage): /, '').split(/[^a-z0-9]+/).filter((w) => w.length > 1 || /\d/.test(w))
+  for (const word of words) {
+    let h = 0
+    for (const ch of word) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+    v[h % 64] += 1
+  }
+  const norm = Math.hypot(...v) || 1
+  return v.map((x) => x / norm)
+}
+
 createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost')
+  if (req.method === 'POST' && url.pathname.endsWith('/embeddings')) {
+    let raw = ''
+    req.on('data', (c) => { raw += c })
+    req.on('end', () => {
+      const body = JSON.parse(raw)
+      const inputs = Array.isArray(body.input) ? body.input : [body.input]
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ object: 'list', model: body.model, data: inputs.map((t, index) => ({ object: 'embedding', index, embedding: embedding(t) })), usage: { prompt_tokens: inputs.length * 8, total_tokens: inputs.length * 8 } }))
+    })
+    return
+  }
   if (url.pathname === '/_requests') {
     if (req.method === 'DELETE') requests.length = 0
     res.writeHead(200, { 'content-type': 'application/json' })
@@ -95,6 +137,12 @@ createServer((req, res) => {
     req.on('data', (c) => { raw += c })
     req.on('end', () => {
       const body = JSON.parse(raw)
+      const memory = memoryAnswer(body)
+      if (memory) {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(memory))
+        return
+      }
       requests.push({
         at: Date.now(),
         model: body.model,
@@ -105,6 +153,14 @@ createServer((req, res) => {
           .filter((m) => m.role === 'user' && textOf(m.content).includes('<available_skills>'))
           .flatMap((m) => [...textOf(m.content).matchAll(/^- `([^`]+)`/gm)].map((x) => x[1])),
         lastUser: textOf(humanUser(body.messages)?.content).slice(0, 200),
+        // the long-term memory block the runtime added this turn (a plugin-sourced user message), if any
+        // (only one added after the latest human message: older turns' blocks stay in the history)
+        memory: (() => {
+          const list = body.messages ?? []
+          const human = list.lastIndexOf(humanUser(list))
+          const found = list.slice(Math.max(0, human)).find((m) => m.role === 'user' && textOf(m.content).includes('## Bộ nhớ'))
+          return textOf(found?.content).slice(0, 4000)
+        })(),
         // the shape of the whole conversation sent (role + first characters), for parity comparisons
         messages: (body.messages ?? []).map((m) => `${m.role}:${textOf(m.content).replace(/\s+/g, ' ').slice(0, 60)}${m.tool_calls ? ` [tool_calls:${m.tool_calls.map((c) => c.function?.name).join(',')}]` : ''}`),
         // the tool result this request answers, if any (lets a test see what a tool returned, e.g. inside a subagent)

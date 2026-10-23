@@ -48,6 +48,21 @@ thường bị đưa về trang chủ và API trả 403.
 Chỉ có số liệu: không lưu nội dung tin nhắn. Số liệu bắt đầu từ khi bản cập nhật chạy (không có số liệu cũ), làm mới mỗi
 phút, giữ 400 ngày (`USAGE_RETENTION_DAYS`). Cần chạy `api/migrations/002_usage.sql` một lần trên DB đã có.
 
+## Bộ nhớ dài hạn
+
+Trợ lý nhớ điều người dùng nói để dùng lại ở các lượt sau: trong một chat (số liệu hiện hành, điều đã chốt, việc dở,
+mục tiêu) và ở mọi chat của chính người đó (vai trò, quy ước họ dặn "từ nay…"). Mỗi người chỉ thấy bộ nhớ của mình.
+
+- **Bật/tắt cho cả tổ chức:** biến môi trường `MEMORY_ORG=1` (bật) / `0` (tắt) khi triển khai; khi đã đặt, công tắc
+  trong Cài đặt chỉ để xem. Không đặt thì admin bật trong Cài đặt → Bộ nhớ → "Bật bộ nhớ cho cả tổ chức" (mặc định tắt).
+  Tắt thì trợ lý không ghi và không dùng bộ nhớ; dữ liệu đã có vẫn giữ.
+- **Người dùng** tự tắt cho mình (Cài đặt → Bộ nhớ) hoặc cho một chat (nút "Bộ nhớ" trên thanh tiêu đề chat), xem,
+  sửa, xoá từng ký ức hoặc xoá hết. Admin không xem được bộ nhớ của người khác.
+- **Xoá một chat** xoá bộ nhớ của chat đó; điều người dùng dặn áp dụng lâu dài vẫn giữ.
+- **Không áp dụng** cho Data Studio (trả lời từ dữ liệu công ty) và cho subagent.
+- **Chi phí** (trích ký ức, embedding, nén): trên `/admin/usage`, ô "token bộ nhớ dài hạn" (`purpose` `memory-*`).
+- **Hạ tầng:** MariaDB (`003_memory.sql`) và Qdrant ≥ 1.10 (`QDRANT_URL`). Chi tiết: `docs/memory-plugin-plan.md`.
+
 ## Nguồn dữ liệu Data Studio
 
 Các màn này nằm trong thanh bên Data Studio, chỉ admin thấy. Chúng quyết định Data Studio **hỏi được dữ liệu nào** và

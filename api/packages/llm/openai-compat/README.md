@@ -118,6 +118,25 @@ routes `provider`/`model` from `OPENAI_MODEL_ID` automatically.
 Then point `agent-default-model`'s `provider`/`model` at this route (or
 whatever selects a model per-agent) to actually use it for chat.
 
+## Qwen fixes (2026-10-23, ported from examples/pynote-be)
+
+Measured there on Qwen3.5-35B on vLLM; `pnpm test:llm` (api) covers each one.
+- `tool-call-repair.ts`: ChatML markup in argument keys (`"\n<parameter=save_as"`), arguments written as
+  `<parameter=…>` markup, markup around the tool name, and empty arguments are repaired. A call that stays broken fails
+  the attempt with `MALFORMED_TOOL_CALL`, which `providerRetryPolicy` adds to dsh-llm-retry's codes. When the output
+  ran out of room (`finish_reason: length`), it fails with `CONTEXT_WINDOW_EXCEEDED` instead, so compaction runs first.
+- `serialize.ts`: past calls go out repaired, or as `{}`. vLLM parses every past call when it renders the template, so
+  one cut-off call used to 400 every later request of the chat.
+- `translate.ts`: a tool call left in `reasoning_content` or the text as `<tool_call><function=…>` markup is lifted
+  out (only when the response has no real tool call). An answer left only in the reasoning is shown as text, without
+  any `<system-reminder>` tag the model made up. Without these the turn ended "completed" and the user saw nothing.
+- `adapter.ts`: more context-overflow wordings (vLLM, LiteLLM) map to `CONTEXT_WINDOW_EXCEEDED`. A cancelled request
+  (dsh's bare `{kind:'user'}` abort reason) is wrapped as `LlmError` `ABORTED`, so Stop always closes the turn.
+
+Not ported: pynote-be's per-step thinking switch and context-window probe (`model-profile.ts`), its per-request
+records for other routes (`guard.ts`, `usage-meter.ts`) and the answer number check (`bundle-core/number-check.ts`).
+Thinking stays off/on through `OPENAI_EXTRA_BODY`.
+
 ## TODO
 
 - [x] ~~Run a real chat turn through the actual `agent-driver`~~ — done

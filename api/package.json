@@ -11,7 +11,9 @@
     "dev": "node --experimental-strip-types services/gateway/src/index.ts",
     "build": "tsc -b tsconfig.json",
     "typecheck": "tsc -b tsconfig.json",
-    "clean": "tsc -b tsconfig.json --clean"
+    "clean": "tsc -b tsconfig.json --clean",
+    "test:llm": "node --experimental-transform-types --no-warnings --test --test-force-exit packages/llm/openai-compat/test/repair.test.ts",
+    "test:memory": "node --experimental-transform-types --no-warnings --test --test-force-exit services/gateway/test/memory.unit.test.ts services/gateway/test/memory.integration.test.ts"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.1-rc.2",
@@ -26,6 +28,7 @@
     "@fox-harness/dsh-tool-python-repl": "workspace:*",
     "@fox-harness/dsh-tool-data-studio-agent": "workspace:*",
     "@fox-harness/dsh-tool-canvas": "workspace:*",
-    "@fox-harness/dsh-tool-file-manage": "workspace:*"
+    "@fox-harness/dsh-tool-file-manage": "workspace:*",
+    "@fox-harness/dsh-memory": "workspace:*"
   }
 }

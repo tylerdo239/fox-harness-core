@@ -37,7 +37,7 @@
 import { useEffect, useState } from 'react'
 
 import { useLocale } from '../../../i18n/locale.tsx'
-import { CloseIcon, GearIcon, LogOutIcon, MoonIcon, ProfileIcon, StorageIcon, SunIcon, UsersIcon } from '../../../icons.tsx'
+import { CloseIcon, GearIcon, LogOutIcon, MemoryIcon, MoonIcon, ProfileIcon, StorageIcon, SunIcon, UsersIcon } from '../../../icons.tsx'
 import { useRuntime } from '../../../runtime.ts'
 import { useTheme } from '../../../useTheme.ts'
 import { Button } from '../../primitives/Button.tsx'
@@ -45,10 +45,11 @@ import { IconButton } from '../../primitives/IconButton.tsx'
 import { MenuItem } from '../../primitives/MenuItem.tsx'
 import { SelectableCard } from '../../primitives/SelectableCard.tsx'
 import { LanguageSelect } from '../LanguageSelect.tsx'
+import { MemoryTab } from './MemoryTab.tsx'
 import { StorageTab } from './StorageTab.tsx'
 import { UsersTab } from './UsersTab.tsx'
 
-export type SettingsTab = 'general' | 'profile' | 'storage' | 'users'
+export type SettingsTab = 'general' | 'profile' | 'storage' | 'memory' | 'users'
 type Tab = SettingsTab
 
 export function SettingsDialog({
@@ -102,6 +103,10 @@ export function SettingsDialog({
             <MenuItem variant="nav" active={tab === 'storage'} onClick={() => setTab('storage')}>
               <StorageIcon size={16} />
               {t('settings.storageTab')}
+            </MenuItem>
+            <MenuItem variant="nav" active={tab === 'memory'} onClick={() => setTab('memory')}>
+              <MemoryIcon size={16} />
+              {t('settings.memoryTab')}
             </MenuItem>
             {isAdmin && (
               <MenuItem variant="nav" active={tab === 'users'} onClick={() => setTab('users')}>
@@ -160,6 +165,7 @@ export function SettingsDialog({
             )}
 
             {tab === 'storage' && <StorageTab />}
+            {tab === 'memory' && <MemoryTab />}
 
             {tab === 'users' && isAdmin && <UsersTab onClose={onClose} />}
           </div>

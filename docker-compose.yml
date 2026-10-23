@@ -48,6 +48,7 @@ services:
       MONGODB_URL: mongodb://mongo:27017
       DREMIO_URL: http://dremio:9047
       MEILISEARCH_URL: http://meilisearch:7700
+      QDRANT_URL: http://qdrant:6333
     volumes:
       - backend-data:/data
     depends_on:
@@ -56,6 +57,7 @@ services:
       - minio
       - mongo
       - meilisearch
+      - qdrant
     stop_grace_period: 40s
 
   mariadb:
@@ -71,6 +73,7 @@ services:
       - mariadb-data:/var/lib/mysql
       - ./api/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
       - ./api/migrations/002_usage.sql:/docker-entrypoint-initdb.d/002_usage.sql:ro
+      - ./api/migrations/003_memory.sql:/docker-entrypoint-initdb.d/003_memory.sql:ro
 
   redis:
     image: redis:7-alpine
@@ -104,6 +107,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Long-term memory's vectors (docs/memory-plugin-plan.md §5.2): dense + sparse (IDF, needs >= 1.10) per memory.
+  # In production this is the company's Qdrant server (QDRANT_URL / QDRANT_API_KEY).
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    ports:
+      - '127.0.0.1:6333:6333'
+    volumes:
+      - qdrant-data:/qdrant/storage
 
   # Data Studio's catalog search (hybrid keyword + vector). Rebuilt by an admin's "Sync Dremio".
   meilisearch:
@@ -150,5 +162,6 @@ volumes:
   minio-data:
   mongodb-data:
   meilisearch-data:
+  qdrant-data:
   dremio-data:
   mysql-data:

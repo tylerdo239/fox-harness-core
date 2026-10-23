@@ -109,4 +109,6 @@ export {
   // the admin usage dashboard (docs/admin-usage-dashboard-plan.md): its menu entry and CSV export
   Gauge as UsageIcon,
   Download as DownloadIcon,
+  // long-term memory (docs/memory-plugin-plan.md §8): Settings → Memory and the chat's memory switch
+  Brain as MemoryIcon,
 } from 'lucide-react'

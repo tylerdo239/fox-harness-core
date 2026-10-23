@@ -234,6 +234,9 @@ export class RuntimeSupervisor {
       FOX_DATA_DIR: config.dataDir,
       // docs/admin-usage-dashboard-plan.md §3.2: this runtime's usage records, loaded into MariaDB by usage-ingest.ts
       FOX_USAGE_DIR: join(config.dataDir, 'usage', `shard-${String(shard.index)}`),
+      // docs/memory-plugin-plan.md §3: the memory plugin calls back /internal/memory/* (loopback + FOX_INTERNAL_SECRET);
+      // unset when memory is off, which keeps the plugin idle
+      ...(config.memory.enabled ? { FOX_GATEWAY_URL: `http://127.0.0.1:${String(config.port)}`, FOX_MEMORY_RECALL_TIMEOUT_MS: String(config.memory.recallTimeoutMs) } : {}),
       FOX_INTERNAL_SECRET: this.secret,
       FOX_TRANSPORT_HOST: HOST,
       FOX_TRANSPORT_PORT: String(shard.port),

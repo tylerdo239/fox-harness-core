@@ -223,6 +223,25 @@ export async function recordAdminUsage(userId: number | undefined, calls: unknow
   })
 }
 
+/**
+ * Model calls the long-term memory made (memory/service.ts), on the chat they were for — or, for housekeeping not tied
+ * to one chat, under `memory-<uuid>`. Steps from 3000 up (random: recall and remember of one turn never collide).
+ */
+export async function recordMemoryUsage(input: { userId: number; sessionId?: string; turn?: number; calls: { purpose: string; model: string; in: number; out: number; cacheRead?: number; ms: number; ok: boolean }[] }): Promise<void> {
+  if (input.calls.length === 0) return
+  const now = Date.now()
+  const sessionId = input.sessionId || `memory-${randomUUID()}`
+  const base = 3000 + Math.floor(Math.random() * 1_000_000_000)
+  const records = input.calls.map((call, i) => ({
+    kind: 'step', t: now - int(call.ms), ms: call.ms, sessionId, userId: input.userId, flow: input.sessionId ? undefined : 'memory',
+    turn: input.turn ?? 0, step: base + i, purpose: text(call.purpose, 16, 'memory'), model: call.model,
+    outcome: call.ok ? 'ok' : 'error', in: call.in, out: call.out, cacheRead: call.cacheRead, estimated: false,
+  }))
+  await insertRecords(records).catch((error: unknown) => {
+    if (!missingTable(error)) log('usage_memory_record_failed', errorFields(error))
+  })
+}
+
 // ── 3. report ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export type Group = 'day' | 'week' | 'month'

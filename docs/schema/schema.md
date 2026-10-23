@@ -135,3 +135,17 @@ run once on an existing database (`if not exists`):
 - `discovery_usage_ingest` — how far the gateway has read each runtime usage file.
 
 `at` is UTC. Rows older than `USAGE_RETENTION_DAYS` (default 400) are deleted daily. Message text is never stored.
+
+## `003_memory.sql` (2026-10-23)
+
+Long-term memory (`docs/memory-plugin-plan.md`). Adds five tables, changes none; run once on an existing database.
+
+- `discovery_memory_events` — one memory (fact, decision, task, goal, profile, preference, or a period summary): scope
+  `user` / `session`, content, properties JSON, topic, message ranges and source excerpt, keywords, expiry, hits.
+- `discovery_memory_entities` — the current state per (schema, user, chat, key); `discovery_memory_entity_history` —
+  every value it took (for "(trước: …)", edits, merging).
+- `discovery_memory_keyword_links` — which events carry a keyword (the keyword graph).
+- `discovery_memory_settings` — on/off switches: `org`, `user:<id>`, `session:<id>`.
+
+The vectors live on Qdrant (`<prefix>memory_events` dense + sparse, `<prefix>memory_entities`, `<prefix>memory_keywords`),
+point ids = the rows' ids. Every query filters on the user.

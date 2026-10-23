@@ -1228,6 +1228,112 @@ print('planted')` })
     const bad = rows.filter(([, got, want]) => got !== want)
     return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
   },
+
+  // docs/memory-plugin-plan.md §9: long-term memory end to end — runtime plugin → /internal/memory/* → MariaDB +
+  // Qdrant → the next turn's memory block; per-member isolation, switches, purge, restart, usage rows.
+  async memory() {
+    const adminToken = await admin()
+    // the suite's two users (a new one would hit the login rate limit late in the run); memory is off for the
+    // organization in every other test, so they have none yet
+    const { a, b } = await users()
+    const rows = []
+    const db = (sql) => execFileSync('docker', ['exec', 'foxe2e-mariadb', 'mariadb', '-uroot', '-px', 'discovery-agent', '-N', '-e', sql], { encoding: 'utf8' }).trim()
+    const mem = (event) => `MEM ${JSON.stringify({ events: [event] })}`
+    const factEv = (key, value, note) => ({ type: 'fact', properties: { key, value, ...(note ? { note } : {}) }, content: `${key}: ${value}`, keywords: [key], importance: 0.8 })
+    const prefEv = (aspect, value) => ({ type: 'preference', properties: { aspect, value }, content: `${aspect}: ${value}`, importance: 0.7 })
+    const memories = async (token) => (await api('GET', '/memory', token)).json
+    const until = async (check, ms = 30000) => { const end = Date.now() + ms; let last; while (Date.now() < end) { last = await check(); if (last) return last; await sleep(500) } return last }
+    // the chat model's request of the turn (the one with tools; a chat's first turn also sends a title request)
+    const lastMemoryBlock = async () => ((await mock()).filter((r) => r.lastUser && r.tools?.length > 0).pop()?.memory ?? '')
+
+    rows.push(['off by default for the organization', (await api('GET', '/admin/memory', adminToken)).json?.enabled, false])
+    rows.push(['a user cannot switch the organization', (await api('PUT', '/admin/memory', a.token, { enabled: true })).status, 403])
+    rows.push(['admin turns it on', (await api('PUT', '/admin/memory', adminToken, { enabled: true })).json?.enabled, true])
+
+    // a figure, then its correction
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    let n = 0
+    const say = async (conn, text) => { conn.send(text); n += 1; await conn.turnEnds(n, 60000) }
+    await say(c, `Ngân sách dự án là 800 triệu đồng\n${mem(factEv('ngân sách dự án', '800 triệu đồng'))}`)
+    rows.push(['remembered after the turn', Boolean(await until(async () => (await memories(a.token))?.memories?.some((m) => m.text.includes('800 triệu')))), true])
+    await say(c, `Sửa lại: ngân sách chỉ còn 500 triệu đồng\n${mem(factEv('ngân sách dự án', '500 triệu đồng', 'cắt từ 800 triệu'))}`)
+    rows.push(['the correction replaces the value', Boolean(await until(async () => (await memories(a.token))?.memories?.some((m) => m.text.includes('500 triệu đồng') && m.text.includes('trước: 800')))), true])
+    await clearMock()
+    await say(c, 'Ngân sách dự án hiện là bao nhiêu?')
+    const block = await lastMemoryBlock()
+    rows.push(['next turn: the block has the newest value', block.includes('ngân sách dự án: 500 triệu đồng'), true])
+    rows.push(['… and what it replaced', block.includes('(trước: 800 triệu đồng'), true])
+    const sid = c.sessionId
+    c.close()
+
+    // another chat of the same member: no leak of the chat's figures; a lasting preference does carry over
+    const d = chat(a.token, { params: { flow: 'default' } }); await d.opened; await d.ready()
+    n = 0
+    await say(d, `Từ nay mọi báo cáo dùng đơn vị tỷ đồng\n${mem(prefEv('đơn vị tiền', 'tỷ đồng'))}`)
+    await until(async () => (await memories(a.token))?.memories?.some((m) => m.layer === 'user'))
+    await say(d, `Chỉ trong chat này thôi, làm tròn 2 chữ số\n${mem(prefEv('làm tròn', '2 chữ số'))}`)
+    await until(async () => (await memories(a.token))?.memories?.some((m) => m.text.includes('2 chữ số')))
+    d.close()
+    const e = chat(a.token, { params: { flow: 'default' } }); await e.opened; await e.ready()
+    n = 0
+    await clearMock()
+    await say(e, 'Ngân sách dự án là bao nhiêu và dùng đơn vị gì?')
+    const other = await lastMemoryBlock()
+    rows.push(['another chat: the lasting preference is there', other.includes('tỷ đồng'), true])
+    rows.push(["another chat: the first chat's figure is not", other.includes('500 triệu') || other.includes('800 triệu'), false])
+    rows.push(['"this chat only" stays in its chat', other.includes('2 chữ số'), false])
+    e.close()
+
+    // isolation
+    const mine = (await memories(a.token)).memories
+    rows.push(["another member's list is empty", (await memories(b.token)).memories.length, 0])
+    rows.push(["another member cannot edit", (await api('PATCH', `/memory/${mine[0].id}`, b.token, { text: 'x' })).status, 404])
+    rows.push(["another member cannot delete", (await api('DELETE', `/memory/${mine[0].id}`, b.token)).status, 404])
+    rows.push(["another member cannot read a chat's switch", (await api('GET', `/sessions/${sid}/memory`, b.token)).status, 404])
+    const bc = chat(b.token, { params: { flow: 'default' } }); await bc.opened; await bc.ready()
+    await clearMock()
+    bc.send('Ngân sách dự án và đơn vị tiền là gì?'); await bc.turnEnds(1, 60000)
+    rows.push(["another member's turn gets nothing of it", await lastMemoryBlock(), ''])
+    bc.close()
+
+    // the internal routes are not reachable from outside, nor without the secret
+    rows.push(['/internal via nginx: not the API', (await fetch(`${BASE}/internal/memory/recall`, { method: 'POST', body: '{}' })).status === 200 ? 'reached' : 'refused', 'refused'])
+    rows.push(['/internal without the secret: 404', dx('sh', '-c', "curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/internal/memory/recall -d '{}'"), '404'])
+    const forged = dx('sh', '-c', `curl -s -X POST http://127.0.0.1:4000/internal/memory/recall -H 'x-fox-harness-internal-secret: guess' -d '${JSON.stringify({ userId: b.id, sessionId: sid, query: 'ngân sách' })}'`)
+    rows.push(['a wrong secret gets nothing', forged.includes('500 triệu'), false])
+
+    // the chat switch: off → no block, nothing remembered
+    rows.push(['chat switch off', (await api('PUT', `/sessions/${sid}/memory`, a.token, { enabled: false })).json?.enabled, false])
+    const again = chat(a.token, { session: sid }); await again.opened; await again.ready()
+    const before = (await memories(a.token)).memories.length
+    await clearMock()
+    again.send(`Ngân sách bao nhiêu?\n${mem(factEv('số xã', '3 xã'))}`); await again.turnEnds(4, 60000)
+    rows.push(['switched off: no block', await lastMemoryBlock(), ''])
+    await sleep(3000)
+    rows.push(['switched off: nothing new remembered', (await memories(a.token)).memories.length, before])
+    again.close()
+
+    // costs on the usage table
+    rows.push(['memory calls recorded as usage', Number(db("select count(*) from discovery_usage_steps where purpose like 'memory-%'")) > 0, true])
+
+    // restart: nothing lives on local disk
+    execFileSync('docker', ['restart', '-t', '30', BACKEND], { stdio: 'ignore' })
+    await waitReady()
+    rows.push(['after a restart: memories still listed', (await memories(a.token)).memories.length, before])
+
+    // deleting the chat drops its chat memories (MariaDB rows and Qdrant points); the lasting one stays
+    rows.push(['chat purge', (await api('DELETE', `/sessions/${sid}`, a.token)).status, 204])
+    const left = (await memories(a.token)).memories
+    rows.push(["the chat's memories are gone", left.some((m) => m.sessionId === sid), false])
+    rows.push(['the lasting preference stays', left.some((m) => m.layer === 'user' && m.text.includes('tỷ đồng')), true])
+    rows.push(["no row of the chat left", db(`select count(*) from discovery_memory_events where session_id = '${sid}' and scope = 'session'`), '0'])
+    const points = dx('sh', '-c', `curl -s -X POST http://foxe2e-qdrant:6333/collections/fox_memory_events/points/count -H 'content-type: application/json' -d '${JSON.stringify({ filter: { must: [{ key: 'session_id', match: { value: sid } }] }, exact: true })}'`)
+    rows.push(["no Qdrant point of the chat left", JSON.parse(points).result?.count, 0])
+
+    await api('PUT', '/admin/memory', adminToken, { enabled: false })
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
+  },
 }
 
 const only = process.argv.slice(2)

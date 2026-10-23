@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { useLocale } from "../../../i18n/locale.tsx";
 import { useRuntime } from "../../../runtime.ts";
 import { Input } from "../../primitives/Input.tsx";
+import { MemoryIcon } from "../../../icons.tsx";
+import { getChatMemory, setChatMemory } from "../settings/memoryApi.ts";
 
 const TITLE_MAX_LENGTH = 255;
 
@@ -28,6 +30,32 @@ export function SessionTitleBar() {
   // before the state change, consumed (and cleared) by the `onBlur` this
   // triggers.
   const skipNextBlurRef = useRef(false);
+  // the chat's memory switch (docs/memory-plugin-plan.md §8): shown only when memory is on for the member and the
+  // organization and the chat's mode uses it
+  const [memory, setMemory] = useState<{ enabled: boolean; available: boolean } | null>(null);
+
+  useEffect(() => {
+    setMemory(null);
+    const id = runtime.sessionId;
+    if (!id) return;
+    let live = true;
+    getChatMemory(runtime, id).then((state) => live && setMemory(state), () => undefined);
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runtime.sessionId]);
+
+  async function toggleMemory(): Promise<void> {
+    if (!memory || !runtime.sessionId) return;
+    try {
+      const next = await setChatMemory(runtime, runtime.sessionId, !memory.enabled);
+      setMemory(next);
+      toast.success(t(next.enabled ? "memory.chatOn" : "memory.chatOff"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   useEffect(() => {
     if (!editing) return;
@@ -104,6 +132,18 @@ export function SessionTitleBar() {
           onClick={startEditing}
         >
           {runtime.sessionTitle ?? t("conversation.untitledSession")}
+        </button>
+      )}
+      {memory?.available && (
+        <button
+          type="button"
+          className={`fh-session-memory${memory.enabled ? " fh-session-memory-on" : ""}`}
+          aria-pressed={memory.enabled}
+          title={t(memory.enabled ? "memory.chatOnHint" : "memory.chatOffHint")}
+          onClick={() => void toggleMemory()}
+        >
+          <MemoryIcon size={14} />
+          <span>{t(memory.enabled ? "memory.chatOnShort" : "memory.chatOffShort")}</span>
         </button>
       )}
     </div>

@@ -116,6 +116,37 @@ export const config = {
   // Server-side encryption for what the gateway stores in S3 (session archives): 'AES256' or 'aws:kms'. Empty =
   // none (a local MinIO without a KMS refuses it).
   s3Sse: process.env.S3_SSE || undefined,
+  // docs/memory-plugin-plan.md: long-term memory (memory/), MariaDB (003_memory.sql) + Qdrant. The runtime plugin
+  // (packages/memory) only calls /internal/memory/*; everything else happens here.
+  memory: {
+    enabled: envOr('MEMORY', '1') !== '0',
+    // MEMORY_ORG=1 / 0: the organization switch, set by the deployment (the admin's switch in Settings is then
+    // read-only). Unset: the admin decides in Settings → Memory, off until they turn it on.
+    orgForced: ((value) => (value === '1' || value === 'on' || value === 'true' ? true : value === '0' || value === 'off' || value === 'false' ? false : undefined))(
+      (process.env.MEMORY_ORG ?? '').trim().toLowerCase()),
+    qdrantUrl: (process.env.QDRANT_URL ?? '').replace(/\/+$/, ''),
+    qdrantApiKey: process.env.QDRANT_API_KEY ?? '',
+    collectionPrefix: envOr('MEMORY_COLLECTION_PREFIX', 'fox_'),
+    llmBaseUrl: (process.env.MEMORY_LLM_BASE_URL || process.env.OPENAI_BASE_URL || '').replace(/\/+$/, ''),
+    llmApiKey: process.env.MEMORY_LLM_API_KEY || process.env.OPENAI_API_KEY || '',
+    llmModel: process.env.MEMORY_LLM_MODEL || process.env.OPENAI_MODEL_ID || '',
+    llmExtraBody: process.env.MEMORY_LLM_EXTRA_BODY ?? process.env.OPENAI_EXTRA_BODY ?? '',
+    embedBaseUrl: (process.env.MEMORY_EMBED_BASE_URL || process.env.EMBEDDING_BASE_URL || process.env.OPENAI_BASE_URL || '').replace(/\/+$/, ''),
+    embedApiKey: process.env.MEMORY_EMBED_API_KEY || process.env.EMBEDDING_API_KEY || process.env.OPENAI_API_KEY || '',
+    embedModel: process.env.MEMORY_EMBED_MODEL || process.env.EMBEDDING_MODEL_ID || 'hosted_vllm/intfloat/multilingual-e5-large',
+    // e5 models want "query: " / "passage: " prefixes; on by default when the model name says e5
+    embedPrefix: (process.env.MEMORY_EMBED_PREFIX ?? '') === '' ? undefined : process.env.MEMORY_EMBED_PREFIX === '1',
+    rerank: envOr('MEMORY_RERANK', 'none'),
+    rerankBaseUrl: (process.env.MEMORY_RERANK_BASE_URL ?? '').replace(/\/+$/, ''),
+    rerankApiKey: process.env.MEMORY_RERANK_API_KEY ?? '',
+    rerankModel: process.env.MEMORY_RERANK_MODEL ?? '',
+    language: envOr('MEMORY_LANGUAGE', 'vi'),
+    maxTokens: envIntOr('MEMORY_MAX_TOKENS', 1600),
+    concurrency: Math.max(1, envIntOr('MEMORY_CONCURRENCY', 4)),
+    // lifecycle per member at most this often; 0 = after every remember (tests)
+    maintainHours: Number(envOr('MEMORY_MAINTAIN_HOURS', '6')),
+    recallTimeoutMs: envIntOr('MEMORY_RECALL_TIMEOUT_MS', 4000),
+  },
   // docs/admin-usage-dashboard-plan.md: the runtimes' usage records, loaded into MariaDB (discovery_usage_*) by
   // runtime/usage.ts and reported at GET /admin/usage/report.
   usage: {

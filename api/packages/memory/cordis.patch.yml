@@ -1,0 +1,7 @@
+# Pure ADD (id doesn't exist upstream) — plain `insert:` is correct here, same as packages/tool/create-skill.
+# Long-term memory (docs/memory-plugin-plan.md §3): recall at the start of a turn, remember at its end, both through
+# the gateway's /internal/memory/* (FOX_GATEWAY_URL, set by the supervisor only when MEMORY is on).
+- insert:
+    - id: fox-harness-memory
+      name: '@fox-harness/dsh-memory'
+      config: {}

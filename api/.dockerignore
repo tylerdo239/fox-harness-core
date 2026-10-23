@@ -21,3 +21,5 @@ node_modules/
 data/
 # the data-studio pipeline's per-run markdown traces
 packages/tool/data-studio-agent/python/debug/
+# tests run on a developer's machine or CI against local services, never in the image
+**/test/

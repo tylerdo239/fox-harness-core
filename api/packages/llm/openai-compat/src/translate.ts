@@ -1,4 +1,9 @@
+import { randomUUID } from 'node:crypto'
+
 import type { CallId, ContentBlock, FinishReason, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
+import { CONTEXT_WINDOW_EXCEEDED_CODE, LlmError } from '@deepseek-ai/dsh-llm'
+
+import { MALFORMED_TOOL_CALL_CODE, repairToolCall } from './tool-call-repair.ts'
 
 /**
  * OpenAI chat-completions streaming delta shapes — request-side fields
@@ -57,6 +62,48 @@ function mapFinishReason(reason: string | null | undefined): FinishReason {
       return { kind: 'error', failure: { message: `unknown finish_reason: ${reason}`, code: reason.toUpperCase() } }
   }
 }
+
+/**
+ * Qwen-family recovery (ported from examples/pynote-be, measured there on
+ * Qwen3.5-35B on vLLM): the server sometimes puts a tool call in
+ * `reasoning_content` (or the text) as ChatML markup instead of `tool_calls`
+ *   <tool_call><function=bash><parameter=command>…</parameter></function></tool_call>
+ * and the step then has neither text nor a tool call, which the loop reads as
+ * "done": the user sees no answer while the turn reports `completed`.
+ * Recovery only runs when the response produced no real tool call, so a
+ * well-formed response is never second-guessed.
+ */
+const TOOL_CALL_MARKUP = /<tool_call>\s*<function=([A-Za-z0-9_]+)>([\s\S]*?)<\/function>\s*<\/tool_call>/g
+const PARAMETER_MARKUP = /<parameter=([A-Za-z0-9_]+)>([\s\S]*?)<\/parameter>/g
+
+/** Markup carries every argument as text; tool schemas do not accept "10" for a number. */
+function coerceArgument(raw: string): unknown {
+  const value = raw.trim()
+  if (value === 'true') return true
+  if (value === 'false') return false
+  if (value !== '' && Number.isFinite(Number(value))) return Number(value)
+  return value
+}
+
+function recoverToolCalls(text: string): Array<{ name: string; args: Record<string, unknown> }> {
+  if (!text.includes('<tool_call>')) return []
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  for (const [, name, body] of text.matchAll(TOOL_CALL_MARKUP)) {
+    const args: Record<string, unknown> = {}
+    for (const [, key, value] of body!.matchAll(PARAMETER_MARKUP)) args[key!] = coerceArgument(value ?? '')
+    calls.push({ name: name!, args })
+  }
+  return calls
+}
+
+/**
+ * The same silent turn, second shape: no markup, the model puts its finished
+ * ANSWER in `reasoning_content` and leaves `content` empty (sometimes wrapped
+ * in a `<system-reminder>` it invented). Promoted to text as a last resort —
+ * only when the response has no visible text and no tool call — with the
+ * fabricated control tags stripped.
+ */
+const FABRICATED_CONTROL_TAG = /<\/?system-reminder>/g
 
 function toContentBlock(block: OpenBlock): ContentBlock {
   if (block.kind === 'text') return { type: 'text', text: block.text }
@@ -174,6 +221,58 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
         argumentsDelta,
         ...(toolCallDelta.function?.name ? { name: toolCallDelta.function.name } : {}),
       }
+    }
+  }
+
+  // A call the server left in prose (TOOL_CALL_MARKUP above) is lifted out once the whole response is in hand.
+  if (toolBlocksByWireIndex.size === 0) {
+    for (const block of [...openOrder]) {
+      const recovered = recoverToolCalls(block.text)
+      if (recovered.length === 0) continue
+      block.text = block.text.replace(TOOL_CALL_MARKUP, '').trim()
+      for (const call of recovered) {
+        const callId = `call_recovered_${randomUUID().replace(/-/g, '')}` as CallId
+        const args = JSON.stringify(call.args)
+        const recoveredBlock: OpenBlock = { index: nextIndex++, kind: 'tool-call', text: args, callId, name: call.name }
+        openOrder.push(recoveredBlock)
+        yield { type: 'block-start', index: recoveredBlock.index, blockType: 'tool-call' }
+        yield { type: 'tool-call-delta', index: recoveredBlock.index, id: callId, argumentsDelta: args, name: call.name }
+      }
+      finishReason = { kind: 'tool-calls' }
+    }
+  }
+
+  // Every tool call leaves here as a usable JSON object (tool-call-repair.ts). One that stays broken fails this
+  // attempt so dsh-llm-retry runs the step again (adapter.ts providerRetryPolicy) — as CONTEXT_WINDOW_EXCEEDED when
+  // the output ran out of room, so compaction makes space first. The broken attempt never reaches history.
+  for (const block of openOrder) {
+    if (block.kind !== 'tool-call') continue
+    const repaired = repairToolCall(block.name ?? '', block.text)
+    if (repaired.fixes.length > 0) console.error(`fox-harness-llm-openai-compat: repaired tool call ${repaired.name}: ${repaired.fixes.join('; ')}`)
+    block.name = repaired.name
+    if (repaired.arguments !== undefined) {
+      block.text = repaired.arguments
+      continue
+    }
+    const preview = block.text.length > 160 ? `${block.text.slice(0, 160)}…` : block.text
+    if (finishReason.kind === 'max-tokens') {
+      throw new LlmError(`the response ran out of room in the middle of a ${repaired.name} call (${String(block.text.length)} characters of arguments); compacting before retrying`, CONTEXT_WINDOW_EXCEEDED_CODE)
+    }
+    throw new LlmError(`malformed ${repaired.name} call, arguments are not a JSON object: ${preview}`, MALFORMED_TOOL_CALL_CODE)
+  }
+
+  // See FABRICATED_CONTROL_TAG above.
+  if (!openOrder.some((block) => block.kind === 'tool-call' || (block.kind === 'text' && block.text.trim() !== ''))) {
+    const stranded = openOrder
+      .filter((block) => block.kind === 'reasoning')
+      .map((block) => block.text.replace(FABRICATED_CONTROL_TAG, '').trim())
+      .filter((text) => text !== '')
+      .join('\n\n')
+    if (stranded !== '') {
+      const promoted: OpenBlock = { index: nextIndex++, kind: 'text', text: stranded }
+      openOrder.push(promoted)
+      yield { type: 'block-start', index: promoted.index, blockType: 'text' }
+      yield { type: 'text-delta', index: promoted.index, text: stranded }
     }
   }
 

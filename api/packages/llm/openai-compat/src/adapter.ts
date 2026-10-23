@@ -6,9 +6,11 @@ import {
   QUOTA_EXCEEDED_CODE,
   assertUsableApiKey,
   attributionHeaders,
+  resolveRetryPolicy,
   isContextWindowExceededError,
   isQuotaExceededError,
   type GenerateOptions,
+  type ResolvedRetryPolicy,
   type StreamChunk,
 } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -17,9 +19,14 @@ import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { parseSse } from './sse.ts'
 import { serializeRequest } from './serialize.ts'
 import { translate } from './translate.ts'
+import { MALFORMED_TOOL_CALL_CODE } from './tool-call-repair.ts'
 import type { Config } from './index.ts'
 
 const PACKAGE_NAME = '@fox-harness/dsh-llm-openai-compat'
+
+// Overflow wordings dsh's own detector misses (ported from examples/pynote-be, measured on vLLM behind LiteLLM): a
+// too-long history came back as a plain "400 Bad Request", was coded REQUEST_FAILED, and compaction never ran.
+const CONTEXT_OVERFLOW = /ContextWindowExceeded|maximum context length|max_model_len|maximum model length|longer than the maximum|context length|too many tokens|prompt is too long|input is too long|exceeds? the (?:model'?s? )?context/i
 
 // Same status → code mapping as @deepseek-ai/dsh-llm-deepseek's adapter. These
 // codes are what dsh-llm-retry (RATE_LIMIT, SERVER, TIMEOUT, TRANSPORT) and
@@ -28,7 +35,7 @@ function httpErrorCode(status: number, body: string): string {
   if (status === 401 || status === 403) return 'AUTH'
   if (isQuotaExceededError(body)) return QUOTA_EXCEEDED_CODE
   if (status === 429) return 'RATE_LIMIT'
-  if (status === 400 && isContextWindowExceededError(body)) return CONTEXT_WINDOW_EXCEEDED_CODE
+  if (status === 400 && (isContextWindowExceededError(body) || CONTEXT_OVERFLOW.test(body))) return CONTEXT_WINDOW_EXCEEDED_CODE
   if (status >= 500) return 'SERVER'
   return 'REQUEST_FAILED'
 }
@@ -54,6 +61,20 @@ export class OpenAiCompatAdapter extends LlmAdapter {
     private readonly config: Config,
   ) {
     super()
+  }
+
+  /**
+   * dsh-llm-retry's normal policy plus one code: a response whose tool call stays broken after repair (translate.ts,
+   * tool-call-repair.ts) is the model misfiring, not the request — the same step run again usually comes back
+   * well-formed, and the broken attempt never reaches history.
+   */
+  private readonly retryPolicy: ResolvedRetryPolicy = resolveRetryPolicy({
+    mode: 'normal',
+    retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT', MALFORMED_TOOL_CALL_CODE],
+  }, 'fox-harness-llm-openai-compat.retryPolicy')
+
+  override providerRetryPolicy(_provider: string): ResolvedRetryPolicy {
+    return this.retryPolicy
   }
 
   private resolveBaseURL(): string {
@@ -145,7 +166,10 @@ export class OpenAiCompatAdapter extends LlmAdapter {
         signal: options.signal,
       })
     } catch (error) {
-      if (options.signal?.aborted) throw error
+      // A cancelled turn aborts with dsh's own reason object ({kind:'user'}), and fetch rejects with that exact value
+      // — not an Error. Wrapped like dsh-llm-deepseek does, so the turn always closes (pynote-be found a Stop that
+      // hung the turn on the bare object).
+      if (options.signal?.aborted) throw new LlmError('request aborted by caller', 'ABORTED', { cause: error })
       throw new LlmError(`request to ${url} failed`, 'TRANSPORT', { cause: error })
     }
 
@@ -161,6 +185,12 @@ export class OpenAiCompatAdapter extends LlmAdapter {
       })
     }
 
-    yield* translate(parseSse(response.body, this.resolveIdleTimeoutMs()))
+    try {
+      yield* translate(parseSse(response.body, this.resolveIdleTimeoutMs()))
+    } catch (error) {
+      // the stream reader can reject with the same bare abort reason mid-stream
+      if (options.signal?.aborted) throw new LlmError('request aborted by caller', 'ABORTED', { cause: error })
+      throw error
+    }
   }
 }

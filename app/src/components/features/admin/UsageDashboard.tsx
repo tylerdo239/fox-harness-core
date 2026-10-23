@@ -535,6 +535,7 @@ export function UsageDashboard({ onBack }: { onBack: () => void }) {
                   <div><b>{f.n(report.overhead.failedCalls)}</b><span>{t("usage.oh.failed")}</span></div>
                   <div><b>{report.overhead.cacheShare === null ? "—" : f.pct(report.overhead.cacheShare)}</b><span>{t("usage.oh.cache")}</span></div>
                   <div><b>{f.n(report.overhead.estimatedCalls)}</b><span>{t("usage.oh.estimated")}</span></div>
+                  <div><b>{f.c(report.purposes.filter((p) => p.purpose.startsWith("memory")).reduce((sum, p) => sum + p.inputTokens + p.outputTokens, 0))}</b><span>{t("usage.oh.memory")}</span></div>
                 </div>
               </Panel>
 

@@ -42,6 +42,34 @@ export function dbBatch(sql: string, rows: unknown[][]): Promise<unknown> {
   return pool.batch(sql, rows)
 }
 
+/** One statement or a transaction's: `datetime` columns come back as their text ('YYYY-MM-DD HH:MM:SS.mmm', UTC). */
+export interface DbRunner {
+  query<T>(sql: string, params?: unknown[]): Promise<T>
+}
+
+const textDates = (run: (options: { sql: string; dateStrings: true }, params: unknown[]) => Promise<unknown>): DbRunner => ({
+  query: <T>(sql: string, params: unknown[] = []) => run({ sql, dateStrings: true }, params) as Promise<T>,
+})
+
+/** The memory's queries (memory/store.ts): dates as UTC text, never through the process time zone. */
+export const memoryDb: DbRunner = textDates((options, params) => pool.query(options, params))
+
+/** Runs `work` in one transaction (committed when it resolves, rolled back when it throws). */
+export async function dbTransaction<T>(work: (db: DbRunner) => Promise<T>): Promise<T> {
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+    const result = await work(textDates((options, params) => conn.query(options, params)))
+    await conn.commit()
+    return result
+  } catch (error) {
+    await conn.rollback().catch(() => undefined)
+    throw error
+  } finally {
+    await conn.release()
+  }
+}
+
 export type Role = 'admin' | 'user'
 
 export interface UserRecord {

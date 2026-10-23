@@ -7,18 +7,19 @@ set -e
 cd "$(dirname "$0")/.."
 NET=foxe2e
 docker network create $NET >/dev/null 2>&1 || true
-docker rm -f foxe2e-mariadb foxe2e-redis foxe2e-minio foxe2e-mongo foxe2e-backend foxe2e-web >/dev/null 2>&1 || true
+docker rm -f foxe2e-mariadb foxe2e-redis foxe2e-minio foxe2e-mongo foxe2e-qdrant foxe2e-backend foxe2e-web >/dev/null 2>&1 || true
 docker volume rm foxe2e-data >/dev/null 2>&1 || true
 
 pkill -f "scripts/mock-llm.mjs" 2>/dev/null || true
 MOCK_BIND=0.0.0.0 nohup node scripts/mock-llm.mjs 4999 >/tmp/foxe2e-mock.log 2>&1 &
 
 docker run -d --name foxe2e-mariadb --network $NET -e MARIADB_ROOT_PASSWORD=x -e MARIADB_DATABASE=discovery-agent \
-  -v "$PWD/api/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro" -v "$PWD/api/migrations/002_usage.sql:/docker-entrypoint-initdb.d/002_usage.sql:ro" mariadb:10.11 \
+  -v "$PWD/api/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro" -v "$PWD/api/migrations/002_usage.sql:/docker-entrypoint-initdb.d/002_usage.sql:ro" -v "$PWD/api/migrations/003_memory.sql:/docker-entrypoint-initdb.d/003_memory.sql:ro" mariadb:10.11 \
   --character-set-server=latin1 --collation-server=latin1_swedish_ci >/dev/null
 # ^ latin1 on purpose: the worst default a provisioned MariaDB can have. 001_init.sql must declare utf8mb4 per table
 # (measured: without it a Vietnamese/emoji title fails with ERROR 1366); the unicodeText test proves it does.
 docker run -d --name foxe2e-redis --network $NET redis:7-alpine >/dev/null
+docker run -d --name foxe2e-qdrant --network $NET qdrant/qdrant:v1.12.4 >/dev/null
 # Data Studio's MongoDB (dashboards and charts are per user: the dashboardOwnership test reads and writes it)
 docker run -d --name foxe2e-mongo --network $NET mongo:7 >/dev/null
 docker run -d --name foxe2e-minio --network $NET -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin123 minio/minio server /data >/dev/null
@@ -56,6 +57,7 @@ docker run -d --name foxe2e-backend --network $NET $SANDBOX_ARGS -v foxe2e-data:
   -e CHAT_RATE_LIMIT_PER_MIN=${E2E_CHAT_LIMIT:-60} \
   -e SESSION_ARCHIVE_INTERVAL_MS=2000 \
   -e USAGE_INGEST_INTERVAL_MS=2000 -e USAGE_REPORT_CACHE_MS=0 \
+  -e QDRANT_URL=http://foxe2e-qdrant:6333 -e MEMORY_MAINTAIN_HOURS=0 \
   -e USER_FILE_QUOTA_BYTES=2097152 -e S3_BUCKET_CAPACITY_BYTES=10737418240 -e STORAGE_SCAN_INTERVAL_MS=5000 -e CANVAS_HISTORY_MAX=3 \
   -e EMBEDDING_BASE_URL=http://host.docker.internal:4999 \
   fox-harness-backend:dev >/dev/null

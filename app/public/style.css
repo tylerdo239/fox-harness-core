@@ -5562,3 +5562,50 @@ button.fh-data-studio-tab-active {
   .fh-usage-scroll { padding: 16px 16px 32px; }
   .fh-usage-kpi-value { font-size: 1.3em; }
 }
+
+/* ── Long-term memory: Settings → Memory and the chat's switch (docs/memory-plugin-plan.md §8) ───────────────────── */
+.fh-memory { display: flex; flex-direction: column; gap: 16px; }
+.fh-memory-head { display: flex; gap: 12px; align-items: flex-start; }
+.fh-memory-head-icon {
+  flex: none; width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text);
+}
+.fh-memory-muted { margin: 2px 0 0; color: var(--muted); font-size: 0.88em; }
+.fh-memory-error { color: var(--status-danger); }
+.fh-memory-notice {
+  margin: 0; padding: 10px 12px; border-radius: 10px; font-size: 0.88em;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); background: color-mix(in srgb, var(--accent) 7%, var(--bg));
+}
+.fh-memory-switch-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.fh-memory-locked { margin: 0; }
+.fh-memory-section h4 { margin: 0 0 8px; font-size: 0.92em; }
+.fh-memory-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fh-memory-row {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+}
+.fh-memory-text { flex: 1; min-width: 0; font-size: 0.9em; overflow-wrap: anywhere; }
+.fh-memory-actions { display: inline-flex; gap: 4px; flex: none; }
+.fh-memory-icon {
+  width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer;
+}
+.fh-memory-icon:hover:not(:disabled) { background: var(--bg-hover); color: var(--fg); }
+.fh-memory-danger:hover:not(:disabled) { color: var(--status-danger); }
+.fh-memory-edit { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.fh-memory-edit textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; font-size: 0.9em; resize: vertical;
+}
+.fh-memory-edit textarea:focus { outline: none; border-color: var(--accent); }
+.fh-memory-edit-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.fh-memory-chat { margin-bottom: 12px; }
+.fh-memory-chat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.fh-memory-chat-title { font-weight: 600; font-size: 0.88em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fh-memory-link { height: auto; padding: 0; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 0.82em; cursor: pointer; }
+.fh-memory-link:hover { color: var(--status-danger); }
+.fh-memory-clear { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.88em; }
+.fh-session-memory {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; margin-left: 8px; padding: 0 10px; flex: none;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg); color: var(--muted); font: inherit; font-size: 0.8em; font-weight: 600; cursor: pointer;
+}
+.fh-session-memory:hover { border-color: var(--accent); }
+.fh-session-memory-on { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
