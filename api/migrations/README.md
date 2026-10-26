@@ -6,8 +6,31 @@ MariaDB schema, run by hand (`mariadb ... < 001_init.sql`):
   `discovery_sessions` (incl. `title_source`, `model`, `project_id`), `discovery_projects`,
   `discovery_custom_skills`.
 - `002_usage.sql` (2026-10-22) — agent usage for the admin dashboard (`docs/admin-usage-dashboard-plan.md`): adds
-  `discovery_usage_steps`, `discovery_usage_turns`, `discovery_usage_ingest`; changes no existing table. Run it once on an existing
-  database (`if not exists`, safe to re-run). Without it the gateway keeps working and logs `usage_tables_missing`.
+  `discovery_usage_steps`, `discovery_usage_turns`, `discovery_usage_turn_tools`, `discovery_usage_ingest`; changes no existing
+  table. Run it once on an existing database (`if not exists`, safe to re-run). Without it the gateway keeps working and logs
+  `usage_tables_missing`.
+
+No `json` columns and no `json_*` functions anywhere in the schema (2026-10-26): a list goes in a table of its own, one row
+per item. A database given the first `002_usage.sql` (with `discovery_usage_turns.tools json`) is brought up to date by
+running this once **before** deploying the new gateway (its inserts no longer name `tools`):
+
+```sql
+create table if not exists discovery_usage_turn_tools (
+  id int auto_increment primary key,
+  at datetime(3) not null,
+  session_id varchar(64) not null,
+  turn int not null,
+  tool varchar(64) not null,
+  calls int not null,
+  errors int not null,
+  unique index usage_turn_tools_idx (session_id, turn, tool),
+  index usage_turn_tools_at_idx (at)
+) engine=innodb default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+alter table discovery_usage_turns drop column if exists tools;
+-- optional: re-read the usage files still on disk (the last 7 days) so their per-tool rows are filled in;
+-- rows already there are ignored, nothing is counted twice
+update discovery_usage_ingest set read_offset = 0;
+```
 
 Consolidated 2026-10-02: `002_projects_title_source.sql` was folded into
 `001_init.sql` and deleted. A fresh database only ever needs `001_init.sql`.

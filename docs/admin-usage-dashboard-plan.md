@@ -107,9 +107,15 @@ create table discovery_usage_turns (
   at datetime(3) not null, ms int not null,
   user_id int not null, session_id char(36) not null, flow varchar(32) not null, project_id varchar(64) null,
   turn int not null, reason varchar(32) not null, steps int not null, tool_errors int not null,
-  attachments int not null, tools json not null,
+  attachments int not null,
   unique key (session_id, turn),
   key (at), key (user_id, at)
+);
+create table discovery_usage_turn_tools (
+  id int auto_increment primary key,
+  at datetime(3) not null, session_id varchar(64) not null, turn int not null,
+  tool varchar(64) not null, calls int not null, errors int not null,
+  unique key (session_id, turn, tool), key (at)
 );
 create table discovery_usage_ingest (file varchar(255) primary key, offset bigint not null, updated_at datetime not null);
 ```
@@ -117,9 +123,8 @@ Size: ~150 B / step row; 10k sessions × 10 turns × 3 steps = 300k rows ≈ 50 
 
 Retention: `USAGE_RETENTION_DAYS` (default 400) — the daily cleanup deletes older rows.
 
-Per-tool counts: `tools` JSON on the turn row; the tool ranking query uses `JSON_TABLE` (MariaDB ≥ 10.6) —
-check the staging MariaDB version; fallback: a third table `discovery_usage_tools(session_id, turn, tool, calls,
-errors)`.
+Per-tool counts: one row per turn and tool in `discovery_usage_turn_tools` (2026-10-26: no `json` columns and no
+`json_*` functions in the schema; the first version kept a `tools json` column read with `JSON_TABLE`).
 
 ### 4.2 Backfill (optional, one-off)
 `api/scripts/usage-backfill.mjs`: read local + S3 session logs, emit the same records (owner from
@@ -215,7 +220,7 @@ this period". Refresh every 60 s while visible. i18n vi / en (`dashboard.usage.*
 | Records | `api/packages/agent-core/src/transport/usage-recorder.ts` — listens to `session/event` (one listener for the process) instead of editing the loop: `turn/start`, `step/start`, `assistant/message` (usage, model), `tool/call` / `tool/result` (per-tool calls and errors), `compaction/summary` (usage), `turn/end`, and `fox/usage` |
 | Token fix | `api/packages/llm/openai-compat/src/translate.ts` (`cached_tokens` / `prompt_cache_hit_tokens`, `reasoning_tokens`) |
 | Data Studio | `python/src/usage_meter.py` wraps the openai SDK's `chat.completions.create` / `embeddings.create` once (agno, the data profile's sync client and the embeddings all go through it); `bridge/runner.py` returns `usage` with every reply, failed ones included; the tool appends a `fox/usage` session event (registered type, so old chats still resume). Admin jobs (`bridge/admin_runner.py`: data profile, sync, reindex) are recorded by the gateway (`data-studio-bridge.ts` → `recordAdminUsage`) under the admin who asked |
-| Storage | `api/migrations/002_usage.sql` (`discovery_usage_steps`, `discovery_usage_turns` with `tool_calls` and per-tool JSON, `discovery_usage_ingest.read_offset`) |
+| Storage | `api/migrations/002_usage.sql` (`discovery_usage_steps`, `discovery_usage_turns` with `tool_calls`, `discovery_usage_turn_tools` per tool, `discovery_usage_ingest.read_offset`) |
 | Ingest / report | `api/services/gateway/src/runtime/usage.ts` (owner / flow / project joined from `discovery_sessions` at ingest) |
 | API | `GET /admin/usage/report`, `GET /admin/usage/users/:id` — **not** `/admin/usage`, which is the page (nginx SPA exception) |
 | Page | `app/src/components/features/admin/UsageDashboard.tsx`, `usageApi.ts`; route in `App.tsx`; account-menu entry (admins) |

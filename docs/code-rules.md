@@ -2242,6 +2242,11 @@ Quan trọng vì vài tính năng SQL dùng bị gate theo version: CHECK constr
 cần ≥10.2, `CREATE INDEX IF NOT EXISTS` cần ≥10.5.2, DESC-index thật cần
 ≥10.8, `RETURNING` trên INSERT cần ≥10.5 — 10.11 đủ cả 4.
 
+**Không dùng kiểu `json` và các hàm `json_*`** (`JSON_TABLE`, `JSON_EXTRACT`, …) trong schema và query (user,
+2026-10-26). Danh sách thì tách bảng riêng, mỗi phần tử một dòng, cộng bằng `GROUP BY` thường (ví dụ
+`discovery_usage_turn_tools` thay cho cột `tools json` cũ của `discovery_usage_turns`). e2e `usage` kiểm tra schema
+không còn cột `json` nào.
+
 **Driver:** `mariadb` npm package (driver chính thức MariaDB Foundation)
 thay `pg`/`@types/pg` — đúng convention "1 client chuyên cho 1 protocol
 thật" (`ws`/`ioredis`/`dockerode`). Xác nhận API thật bằng cách đọc trực

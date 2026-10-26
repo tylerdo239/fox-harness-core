@@ -1,7 +1,7 @@
 // docs/admin-usage-dashboard-plan.md — agent usage for the admin dashboard.
 // 1. Ingest: every runtime appends records to <dataDir>/usage/shard-<n>/<YYYY-MM-DD>.jsonl (agent-core's
 //    transport/usage-recorder.ts). A sweep here reads what is new in each file, adds the owner / flow / project from
-//    discovery_sessions and inserts into discovery_usage_steps / discovery_usage_turns (api/migrations/002_usage.sql).
+//    discovery_sessions and inserts into discovery_usage_steps / discovery_usage_turns / discovery_usage_turn_tools (api/migrations/002_usage.sql).
 //    `insert ignore` on unique keys: a crash between the insert and the saved offset re-reads lines that are then
 //    ignored, never counted twice. Files older than a week and fully read are deleted; rows older than
 //    USAGE_RETENTION_DAYS once a day.
@@ -59,6 +59,7 @@ async function insertRecords(records: Record<string, unknown>[]): Promise<void> 
   const info = await sessionInfo(ids)
   const steps: unknown[][] = []
   const turns: unknown[][] = []
+  const turnTools: unknown[][] = []
   for (const r of records) {
     const sessionId = text(r.sessionId, 64)
     if (!sessionId || typeof r.t !== 'number') continue
@@ -81,8 +82,14 @@ async function insertRecords(records: Record<string, unknown>[]): Promise<void> 
         : []
       turns.push([
         sqlTime(r.t), int(r.ms), userId, sessionId, flow, projectId, int(r.turn), text(r.reason, 32, 'unknown'), int(r.steps),
-        int(r.toolCalls ?? tools.reduce((sum, t) => sum + t.calls, 0)), int(r.toolErrors), int(r.attachments), JSON.stringify(tools),
+        int(r.toolCalls ?? tools.reduce((sum, t) => sum + t.calls, 0)), int(r.toolErrors), int(r.attachments),
       ])
+      const perTool = new Map<string, { calls: number; errors: number }>()
+      for (const t of tools) {
+        const sum = perTool.get(t.name) ?? { calls: 0, errors: 0 }
+        perTool.set(t.name, { calls: sum.calls + t.calls, errors: sum.errors + t.errors })
+      }
+      for (const [name, t] of perTool) turnTools.push([sqlTime(r.t), sessionId, int(r.turn), name, t.calls, t.errors])
     }
   }
   if (steps.length > 0) {
@@ -95,8 +102,15 @@ async function insertRecords(records: Record<string, unknown>[]): Promise<void> 
   if (turns.length > 0) {
     await dbBatch(
       `insert ignore into discovery_usage_turns (at, ms, user_id, session_id, flow, project_id, turn, reason, steps, tool_calls,
-        tool_errors, attachments, tools) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        tool_errors, attachments) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       turns,
+    )
+  }
+  if (turnTools.length > 0) {
+    // `ignore`: a file read twice adds nothing (one row per turn and tool)
+    await dbBatch(
+      `insert ignore into discovery_usage_turn_tools (at, session_id, turn, tool, calls, errors) values (?, ?, ?, ?, ?, ?)`,
+      turnTools,
     )
   }
 }
@@ -170,6 +184,7 @@ export async function ingestUsage(now = Date.now()): Promise<{ files: number }> 
     const cutoff = sqlTime(now - config.usage.retentionDays * DAY_MS)
     await dbQuery(`delete from discovery_usage_steps where at < ?`, [cutoff])
     await dbQuery(`delete from discovery_usage_turns where at < ?`, [cutoff])
+    await dbQuery(`delete from discovery_usage_turn_tools where at < ?`, [cutoff])
   }
   return { files }
 }
@@ -415,9 +430,8 @@ export async function usageReport(query: UsageQuery): Promise<UsageReport> {
     dbQuery<{ flow: string; turns: unknown }[]>(`select flow, count(*) turns from discovery_usage_turns where at >= ? and at < ? group by flow`, range),
     dbQuery<{ flow: string; input: unknown; output: unknown }[]>(`select flow, sum(input_tokens) input, sum(output_tokens) output from discovery_usage_steps where at >= ? and at < ? group by flow`, range),
     dbQuery<{ tool: string; calls: unknown; errors: unknown }[]>(
-      `select jt.name tool, sum(jt.calls) calls, sum(jt.errors) errors
-       from discovery_usage_turns t, json_table(t.tools, '$[*]' columns (name varchar(64) path '$.name', calls int path '$.calls', errors int path '$.errors')) jt
-       where t.at >= ? and t.at < ? group by jt.name order by calls desc limit 20`, range),
+      `select tool, sum(calls) calls, sum(errors) errors from discovery_usage_turn_tools
+       where at >= ? and at < ? group by tool order by calls desc limit 20`, range),
     dbQuery<{ purpose: string; calls: unknown; input: unknown; output: unknown }[]>(
       `select purpose, count(*) calls, sum(input_tokens) input, sum(output_tokens) output from discovery_usage_steps where at >= ? and at < ? group by purpose`, range),
     dbQuery<{ failed: unknown; estimated: unknown; cache: unknown; cached_input: unknown }[]>(
