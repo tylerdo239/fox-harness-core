@@ -6,7 +6,7 @@ Status: **implemented 2026-10-22** (decisions D1–D4, §6). Where it lives:
 - `api/packages/agent-core/src/transport/workspace-guard.ts` — the bash file-work rule (`onlyFileWork`) and the
   protected paths for write / edit / str_replace_editor;
 - `flows.ts` (str_replace_editor hidden in default), `presets/default/agent.cordis.yml` (python);
-- `app/.../Conversation.tsx` — file-tool pills in words; e2e `fileTools` in `scripts/e2e-backend.mjs`. Reference: `examples/pynote-be` (its file tools come from the same dsh packages
+- `app/.../Conversation.tsx` — file-tool pills in words; e2e `fileTools` in `scripts/e2e-backend.mjs`. Reference: the reference implementation (its file tools come from the same dsh packages
 we use; its own additions are `packages/bundle-core/src/{access,file-manage,prompt}.ts`).
 
 ## 1. Where we are
@@ -20,11 +20,11 @@ we use; its own additions are `packages/bundle-core/src/{access,file-manage,prom
 (`api/packages/agent-core/src/transport/flows.ts:21-32`.)
 
 So the file tools exist already; what the model still needs `bash` for in the default flow is listing a folder
-and moving / copying / deleting / zipping files, plus running programs. pynote-be measured the same thing: the
+and moving / copying / deleting / zipping files, plus running programs. The reference implementation measured the same thing: the
 remaining bash calls were `ls -la, mv, cp, rm, mkdir, unzip` (`file-manage.ts:4-6`), and it replaced them with
 one tool, `file_manage`, and turned bash off for every user whose role has no shell.
 
-Why it matters here more than in pynote:
+Why it matters here more than in the reference:
 - **`FOX_SANDBOX_MODE=none` (the k8s pod, see the sandbox decision) gives `bash` no isolation at all**
   (`api/docker/fox-noconfine.sh`: `cd` + env allow-list + prlimit). A `cat ../../users/<other>/...` or a
   `ls /data` reads other users' files. The in-process file tools *are* fenced (`transport/workspace-guard.ts`),
@@ -43,7 +43,7 @@ Goals
 
 Non-goals: upgrading dsh (we stay on `0.1.1-rc.2`, which already ships `dsh-tool-fs`, `dsh-tool-fs-search` and
 `dsh-fs-observation-policy`); `read_image` (stays hidden until image input is wired); file version history
-(pynote's `file_history`, later if asked).
+(the reference's `file_history`, later if asked).
 
 ## 3. Tools after the change (default flow, every role)
 
@@ -78,7 +78,7 @@ Hidden: `str_replace_editor` (duplicates `edit`; two edit tools cost prompt and 
   checklist.
 
 ### 4.2 `file_manage` (new package)
-Port of `pynote-be/packages/bundle-core/src/file-manage.ts`, rewritten on our `safe-fs.ts` (copy #4 of it, keep
+Port of the reference's `file-manage.ts`, rewritten on our `safe-fs.ts` (copy #4 of it, keep
 in step with the gateway one), so no step follows a symlink:
 - Parameters: `action` (enum, required), `path`, `to`, `overwrite` (bool), `depth` (1–4, default 2).
 - `list`: up to 300 entries, folders first, size + `YYYY-MM-DD HH:MM`, dot-entries hidden; marks uploaded
@@ -101,7 +101,7 @@ in step with the gateway one), so no step follows a symlink:
    is replaced. The guard must deny
    `write` / `edit` / `str_replace_editor` / `file_manage` on any path in `.fox/sources.json`.
 2. `.fox/**` (manifests) and `.canvas/**` (panel history): deny every mutating tool.
-3. Canvas files: deny `write` / `edit` with "use canvas_write" (pynote does the same; our QA 2026-10-16 hit it).
+3. Canvas files: deny `write` / `edit` with "use canvas_write" (the reference does the same; our QA 2026-10-16 hit it).
 4. `grep` / `glob` with no `path` default to the cwd — fine; the guard already handles `path` and an absolute /
    `..` `pattern`. Add: reject a `path` that is a symlink to outside (covered by `realpathOrAncestor`) — test it.
 
@@ -121,7 +121,7 @@ in step with the gateway one), so no step follows a symlink:
 ### 4.6 Check before starting
 - ripgrep: `dsh-tool-fs-search` uses the `@vscode/ripgrep` binary — confirm it is in `api/Dockerfile`'s image
   for linux/amd64 and arm64 (`rg --version` in the backend container).
-- dsh `0.1.1-rc.2` vs pynote's `0.1.5`: confirm parameter names (`file_path`, `old_string`, `replace_all`) and
+- dsh `0.1.1-rc.2` vs the reference's `0.1.5`: confirm parameter names (`file_path`, `old_string`, `replace_all`) and
   messages in `node_modules/@deepseek-ai/dsh-tool-fs/lib/index.js`; the plan does not depend on 0.1.5 features.
 
 ## 5. Tests (e2e, `scripts/e2e-backend.mjs`, mock LLM `CALL <tool> <json>`)

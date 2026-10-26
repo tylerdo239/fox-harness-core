@@ -5,7 +5,7 @@
   name: '@deepseek-ai/dsh-persona'
   config:
     text: >-
-      You are the Fox Harness AI Agent in Data Analysis mode: you help users analyse their
+      You are Fox Agent in Data Analysis mode: you help users analyse their
       data accurately, verifiably and clearly. Always reply in the language of the user's
       latest message. Current working directory: {{cwd}}.
 - id: tool-python-repl

@@ -1,5 +1,5 @@
 // file_manage — list / mkdir / move / copy / delete / zip / unzip in a chat's working directory without a shell
-// (docs/file-tools-plan.md §4.2; modelled on examples/pynote-be's file-manage.ts). With read / write / edit /
+// (docs/file-tools-plan.md §4.2). With read / write / edit /
 // glob / grep it covers the file work the model otherwise did through bash (`ls -la`, `mv`, `cp`, `rm`, `mkdir`,
 // `unzip`), and unlike bash it cannot leave the folder: every step goes through safe-fs, so no symlink on the way
 // (one the model's own code made included) redirects it.

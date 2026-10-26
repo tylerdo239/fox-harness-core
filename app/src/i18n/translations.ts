@@ -88,7 +88,7 @@ export const vi = {
   // DataStudioSidebar.tsx / DataStudioComingSoon.tsx — the Data Studio
   // route's own sidebar and section placeholders.
   "dataStudio.title": "Data Studio",
-  "dataStudio.backToMain": "Quay lại Fox Harness",
+  "dataStudio.backToMain": "Quay lại Fox Agent",
   "dataStudio.sectionChat": "Trò chuyện",
   "dataStudio.sectionDataSources": "Nguồn dữ liệu",
   "dataStudio.sectionProfile": "Hồ sơ dữ liệu",
@@ -777,7 +777,7 @@ export const en: Record<TranslationKey, string> = {
   "sidebar.dataStudio": "Data Studio",
 
   "dataStudio.title": "Data Studio",
-  "dataStudio.backToMain": "Back to Fox Harness",
+  "dataStudio.backToMain": "Back to Fox Agent",
   "dataStudio.sectionChat": "Chat",
   "dataStudio.sectionDataSources": "Data sources",
   "dataStudio.sectionProfile": "Data profile",

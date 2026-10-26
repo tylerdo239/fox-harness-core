@@ -1,5 +1,5 @@
-// The admin usage dashboard at /admin/usage (docs/admin-usage-dashboard-plan.md §6; modelled on
-// examples/pynote-fe's reports.tsx). Numbers only — the gateway never stores message text. Refreshes every minute
+// The admin usage dashboard at /admin/usage (docs/admin-usage-dashboard-plan.md §6).
+// Numbers only — the gateway never stores message text. Refreshes every minute
 // while the tab is visible; a new period keeps the previous numbers on screen, dimmed, until it arrives.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";

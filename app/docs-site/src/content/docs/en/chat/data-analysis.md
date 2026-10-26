@@ -53,5 +53,5 @@ The **Output** tab:
 | Other files written by the model   | Side files the model wrote while working                                    |
 
 :::caution
-Don't upload data you are not allowed to share. Fox Harness is an internal trial.
+Don't upload data you are not allowed to share. Fox Agent is an internal trial.
 :::

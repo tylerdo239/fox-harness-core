@@ -10,7 +10,7 @@ export default defineConfig({
   telemetry: false,
   integrations: [
     starlight({
-      title: { vi: 'Fox Harness — Hướng dẫn', en: 'Fox Harness — User guide' },
+      title: { vi: 'Fox Agent — Hướng dẫn', en: 'Fox Agent — User guide' },
       defaultLocale: 'root',
       locales: {
         root: { label: 'Tiếng Việt', lang: 'vi' },

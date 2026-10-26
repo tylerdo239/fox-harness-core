@@ -53,5 +53,5 @@ Tab **Output**:
 | Tệp khác do model tạo      | Tệp phụ model tạo ra trong lúc làm                                           |
 
 :::caution
-Không tải lên dữ liệu mà bạn không được phép chia sẻ. Fox Harness hiện là bản dùng thử nội bộ.
+Không tải lên dữ liệu mà bạn không được phép chia sẻ. Fox Agent hiện là bản dùng thử nội bộ.
 :::

@@ -1,7 +1,6 @@
 # Plan: admin agent-usage dashboard (`/admin/usage`) (2026-10-22)
 
-Status: **implemented 2026-10-22** (decisions U1–U5, §8). What changed from the plan while building it (§10). Reference: `examples/pynote-be/packages/bundle-core/src/{reports,call-usage}.ts`,
-`packages/llm/openai-compat/src/usage-meter.ts`, and `examples/pynote-fe/components/features/reports/reports.tsx`.
+Status: **implemented 2026-10-22** (decisions U1–U5, §8). What changed from the plan while building it (§10). Reference: the reference implementation's report builder, call-usage records, usage meter and reports page.
 
 **DB change: yes, MariaDB only** — one new migration `api/migrations/002_usage.sql` that **adds** 3 tables
 (§4.1). No existing table changes, nothing in Mongo, Redis keeps only a 30 s report cache.
@@ -20,14 +19,14 @@ Status: **implemented 2026-10-22** (decisions U1–U5, §8). What changed from t
 - FE: `recharts` is already a dependency (`ChartView.tsx`); routing is hand-rolled (`App.tsx:128-153`); admin
   UI today is Settings > Users / Storage.
 
-## 2. How pynote does it, and what we take
+## 2. How the reference does it, and what we take
 
-pynote builds the report **on request by scanning every session log** (cached 15 s, per-session stats cached in
+The reference builds the report **on request by scanning every session log** (cached 15 s, per-session stats cached in
 memory) plus one JSONL/Mongo record per LLM call. That works for one org on one disk. Here it does not:
 logs older than 30 days are only on S3 (a 90-day report would download thousands of objects), and 1k–10k
 sessions per peak makes a full scan per request too slow.
 
-Taken from pynote: the record shape (per LLM call: latency, purpose, outcome, in / out / cache / reasoning
+Taken from the reference: the record shape (per LLM call: latency, purpose, outcome, in / out / cache / reasoning
 tokens), the report shape (totals + previous period + series + per user / model / tool + outcomes), the screen
 (period filter, KPI cards with delta, bar series, outcomes, member table, CSV), "numbers only, never message
 text", `Asia/Ho_Chi_Minh` days.

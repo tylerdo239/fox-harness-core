@@ -10,7 +10,7 @@ sidebar:
 - Admins manage accounts and the company data sources.
 
 :::caution
-Fox Harness is an internal tool. Don't upload data you are not allowed to share.
+Fox Agent is an internal tool. Don't upload data you are not allowed to share.
 :::
 
 ## Keeping and deleting

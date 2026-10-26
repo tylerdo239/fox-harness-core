@@ -183,7 +183,7 @@ body {
 /* Real `.brandName{font-size:18px;font-weight:600;letter-spacing:.04em}`.
  * Color (2026-09-10, user request) — `var(--accent)`, the same brand
  * orange token `.fh-sidebar-brand-mark` (the icon next to it) already
- * uses, so the mark and the "Fox Harness" text match instead of the text
+ * uses, so the mark and the "Fox Agent" text match instead of the text
  * defaulting to plain `--fg`. */
 .fh-sidebar-brand-name {
   font-size: 18px;

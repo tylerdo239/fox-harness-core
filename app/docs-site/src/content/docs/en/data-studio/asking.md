@@ -18,7 +18,7 @@ Sidebar → **Data Studio**. The sidebar switches to Data Studio, with two secti
 | **Chat**         | Ask about data; your Data Studio chats are listed below it           |
 | **Dashboards**   | Your dashboards — see [Dashboards](/docs/en/data-studio/dashboards/) |
 
-The **Back to Fox Harness** arrow at the top of the sidebar returns to the regular chat screen (where Settings and Logout
+The **Back to Fox Agent** arrow at the top of the sidebar returns to the regular chat screen (where Settings and Logout
 are).
 
 ## Ask a question

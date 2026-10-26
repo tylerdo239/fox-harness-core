@@ -97,7 +97,7 @@ export function apply(ctx: Context) {
         // no relation to fox-harness's subagents or background jobs.
         'IMPORTANT: if the question mentions "agent"/"agents" alongside a business word (workflow, ',
         'customer, ticket, conversation, revenue, etc.), that means a business entity in the company\'s ',
-        "own data — call THIS tool. It has nothing to do with fox-harness's own subagents or background ",
+        "own data — call THIS tool. It has nothing to do with Fox Agent's own subagents or background ",
         'jobs (`list_agents`/`job_list`); do not answer such a question from those. ',
         'Slow — often several minutes (it runs a multi-step pipeline: retrieval, SQL generation, ',
         'execution, chart generation), regardless of how simple the question looks. Ask one clear, ',

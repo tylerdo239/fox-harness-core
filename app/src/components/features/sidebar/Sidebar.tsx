@@ -104,7 +104,7 @@ export function Sidebar({
           <span className="fh-sidebar-brand-mark">
             <BrandIcon size={24} />
           </span>
-          <span className="fh-sidebar-brand-name">Fox Harness</span>
+          <span className="fh-sidebar-brand-name">Fox Agent</span>
         </div>
         <IconButton
           className="fh-sidebar-search-toggle"

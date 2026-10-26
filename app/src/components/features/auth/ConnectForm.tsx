@@ -31,7 +31,7 @@ export function ConnectForm({
   return (
     <div className="fh-auth-card">
       <div className="fh-auth-brand">
-        <h1>Fox Harness</h1>
+        <h1>Fox Agent</h1>
         <p>{t("auth.loginTitle")}</p>
       </div>
 

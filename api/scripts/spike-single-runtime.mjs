@@ -115,7 +115,7 @@ const tests = {
     a.close(); b.close()
     if (!ra || !rb) return { ok: false, detail: `missing mock requests a=${!!ra} b=${!!rb} errors=${JSON.stringify([...a.errors, ...b.errors])}` }
     const okTools = rb.tools.length === 1 && rb.tools[0] === 'analyze_data' && ra.tools.length > 1 && !ra.tools.includes('analyze_data')
-    const okPersona = ra.system.includes('Fox Harness') && !ra.system.includes('Data Studio') && rb.system.includes('Data Studio')
+    const okPersona = ra.system.includes('Fox Agent') && !ra.system.includes('Data Studio') && rb.system.includes('Data Studio')
     return { ok: okTools && okPersona, detail: `A tools=${ra.tools.length}(${ra.tools.slice(0, 4)}...) B tools=${JSON.stringify(rb.tools)} personaOK=${okPersona}` }
   },
 

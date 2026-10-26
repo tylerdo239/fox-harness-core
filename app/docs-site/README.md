@@ -19,7 +19,7 @@ trang tương ứng.
 
 ## Ảnh chụp màn hình
 
-`src/assets/screens/*.png` (tiếng Việt) và `src/assets/screens/en/*.png` (tiếng Anh, `DOCS_LOCALE=en`), chụp tự động bằng `scripts/screenshots.mjs` (Playwright) từ một Fox Harness đang chạy, bằng
+`src/assets/screens/*.png` (tiếng Việt) và `src/assets/screens/en/*.png` (tiếng Anh, `DOCS_LOCALE=en`), chụp tự động bằng `scripts/screenshots.mjs` (Playwright) từ một Fox Agent đang chạy, bằng
 một tài khoản demo **role user** cho mỗi ngôn ngữ, không có dữ liệu thật (email người khác bị che). Xem đầu file script để biết cách chạy; chụp lại
 một phần: `pnpm screenshots skills dataStudio`. Phần Data Studio cần Dremio có dữ liệu và câu hỏi ra được biểu đồ
 (`DOCS_DS_QUESTION`).

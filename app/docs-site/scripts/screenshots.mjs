@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Screenshots for the user manual (src/assets/screens/*.png), taken from a running Fox Harness with a real model.
+// Screenshots for the user manual (src/assets/screens/*.png), taken from a running Fox Agent with a real model.
 // The manual is for role `user`, so shoot as one: a demo account with no real data in it, created by an admin
 // (Cài đặt → Người dùng), e.g. demo-user@fox-harness.local; an admin sees screens a user never does.
 //

@@ -10,7 +10,7 @@ sidebar:
 - Admin quản lý tài khoản và nguồn dữ liệu công ty.
 
 :::caution
-Fox Harness là công cụ nội bộ. Không tải lên dữ liệu mà bạn không được phép chia sẻ.
+Fox Agent là công cụ nội bộ. Không tải lên dữ liệu mà bạn không được phép chia sẻ.
 :::
 
 ## Lưu và xoá
