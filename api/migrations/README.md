@@ -23,10 +23,16 @@ create table if not exists discovery_usage_turn_tools (
   tool varchar(64) not null,
   calls int not null,
   errors int not null,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp,
   unique index usage_turn_tools_idx (session_id, turn, tool),
   index usage_turn_tools_at_idx (at)
 ) engine=innodb default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 alter table discovery_usage_turns drop column if exists tools;
+alter table discovery_usage_steps add column if not exists created_at datetime not null default current_timestamp,
+  add column if not exists updated_at datetime not null default current_timestamp;
+alter table discovery_usage_turns add column if not exists created_at datetime not null default current_timestamp,
+  add column if not exists updated_at datetime not null default current_timestamp;
 -- optional: re-read the usage files still on disk (the last 7 days) so their per-tool rows are filled in;
 -- rows already there are ignored, nothing is counted twice
 update discovery_usage_ingest set read_offset = 0;

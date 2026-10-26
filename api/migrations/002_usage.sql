@@ -23,6 +23,8 @@ create table if not exists discovery_usage_steps (
   cache_read_tokens int null,
   reasoning_tokens int null,
   estimated tinyint(1) not null default 0, -- the server sent no usage
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp,
   -- one row per model call: a usage file read twice (insert ignore) never counts a call twice
   unique index usage_steps_call_idx (session_id, turn, step, purpose),
   -- every report filters on a time range
@@ -46,6 +48,8 @@ create table if not exists discovery_usage_turns (
   tool_calls int not null,
   tool_errors int not null,
   attachments int not null,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp,
   unique index usage_turns_turn_idx (session_id, turn),
   index usage_turns_at_idx (at),
   index usage_turns_user_id_at_idx (user_id, at)
@@ -60,6 +64,8 @@ create table if not exists discovery_usage_turn_tools (
   tool varchar(64) not null,
   calls int not null,
   errors int not null,
+  created_at datetime not null default current_timestamp,
+  updated_at datetime not null default current_timestamp,
   unique index usage_turn_tools_idx (session_id, turn, tool),
   index usage_turn_tools_at_idx (at)
 ) engine=innodb default charset=utf8mb4 collate=utf8mb4_unicode_ci;

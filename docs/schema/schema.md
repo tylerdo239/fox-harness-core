@@ -137,5 +137,5 @@ run once on an existing database (`if not exists`):
 
 `at` is UTC. Rows older than `USAGE_RETENTION_DAYS` (default 400) are deleted daily. Message text is never stored.
 
-Sample for review: `002_usage-sample.sql` — the four tables' DDL as MariaDB 10.11 creates them, matching sample rows
+Sample for review: `usage-sample.sql` — the four tables' DDL as MariaDB 10.11 creates them, matching sample rows
 from the e2e test stack (mock model, test users) and the dashboard's main queries. Loads into an empty database.
