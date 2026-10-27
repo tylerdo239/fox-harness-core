@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 
 import {
+  AdsIcon,
   BrandIcon,
   DataAnalysisIcon,
   DataStudioIcon,
@@ -11,6 +12,8 @@ import {
   SkillIcon,
 } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
+import { useRuntime } from "../../../runtime.ts";
+import { useMetaConnection } from "../meta-ads/metaAdsApi.ts";
 import { Button } from "../../primitives/Button.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
 import { Input } from "../../primitives/Input.tsx";
@@ -58,6 +61,8 @@ export function Sidebar({
   onOpenProject,
   dataAnalysisActive,
   onOpenDataStudio,
+  onOpenMetaAds,
+  metaAdsActive,
   newSessionDisabled,
   onOpenSettings,
   onOpenUsage,
@@ -78,6 +83,9 @@ export function Sidebar({
   // discoverable entry point rather than reusing onNewSession's button
   // directly, so the sidebar names the capability explicitly.
   onOpenDataStudio: () => void;
+  // docs/meta-ads-mcp-plan.md: a new chat on the `meta-ads` flow; shown only when the server has Meta Ads enabled
+  onOpenMetaAds: () => void;
+  metaAdsActive: boolean;
   // Real bug fixed 2026-09-10: already on a fresh, never-chatted session
   // -> clicking this used to close the socket and open ANOTHER new one
   // for nothing (see App.tsx's `startNewSession` for the actual guard;
@@ -90,6 +98,8 @@ export function Sidebar({
   onLogout: () => void;
 }) {
   const { t } = useLocale();
+  const runtime = useRuntime();
+  const { status: metaAds } = useMetaConnection(runtime);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -196,6 +206,19 @@ export function Sidebar({
           {t("sidebar.dataStudio")}
         </span>
       </MenuItem>
+
+      {metaAds?.enabled && (
+        <MenuItem
+          variant="nav"
+          className="fh-sidebar-meta-ads"
+          active={metaAdsActive}
+          onClick={onOpenMetaAds}
+          title={t("sidebar.metaAds")}
+        >
+          <AdsIcon size={16} />
+          <span className="fh-sidebar-meta-ads-label">{t("sidebar.metaAds")}</span>
+        </MenuItem>
+      )}
 
       <div className="fh-sidebar-region">
         <SidebarProjects onOpenProject={onOpenProject} />

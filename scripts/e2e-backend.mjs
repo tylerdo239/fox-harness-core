@@ -448,7 +448,7 @@ const tests = {
     if (SANDBOX_MODE === 'none') return skippedWithoutSandbox
     const { a } = await users()
     const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
-    const targets = [['foxe2e-redis', 6379], ['foxe2e-mariadb', 3306], ['127.0.0.1', 4000], ['foxe2e-backend', 4000], ['host.docker.internal', 4999], ['example.com', 443]]
+    const targets = [['foxe2e-redis', 6379], ['foxe2e-mariadb', 3306], ['127.0.0.1', 4000], ['127.0.0.1', 4300], ['foxe2e-backend', 4000], ['host.docker.internal', 4999], ['example.com', 443]]
     const rows = []
     let n = 0
     for (const [host, port] of targets) {
@@ -1226,6 +1226,136 @@ print('planted')` })
     rows.push(['/admin/usage reload serves the app', `${page.status} ${(page.headers.get('content-type') ?? '').split(';')[0]}`, '200 text/html'])
     rows.push(['no message text stored', db(`select count(*) from discovery_usage_turn_tools where tool like '%missing.txt%'`), '0'])
     rows.push(['no json column in the schema', db(`select count(*) from information_schema.check_constraints where constraint_schema = database() and check_clause like 'json_valid%'`), '0'])
+
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
+  },
+  // docs/meta-ads-mcp-plan.md, against scripts/mock-meta.mjs: connecting (OAuth + PKCE, state single use, token sealed),
+  // per-user tokens, the gateway's allow-list, write confirmation (approve / reject / timeout / other user), disconnect,
+  // refresh. The model is the mock LLM's scripted `CALL <tool> <json>`.
+  async metaAds() {
+    const META = process.env.E2E_MOCK_META ?? 'http://127.0.0.1:4998'
+    const db = (sql) => execFileSync('docker', ['exec', 'foxe2e-mariadb', 'mariadb', '-uroot', '-px', 'discovery-agent', '-N', '-e', sql], { encoding: 'utf8' }).trim()
+    const metaCalls = async () => (await fetch(`${META}/_calls`)).json()
+    const rows = []
+    // the suite's shared pair: creating more accounts this late hits the admin's create-user rate limit
+    const { a, b } = await users()
+    const status = async (u) => (await api('GET', '/connections', u.token)).json?.connections?.[0]
+    const connect = async (u) => {
+      const start = await api('POST', '/connections/meta/start', u.token)
+      const login = await fetch(start.json.url, { redirect: 'manual' })
+      const callback = await fetch(login.headers.get('location'))
+      return { start, callbackUrl: login.headers.get('location'), page: await callback.text() }
+    }
+
+    rows.push(['not connected at first', (await status(a))?.connected, false])
+    rows.push(['enabled', (await status(a))?.enabled, true])
+    rows.push(['start needs a login', (await api('POST', '/connections/meta/start')).status, 401])
+    const first = await connect(a)
+    const authorize = new URL(first.start.json.url)
+    rows.push(['PKCE S256 + state in the login URL', [authorize.searchParams.get('code_challenge_method'), !!authorize.searchParams.get('state'), authorize.searchParams.get('client_id')].join(' '), 'S256 true e2e-meta-app'])
+    rows.push(['callback page reports success', first.page.includes('"ok":true'), true])
+    rows.push(['the same callback again: state already used', (await (await fetch(first.callbackUrl)).text()).includes('invalid_state'), true])
+    rows.push(['a made-up state is refused', (await (await fetch(`${BASE}/connections/meta/callback?code=x&state=forged`)).text()).includes('invalid_state'), true])
+    const sa = await status(a)
+    rows.push(['A connected, name from /me', `${sa?.connected} ${sa?.name}`, 'true E2E Meta User'])
+    rows.push(['B still not connected', (await status(b))?.connected, false])
+    const issued = (await metaCalls()).length
+    rows.push(['token exchanged once', issued >= 1, true])
+    rows.push(['token sealed in the database (no plaintext)', db(`select count(*) from discovery_ads_connections where access_token_enc like '%tok-%'`), '0'])
+    rows.push(['one connection row', db(`select count(*) from discovery_ads_connections where user_id = ${a.id} and provider = 'meta'`), '1'])
+    await sleep(2000) // the gateway fetches Meta's tool list right after the first connect
+
+    // read tool, with A's token
+    await clearMock()
+    await fetch(`${META}/_calls`, { method: 'DELETE' })
+    const c = chat(a.token, { params: { flow: 'meta-ads' } }); await c.opened; await c.ready()
+    c.send(`CALL ads_get_ad_accounts {}`)
+    await c.turnEnds(1, 60000)
+    rows.push(['read tool answered with A\'s account', /accounts of user-\d+: act_1/.test(toolText(c.events)), true])
+    const offered = (await mock()).filter((r) => Array.isArray(r.tools) && r.tools.includes('ads_get_ad_accounts')).at(-1)?.tools ?? []
+    rows.push(['model offered Meta tools', offered.includes('ads_get_ad_accounts') && offered.includes('ads_create_campaign'), true])
+    rows.push(['no file/shell tools in meta-ads', ['bash', 'read', 'write', 'python'].some((t) => offered.includes(t)), false])
+    rows.push(['a tool outside the allow-list is not offered', offered.includes('ads_delete_custom_audience'), false])
+
+    // B has no connection: told so, Meta never called with anything of B's
+    const cb = chat(b.token, { params: { flow: 'meta-ads' } }); await cb.opened; await cb.ready()
+    cb.send(`CALL ads_get_ad_accounts {}`)
+    await cb.turnEnds(1, 60000)
+    rows.push(['B: not_connected', toolText(cb.events).includes('not_connected'), true])
+    cb.close()
+
+    // the internal listener: loopback only, secret required, allow-list and flow enforced server side
+    // the runtime's own environment (no pgrep in the image): the first process started with `--profile`
+    const secret = dx('sh', '-c', 'for p in /proc/[0-9]*; do [ "$p" = "/proc/$$" ] && continue; if tr "\\0" " " < $p/cmdline 2>/dev/null | grep -q -- "bin.js --profile fox-harness"; then tr "\\0" "\\n" < $p/environ | sed -n "s/^FOX_INTERNAL_SECRET=//p"; break; fi; done; true').trim()
+    const internal = (body, withSecret = true) => JSON.parse(dx('node', '-e', `fetch('http://127.0.0.1:4300/internal/meta-ads/call', { method: 'POST', headers: ${withSecret ? `{ 'x-fox-harness-internal-secret': ${JSON.stringify(secret)} }` : '{}'}, body: ${JSON.stringify(JSON.stringify(body))} }).then(async (r) => console.log(JSON.stringify({ status: r.status, body: await r.json() })))`))
+    rows.push(['internal: no secret = 401', internal({ sessionId: c.sessionId, callId: 'x', tool: 'ads_get_ad_accounts' }, false).status, 401])
+    rows.push(['internal: tool outside the allow-list refused', internal({ sessionId: c.sessionId, callId: 'x', tool: 'ads_delete_custom_audience', arguments: {} }).body.code, 'not_allowed'])
+    const d = chat(a.token, { params: { flow: 'default' } }); await d.opened; await d.ready(); d.send('hello'); await d.turnEnds(1, 60000)
+    rows.push(['internal: a default-flow session cannot use Meta', internal({ sessionId: d.sessionId, callId: 'x', tool: 'ads_get_ad_accounts', arguments: {} }).body.code, 'bad_session'])
+    // nginx has no /internal route: the path falls through to the web app's index.html, never to the gateway
+    rows.push(['internal routes not reachable through nginx', (await (await fetch(`${BASE}/internal/meta-ads/tools`)).text()).includes('"tools"'), false])
+    // model code does not get the secret (allow-listed environment)
+    d.send(`CALL bash ${JSON.stringify({ command: viaSh('if env | grep -q FOX_INTERNAL_SECRET; then echo SECRET-LEAK; else echo SECRET-ABSENT; fi'), description: 'env' })}`)
+    await d.turnEnds(2, 60000)
+    rows.push(['bash has no FOX_INTERNAL_SECRET', toolText(d.events).includes('SECRET-ABSENT'), true])
+    d.close()
+    rows.push(['no Meta call so far besides A\'s read', (await metaCalls()).filter((x) => x.kind === 'call').map((x) => x.tool).join(','), 'ads_get_ad_accounts'])
+
+    // writes: held until the owner decides
+    const actions = async () => (await api('GET', `/meta-ads/actions?sessionId=${c.sessionId}`, a.token)).json?.actions ?? []
+    const pendingAction = async () => { for (let i = 0; i < 40; i += 1) { const p = (await actions()).find((x) => x.status === 'pending'); if (p) return p; await sleep(250) } return undefined }
+    const decide = (u, callId, decision) => api('POST', '/meta-ads/actions/decision', u.token, { sessionId: c.sessionId, callId, decision })
+
+    c.send(`CALL ads_create_campaign ${JSON.stringify({ ad_account_id: 'act_1', name: 'Sale 11.11', objective: 'OUTCOME_TRAFFIC', daily_budget: 500000 })}`)
+    const p1 = await pendingAction()
+    rows.push(['write is pending with a summary', !!p1 && p1.summary.includes('Sale 11.11') && p1.summary.includes('daily_budget'), true])
+    rows.push(['budget marks it as spending', p1?.spends, true])
+    rows.push(['nothing sent to Meta while pending', (await metaCalls()).filter((x) => x.tool === 'ads_create_campaign').length, 0])
+    rows.push(['B cannot see A\'s actions', (await api('GET', `/meta-ads/actions?sessionId=${c.sessionId}`, b.token)).status, 403])
+    rows.push(['B cannot decide A\'s action', (await decide(b, p1?.callId, 'approve')).status, 403])
+    rows.push(['A approves', (await decide(a, p1?.callId, 'approve')).status, 200])
+    rows.push(['a second click: no longer pending', (await decide(a, p1?.callId, 'approve')).status, 409])
+    await c.turnEnds(2, 60000)
+    rows.push(['approved write ran once', (await metaCalls()).filter((x) => x.tool === 'ads_create_campaign').length, 1])
+    rows.push(['the model got Meta\'s answer', toolText(c.events).includes('created campaign 120001'), true])
+    rows.push(['audit: done', db(`select status from discovery_ads_actions where call_id = '${p1?.callId}'`), 'done'])
+
+    c.send(`CALL ads_activate_entity ${JSON.stringify({ entity_id: '120001' })}`)
+    const p2 = await pendingAction()
+    rows.push(['activation is flagged as spending', p2?.spends, true])
+    await decide(a, p2?.callId, 'reject')
+    await c.turnEnds(3, 60000)
+    rows.push(['rejected: Meta not called', (await metaCalls()).filter((x) => x.tool === 'ads_activate_entity').length, 0])
+    rows.push(['rejected: the model is told', toolText(c.events).includes('rejected'), true])
+    rows.push(['audit: rejected', db(`select status from discovery_ads_actions where call_id = '${p2?.callId}'`), 'rejected'])
+
+    c.send(`CALL ads_activate_entity ${JSON.stringify({ entity_id: '120001' })}`)
+    const p3 = await pendingAction()
+    await c.turnEnds(4, 30000) // META_ADS_CONFIRM_TIMEOUT_MS=8000 in e2e-up.sh
+    rows.push(['unanswered: timeout, Meta not called', `${toolText(c.events).includes('timeout')} ${(await metaCalls()).filter((x) => x.tool === 'ads_activate_entity').length}`, 'true 0'])
+    rows.push(['audit: expired', db(`select status from discovery_ads_actions where call_id = '${p3?.callId}'`), 'expired'])
+    rows.push(['late click refused', (await decide(a, p3?.callId, 'approve')).status, 409])
+
+    // disconnect: row gone, Meta asked to revoke, the next call says not_connected
+    rows.push(['disconnect', (await api('DELETE', '/connections/meta', a.token)).status, 204])
+    rows.push(['revoked at Meta', (await metaCalls()).some((x) => x.kind === 'revoke'), true])
+    rows.push(['row deleted', db(`select count(*) from discovery_ads_connections where user_id = ${a.id}`), '0'])
+    c.send(`CALL ads_get_ad_accounts {}`)
+    await c.turnEnds(5, 60000)
+    rows.push(['after disconnect: not_connected', toolText(c.events).includes('not_connected'), true])
+
+    // a token about to expire is refreshed before use
+    await fetch(`${META}/_config`, { method: 'POST', body: JSON.stringify({ expiresIn: 60, refresh: true }) })
+    await connect(a)
+    await fetch(`${META}/_calls`, { method: 'DELETE' })
+    c.send(`CALL ads_get_ad_accounts {}`)
+    await c.turnEnds(6, 60000)
+    const after = await metaCalls()
+    rows.push(['refreshed before the call', after.some((x) => x.kind === 'token' && x.grant === 'refresh_token'), true])
+    rows.push(['call made with the new token', toolText(c.events).includes('accounts of'), true])
+    await fetch(`${META}/_config`, { method: 'POST', body: JSON.stringify({ expiresIn: 3600, refresh: false }) })
+    c.close()
 
     const bad = rows.filter(([, got, want]) => got !== want)
     return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }

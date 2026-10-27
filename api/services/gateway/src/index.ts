@@ -121,6 +121,8 @@ import { errorFields, log } from './log.ts'
 import { checkMongoConnection, ensureIndexes } from './mongo.ts'
 import { checkS3 } from './object-storage.ts'
 import { proxyToWorker } from './proxy.ts'
+import { connectionStatus, decide, disconnect, expireStalePending, finishConnect, listActions, metaAdsConfigured, startConnect } from './ads/meta.ts'
+import { startInternalServer } from './internal-server.ts'
 import { checkRateLimit, renewTokenHash } from './redis.ts'
 import { loadBuiltinSkills, MAX_SKILLS_PER_USER, validateSkill } from './skills.ts'
 
@@ -1717,6 +1719,96 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     return
   }
 
+  // ---- ad platform connections + Meta Ads write confirmations (docs/meta-ads-mcp-plan.md) ----
+  if (req.method === 'GET' && url.pathname === '/connections') {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      sendJson(res, 200, { connections: [await connectionStatus(identity.userId)] })
+    })
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/connections/meta/start') {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      if (!metaAdsConfigured()) return sendJson(res, 503, { error: 'Meta Ads is not configured on this server', code: 'not_configured' })
+      if (!(await costlyAllowed('connect', identity.userId))) return rateLimited(res)
+      sendJson(res, 200, { url: await startConnect(identity.userId) })
+    })
+    return
+  }
+
+  // The browser comes back here from Facebook (no login token on a redirect: finishConnect knows the user by state).
+  // The page tells the window that opened it (Settings, same origin) and closes.
+  if (req.method === 'GET' && url.pathname === '/connections/meta/callback') {
+    handle(res, async () => {
+      const result = await finishConnect(url.searchParams.get('code'), url.searchParams.get('state'), url.searchParams.get('error'))
+      const message = JSON.stringify({ type: 'fox-connection', provider: 'meta', ok: result.ok, ...(result.reason ? { reason: result.reason } : {}) })
+      const text = result.ok ? 'Meta account connected. You can close this window.' : `Could not connect the Meta account (${result.reason ?? 'error'}). You can close this window.`
+      res.writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+        'referrer-policy': 'no-referrer',
+        'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'",
+      })
+      res.end(`<!doctype html><meta charset="utf-8"><title>Fox Agent</title><p>${text}</p><script>
+try { if (window.opener) window.opener.postMessage(${message}, location.origin) } catch (e) {}
+setTimeout(function () { window.close() }, 300)
+</script>`)
+    })
+    return
+  }
+
+  if (req.method === 'DELETE' && url.pathname === '/connections/meta') {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      await disconnect(identity.userId)
+      res.writeHead(204)
+      res.end()
+    })
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname === '/meta-ads/actions') {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      const sessionId = url.searchParams.get('sessionId') ?? ''
+      if (!SESSION_ID_RE.test(sessionId)) return sendJson(res, 400, { error: 'invalid sessionId' })
+      if (!(await canAccessSession(identity, sessionId))) return sendJson(res, 403, { error: 'forbidden' })
+      sendJson(res, 200, { actions: await listActions(sessionId) })
+    })
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/meta-ads/actions/decision') {
+    handle(res, async () => {
+      const identity = await identityFromRequest(req, url)
+      if (!identity) return sendJson(res, 401, { error: 'unauthorized' })
+      let body: { sessionId?: unknown; callId?: unknown; decision?: unknown }
+      try {
+        body = JSON.parse(await readBody(req))
+      } catch {
+        return sendJson(res, 400, { error: 'invalid JSON body' })
+      }
+      const { sessionId, callId, decision } = body
+      if (typeof sessionId !== 'string' || !SESSION_ID_RE.test(sessionId) || typeof callId !== 'string' || callId.length === 0 || callId.length > 64 || (decision !== 'approve' && decision !== 'reject')) {
+        return sendJson(res, 400, { error: 'sessionId, callId and decision (approve|reject) are required' })
+      }
+      // only the owner of the conversation decides: an admin looking at someone's chat cannot spend their money
+      if ((await getSessionOwnerId(sessionId)) !== identity.userId) return sendJson(res, 403, { error: 'forbidden' })
+      const result = await decide(identity.userId, sessionId, callId, decision)
+      if (result === 'forbidden') return sendJson(res, 403, { error: 'forbidden' })
+      if (result === 'not_pending') return sendJson(res, 409, { error: 'this change is no longer waiting for a decision', code: 'not_pending' })
+      log('meta_ads_decision', { userId: identity.userId, sessionId, callId, decision })
+      sendJson(res, 200, { ok: true })
+    })
+    return
+  }
+
   res.writeHead(404, { 'content-type': 'application/json' })
   res.end(JSON.stringify({ error: 'not found' }))
 }
@@ -1932,7 +2024,11 @@ void checkS3()
 
 // Readiness is "this process AND its runtime(s) can take a chat"; liveness is just "this process answers".
 // (Both are matched before authentication, ahead of the router above, by wrapping the listener below.)
+let internalServer: ReturnType<typeof startInternalServer> | undefined
 async function main(): Promise<void> {
+  // before the runtimes: their tools call back on it (FOX_INTERNAL_URL)
+  internalServer = startInternalServer(runtime.secret)
+  await expireStalePending()
   await runtime.start()
   await startArchiver()
   startStorageJobs()
@@ -1949,6 +2045,7 @@ async function shutdown(signal: string): Promise<void> {
   log('shutdown', { signal, liveSessions: liveCount() })
   // Stop taking connections, let the runtimes flush every session log (they do it on idle and on SIGTERM), exit.
   server.close()
+  internalServer?.close()
   for (const client of wss.clients) client.close(1001, 'server shutting down')
   stopAdminWorker()
   stopStorageJobs()

@@ -139,3 +139,17 @@ run once on an existing database (`if not exists`):
 
 Sample for review: `usage-sample.sql` — the four tables' DDL as MariaDB 10.11 creates them, matching sample rows
 from the e2e test stack (mock model, test users) and the dashboard's main queries. Loads into an empty database.
+
+## `004_ads.sql` (2026-10-27)
+
+Meta Ads (`docs/meta-ads-mcp-plan.md`). Adds two tables, changes none; run once before `META_ADS_ENABLED=true`
+(`if not exists`). 003 is the memory branch's `003_memory.sql`.
+
+- `discovery_ads_connections` — the ad platform account each user connected (one per user and provider: `meta`, later
+  `tiktok`). Tokens are `varbinary`, AES-256-GCM sealed by the gateway; the key (`FOX_TOKEN_ENC_KEY`) is never in the
+  database. A disconnect deletes the row.
+- `discovery_ads_actions` — one row per write an agent asked for (create / update / activate): who, which chat and
+  tool call, a readable summary, whether it can spend money, the user's decision and the result. The arguments
+  themselves are not stored (they stay in the session log). Kept as an audit; no retention job yet.
+
+Volume: one connection row per user; action rows only for confirmed-or-declined writes (a few per user per day at most).

@@ -48,6 +48,34 @@ thường bị đưa về trang chủ và API trả 403.
 Chỉ có số liệu: không lưu nội dung tin nhắn. Số liệu bắt đầu từ khi bản cập nhật chạy (không có số liệu cũ), làm mới mỗi
 phút, giữ 400 ngày (`USAGE_RETENTION_DAYS`). Cần chạy `api/migrations/002_usage.sql` một lần trên DB đã có.
 
+## Meta Ads (quảng cáo Facebook/Instagram)
+
+Chế độ chat **Meta Ads** cho mỗi người dùng làm việc với tài khoản quảng cáo Meta **của chính họ**
+(`docs/meta-ads-mcp-plan.md`). Mặc định tắt.
+
+**Bật (một lần):**
+1. Tạo Meta developer app (loại Business, thuộc Business Manager của công ty) ở developers.facebook.com/apps, thêm use
+   case **Create & manage ads with ads MCP server**.
+2. Facebook Login for Business: tạo cấu hình xin `ads_mcp_management`, `ads_read` (và `ads_management` nếu bật tạo/sửa),
+   lấy **config ID**; khai redirect URL `https://<domain>/connections/meta/callback`.
+3. Khi app chưa qua App Review, chỉ người có role trên app (admin/developer/tester) đăng nhập được: thêm từng người, hoặc
+   gửi App Review để mở cho mọi nhân viên.
+4. Chạy `api/migrations/004_ads.sql`; đặt env `META_ADS_ENABLED=true`, `META_APP_ID`, `META_LOGIN_CONFIG_ID`,
+   `META_ADS_REDIRECT_URL`, `FOX_TOKEN_ENC_KEY` (32 byte ngẫu nhiên, base64; mất khoá thì mọi người phải kết nối lại).
+   Pod backend cần ra được `mcp.facebook.com`, `www.facebook.com`, `graph.facebook.com` (443).
+5. `META_ADS_TIERS=read` (mặc định): chỉ đọc báo cáo. `read,write`: thêm tạo campaign/ad set/ad, sửa, bật — **mỗi thay đổi
+   chờ người dùng bấm Đồng ý** trên thẻ xác nhận (10 phút, `META_ADS_CONFIRM_TIMEOUT_MS`), không bấm là không làm gì.
+
+**Người dùng:** Cài đặt → **Kết nối** → Meta → **Kết nối**, đăng nhập Facebook, chọn quyền. Sau đó sidebar có mục
+**Meta Ads**. Token mã hoá trong `discovery_ads_connections`; **Ngắt kết nối** xoá token và thu hồi quyền phía Meta.
+
+**Kiểm tra:** mọi thao tác ghi (ai, chat nào, công cụ, tóm tắt, Đồng ý/Từ chối/hết giờ, kết quả) nằm ở
+`discovery_ads_actions`; log gateway có `meta_ads_call`, `meta_ads_action`, `meta_ads_connected`. Công cụ được phép nằm ở
+`api/services/gateway/src/ads/tools.ts` (không có xoá audience, catalog, pixel…).
+
+**Đổi khoá:** `FOX_TOKEN_ENC_KEYS=k2:<khoá mới>,k1:<khoá cũ>` — khoá đầu dùng để mã hoá, các hàng cũ vẫn mở được bằng k1;
+bỏ k1 khi mọi người đã kết nối lại hoặc token đã được làm mới.
+
 ## Nguồn dữ liệu Data Studio
 
 Các màn này nằm trong thanh bên Data Studio, chỉ admin thấy. Chúng quyết định Data Studio **hỏi được dữ liệu nào** và

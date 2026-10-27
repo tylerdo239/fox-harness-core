@@ -37,7 +37,7 @@
 import { useEffect, useState } from 'react'
 
 import { useLocale } from '../../../i18n/locale.tsx'
-import { CloseIcon, GearIcon, LogOutIcon, MoonIcon, ProfileIcon, StorageIcon, SunIcon, UsersIcon } from '../../../icons.tsx'
+import { CloseIcon, ConnectionsIcon, GearIcon, LogOutIcon, MoonIcon, ProfileIcon, StorageIcon, SunIcon, UsersIcon } from '../../../icons.tsx'
 import { useRuntime } from '../../../runtime.ts'
 import { useTheme } from '../../../useTheme.ts'
 import { Button } from '../../primitives/Button.tsx'
@@ -45,10 +45,11 @@ import { IconButton } from '../../primitives/IconButton.tsx'
 import { MenuItem } from '../../primitives/MenuItem.tsx'
 import { SelectableCard } from '../../primitives/SelectableCard.tsx'
 import { LanguageSelect } from '../LanguageSelect.tsx'
+import { ConnectionsTab } from './ConnectionsTab.tsx'
 import { StorageTab } from './StorageTab.tsx'
 import { UsersTab } from './UsersTab.tsx'
 
-export type SettingsTab = 'general' | 'profile' | 'storage' | 'users'
+export type SettingsTab = 'general' | 'profile' | 'storage' | 'connections' | 'users'
 type Tab = SettingsTab
 
 export function SettingsDialog({
@@ -102,6 +103,10 @@ export function SettingsDialog({
             <MenuItem variant="nav" active={tab === 'storage'} onClick={() => setTab('storage')}>
               <StorageIcon size={16} />
               {t('settings.storageTab')}
+            </MenuItem>
+            <MenuItem variant="nav" active={tab === 'connections'} onClick={() => setTab('connections')}>
+              <ConnectionsIcon size={16} />
+              {t('settings.connectionsTab')}
             </MenuItem>
             {isAdmin && (
               <MenuItem variant="nav" active={tab === 'users'} onClick={() => setTab('users')}>
@@ -160,6 +165,8 @@ export function SettingsDialog({
             )}
 
             {tab === 'storage' && <StorageTab />}
+
+            {tab === 'connections' && <ConnectionsTab />}
 
             {tab === 'users' && isAdmin && <UsersTab onClose={onClose} />}
           </div>

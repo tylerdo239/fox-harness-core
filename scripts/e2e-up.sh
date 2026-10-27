@@ -12,9 +12,13 @@ docker volume rm foxe2e-data >/dev/null 2>&1 || true
 
 pkill -f "scripts/mock-llm.mjs" 2>/dev/null || true
 MOCK_BIND=0.0.0.0 nohup node scripts/mock-llm.mjs 4999 >/tmp/foxe2e-mock.log 2>&1 &
+# a fake Meta (Facebook Login + Graph + ads MCP server) for the metaAds test (docs/meta-ads-mcp-plan.md)
+pkill -f "scripts/mock-meta.mjs" 2>/dev/null || true
+MOCK_BIND=0.0.0.0 nohup node scripts/mock-meta.mjs 4998 >/tmp/foxe2e-mock-meta.log 2>&1 &
 
 docker run -d --name foxe2e-mariadb --network $NET -e MARIADB_ROOT_PASSWORD=x -e MARIADB_DATABASE=discovery-agent \
-  -v "$PWD/api/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro" -v "$PWD/api/migrations/002_usage.sql:/docker-entrypoint-initdb.d/002_usage.sql:ro" mariadb:10.11 \
+  -v "$PWD/api/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro" -v "$PWD/api/migrations/002_usage.sql:/docker-entrypoint-initdb.d/002_usage.sql:ro" \
+  -v "$PWD/api/migrations/004_ads.sql:/docker-entrypoint-initdb.d/004_ads.sql:ro" mariadb:10.11 \
   --character-set-server=latin1 --collation-server=latin1_swedish_ci >/dev/null
 # ^ latin1 on purpose: the worst default a provisioned MariaDB can have. 001_init.sql must declare utf8mb4 per table
 # (measured: without it a Vietnamese/emoji title fails with ERROR 1366); the unicodeText test proves it does.
@@ -58,6 +62,11 @@ docker run -d --name foxe2e-backend --network $NET $SANDBOX_ARGS -v foxe2e-data:
   -e USAGE_INGEST_INTERVAL_MS=2000 -e USAGE_REPORT_CACHE_MS=0 \
   -e USER_FILE_QUOTA_BYTES=2097152 -e S3_BUCKET_CAPACITY_BYTES=10737418240 -e STORAGE_SCAN_INTERVAL_MS=5000 -e CANVAS_HISTORY_MAX=3 \
   -e EMBEDDING_BASE_URL=http://host.docker.internal:4999 \
+  -e META_ADS_ENABLED=true -e META_APP_ID=e2e-meta-app -e META_ADS_TIERS=read,write -e META_ADS_CONFIRM_TIMEOUT_MS=8000 \
+  -e META_ADS_REDIRECT_URL=http://127.0.0.1:18080/connections/meta/callback \
+  -e META_OAUTH_AUTHORIZE_URL=http://127.0.0.1:4998/oauth/authorize -e META_OAUTH_TOKEN_URL=http://host.docker.internal:4998/oauth/token \
+  -e META_GRAPH_URL=http://host.docker.internal:4998/graph -e META_ADS_MCP_URL=http://host.docker.internal:4998/mcp \
+  -e FOX_TOKEN_ENC_KEY="$(head -c 32 /dev/urandom | base64)" \
   fox-harness-backend:dev >/dev/null
 # CHAT_RATE_LIMIT_PER_MIN: the suite itself sends one user more than the default 20 messages a minute; gatewayLimits
 # reads the same E2E_CHAT_LIMIT to probe the limit.

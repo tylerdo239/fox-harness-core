@@ -74,7 +74,14 @@ The web container makes no outbound call.
       volumeMounts: [{ name: data, mountPath: /data }, { name: tmp, mountPath: /tmp }]
   volumes: [{ name: tmp, emptyDir: {} }, …]
   ```
-- Not published: only the web container talks to it (port 4000).
+- Not published: only the web container talks to it (port 4000). Port 4300 (`FOX_INTERNAL_PORT`) listens on
+  127.0.0.1 only, for the runtimes inside the same container; never publish or route it.
+- **Meta Ads (optional, `META_ADS_ENABLED=true`)** — docs/meta-ads-mcp-plan.md, admin steps in docs/admin-guide.md:
+  run `api/migrations/004_ads.sql` first; set `META_APP_ID`, `META_ADS_REDIRECT_URL`
+  (`https://<domain>/connections/meta/callback`, the same URL in the Meta app's Facebook Login for Business
+  settings), `META_LOGIN_CONFIG_ID` and `FOX_TOKEN_ENC_KEY` from the secret manager; the backend must reach
+  `mcp.facebook.com`, `www.facebook.com` and `graph.facebook.com` on 443. `META_ADS_TIERS=read` (default) offers
+  reporting only; `read,write` adds create/update/activate, each held until the user approves it.
 - **First admin**: `docker exec <backend> node scripts/create-admin.mjs <email> <password>` (never over HTTP).
   Further accounts are created by an admin in Settings → Users.
 - **Graceful stop**: on SIGTERM the gateway stops accepting connections and signals each runtime, which

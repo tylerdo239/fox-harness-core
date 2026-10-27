@@ -10,6 +10,11 @@ MariaDB schema, run by hand (`mariadb ... < 001_init.sql`):
   table. Run it once on an existing database (`if not exists`, safe to re-run). Without it the gateway keeps working and logs
   `usage_tables_missing`.
 
+- `004_ads.sql` (2026-10-27) — Meta Ads (`docs/meta-ads-mcp-plan.md`): adds `discovery_ads_connections` (each user's
+  connected Meta account, tokens AES-GCM sealed by the gateway) and `discovery_ads_actions` (audit of every write an
+  agent asked for, and the user's decision); changes no existing table. Needed only with `META_ADS_ENABLED=true`; run
+  it before turning that on (`if not exists`, safe to re-run). 003 is `003_memory.sql` on the memory branch.
+
 No `json` columns and no `json_*` functions anywhere in the schema (2026-10-26): a list goes in a table of its own, one row
 per item. A database given the first `002_usage.sql` (with `discovery_usage_turns.tools json`) is brought up to date by
 running this once **before** deploying the new gateway (its inserts no longer name `tools`):

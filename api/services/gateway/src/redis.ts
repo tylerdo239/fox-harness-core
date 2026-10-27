@@ -157,3 +157,14 @@ export async function checkRateLimit(bucket: string, key: string, max: number, w
   if (count === 1) await redis.pexpire(redisKey, windowMs)
   return count <= max
 }
+
+// ---- OAuth state of an ad platform connection (ads/oauth-meta.ts): single use, short-lived ----
+const oauthKey = (state: string) => `fh:oauth:${tokenHash(state)}`
+
+export async function storeOauthState(state: string, value: string, ttlMs: number): Promise<void> {
+  await redis.set(oauthKey(state), value, 'PX', ttlMs)
+}
+
+export async function takeOauthState(state: string): Promise<string | undefined> {
+  return (await redis.getdel(oauthKey(state))) ?? undefined
+}

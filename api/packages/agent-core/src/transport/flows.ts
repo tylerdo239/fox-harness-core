@@ -14,14 +14,17 @@ import '@deepseek-ai/dsh-tools'
 // rows in profile-template/<flow>/cordis.patch.yml did when a flow was a whole process.
 //   'all'      -> the flow's tools come ONLY from its preset (data-studio: `analyze_data`).
 //   string[]   -> these global tools are hidden, the rest stay (data-analysis: no bash, no subagents...).
+//   {allow}    -> every global tool is hidden except these (meta-ads: todo_write).
 // `read_image` is hidden everywhere: the openai-compat adapter sends the model text only, so the call always
 // failed — with an attached image the model first tried it, got an error, then fell back to bash/python
 // (docs/chat-attachments-plan.md). Back when image input is wired through.
 const NO_IMAGE_INPUT = ['read_image']
-const FLOW_TOOL_MASK: Record<string, 'all' | readonly string[]> = {
+const FLOW_TOOL_MASK: Record<string, 'all' | readonly string[] | { allow: readonly string[] }> = {
   // str_replace_editor duplicates `edit` (docs/file-tools-plan.md D3): two edit tools cost prompt and the model mixes them.
   default: [...NO_IMAGE_INPUT, 'str_replace_editor'],
   'data-studio': 'all',
+  // docs/meta-ads-mcp-plan.md: Meta's tools (the preset) and a todo list; no files, shell, web or subagents
+  'meta-ads': { allow: ['todo_write'] },
   'data-analysis': [
     'bash', 'str_replace_editor', 'job_kill', 'job_list', 'job_output', 'workflow', 'ralph',
     'subagent', 'subagent_fork', 'list_agents', 'interrupt_agent', 'send_message',
@@ -51,7 +54,10 @@ export async function joinFlow(ctx: Context, agentCtx: Context, flow: string): P
   const mask = FLOW_TOOL_MASK[flow]
   if (mask !== undefined) {
     const globalTools = ctx.tools.schemas().map((schema) => schema.name)
-    const deny = mask === 'all' ? globalTools : globalTools.filter((name) => mask.includes(name))
+    const deny =
+      mask === 'all' ? globalTools
+      : 'allow' in mask ? globalTools.filter((name) => !mask.allow.includes(name))
+      : globalTools.filter((name) => mask.includes(name))
     if (deny.length > 0) agentCtx.tools.restrict({ deny })
     // A hidden tool's plugin still adds its usage section ("tool:<name>") to the system prompt. Measured
     // 2026-10-16 (data-analysis, 24k window): ~2,300 characters about bash, jobs, goals, workflow and ralph,

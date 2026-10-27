@@ -109,4 +109,7 @@ export {
   // the admin usage dashboard (docs/admin-usage-dashboard-plan.md): its menu entry and CSV export
   Gauge as UsageIcon,
   Download as DownloadIcon,
+  // Settings > Connections and the sidebar's Meta Ads entry (docs/meta-ads-mcp-plan.md)
+  Plug as ConnectionsIcon,
+  Megaphone as AdsIcon,
 } from 'lucide-react'

@@ -1,0 +1,6 @@
+# Pure ADD (id doesn't exist upstream). Not a bundle of the profile: the row that loads this plugin is in the
+# `meta-ads` preset (profile-template/presets/meta-ads/agent.cordis.yml), like data-studio-agent.
+- insert:
+    - id: fox-harness-tool-meta-ads
+      name: '@fox-harness/dsh-tool-meta-ads'
+      config: {}

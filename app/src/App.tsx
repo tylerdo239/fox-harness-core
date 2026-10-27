@@ -36,6 +36,7 @@ import {
   DataStudioSidebar,
   type DataStudioSection,
 } from "./components/features/data-studio/DataStudioSidebar.tsx";
+import { MetaAdsBanner } from "./components/features/meta-ads/MetaAds.tsx";
 import { Sidebar } from "./components/features/sidebar/Sidebar.tsx";
 import {
   LocaleProvider,
@@ -380,6 +381,9 @@ function AppInner() {
   // sidebar's data-analysis highlight (state).
   const chatPlaceRef = useRef<ChatPlace>({ area: "chat" });
   const [chatInDataArea, setChatInDataArea] = useState(false);
+  // The open chat's flow when known (a new chat's, or what GET /sessions/mine said): the Meta Ads banner and the
+  // sidebar highlight need it (docs/meta-ads-mcp-plan.md).
+  const [chatFlow, setChatFlow] = useState<string>();
   function setChatPlace(place: ChatPlace): void {
     chatPlaceRef.current = place;
     setChatInDataArea(place.area === "data");
@@ -754,6 +758,7 @@ function AppInner() {
           : { area: "chat" };
     pushUrl(place.area === "data" ? hubPath(place.projectId) : place.area === "data-studio" ? "/data-studio" : "/");
     setChatPlace(place);
+    setChatFlow(flow ?? "default");
     setDataStudioMode(place.area === "data-studio");
     setHasChatted(false);
     wsRef.current?.close();
@@ -809,6 +814,7 @@ function AppInner() {
   function reconcileChatPlace(id: string, flow: string, projectId: string | null): void {
     const place: ChatPlace = flow === "data-analysis" ? { area: "data", projectId } : { area: "chat" };
     setChatPlace(place);
+    setChatFlow(flow);
     if (sessionIdFromUrl() === id && location.pathname !== chatPath(id, place)) replaceUrl(chatPath(id, place));
   }
 
@@ -873,6 +879,7 @@ function AppInner() {
             ? { area: "data", projectId }
             : { area: "chat" };
         setChatPlace(place);
+        setChatFlow(undefined);
         pushUrl(chatPath(id, place));
         setHasChatted(true);
         setProjectView(null);
@@ -1168,6 +1175,12 @@ function AppInner() {
             onOpenProject={openDataView}
             dataAnalysisActive={projectView !== null || chatInDataArea}
             onOpenDataStudio={() => startNewSession("data-studio")}
+            onOpenMetaAds={() => {
+              setProjectView(null);
+              setUsageView(false);
+              startNewSession("meta-ads");
+            }}
+            metaAdsActive={chatFlow === "meta-ads" && projectView === null && !usageView}
             newSessionDisabled={!hasChatted && projectView === null}
             onOpenSettings={() => {
               setSettingsTab(undefined);
@@ -1221,6 +1234,15 @@ function AppInner() {
               {/* Header 1A (2026-10-19): project link above the chat title. */}
               <ProjectChatBar onOpenProject={openDataView} onChatPlace={reconcileChatPlace} />
               {sessionId && hasChatted && <SessionTitleBar />}
+              {chatFlow === "meta-ads" && (
+                <MetaAdsBanner
+                  t={t}
+                  onOpenConnections={() => {
+                    setSettingsTab("connections");
+                    setSettingsOpen(true);
+                  }}
+                />
+              )}
               <Conversation />
             </>
           )}

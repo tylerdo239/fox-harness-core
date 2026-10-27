@@ -235,6 +235,8 @@ export class RuntimeSupervisor {
       // docs/admin-usage-dashboard-plan.md §3.2: this runtime's usage records, loaded into MariaDB by usage-ingest.ts
       FOX_USAGE_DIR: join(config.dataDir, 'usage', `shard-${String(shard.index)}`),
       FOX_INTERNAL_SECRET: this.secret,
+      // the gateway's loopback listener (internal-server.ts) a tool calls back on, with the same secret (tool/meta-ads)
+      FOX_INTERNAL_URL: `http://127.0.0.1:${String(config.internalPort)}`,
       FOX_TRANSPORT_HOST: HOST,
       FOX_TRANSPORT_PORT: String(shard.port),
       FOX_SHARED_READ_DIRS: sharedRead,

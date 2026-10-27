@@ -49,7 +49,11 @@ const flows = {
   default: { workspace: true },
   'data-analysis': { workspace: true },
   'data-studio': { workspace: false },
+  // docs/meta-ads-mcp-plan.md: Meta Ads tools; offered only when META_ADS_ENABLED (allowedFlows below)
+  'meta-ads': { workspace: false },
 } as const
+
+const metaAdsEnabled = envOr('META_ADS_ENABLED', 'false') === 'true'
 
 export const config = {
   port: envIntOr('GATEWAY_PORT', 4000),
@@ -196,7 +200,44 @@ export const config = {
     return raw.length > 0 ? raw : [envOr('OPENAI_MODEL_ID', 'default')]
   })(),
   flows,
-  allowedFlows: Object.keys(flows),
+  allowedFlows: Object.keys(flows).filter((flow) => flow !== 'meta-ads' || metaAdsEnabled),
+  // Loopback-only listener the runtimes call back on (internal-server.ts): never behind nginx/ingress, every request
+  // carries the runtime secret.
+  internalPort: envIntOr('FOX_INTERNAL_PORT', 4300),
+  // docs/meta-ads-mcp-plan.md — each user connects their own Meta account; the gateway keeps the token and is the
+  // only MCP client of Meta's ads MCP server. Every endpoint is overridable so e2e can point it at a fake Meta.
+  metaAds: {
+    enabled: metaAdsEnabled,
+    appId: process.env.META_APP_ID ?? '',
+    // only sent when set: Meta's MCP authorization metadata says public client (`token_endpoint_auth: none`)
+    appSecret: process.env.META_APP_SECRET || undefined,
+    // Facebook Login for Business: a configuration id replaces the scope list; without one the scopes are sent
+    loginConfigId: process.env.META_LOGIN_CONFIG_ID || undefined,
+    scopes: envOr('META_ADS_SCOPES', 'ads_mcp_management ads_read ads_management business_management pages_show_list'),
+    redirectUrl: process.env.META_ADS_REDIRECT_URL ?? '',
+    mcpUrl: envOr('META_ADS_MCP_URL', 'https://mcp.facebook.com/ads'),
+    authorizeUrl: envOr('META_OAUTH_AUTHORIZE_URL', 'https://www.facebook.com/v26.0/dialog/oauth'),
+    tokenUrl: envOr('META_OAUTH_TOKEN_URL', 'https://graph.facebook.com/v26.0/oauth/access_token'),
+    graphUrl: envOr('META_GRAPH_URL', 'https://graph.facebook.com/v26.0'),
+    // read = reporting only; write = also create/update/activate, each one confirmed by the user first
+    tiers: envOr('META_ADS_TIERS', 'read').split(',').map((tier) => tier.trim()).filter(Boolean),
+    callTimeoutMs: envIntOr('META_ADS_CALL_TIMEOUT_MS', 60_000),
+    // how long a write waits for the user's click
+    confirmTimeoutMs: envIntOr('META_ADS_CONFIRM_TIMEOUT_MS', 10 * 60_000),
+    maxPendingPerUser: envIntOr('META_ADS_MAX_PENDING_PER_USER', 5),
+    callsPerMinute: envIntOr('META_ADS_CALLS_PER_MIN', 60),
+    resultMaxChars: envIntOr('META_ADS_RESULT_MAX_CHARS', 20_000),
+    toolsRefreshMs: envIntOr('META_ADS_TOOLS_REFRESH_MS', 24 * 60 * 60_000),
+  },
+  // AES-256-GCM keys for the tokens stored in MariaDB: `id:base64key,...`, the first one encrypts. A single bare key
+  // (FOX_TOKEN_ENC_KEY) is key id `k1`.
+  tokenEncKeys: (() => {
+    const list = envOr('FOX_TOKEN_ENC_KEYS', process.env.FOX_TOKEN_ENC_KEY ? `k1:${process.env.FOX_TOKEN_ENC_KEY}` : '')
+    return list.split(',').map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+      const at = entry.indexOf(':')
+      return { id: entry.slice(0, at), key: Buffer.from(entry.slice(at + 1), 'base64') }
+    })
+  })(),
   // The ONLY variables the runtime process inherits from this one. The database URL, S3 and Redis
   // credentials, and anything else of the gateway's stay out of a process that runs model-written code.
   runtimeEnvPassthrough: [

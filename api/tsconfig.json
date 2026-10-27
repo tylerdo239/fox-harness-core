@@ -10,6 +10,7 @@
     { "path": "packages/tool/file-manage" },
     { "path": "packages/tool/python-repl" },
     { "path": "packages/tool/data-studio-agent" },
+    { "path": "packages/tool/meta-ads" },
     { "path": "services/gateway" }
   ]
 }

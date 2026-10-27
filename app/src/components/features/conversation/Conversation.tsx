@@ -121,6 +121,8 @@ import { loadCanvasHistory, parseCanvasMarker, receiveCanvasMarker, stripCanvasM
 import { CanvasChip, CanvasReopenBar, type CanvasChipEntry } from "../canvas/CanvasChip.tsx";
 import { useStickToBottom } from "./useStickToBottom.ts";
 import { useCanvasStore } from "../canvas/store.ts";
+import { MetaAdsActionCard } from "../meta-ads/MetaAds.tsx";
+import { isMetaAdsTool, META_ADS_WRITE_TOOLS } from "../meta-ads/metaAdsApi.ts";
 
 // docs/skill-transfer-plan.md, giai đoạn 3: the `create_skill` tool only
 // validates inside the worker, which never knows who the user is. The browser,
@@ -758,7 +760,7 @@ function runStatusLabel(
 ): string {
   if (run.retry) return t("conversation.retrying", { n: String(run.retry.n), max: run.retry.max === undefined ? "∞" : String(run.retry.max) });
   if (run.tools === 0) return t("conversation.thinking");
-  const key = run.tool === undefined ? undefined : TOOL_LABELS[run.tool];
+  const key = run.tool === undefined ? undefined : isMetaAdsTool(run.tool) ? "tool.meta_ads" : TOOL_LABELS[run.tool];
   return key ? t("conversation.runningNamed", { what: t(key) }) : t("conversation.runningTool");
 }
 
@@ -803,12 +805,18 @@ function LogEntryView({
       );
     case "tool":
       return (
-        <ToolPill
-          entry={entry}
-          expanded={isExpanded(entry.id)}
-          onToggle={() => onToggleExpanded(entry.id)}
-          t={t}
-        />
+        <>
+          {/* docs/meta-ads-mcp-plan.md D7: a Meta Ads write waits for this card's answer */}
+          {META_ADS_WRITE_TOOLS.has(entry.name) && (
+            <MetaAdsActionCard callId={entry.id.slice("tool-".length)} toolStatus={entry.status} t={t} />
+          )}
+          <ToolPill
+            entry={entry}
+            expanded={isExpanded(entry.id)}
+            onToggle={() => onToggleExpanded(entry.id)}
+            t={t}
+          />
+        </>
       );
     case "search":
       return (

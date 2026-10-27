@@ -26,6 +26,7 @@
     "@fox-harness/dsh-tool-python-repl": "workspace:*",
     "@fox-harness/dsh-tool-data-studio-agent": "workspace:*",
     "@fox-harness/dsh-tool-canvas": "workspace:*",
-    "@fox-harness/dsh-tool-file-manage": "workspace:*"
+    "@fox-harness/dsh-tool-file-manage": "workspace:*",
+    "@fox-harness/dsh-tool-meta-ads": "workspace:*"
   }
 }

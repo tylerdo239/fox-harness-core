@@ -20,6 +20,8 @@ Current:
 - `data-studio-user-dashboards-plan.md` — per-user Data Studio dashboards and charts (owner_id), done 2026-10-07.
 - `single-backend-architecture-plan.md` — why the orchestrator was removed; measured results (§13).
 - `schema/` — the MariaDB schema handoff.
+- `meta-ads-mcp-plan.md` — P1–P3 built 2026-10-27 (e2e green against a fake Meta; real Meta app pending): Meta Ads tools to production — per-user OAuth in the gateway, gateway as the MCP client, runtime plugin registering the tool list the gateway fetched from Meta, write tools only after the user confirms.
+- `ads-mcp-integration.md` — research + proposal (not started): TikTok Ads and Meta Ads MCP servers (endpoints, OAuth, tools) and how to plug them into the core (shared-token POC, then per-user OAuth through a gateway MCP proxy).
 - `data-studio-dremio-staging.md` — what the local stack runs for Data Studio, and connecting to an external (staging) Dremio: requirements and gaps.
 - `data-studio-dremio-staging-fix-plan.md` — plan (not started): what to change so Data Studio can use an external Dremio (proxy, CA, re-login, PAT).
 - `data-studio-update-plan.md` — adopting the new reference Data Studio (pipeline v4, data profile), incl. the Mongo schema changes.
