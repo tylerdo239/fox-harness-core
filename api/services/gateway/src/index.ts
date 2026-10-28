@@ -1755,7 +1755,43 @@ async function adminGate(req: IncomingMessage, res: ServerResponse): Promise<boo
   return false
 }
 
+// One access line per API request (user, 2026-10-28: "check log docker cho BE tại sao ko có các log về API mà FE
+// gọi vd upload file"): the routes only log their own events, so a call that went through without one (or failed
+// before it) left no trace. Path without the query (a `?ticket=` or search text stays out of the logs); the
+// healthchecks are left out, they come every few seconds. LOG_HTTP=off turns it off.
+const LOG_HTTP = (process.env.LOG_HTTP ?? '').toLowerCase() !== 'off'
+const QUIET_PATHS = new Set(['/healthz', '/readyz'])
+
+function logRequest(req: IncomingMessage, res: ServerResponse): void {
+  const path = new URL(req.url ?? '/', 'http://x').pathname
+  if (QUIET_PATHS.has(path)) return
+  const started = performance.now()
+  let logged = false
+  const done = (aborted: boolean) => {
+    if (logged) return
+    logged = true
+    const status = res.statusCode
+    const length = Number(req.headers['content-length'])
+    log(
+      'http_request',
+      {
+        method: req.method,
+        path,
+        status,
+        ms: Math.round(performance.now() - started),
+        ...(Number.isFinite(length) && length > 0 ? { reqBytes: length } : {}),
+        ...(aborted ? { aborted: true } : {}),
+      },
+      status >= 500 ? 'error' : status >= 400 || aborted ? 'warn' : 'info',
+    )
+  }
+  res.on('finish', () => done(false))
+  // the client went away before the reply was sent (a cancelled upload, a closed tab)
+  res.on('close', () => done(!res.writableFinished))
+}
+
 const server = createServer((req, res) => {
+  if (LOG_HTTP) logRequest(req, res)
   adminGate(req, res).then(
     (allowed) => {
       if (allowed) route(req, res)
