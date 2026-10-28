@@ -27,7 +27,7 @@ import { LanguageSelect } from "./components/features/LanguageSelect.tsx";
 import { ProjectChatBar, ProjectHub } from "./components/features/projects/ProjectHub.tsx";
 import { SettingsDialog, type SettingsTab } from "./components/features/settings/SettingsDialog.tsx";
 import { OPEN_STORAGE_EVENT } from "./components/features/settings/storageApi.ts";
-import { SkillsDialog } from "./components/features/skills/SkillsDialog.tsx";
+import { SkillsPage } from "./components/features/skills/SkillsPage.tsx";
 import { DataStudioDashboards } from "./components/features/data-studio/DataStudioDashboards.tsx";
 import { UsageDashboard } from "./components/features/admin/UsageDashboard.tsx";
 import { DataStudioDataSources } from "./components/features/data-studio/DataStudioDataSources.tsx";
@@ -127,8 +127,10 @@ const SESSION_ID_RE =
 //   /data/<project>/chat/<id>  chat in a project  /data/chat/<id>   older data chat without a project
 //   /data-studio               Data Studio home   /data-studio/chat/<id>  chat in Data Studio
 //   /admin/usage               the admin usage dashboard (docs/admin-usage-dashboard-plan.md)
+//   /my-skills                 the user's skills (SkillsPage.tsx); not /skills, the gateway's API route
 type Route =
   | { view: "adminUsage" }
+  | { view: "skills" }
   | { view: "chat"; sessionId?: string }
   | { view: "hub"; projectId: string | null }
   | { view: "dataChat"; projectId: string | null; sessionId: string }
@@ -140,6 +142,7 @@ function routeFromUrl(): Route | undefined {
   if (parts.length === 0) return { view: "chat" };
   if (parts[0] === "chat" && parts.length === 2 && isId(parts[1])) return { view: "chat", sessionId: parts[1] };
   if (parts[0] === "admin" && parts[1] === "usage" && parts.length === 2) return { view: "adminUsage" };
+  if (parts[0] === "my-skills" && parts.length === 1) return { view: "skills" };
   // docs/data-studio-agent-transfer-plan.md: Data Studio has its own URL space.
   if (parts[0] === "data-studio") {
     if (parts.length === 1) return { view: "dataStudio" };
@@ -158,7 +161,7 @@ function routeFromUrl(): Route | undefined {
 
 function sessionIdFromUrl(): string | undefined {
   const route = routeFromUrl();
-  return route && route.view !== "hub" && route.view !== "adminUsage" ? route.sessionId : undefined;
+  return route && route.view !== "hub" && route.view !== "adminUsage" && route.view !== "skills" ? route.sessionId : undefined;
 }
 
 // Where a chat lives: the general chat area, the data area (in a project, or none), or Data Studio.
@@ -353,7 +356,6 @@ function AppInner() {
   const [selectedModel, setSelectedModel] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>();
-  const [skillsOpen, setSkillsOpen] = useState(false);
   // docs/storage-quota-plan.md: an upload refused for space (anywhere) opens Settings > Storage
   useEffect(() => {
     const openStorage = () => {
@@ -374,7 +376,12 @@ function AppInner() {
   // admin pages (Phase 3, not built yet).
   const [dataStudioMode, setDataStudioMode] = useState(() => isDataStudioUrl());
   // /admin/usage: the usage dashboard in the centre column; the chat stays connected underneath (like a project page)
-  const [usageView, setUsageView] = useState(() => location.pathname.replace(/\/$/, "") === "/admin/usage");
+  // A full page in the main column instead of a chat (the sidebar stays): the admin usage dashboard or the skills.
+  const [pageView, setPageView] = useState<"usage" | "skills" | null>(() => {
+    const route = routeFromUrl();
+    return route?.view === "adminUsage" ? "usage" : route?.view === "skills" ? "skills" : null;
+  });
+  const usageView = pageView === "usage";
   const [dataStudioSection, setDataStudioSection] = useState<DataStudioSection>("chat");
   // Where the open chat lives, for its URL (a ref, read by callbacks) and the
   // sidebar's data-analysis highlight (state).
@@ -759,7 +766,7 @@ function AppInner() {
     wsRef.current?.close();
     pendingFirstMessageRef.current = firstMessage ?? null;
     setProjectView(null);
-    setUsageView(false);
+    setPageView(null);
     connect(httpBase, token, "new", flow, projectId);
   }
 
@@ -769,8 +776,8 @@ function AppInner() {
   function applyRoute(route: Route | undefined): Route {
     const current = route ?? { view: "chat" };
     if (!route) replaceUrl("/");
-    setUsageView(current.view === "adminUsage");
-    if (current.view === "adminUsage") {
+    setPageView(current.view === "adminUsage" ? "usage" : current.view === "skills" ? "skills" : null);
+    if (current.view === "adminUsage" || current.view === "skills") {
       setProjectView(null);
       setDataStudioMode(false);
       return current;
@@ -794,13 +801,28 @@ function AppInner() {
 
   function openDataView(projectId: string | null): void {
     pushUrl(hubPath(projectId));
-    setUsageView(false);
+    setPageView(null);
     setProjectView({ projectId });
   }
 
   function openUsage(): void {
     pushUrl("/admin/usage");
     applyRoute({ view: "adminUsage" });
+  }
+
+  function openSkills(): void {
+    if (pageView === "skills") return;
+    pushUrl("/my-skills");
+    applyRoute({ view: "skills" });
+  }
+
+  // A page's back arrow: where the reader came from, or home when the page was opened directly.
+  function leavePage(): void {
+    if (history.length > 1) history.back();
+    else {
+      replaceUrl("/");
+      applyRoute({ view: "chat" });
+    }
   }
 
   // The chat's real place once `GET /sessions/mine` lists it (ProjectChatBar):
@@ -876,7 +898,7 @@ function AppInner() {
         pushUrl(chatPath(id, place));
         setHasChatted(true);
         setProjectView(null);
-        setUsageView(false);
+        setPageView(null);
         wsRef.current?.close();
         connect(gatewayHttpBaseRef.current, token, id);
       },
@@ -946,7 +968,7 @@ function AppInner() {
     setAuthenticated(false);
     replaceUrl("/");
     setProjectView(null);
-    setUsageView(false);
+    setPageView(null);
     setChatPlace({ area: "chat" });
     setHasChatted(false);
     if (httpBase && token) void logoutRequest(httpBase, token);
@@ -980,8 +1002,8 @@ function AppInner() {
       const token = localStorage.getItem(STORAGE_TOKEN);
       if (!token || !gatewayHttpBaseRef.current) return;
       const route = applyRoute(routeFromUrl());
-      // A project page (or the usage dashboard) opened from a chat leaves that chat connected underneath.
-      if (route.view === "hub" || route.view === "adminUsage") return;
+      // A project page (or the usage dashboard, the skills) opened from a chat leaves that chat connected underneath.
+      if (route.view === "hub" || route.view === "adminUsage" || route.view === "skills") return;
       const target = initialSessionTarget();
       setHasChatted(target.path !== "new");
       wsRef.current?.close();
@@ -996,7 +1018,7 @@ function AppInner() {
   useEffect(() => {
     if (usageView && authenticated && userRole !== "admin") {
       replaceUrl("/");
-      setUsageView(false);
+      setPageView(null);
     }
   }, [usageView, authenticated, userRole]);
 
@@ -1156,7 +1178,7 @@ function AppInner() {
             onToggleCollapse={toggleSidebarCollapse}
             onNewSession={() => {
               setProjectView(null);
-              setUsageView(false);
+              setPageView(null);
               // Still on an empty chat: startNewSession() keeps it, so only the URL leaves the data area.
               if (!hasChatted) {
                 pushUrl("/");
@@ -1166,29 +1188,26 @@ function AppInner() {
             }}
             onOpenDataAnalysis={() => openDataView(null)}
             onOpenProject={openDataView}
-            dataAnalysisActive={projectView !== null || chatInDataArea}
+            dataAnalysisActive={!pageView && (projectView !== null || chatInDataArea)}
             onOpenDataStudio={() => startNewSession("data-studio")}
-            newSessionDisabled={!hasChatted && projectView === null}
+            // Over an empty new chat, a page (the skills, the usage dashboard) or a project page hides it: the button then
+            // just closes that page back onto the empty chat (onNewSession above), it doesn't start another one.
+            newSessionDisabled={!hasChatted && projectView === null && !pageView}
             onOpenSettings={() => {
               setSettingsTab(undefined);
               setSettingsOpen(true);
             }}
-            onOpenSkills={() => setSkillsOpen(true)}
+            onOpenSkills={openSkills}
+            skillsActive={pageView === "skills"}
             onOpenUsage={openUsage}
             onLogout={handleLogout}
           />
         )}
         <div id="center-col" className="fh-center-col">
           {usageView && userRole === "admin" ? (
-            <UsageDashboard
-              onBack={() => {
-                if (history.length > 1) history.back();
-                else {
-                  replaceUrl("/");
-                  applyRoute({ view: "chat" });
-                }
-              }}
-            />
+            <UsageDashboard onBack={leavePage} />
+          ) : pageView === "skills" ? (
+            <SkillsPage onBack={leavePage} />
           ) : dataStudioMode ? (
             visibleDataStudioSection === "chat" ? (
               <>
@@ -1225,7 +1244,7 @@ function AppInner() {
             </>
           )}
         </div>
-        {sessionId && !usageView && <CanvasColumn layout={canvasLayout} sessionId={sessionId} />}
+        {sessionId && !pageView && <CanvasColumn layout={canvasLayout} sessionId={sessionId} />}
       </div>
 
       <SettingsDialog
@@ -1235,7 +1254,6 @@ function AppInner() {
         onLogout={handleLogout}
       />
 
-      <SkillsDialog open={skillsOpen} onClose={() => setSkillsOpen(false)} />
     </RuntimeContext.Provider>
   );
 }

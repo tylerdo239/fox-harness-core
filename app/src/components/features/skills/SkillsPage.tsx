@@ -1,14 +1,16 @@
-// Skills dialog (docs/skill-transfer-plan.md, giai đoạn 2): the user's own
-// skills — add, edit, delete — plus a read-only list of built-in ones. Saving
-// goes through services/gateway, which also pushes the files into every open
-// chat of this user, so a change applies from the next message.
+// Skills page at /my-skills (docs/skill-transfer-plan.md, giai đoạn 2): the user's
+// own skills — add, edit, delete — plus a read-only list of built-in ones.
+// Saving goes through services/gateway, which also pushes the files into every
+// open chat of this user, so a change applies from the next message.
+// A page in the main column since 2026-10-28 (user: "khi mở kỹ năng đang là
+// modal giờ hãy bỏ và thay bằng 1 tab trên screen chính"), was a dialog.
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { translateErrorCode, useLocale } from "../../../i18n/locale.tsx";
 import {
-  CloseIcon,
+  ArrowLeftIcon,
   CollapseIcon,
   ExpandIcon,
   PlusIcon,
@@ -39,7 +41,7 @@ type Selection =
 const EMPTY_DRAFT: SkillInput = { name: "", description: "", content: "" };
 const DESCRIPTION_MAX = 280;
 
-export function SkillsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function SkillsPage({ onBack }: { onBack: () => void }) {
   const { t } = useLocale();
   const runtime = useRuntime();
   const menu = useSkillMenu(runtime);
@@ -105,37 +107,44 @@ export function SkillsDialog({ open, onClose }: { open: boolean; onClose: () => 
   }
 
   useEffect(() => {
-    if (open) void reload();
+    void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, []);
 
+  // Escape only shrinks the enlarged content editor back; leaving the page is the back button (or Back).
   useEffect(() => {
-    if (!open) return;
+    if (!expanded) return;
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.key !== "Escape") return;
-      if (expanded) setExpanded(false);
-      else onClose();
+      if (event.key === "Escape") setExpanded(false);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, expanded, onClose]);
+  }, [expanded]);
 
-  if (!open) return null;
+  // Save only does something once the form differs from what it was opened with (the saved skill, or an empty new
+  // one); the unsaved note says so next to it.
+  const saved = selection.kind === "custom" ? skills.find((s) => s.name === selection.name) : undefined;
+  const baseline: SkillInput = saved ? { name: saved.name, description: saved.description, content: saved.content } : EMPTY_DRAFT;
+  const dirty =
+    draft.name !== baseline.name || draft.description !== baseline.description || draft.content !== baseline.content;
 
   const builtin = menu.filter((item) => item.source === "builtin");
   const builtinSelected =
     selection.kind === "builtin" ? builtin.find((item) => item.name === selection.name) : undefined;
 
   return (
-    <div className="fh-settings-dialog">
-      <div className="fh-settings-mask" onClick={onClose} />
-      <div className="fh-settings-panel fh-skills-panel" role="dialog" aria-label={t("skills.title")}>
-        <div className="fh-settings-panel-header">
-          <h2>{t("skills.title")}</h2>
-          <IconButton variant="plain" className="fh-settings-close" onClick={onClose}>
-            <CloseIcon size={14} />
-          </IconButton>
+    <div className="fh-skills-page">
+      <header className="fh-usage-head">
+        <button type="button" className="fh-usage-icon-btn" onClick={onBack} aria-label={t("usage.back")} title={t("usage.back")}>
+          <ArrowLeftIcon size={18} />
+        </button>
+        <span className="fh-usage-head-icon"><SkillIcon size={20} /></span>
+        <div className="fh-usage-head-text">
+          <h1>{t("skills.title")}</h1>
+          <p>{t("skills.subtitle")}</p>
         </div>
+      </header>
+      <div className="fh-skills-page-body">
         <div className="fh-settings-body">
           <div className="fh-settings-nav fh-skills-list">
             <MenuItem variant="nav" active={selection.kind === "new"} onClick={() => pick({ kind: "new" })}>
@@ -212,10 +221,14 @@ export function SkillsDialog({ open, onClose }: { open: boolean; onClose: () => 
               <div className={`fh-skills-field fh-skills-content${expanded ? " fh-skills-content-expanded" : ""}`}>
                 <span className="fh-skills-field-row">
                   <span className="fh-skills-field-label">{t("skills.content")}</span>
-                  <Button variant="link" onClick={() => setExpanded(!expanded)}>
+                  <IconButton
+                    variant="bordered"
+                    onClick={() => setExpanded(!expanded)}
+                    title={expanded ? t("skills.collapse") : t("skills.expand")}
+                    aria-label={expanded ? t("skills.collapse") : t("skills.expand")}
+                  >
                     {expanded ? <CollapseIcon size={14} /> : <ExpandIcon size={14} />}
-                    {expanded ? t("skills.collapse") : t("skills.expand")}
-                  </Button>
+                  </IconButton>
                 </span>
                 <textarea
                   className="fh-skills-textarea"
@@ -226,13 +239,14 @@ export function SkillsDialog({ open, onClose }: { open: boolean; onClose: () => 
               </div>
 
               <div className="fh-skills-actions">
+                {dirty && !saving && <span className="fh-skills-unsaved">{t("skills.unsaved")}</span>}
                 {selection.kind === "custom" && (
                   <Button variant="outline" onClick={() => void remove()} disabled={saving}>
                     <TrashIcon size={14} />
                     {t("skills.delete")}
                   </Button>
                 )}
-                <Button variant="primary" onClick={() => void save()} disabled={saving}>
+                <Button variant="primary" onClick={() => void save()} disabled={saving || !dirty}>
                   {saving ? t("skills.saving") : t("skills.save")}
                 </Button>
               </div>

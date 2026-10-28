@@ -344,6 +344,9 @@ body {
   flex: none;
   display: flex;
   flex-direction: column;
+  /* pinned to the bottom on its own: the collapsed rail hides `.fh-sidebar-region`, the flex:1 list that used to
+   * push it down, and the account button then rose to just under the nav (user, 2026-10-28) */
+  margin-top: auto;
 }
 
 /* Search toggle moved into the logo row (2026-09-08 follow-up, real
@@ -2582,10 +2585,79 @@ button:disabled {
   display: none;
 }
 
-/* Skills dialog — the Settings dialog shell, larger. */
-.fh-skills-panel {
-  width: min(1040px, 94vw);
-  height: min(700px, 88vh);
+/* Data Studio's own sidebar (DataStudioSidebar.tsx) collapsed to the rail: its section entries go icon-only like
+ * the main sidebar's entries above (their labels stayed, user 2026-10-28), and its logo row, which holds a back
+ * arrow besides the collapse toggle, stacks them: side by side they overflowed the 56px rail and the clipped
+ * toggle could hide the way back out. */
+#sidebar-col.fh-sidebar-rail .fh-data-studio-nav-item {
+  flex: none;
+  width: 36px;
+  justify-content: center;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+#sidebar-col.fh-sidebar-rail .fh-data-studio-nav-label {
+  display: none;
+}
+
+#sidebar-col.fh-sidebar-rail.fh-data-studio-sidebar .fh-sidebar-logo-row {
+  flex-direction: column;
+  height: auto;
+  gap: 8px;
+}
+
+#sidebar-col.fh-sidebar-rail.fh-data-studio-sidebar .fh-sidebar-brand {
+  display: none;
+}
+
+/* Skills page (/my-skills, SkillsPage.tsx; a dialog until 2026-10-28): edge to edge in the main column, no card
+ * (user: "UI vẫn có box và border nhỉ mở rộng ra luôn") — the usage page's header over a full-height row of the
+ * list and the editor, split by the list's own border. */
+#center-col > .fh-skills-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+.fh-skills-page > .fh-usage-head {
+  flex: none;
+  margin: 0;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.fh-skills-page-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.fh-skills-page .fh-skills-list {
+  width: 260px;
+  padding: 0.75em 0.75em 1em;
+}
+.fh-skills-page .fh-skills-form {
+  padding: 1.25em 1.75em;
+}
+.fh-skills-page .fh-skills-content-expanded {
+  border-radius: 0;
+}
+/* narrow screens: the list above the editor */
+@media (max-width: 720px) {
+  .fh-skills-page > .fh-usage-head {
+    padding: 14px 16px;
+  }
+  .fh-skills-page .fh-settings-body {
+    flex-direction: column;
+  }
+  .fh-skills-page .fh-skills-list {
+    width: auto;
+    max-height: 38%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
 }
 
 .fh-skills-list {
@@ -2696,7 +2768,25 @@ button:disabled {
 .fh-skills-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.5em;
+}
+
+/* "Unsaved changes", left of the buttons while the form differs from the saved skill */
+.fh-skills-unsaved {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+.fh-skills-unsaved::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .fh-skills-readonly-name {

@@ -62,6 +62,7 @@ export function Sidebar({
   onOpenSettings,
   onOpenUsage,
   onOpenSkills,
+  skillsActive = false,
   onLogout,
 }: {
   collapsed: boolean;
@@ -87,6 +88,8 @@ export function Sidebar({
   /** admins: the usage dashboard (/admin/usage) */
   onOpenUsage?: () => void;
   onOpenSkills: () => void;
+  /** the skills page is what the main column shows */
+  skillsActive?: boolean;
   onLogout: () => void;
 }) {
   const { t } = useLocale();
@@ -165,6 +168,7 @@ export function Sidebar({
       <MenuItem
         variant="nav"
         className="fh-sidebar-skills"
+        active={skillsActive}
         onClick={onOpenSkills}
         title={t("sidebar.skills")}
       >

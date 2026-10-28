@@ -696,8 +696,9 @@ export const vi = {
   "users.createdAt": "Tạo ngày {date}",
   "users.actionFailed": "Thao tác thất bại",
 
-  // SkillsDialog.tsx + the "/" menu (conversation/SkillMenu.tsx).
+  // SkillsPage.tsx + the "/" menu (conversation/SkillMenu.tsx).
   "skills.title": "Kỹ năng",
+  "skills.subtitle": "Kỹ năng của riêng bạn, gọi bằng /tên trong khung chat",
   "skills.new": "Tạo skill mới",
   "skills.mine": "Skill của tôi",
   "skills.emptyMine": "Chưa có skill nào",
@@ -710,6 +711,7 @@ export const vi = {
   "skills.content": "Nội dung",
   "skills.expand": "Mở rộng",
   "skills.collapse": "Thu gọn",
+  "skills.unsaved": "Có thay đổi chưa lưu",
   "skills.save": "Lưu",
   "skills.saving": "Đang lưu…",
   "skills.delete": "Xoá",
@@ -1310,6 +1312,7 @@ export const en: Record<TranslationKey, string> = {
   "users.actionFailed": "Action failed",
 
   "skills.title": "Skills",
+  "skills.subtitle": "Your own skills, called with /name in the chat",
   "skills.new": "New skill",
   "skills.mine": "My skills",
   "skills.emptyMine": "No skills yet",
@@ -1322,6 +1325,7 @@ export const en: Record<TranslationKey, string> = {
   "skills.content": "Content",
   "skills.expand": "Expand",
   "skills.collapse": "Collapse",
+  "skills.unsaved": "Unsaved changes",
   "skills.save": "Save",
   "skills.saving": "Saving…",
   "skills.delete": "Delete",
