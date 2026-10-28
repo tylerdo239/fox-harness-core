@@ -29,6 +29,20 @@ const COMPLETION = `## Completion
 - Do not declare success if a required action, tool call, or verification failed.
 - If work is incomplete, say exactly what remains and why.`
 
+// A live chat (2026-10-28, session 38635216…): asked to keep one of four charts, the model retyped an `edit`'s
+// old_string from memory with the wrong numbers, got "old_string was not found", never redid it, and answered that
+// the charts and their scripts were removed — the page then threw on the scripts left behind, and the chart, its
+// fixed-height wrapper edited away, grew without end. edit-guard.ts catches the unfinished change at the end of the
+// turn; these rules are meant to keep it from happening.
+const FILE_EDITING = `## Changing files
+
+- \`edit\` replaces text that must match the file exactly. Copy \`old_string\` from your latest \`read\` of that file; never retype it from memory or from an earlier version.
+- When \`edit\` fails, read the file again and redo the change with the exact text. Do not move on while a change is missing.
+- For several changes to one small file (up to a few hundred lines), rewrite it whole with \`write\` instead of many \`edit\` calls.
+- After changing a file, check the result: read it back; in HTML/JS, make sure every element a script uses (\`getElementById\`, selectors) still exists and nothing refers to what you removed.
+- A Chart.js chart with \`maintainAspectRatio: false\` needs its canvas inside a parent with a fixed height (e.g. \`position: relative; height: 320px\`), or it grows without end.
+- Report only the changes that actually succeeded, and say plainly which ones did not.`
+
 // The model has no clock: a live fox session searched "tháng 12 năm 2024" on
 // 2026-09-14. Current and last year are precomputed because agent-core measured
 // the model misreading the year from a bare ISO date. Date only (no time) and
@@ -42,6 +56,7 @@ const ENVIRONMENT = `## Environment
 export function apply(ctx: Context) {
   ctx.systemPrompt.section({ name: 'fox:ground-rules', order: 10, text: GROUND_RULES })
   ctx.systemPrompt.section({ name: 'fox:operating-policy', order: 20, text: OPERATING_POLICY })
+  ctx.systemPrompt.section({ name: 'fox:file-editing', order: 150, text: FILE_EDITING })
   ctx.systemPrompt.section({ name: 'fox:completion', order: 200, text: COMPLETION })
   ctx.systemPrompt.variable('current_date', () => new Date().toISOString().slice(0, 10))
   ctx.systemPrompt.variable('current_year', () => String(new Date().getUTCFullYear()))

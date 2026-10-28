@@ -1170,6 +1170,53 @@ print('planted')` })
     return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
   },
 
+  // packages/agent-core/src/policy/edit-guard.ts + prompt.ts's "Changing files": a turn that ends with a failed,
+  // never-redone file change gets one reminder (hidden from the chat) and one more step; a clean turn gets none.
+  // The mock answers the reminder by repeating the scripted call (it skips `<system-reminder>` messages when it
+  // looks for the human's), so the reopened step shows up as a second identical tool call in the same turn.
+  async editGuard() {
+    const { a } = await users()
+    const c = chat(a.token, { params: { flow: 'default' } }); await c.opened; await c.ready()
+    let n = 0
+    const call = async (tool, args) => {
+      c.send(`CALL ${tool} ${JSON.stringify(args)}`); n += 1
+      await c.turnEnds(n, 90000).catch(() => {})
+    }
+    const REMINDER = 'These file changes failed'
+    // requests carry the whole history, so a later turn's still holds an earlier reminder: count the notices instead
+    const reminders = () => c.events.filter((e) => e.type === 'user/message' && e.data.source?.plugin === 'fox-edit-guard').length
+    const callsInLastTurn = (name) => {
+      const turn = Math.max(...turnsOf(c.events))
+      return c.events.filter((e) => e.type === 'tool/call' && e.data.turn === turn && e.data.name === name).length
+    }
+    const rows = []
+
+    await call('write', { file_path: 'guard.txt', content: 'alpha\nbeta\n' })
+    await call('read', { file_path: 'guard.txt' })
+    rows.push(['system prompt has the file-editing rules', (await mock()).at(-1)?.system.includes('## Changing files'), true])
+
+    // a failed edit that is never redone: one reminder, one more step, then the turn ends
+    await clearMock()
+    await call('edit', { file_path: 'guard.txt', old_string: 'gamma', new_string: 'delta' })
+    rows.push(['failed edit → reminded once', reminders(), 1])
+    rows.push(['the model got the reminder', (await mock()).some((r) => r.messages.some((m) => m.includes(REMINDER))), true])
+    rows.push(['failed edit → one more step (edit called twice)', callsInLastTurn('edit'), 2])
+    const notice = c.events.find((e) => e.type === 'user/message' && e.data.source?.plugin === 'fox-edit-guard')
+    rows.push(['reminder is plugin-sourced (hidden in the chat)', notice?.data.source?.kind, 'plugin'])
+    rows.push(['reminder names the file', JSON.stringify(notice?.data.content ?? '').includes('guard.txt'), true])
+    rows.push(['turn still ends', c.events.filter((e) => e.type === 'turn/end').length, n])
+
+    // a clean edit: no reminder, no extra step
+    await clearMock()
+    await call('edit', { file_path: 'guard.txt', old_string: 'alpha', new_string: 'ALPHA' })
+    rows.push(['clean edit → no reminder', reminders(), 1])
+    rows.push(['clean edit → one step', callsInLastTurn('edit'), 1])
+
+    c.close()
+    const bad = rows.filter(([, got, want]) => got !== want)
+    return { ok: bad.length === 0, detail: bad.length ? `FAILED: ${bad.map(([l, g, w]) => `${l}: got ${JSON.stringify(g)}, want ${JSON.stringify(w)}`).join('; ')}` : `${rows.length} checks` }
+  },
+
   // docs/admin-usage-dashboard-plan.md: a chat's turns and model calls (and Data Studio's pipeline calls) reach
   // MariaDB through the runtime's usage files and the gateway's sweep, and come back out of /admin/usage/report.
   async usageDashboard() {

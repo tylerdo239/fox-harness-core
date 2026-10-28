@@ -2,6 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import '@deepseek-ai/dsh-agent'
 
+import { apply as applyEditGuard } from './edit-guard.ts'
 import { apply as applyPrompt } from './prompt.ts'
 import { apply as applyQuota } from './quota.ts'
 
@@ -41,4 +42,7 @@ export function apply(ctx: Context) {
 
   // Default chat instructions + today's date (prompt.ts).
   applyPrompt(ctx)
+
+  // A turn that ends with a failed, never-redone file change gets one reminder and another step (edit-guard.ts).
+  applyEditGuard(ctx)
 }
