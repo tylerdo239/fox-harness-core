@@ -7,7 +7,7 @@
 // versions (canvas-<id>-vN.ext) show as one card, the latest; Office/PDF snapshots show none (the original has one).
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, File as FileGeneric, FileCode2, FileImage, FileSpreadsheet, FileText, FileType2, Folder, FolderDown, FolderOpen, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder, FolderDown, FolderOpen, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useLocale } from '../../../i18n/locale.tsx'
@@ -16,10 +16,12 @@ import { useRuntime } from '../../../runtime.ts'
 import { formatSize, listWorkspaceFiles, type WorkspaceFile } from '../conversation/workspaceApi.ts'
 import { StorageFullError, showNoSpace } from '../settings/storageApi.ts'
 import { fetchCanvasFile, fileCanvasVersionCount, isOfficeDeliverable, openWorkspaceFileInCanvas } from './canvas.ts'
+import { CANVAS_VERSION_RE, fileKind, isChatResult, useSessionFiles } from './sessionFiles.ts'
 
-const CANVAS_VERSION_RE = /(^|\/)canvas-([a-z0-9-]+)-v(\d+)(\.[a-z0-9]+)$/
 // Container and browser clocks may disagree a little.
 const TURN_CLOCK_SLACK_MS = 10_000
+// A turn that wrote many files (a batch of charts) opens only its newest few; the turn's file box lists them all.
+const AUTO_OPEN_MAX = 3
 
 interface Card {
   file: WorkspaceFile
@@ -28,16 +30,6 @@ interface Card {
 }
 
 type Group = { key: 'source' | 'shared' | 'own' | 'other'; label: TranslationKey; cards: Card[] }
-
-function fileKind(path: string): { Icon: typeof FileGeneric; tone: string } {
-  const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
-  if (['.csv', '.tsv', '.xlsx', '.xls', '.parquet'].includes(ext)) return { Icon: FileSpreadsheet, tone: 'text-status-success' }
-  if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) return { Icon: FileImage, tone: 'text-accent' }
-  if (ext === '.pdf') return { Icon: FileType2, tone: 'text-status-danger' }
-  if (['.py', '.js', '.ts', '.json', '.html', '.sql', '.sh'].includes(ext)) return { Icon: FileCode2, tone: 'text-muted' }
-  if (['.md', '.txt', '.docx'].includes(ext)) return { Icon: FileText, tone: 'text-accent-text' }
-  return { Icon: FileGeneric, tone: 'text-muted' }
-}
 
 function relativeTime(ms: number, locale: string): string {
   const seconds = Math.round((ms - Date.now()) / 1000)
@@ -112,9 +104,16 @@ export function WorkspaceFiles({ version = 0, running }: { version?: number; run
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version])
 
-  // Auto-open: a turn that wrote or rewrote an Excel/Word/PDF file (by mtime, against a baseline taken when the
-  // turn started) without attaching any file canvas itself gets those files opened in the panel. Only files
-  // modified after the turn started count, so replaying an old session's history opens nothing.
+  // the chat log's per-turn file boxes (TurnFiles.tsx) read this same list
+  useEffect(() => {
+    useSessionFiles.getState().publish(sessionId, files)
+  }, [sessionId, files])
+
+  // Auto-open: a turn that wrote or rewrote files of its own (by mtime, against a baseline taken when the turn
+  // started) without attaching any file canvas itself gets them opened in the panel, newest last so it ends up on
+  // screen. Only files modified after the turn started count, so replaying an old session's history opens nothing.
+  // User (2026-10-28): "khi Agent gen ra 1 file trong 1 đoạn chat xong nên có auto open luôn" — every file the
+  // chat wrote (HTML, Markdown, images, ...), no longer only Excel/Word/PDF.
   const baseline = useRef<{ modified: Map<string, string>; fileCanvases: number; startedAt: number } | undefined>(undefined)
   const wasRunning = useRef(running)
   useEffect(() => {
@@ -128,8 +127,9 @@ export function WorkspaceFiles({ version = 0, running }: { version?: number; run
         if (listed === undefined || fileCanvasVersionCount() > before.fileCanvases) return
         const changed = listed
           .filter((f) => before.modified.get(f.path) !== f.modified && Date.parse(f.modified) >= before.startedAt - TURN_CLOCK_SLACK_MS)
-          .filter((f) => isOfficeDeliverable(f.path) && !CANVAS_VERSION_RE.test(f.path))
+          .filter((f) => isChatResult(f, sessionId))
           .sort((a, b) => Date.parse(a.modified) - Date.parse(b.modified))
+          .slice(-AUTO_OPEN_MAX)
         // Sequential, oldest first, so the newest ends up the canvas on screen.
         void changed.reduce<Promise<void>>(
           (previous, f) => previous.then(() => openWorkspaceFileInCanvas(sessionId, { path: f.path, modified: Date.parse(f.modified), size: f.sizeBytes })).catch((error: unknown) => { if (error instanceof StorageFullError) showNoSpace(error, t) }),

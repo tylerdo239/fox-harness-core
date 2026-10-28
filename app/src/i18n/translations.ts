@@ -234,11 +234,9 @@ export const vi = {
   // real tool name (identifier, not translated, same reasoning as above).
   "conversation.toolRunning": "Đang dùng {name}…",
   "conversation.toolUsed": "Đã dùng {name}",
-  "conversation.toolFailed": "Lỗi khi dùng {name}",
   // The `skill` tool / a `/name` invocation.
   "conversation.skillLoading": "Đang đọc skill {name}…",
   "conversation.skillLoaded": "Đã đọc skill {name}",
-  "conversation.skillFailed": "Không đọc được skill {name}",
   // Real bug fixed 2026-09-11 (user: "box contain tool-pill vẫn còn mà ko
   // có dữ liệu ... bị shrink") — a tool call whose turn ended without a
   // matching `tool/result` (container hibernated/crashed mid-call, a real,
@@ -412,6 +410,9 @@ export const vi = {
   // WorkspaceFiles.tsx — the chat's files as cards.
   "workspace.title": "Tệp trong thư mục làm việc",
   "workspace.openInCanvas": "Mở trong canvas để xem trước",
+  // TurnFiles.tsx — the files a turn wrote, at the end of that turn.
+  "turnFiles.shown": "đang mở",
+  "turnFiles.downloadFailed": "Không tải được {name}",
   "workspace.downloadAll": "Tải toàn bộ tệp dưới dạng .zip",
   "workspace.downloadAllShort": "Tải tất cả",
   "workspace.zipping": "Đang nén…",
@@ -536,7 +537,6 @@ export const vi = {
   "fileTool.delete": "Đưa {target} vào thùng rác",
   "fileTool.zip": "Nén {target}",
   "fileTool.unzip": "Giải nén {target}",
-  "fileTool.failed": "{what} — lỗi",
   "tool.skill": "mở skill",
   "tool.analyze_data": "truy vấn Data Studio",
   "attach.button": "Đính kèm file",
@@ -890,10 +890,8 @@ export const en: Record<TranslationKey, string> = {
   "conversation.modelError": "Model call failed ({code}): {message}",
   "conversation.toolRunning": "Using {name}…",
   "conversation.toolUsed": "Used {name}",
-  "conversation.toolFailed": "Failed to use {name}",
   "conversation.skillLoading": "Reading skill {name}…",
   "conversation.skillLoaded": "Read skill {name}",
-  "conversation.skillFailed": "Couldn't read skill {name}",
   "conversation.toolInterrupted": "The turn ended before a result arrived.",
   "conversation.copyCode": "Copy",
   "conversation.codeCopied": "Copied",
@@ -1044,6 +1042,8 @@ export const en: Record<TranslationKey, string> = {
   "canvas.diffTruncated": "More changes not shown — {count} cells in total.",
   "workspace.title": "Files in the working directory",
   "workspace.openInCanvas": "Open in the canvas to preview",
+  "turnFiles.shown": "open",
+  "turnFiles.downloadFailed": "Could not download {name}",
   "workspace.downloadAll": "Download every file as a .zip",
   "workspace.downloadAllShort": "Download all",
   "workspace.zipping": "Zipping…",
@@ -1167,7 +1167,6 @@ export const en: Record<TranslationKey, string> = {
   "fileTool.delete": "Move {target} to the trash",
   "fileTool.zip": "Zip {target}",
   "fileTool.unzip": "Unzip {target}",
-  "fileTool.failed": "{what} — failed",
   "tool.skill": "Loading a skill",
   "tool.analyze_data": "Querying Data Studio",
   "attach.button": "Attach files",

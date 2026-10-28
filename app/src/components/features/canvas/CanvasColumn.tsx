@@ -64,15 +64,23 @@ export function useCanvasLayout(frameWidth: number, sidebarWidth: number, narrow
     const startWidth = widthRef.current
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
+    // An HTML preview is an iframe: over it the mouse events go to the iframe's own document, so this window got no
+    // mousemove (the drag stopped) and no mouseup (the drag stayed stuck). While dragging, iframes take no pointer
+    // events (style.css `.fh-resizing iframe`).
+    document.body.classList.add('fh-resizing')
     function onMove(move: MouseEvent): void {
+      // the button was released where this window could not see it: end the drag here
+      if (move.buttons === 0) return onUp()
       // The handle is the canvas's LEFT edge: dragging left widens it.
       setOverride(clampWidth(startWidth + (startX - move.clientX), CANVAS_MIN_WIDTH, CANVAS_MAX_WIDTH))
     }
     function onUp(): void {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      document.body.classList.remove('fh-resizing')
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('blur', onUp)
       setOverride((current) => {
         try {
           if (current !== null) localStorage.setItem(STORAGE_CANVAS_WIDTH, String(current))
@@ -84,6 +92,8 @@ export function useCanvasLayout(frameWidth: number, sidebarWidth: number, narrow
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    // released outside the browser window, or switched away mid-drag
+    window.addEventListener('blur', onUp)
   }, [])
 
   const onResizeReset = useCallback(() => {

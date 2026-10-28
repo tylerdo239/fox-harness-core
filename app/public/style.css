@@ -642,6 +642,67 @@ input[type="text"].fh-session-title-bar-input {
   overflow-y: auto;
 }
 
+/* User (2026-10-28): "khung chat đang bị scroll giới hạn trong đoạn chat nhỏ hãy move scroll ra ngoài nhưng width
+ * max chat vẫn giữ nguyên". The conversation opts out of `#center-col > *`'s 760px cap so #log spans the whole
+ * column (scrollbar at the column's edge, wheel works over the side space too); the 760px reading column comes
+ * back as side space instead: `--fh-chat-side` is what the old auto margins were, and each row adds it to the side
+ * spacing it already had. `%` resolves where the variable is used, against the column's width. */
+#center-col > .fh-conversation-root {
+  max-width: none;
+  margin: 0;
+  --fh-chat-side: max(0px, calc((100% - 760px) / 2));
+}
+/* User (2026-10-28): "layout nên như vầy full cả khung chat phải kéo tận bottom của cả screen chatinput box thì
+ * overlay lên và chat box luôn có padding trắng ở cuối". #log runs to the bottom of the screen; the files box and
+ * the composer (.fh-composer-dock) float over its lower part, and #log keeps that much room free at its end so the
+ * last message can always scroll clear of them — Conversation.tsx measures the dock (`--fh-dock-height`, grows with
+ * a long draft or the files box) and #log's scrollbar (`--fh-log-scrollbar`) onto the conversation root. */
+.fh-conversation-root {
+  position: relative;
+}
+.fh-conversation-root > #log {
+  padding-left: calc(var(--fh-chat-side, 0px) + 1em);
+  /* minus the scrollbar's own width, so the messages end where the composer does */
+  padding-right: max(0px, calc(var(--fh-chat-side, 0px) + 1em - var(--fh-log-scrollbar, 0px)));
+  padding-bottom: calc(var(--fh-dock-height, 0px) + 1em);
+}
+.fh-conversation-root > .fh-canvas-reopen-row,
+.fh-conversation-root > .fh-conversation-empty-heading {
+  margin-left: var(--fh-chat-side, 0px);
+  margin-right: var(--fh-chat-side, 0px);
+}
+.fh-composer-dock {
+  position: absolute;
+  left: 0;
+  /* stops at #log's scrollbar, which stays visible and draggable all the way down */
+  right: var(--fh-log-scrollbar, 0px);
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  padding-top: 1.25em;
+  /* the messages scrolling under it fade out above the files box / composer instead of showing between them */
+  background: linear-gradient(to bottom, transparent, var(--bg) 1.25em);
+  /* the faded strip above the boxes doesn't block clicks or text selection on the message behind it */
+  pointer-events: none;
+  /* same side spacing as #log's content, measured on this narrower box */
+  --fh-chat-side: max(0px, calc((100% + var(--fh-log-scrollbar, 0px) - 760px) / 2));
+}
+.fh-composer-dock > * {
+  pointer-events: auto;
+}
+.fh-composer-dock > .fh-workspace-files,
+.fh-composer-dock > #send-form {
+  margin-left: calc(var(--fh-chat-side, 0px) + 1em);
+  margin-right: max(0px, calc(var(--fh-chat-side, 0px) + 1em - var(--fh-log-scrollbar, 0px)));
+}
+/* no messages yet: the composer sits centred in the page (below), not over a log */
+.fh-conversation-empty .fh-composer-dock {
+  position: static;
+  padding-top: 0;
+  background: none;
+}
+
 /* Real chat.deepseek.com screenshot (2026-09-08) — a centered "welcome"
  * layout before any message exists, instead of an empty #log pinned above
  * a bottom composer. Only the layout survives here, not the fake mode
@@ -668,7 +729,9 @@ input[type="text"].fh-session-title-bar-input {
 }
 
 .fh-conversation-empty #send-form {
-  margin: 0 1em;
+  /* bottom only: the sides come from `.fh-composer-dock > #send-form` (the 760px column), which a `margin: 0 1em`
+   * here overrode — same specificity, later in the file — stretching the new-chat composer full width */
+  margin-bottom: 0;
   padding: 1.1em 1.3em;
 }
 
@@ -1213,17 +1276,28 @@ button:disabled {
   flex-shrink: 0;
 }
 
-/* "Jump to latest" (useStickToBottom.ts, 2026-10-19): shown only while the reader is above the end. Sticky inside
- * the log, so it floats at the bottom of the visible part; the negative margin cancels its own height and the log's
- * gap, so it never shifts the messages above it. */
-#log > .fh-scroll-latest {
-  position: sticky;
-  bottom: 12px;
-  z-index: 2;
-  align-self: center;
+/* The room under a just-sent message so it can sit at the top of the view (useStickToBottom.ts sets its height).
+ * The log's gap above it would leave 1rem even at height 0: cancelled. */
+#log > .fh-log-spacer {
+  height: 0;
+  margin-top: -1rem;
+  pointer-events: none;
+}
+
+/* "Jump to latest" (useStickToBottom.ts, 2026-10-19): shown only while the reader is above the end. It rides on the
+ * composer dock (user, 2026-10-28: "nút icon scroll to bottom ... cao quá nên là đi theo box chatinput"): centred,
+ * just above the dock's first box (the files box, else the composer), inside the dock's faded strip, so it moves
+ * with them as they grow. */
+.fh-composer-dock > .fh-scroll-latest {
+  position: absolute;
+  top: -22px;
+  /* the dock stops at the log's scrollbar: starting as far in on the left centres it on the messages */
+  left: var(--fh-log-scrollbar, 0px);
+  right: 0;
+  margin: 0 auto;
+  z-index: 1;
   width: 32px;
   height: 32px;
-  margin-top: calc(-32px - 1rem);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1237,7 +1311,7 @@ button:disabled {
   animation: fh-scroll-latest-in 160ms ease-out;
   transition: background 120ms ease, transform 120ms ease;
 }
-#log > .fh-scroll-latest:hover {
+.fh-composer-dock > .fh-scroll-latest:hover {
   background: var(--bg-hover, var(--surface));
   transform: translateY(1px);
 }
@@ -1246,7 +1320,7 @@ button:disabled {
   to { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  #log > .fh-scroll-latest { animation: none; transition: none; }
+  .fh-composer-dock > .fh-scroll-latest { animation: none; transition: none; }
 }
 
 /* Phase 14: real dsh bubble radius (`MessageItem.module.css`, 22px) — the
@@ -1543,12 +1617,27 @@ button:disabled {
   align-items: center;
   gap: 0.5em;
   width: 100%;
+  /* the global `button { height: 34px }` clipped a label that wraps to 2+ lines into the padding (user,
+   * 2026-10-28: "tool pill khi bị text xún dòng từ 2 trở lên đang ko có padding top và bottom"); one line keeps
+   * the same 34px */
+  height: auto;
+  min-height: 34px;
   padding: 0.5em 0.8em;
   background: transparent;
   border: none;
   color: var(--muted);
   text-align: left;
   cursor: pointer;
+}
+
+/* a long word (a path, an id) in a tool pill title: fills the line before breaking (Conversation.tsx breakLongWords) */
+.fh-break-anywhere {
+  word-break: break-all;
+}
+
+/* the icons keep their size when the label wraps */
+.tool-pill-header > svg {
+  flex: none;
 }
 
 .tool-pill-header:hover {
@@ -1565,9 +1654,10 @@ button:disabled {
   transform: rotate(180deg);
 }
 
-.tool-pill-error .tool-pill-header {
-  color: var(--error);
-}
+/* A failed tool call is no longer drawn in red (user, 2026-10-28: "các tool bị lỗi đừng có show tool pill bị lỗi màu
+ * đỏ trên chat cho user"): the agent usually recovers on its own and a red pill only alarms; the pill keeps the
+ * normal muted look, the error stays in its details. `.tool-pill-error` stays on the element for anything that
+ * needs to tell them apart. */
 
 /* Real bug fixed 2026-09-11 (user: "UI đang bị shrink khi bị tràn thành
  * scroll") — this had no `max-height`/`overflow-y` of its own at all, so a
@@ -1654,8 +1744,9 @@ button:disabled {
   white-space: normal;
 }
 
+/* muted, not red: same reason as the failed tool pill above */
 .data-studio-error {
-  color: var(--error);
+  color: var(--muted);
 }
 
 .data-studio-truncated {
@@ -2384,6 +2475,10 @@ button:disabled {
  * `scrollbar-width`/`scrollbar-color` properties, added alongside it here
  * for the same visual intent, not a full re-implementation). */
 #log,
+#text-input,
+.fh-skills-textarea,
+.fh-skills-list,
+.fh-skills-form,
 .fh-sidebar-region,
 .tool-pill-detail {
   scrollbar-width: thin;
@@ -2391,12 +2486,20 @@ button:disabled {
 }
 
 #log::-webkit-scrollbar,
+#text-input::-webkit-scrollbar,
+.fh-skills-textarea::-webkit-scrollbar,
+.fh-skills-list::-webkit-scrollbar,
+.fh-skills-form::-webkit-scrollbar,
 .fh-sidebar-region::-webkit-scrollbar,
 .tool-pill-detail::-webkit-scrollbar {
   width: 8px;
 }
 
 #log::-webkit-scrollbar-thumb,
+#text-input::-webkit-scrollbar-thumb,
+.fh-skills-textarea::-webkit-scrollbar-thumb,
+.fh-skills-list::-webkit-scrollbar-thumb,
+.fh-skills-form::-webkit-scrollbar-thumb,
 .fh-sidebar-region::-webkit-scrollbar-thumb,
 .tool-pill-detail::-webkit-scrollbar-thumb {
   background: var(--border);
@@ -2404,12 +2507,20 @@ button:disabled {
 }
 
 #log::-webkit-scrollbar-thumb:hover,
+#text-input::-webkit-scrollbar-thumb:hover,
+.fh-skills-textarea::-webkit-scrollbar-thumb:hover,
+.fh-skills-list::-webkit-scrollbar-thumb:hover,
+.fh-skills-form::-webkit-scrollbar-thumb:hover,
 .fh-sidebar-region::-webkit-scrollbar-thumb:hover,
 .tool-pill-detail::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
 }
 
 #log::-webkit-scrollbar-track,
+#text-input::-webkit-scrollbar-track,
+.fh-skills-textarea::-webkit-scrollbar-track,
+.fh-skills-list::-webkit-scrollbar-track,
+.fh-skills-form::-webkit-scrollbar-track,
 .fh-sidebar-region::-webkit-scrollbar-track,
 .tool-pill-detail::-webkit-scrollbar-track {
   background: transparent;
@@ -4707,6 +4818,10 @@ button.fh-data-studio-tab-active {
 /* dragging follows the pointer: the frame's column transition would make it lag behind */
 #app:has(.fh-canvas-handle:active) {
   transition: none;
+}
+/* CanvasColumn.tsx onResizeStart: an iframe (HTML preview) under the pointer would swallow the drag's mouse events */
+body.fh-resizing iframe {
+  pointer-events: none;
 }
 .fh-canvas-overlay {
   position: fixed;

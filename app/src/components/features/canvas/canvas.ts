@@ -306,7 +306,7 @@ export async function saveCanvasEdit(sessionId: string, id: string, content: str
 }
 
 /** Stable canvas id for a workspace file: `ws-<ascii slug>-<hash>`. */
-function workspaceCanvasId(path: string): string {
+export function workspaceCanvasId(path: string): string {
   const stem = path.replace(/\.[^./]+$/, '')
   const slug = stem.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'file'

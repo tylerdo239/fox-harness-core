@@ -115,10 +115,12 @@ import { ChartView, type ChartSpec } from "./ChartView.tsx";
 import { DataStudioAnswer, PinToDashboardButton } from "./DataStudioAnswer.tsx";
 import type { ProgressItem } from "./DataStudioProgress.tsx";
 import { Markdown } from "./Markdown.tsx";
+import { StreamedMarkdown } from "./StreamedMarkdown.tsx";
 import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
 import { WorkspaceFiles } from "../canvas/WorkspaceFiles.tsx";
 import { loadCanvasHistory, parseCanvasMarker, receiveCanvasMarker, stripCanvasMarker } from "../canvas/canvas.ts";
 import { CanvasChip, CanvasReopenBar, type CanvasChipEntry } from "../canvas/CanvasChip.tsx";
+import { TurnFiles, type TurnFilesEntry } from "../canvas/TurnFiles.tsx";
 import { useStickToBottom } from "./useStickToBottom.ts";
 import { useCanvasStore } from "../canvas/store.ts";
 
@@ -302,7 +304,9 @@ type LogEntry =
     }
   | { kind: "bubble"; id: string; role: "user" | "assistant"; text: string }
   // a canvas_write result: a chip that opens the side panel (components/features/canvas)
-  | ({ kind: "canvas"; id: string } & CanvasChipEntry);
+  | ({ kind: "canvas"; id: string } & CanvasChipEntry)
+  // the files a finished turn wrote (TurnFiles.tsx); renders nothing when it wrote none
+  | ({ kind: "turn-files"; id: string } & TurnFilesEntry);
 
 interface LiveBubble {
   text: string;
@@ -414,6 +418,18 @@ const FILE_MANAGE_LABELS: Record<string, TranslationKey> = {
   unzip: "fileTool.unzip",
 };
 
+// A word past this length (a path, an id) in a tool pill's title may break anywhere (user, 2026-10-28): the line
+// breaker only breaks a path like `data/users/2/38635216-b111-4b18-…/dummy-charts.html` at its few allowed spots, so
+// it jumped to the next line whole and left a long gap at the end of the line before. Short words still wrap whole.
+const LONG_WORD_CHARS = 32;
+
+function breakLongWords(text: string): ReactNode {
+  if (!text.split(" ").some((word) => word.length > LONG_WORD_CHARS)) return text;
+  return text.split(/( )/).map((part, index) =>
+    part.length > LONG_WORD_CHARS ? <span key={index} className="fh-break-anywhere">{part}</span> : part,
+  );
+}
+
 function fileToolLabel(
   name: string,
   argsJson: string,
@@ -460,17 +476,15 @@ function ToolPill({
 }) {
   const params = { name: entry.skill ?? entry.name };
   const file = entry.skill ? undefined : fileToolLabel(entry.name, entry.args, t);
+  // A failed call reads like a finished one (user, 2026-10-28: don't show failed tool pills to the user): the agent
+  // usually tries again or works around it; what went wrong is still in the details when the pill is opened.
   const label = file
     ? entry.status === "running"
       ? `${file.text}…`
-      : entry.status === "error"
-        ? t("fileTool.failed", { what: file.text })
-        : file.text
+      : file.text
     : entry.status === "running"
       ? t(entry.skill ? "conversation.skillLoading" : "conversation.toolRunning", params)
-      : entry.status === "error"
-        ? t(entry.skill ? "conversation.skillFailed" : "conversation.toolFailed", params)
-        : t(entry.skill ? "conversation.skillLoaded" : "conversation.toolUsed", params);
+      : t(entry.skill ? "conversation.skillLoaded" : "conversation.toolUsed", params);
   const Icon = entry.skill ? SkillIcon : (file?.icon ?? ToolIcon);
   return (
     <div
@@ -478,7 +492,7 @@ function ToolPill({
     >
       <button type="button" className="tool-pill-header" onClick={onToggle}>
         <Icon size={13} />
-        <span>{label}</span>
+        <span>{breakLongWords(label)}</span>
         <ChevronDownIcon size={13} className="tool-pill-chevron" />
       </button>
       {expanded && (
@@ -835,6 +849,8 @@ function LogEntryView({
       );
     case "canvas":
       return <CanvasChip entry={entry} />;
+    case "turn-files":
+      return <TurnFiles entry={entry} />;
     case "bubble":
       if (entry.role === "user") {
         // a message with attachments ends with their marker line (attachments.ts): cards above the text
@@ -854,7 +870,8 @@ function LogEntryView({
         <div className="assistant-text">
           {entry.text && (
             <div className="assistant-text-body">
-              <Markdown text={entry.text} />
+              {/* carries on revealing a reply that was streaming a moment ago; history shows at once */}
+              <StreamedMarkdown id={entry.id} text={entry.text} />
             </div>
           )}
         </div>
@@ -956,6 +973,12 @@ export function Conversation({
   // active at mount, forever, even after a later language switch — a ref
   // sidesteps that without touching the mount-once subscription at all.
   const tRef = useRef(t);
+  // When the turn in progress started (its `turn/start` event's time): `turn/end` gives its file box that span.
+  const turnStartedAtRef = useRef<number | undefined>(undefined);
+  // The message just sent, shown at once (before the server echoes it back as `user/message`) so it can glide to
+  // the top of the view without waiting a round trip; the echo then fills that same entry in, keeping its id so the
+  // element on screen (the scroll anchor) stays the same one.
+  const localBubbleRef = useRef<string | undefined>(undefined);
   tRef.current = t;
 
   function pushEntry(entry: LogEntry | undefined): void {
@@ -1060,6 +1083,7 @@ export function Conversation({
         // It does start the status row's clock — from the recorded time when
         // replayed, so a reload mid-reply keeps counting.
         setRun((prev) => prev ?? { startedAt: live ? Date.now() : event.time, tools: 0 });
+        turnStartedAtRef.current = event.time;
         break;
       case "turn/end": {
         const data = event.data as {
@@ -1071,6 +1095,10 @@ export function Conversation({
           };
         };
         setRun(null);
+        if (variant === "default" && turnStartedAtRef.current !== undefined) {
+          pushEntry({ kind: "turn-files", id: `files-${event.seq}`, startedAt: turnStartedAtRef.current, endedAt: event.time });
+        }
+        turnStartedAtRef.current = undefined;
         const stoppedByUser = data.reason.kind === "aborted" && data.reason.reason?.kind === "user";
         if (data.reason.kind === "error" && data.reason.error) {
           pushEntry({
@@ -1178,6 +1206,17 @@ export function Conversation({
           break;
         }
         if (message.source && message.source.kind !== "user") break;
+        const localId = live ? localBubbleRef.current : undefined;
+        if (localId) {
+          localBubbleRef.current = undefined;
+          const echoed = buildBubbleEntry(localId, "user", message.content);
+          setEntries((prev) =>
+            prev.some((entry) => entry.id === localId)
+              ? prev.flatMap((entry) => (entry.id !== localId ? [entry] : echoed ? [echoed] : []))
+              : echoed ? [...prev, echoed] : prev,
+          );
+          break;
+        }
         pushEntry(
           buildBubbleEntry(`evt-${event.seq}`, "user", message.content),
         );
@@ -1459,6 +1498,7 @@ export function Conversation({
     switch (frame.type) {
       case "snapshot":
         jumpPendingRef.current = true;
+        localBubbleRef.current = undefined;
         useCanvasStore.getState().reset(sessionIdRef.current || undefined);
         setEntries([]);
         setLiveBubbles(new Map());
@@ -1498,7 +1538,34 @@ export function Conversation({
   }, []);
 
   // Scrolling (useStickToBottom.ts): follow new content only while the reader is at the bottom.
-  const { atBottom, scrollToBottom, jumpToBottom } = useStickToBottom(logRef);
+  // The room under a just-sent message so it can sit at the top of the view (useStickToBottom.ts anchorToLatest).
+  const spacerRef = useRef<HTMLDivElement>(null);
+  const { atBottom, scrollToBottom, jumpToBottom, anchorToLatest } = useStickToBottom(logRef, spacerRef);
+  const anchorSent = () => anchorToLatest(":scope > .fh-user-message");
+
+  // The composer floats over the log's end (style.css .fh-composer-dock): the log keeps `--fh-dock-height` free at
+  // its end so the last message scrolls clear of it, and the scroll-to-latest button sits above it. A classic
+  // (non-overlay) scrollbar takes its width out of the log's right side, so `--fh-log-scrollbar` is taken back out
+  // of the log's right padding and the dock's, keeping messages, files box and composer the same width (user,
+  // 2026-10-28: "box chat và box folder ở cuối chat đang dài hơn về bên phải so với đoạn chat"). Both are
+  // re-measured whenever the dock grows (a long draft, the files box) or the scrollbar appears or goes.
+  const dockRef = useRef<HTMLDivElement>(null);
+  const logMounted = entries.length > 0 || liveBubbles.size > 0 || !!run;
+  useEffect(() => {
+    const dock = dockRef.current;
+    const root = dock?.parentElement;
+    if (!dock || !root) return;
+    const log = logRef.current;
+    const measure = () => {
+      root.style.setProperty("--fh-dock-height", `${dock.offsetHeight}px`);
+      root.style.setProperty("--fh-log-scrollbar", `${log ? log.offsetWidth - log.clientWidth : 0}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(dock);
+    if (log) observer.observe(log);
+    return () => observer.disconnect();
+  }, [logMounted]);
   // A chat just opened (its snapshot replayed): land at the end once it has rendered, without animating.
   const jumpPendingRef = useRef(false);
   useEffect(() => {
@@ -1591,10 +1658,16 @@ export function Conversation({
     const trimmed = text.trim();
     // One reply at a time: while it runs the button is Stop and Enter waits. Attachments must finish uploading.
     if ((!trimmed && attachments.ready === 0) || run || !runtime.connected || attachments.uploading) return;
-    runtime.send({ type: "followup", text: withAttachments(trimmed, attachments.take()) });
+    const sent = withAttachments(trimmed, attachments.take());
+    runtime.send({ type: "followup", text: sent });
+    if (sent.trim()) {
+      const id = `local-${Date.now()}`;
+      localBubbleRef.current = id;
+      pushEntry({ kind: "bubble", id, role: "user", text: sent.trim() });
+    }
     setText("");
-    // the reader's own message: back to the bottom, following the reply
-    scrollToBottom();
+    // the reader's own message goes to the top of the view, the reply fills in below it
+    anchorSent();
     // The status row shows right away instead of waiting for `turn/start`.
     setRun({ startedAt: Date.now(), tools: 0 });
   }
@@ -1675,7 +1748,7 @@ export function Conversation({
               alwaysExpandDataStudio={variant === "data-studio"}
               onFollowUp={(question) => {
                 runtime.send({ type: "followup", text: question });
-                scrollToBottom();
+                anchorSent();
               }}
               t={t}
               locale={locale}
@@ -1685,7 +1758,7 @@ export function Conversation({
             <div key={key} className="assistant-text">
               {bubble.text.trim() && (
                 <div className="assistant-text-body">
-                  <Markdown text={bubble.text} />
+                  <StreamedMarkdown id={key} text={bubble.text} live />
                 </div>
               )}
             </div>
@@ -1709,18 +1782,7 @@ export function Conversation({
               )}
             </div>
           )}
-          {/* the reader is above the end: one click glides back down and follows again */}
-          {!atBottom && (
-            <button
-              type="button"
-              className="fh-scroll-latest"
-              onClick={scrollToBottom}
-              title={t("conversation.scrollToLatest")}
-              aria-label={t("conversation.scrollToLatest")}
-            >
-              <ArrowDownIcon size={16} />
-            </button>
-          )}
+          <div ref={spacerRef} className="fh-log-spacer" aria-hidden="true" />
         </div>
       )}
       {isEmpty && (
@@ -1729,96 +1791,112 @@ export function Conversation({
           <h2>{t("conversation.emptyHeading")}</h2>
         </div>
       )}
-      {variant === "default" && <WorkspaceFiles version={filesVersion} running={!!run} />}
-      <form
-        id="send-form"
-        onSubmit={onSubmit}
-        onDragEnter={(event) => {
-          if (!canAttach || !event.dataTransfer.types.includes("Files")) return;
-          event.preventDefault();
-          setDragDepth((d) => d + 1);
-        }}
-        onDragOver={(event) => {
-          if (canAttach && event.dataTransfer.types.includes("Files")) event.preventDefault();
-        }}
-        onDragLeave={() => setDragDepth((d) => Math.max(0, d - 1))}
-        onDrop={(event) => {
-          if (!canAttach) return;
-          event.preventDefault();
-          setDragDepth(0);
-          addFiles(event.dataTransfer.files);
-        }}
-      >
-        {dragDepth > 0 && <div className="fh-composer-drop-hint">{t("attach.dropHint")}</div>}
-        {menuItems.length > 0 && (
-          <SkillMenu
-            items={menuItems}
-            activeIndex={activeMenuIndex}
-            onChoose={chooseSkill}
-            onHover={setMenuIndex}
-          />
+      {/* the files box and the composer float over the log's end (style.css .fh-composer-dock) */}
+      <div className="fh-composer-dock" ref={dockRef}>
+        {/* the reader is above the end: one click glides back down and follows again;
+        it rides just above the files box / composer (style.css .fh-composer-dock > .fh-scroll-latest) */}
+        {!atBottom && (
+          <button
+            type="button"
+            className="fh-scroll-latest"
+            onClick={scrollToBottom}
+            title={t("conversation.scrollToLatest")}
+            aria-label={t("conversation.scrollToLatest")}
+          >
+            <ArrowDownIcon size={16} />
+          </button>
         )}
-        <textarea
-          id="text-input"
-          ref={textareaRef}
-          rows={1}
-          placeholder={t("conversation.placeholder")}
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setMenuIndex(0);
-          }}
-          onKeyDown={onTextareaKeyDown}
-          onPaste={(event) => {
-            // a pasted screenshot or copied file attaches; pasted text stays text
-            if (!canAttach || event.clipboardData.files.length === 0) return;
+        {variant === "default" && <WorkspaceFiles version={filesVersion} running={!!run} />}
+        <form
+          id="send-form"
+          onSubmit={onSubmit}
+          onDragEnter={(event) => {
+            if (!canAttach || !event.dataTransfer.types.includes("Files")) return;
             event.preventDefault();
-            addFiles(event.clipboardData.files);
+            setDragDepth((d) => d + 1);
           }}
-        />
-        <PendingAttachments items={attachments.items} onRemove={attachments.remove} onRetry={attachments.retry} t={t} />
-        <div className="fh-composer-actions">
-          {canAttach && (
-            <>
-              <button
-                type="button"
-                className="fh-attach-button"
-                title={t("attach.button")}
-                aria-label={t("attach.button")}
-                disabled={!!run}
-                onClick={() => fileInputRef.current?.click()}
+          onDragOver={(event) => {
+            if (canAttach && event.dataTransfer.types.includes("Files")) event.preventDefault();
+          }}
+          onDragLeave={() => setDragDepth((d) => Math.max(0, d - 1))}
+          onDrop={(event) => {
+            if (!canAttach) return;
+            event.preventDefault();
+            setDragDepth(0);
+            addFiles(event.dataTransfer.files);
+          }}
+        >
+          {dragDepth > 0 && <div className="fh-composer-drop-hint">{t("attach.dropHint")}</div>}
+          {menuItems.length > 0 && (
+            <SkillMenu
+              items={menuItems}
+              activeIndex={activeMenuIndex}
+              onChoose={chooseSkill}
+              onHover={setMenuIndex}
+            />
+          )}
+          <textarea
+            id="text-input"
+            ref={textareaRef}
+            rows={1}
+            placeholder={t("conversation.placeholder")}
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              setMenuIndex(0);
+            }}
+            onKeyDown={onTextareaKeyDown}
+            onPaste={(event) => {
+              // a pasted screenshot or copied file attaches; pasted text stays text
+              if (!canAttach || event.clipboardData.files.length === 0) return;
+              event.preventDefault();
+              addFiles(event.clipboardData.files);
+            }}
+          />
+          <PendingAttachments items={attachments.items} onRemove={attachments.remove} onRetry={attachments.retry} t={t} />
+          <div className="fh-composer-actions">
+            {canAttach && (
+              <>
+                <button
+                  type="button"
+                  className="fh-attach-button"
+                  title={t("attach.button")}
+                  aria-label={t("attach.button")}
+                  disabled={!!run}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <PaperclipIcon size={18} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  hidden
+                  onChange={(event) => {
+                    if (event.target.files) addFiles(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+              </>
+            )}
+            {run && runtime.connected ? (
+              <Button
+                key="stop"
+                variant="primary"
+                className="fh-stop-btn"
+                onClick={stopRun}
               >
-                <PaperclipIcon size={18} />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                hidden
-                onChange={(event) => {
-                  if (event.target.files) addFiles(event.target.files);
-                  event.target.value = "";
-                }}
-              />
-            </>
-          )}
-          {run && runtime.connected ? (
-            <Button
-              key="stop"
-              variant="primary"
-              className="fh-stop-btn"
-              onClick={stopRun}
-            >
-              <StopIcon size={12} fill="currentColor" />
-              {t("conversation.stop")}
-            </Button>
-          ) : (
-            <Button key="send" variant="primary" type="submit" disabled={attachments.uploading}>
-              {t("conversation.send")}
-            </Button>
-          )}
-        </div>
-      </form>
+                <StopIcon size={12} fill="currentColor" />
+                {t("conversation.stop")}
+              </Button>
+            ) : (
+              <Button key="send" variant="primary" type="submit" disabled={attachments.uploading}>
+                {t("conversation.send")}
+              </Button>
+            )}
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
