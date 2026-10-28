@@ -21,7 +21,7 @@ api/
 └── packages/                  plugin dsh của mình + dữ liệu cấu hình
     ├── agent-core/            ★ CORE AGENT DUY NHẤT — 3 plugin trong 1 package:
     │     src/loop/              vòng lặp agent (thay vòng lặp gốc của dsh)
-    │     src/policy/            chọn model theo session, quota token, prompt chung
+    │     src/policy/            chọn model theo session, quota token, prompt chung, edit guard
     │     src/transport/         cổng vào runtime: nhận kết nối, tạo/khôi phục agent, gắn flow, chặn đường dẫn
     ├── llm/openai-compat/     gọi LLM chuẩn OpenAI (/chat/completions)
     ├── tool/                  các tool: python-repl, data-studio-agent, create-skill, serper-web-search

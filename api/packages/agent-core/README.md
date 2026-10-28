@@ -5,7 +5,7 @@ three Cordis plugins (rows in `cordis.patch.yml`, loaded in this order):
 
 | Plugin (subpath, row id) | Source | Does |
 |---|---|---|
-| `./policy` (`fox-harness-core`) | `src/policy/` | Per-agent model routing (`agent/request`: the session's model, else `OPENAI_MODEL_ID`, always `openai-compat`), the session token budget, the shared prompt sections (ground rules, operating policy, completion, environment/date). |
+| `./policy` (`fox-harness-core`) | `src/policy/` | Per-agent model routing (`agent/request`: the session's model, else `OPENAI_MODEL_ID`, always `openai-compat`), the session token budget, the shared prompt sections (ground rules, operating policy, changing files, completion, environment/date), the edit guard (`agent/turn-stopping`: a turn ending with a failed, never-redone `edit`/`write` gets one hidden reminder and another step). |
 | `./loop` (`fox-harness-agent-loop`) | `src/loop/` | The agent loop (turn → steps → LLM call → tools), replacing dsh-base's `agent-loop` row (disabled). Same behaviour as dsh-agent-loop (`api/scripts/agent-loop-parity.mjs`), plus what one process serving many users needs: a scope per agent and the `setup` hook that joins a flow preset. |
 | `./transport` (`fox-harness-transport`) | `src/transport/` | The runtime's entry point: a loopback WebSocket server the gateway relays each conversation to; creates or resumes the agent, joins its flow (`flows.ts`), snapshot-then-live events, idle disposal; and the workspace guard every agent's tool calls go through (`workspace-guard.ts`). |
 
