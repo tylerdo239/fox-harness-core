@@ -13,6 +13,7 @@ export function Modal({
   description,
   onClose,
   footer,
+  className,
   children,
 }: {
   open: boolean
@@ -20,7 +21,8 @@ export function Modal({
   description?: string
   onClose: () => void
   footer?: ReactNode
-  children: ReactNode
+  className?: string
+  children?: ReactNode
 }) {
   useEffect(() => {
     if (!open) return
@@ -33,9 +35,9 @@ export function Modal({
 
   if (!open) return null
   return (
-    <div className="fh-settings-dialog ds-modal">
+    <div className={`fh-settings-dialog ds-modal${className ? ` ${className}` : ''}`}>
       <div className="fh-settings-mask" onClick={onClose} />
-      <div className="fh-settings-panel ds-modal-panel" role="dialog" aria-label={title}>
+      <div className="fh-settings-panel ds-modal-panel" role="dialog" aria-modal="true" aria-label={title}>
         <div className="fh-settings-panel-header">
           <h2>{title}</h2>
           <IconButton variant="plain" className="fh-settings-close" onClick={onClose}>

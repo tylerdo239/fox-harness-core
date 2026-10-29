@@ -25,6 +25,7 @@ import {
 import { useLocale } from "../../../i18n/locale.tsx";
 import { useRuntime } from "../../../runtime.ts";
 import { Button } from "../../primitives/Button.tsx";
+import { confirmDialog } from "../../primitives/ConfirmDialog.tsx";
 import { Input } from "../../primitives/Input.tsx";
 
 // Real field shapes — services/gateway/src/data-studio-db.ts's row types,
@@ -315,7 +316,13 @@ export function DataStudioDataSources() {
   }
 
   async function deleteSource(source: DataSource): Promise<void> {
-    if (!window.confirm(t("dataStudio.deleteSourceConfirm", { name: source.name }))) return;
+    const ok = await confirmDialog({
+      title: t("dataStudio.deleteSourceTitle"),
+      message: t("dataStudio.deleteSourceConfirm", { name: source.name }),
+      confirmLabel: t("dataStudio.deleteSource"),
+      danger: true,
+    });
+    if (!ok) return;
     const res = await runtime.authedFetch(`/data-studio/sources/${source.id}`, { method: "DELETE" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));

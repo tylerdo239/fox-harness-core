@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
 
+import { ConfirmDialogHost } from "./components/primitives/ConfirmDialog.tsx";
 import { ConnectForm } from "./components/features/auth/ConnectForm.tsx";
 import { ThemeToggle } from "./components/features/auth/ThemeToggle.tsx";
 import { Conversation } from "./components/features/conversation/Conversation.tsx";
@@ -297,6 +298,7 @@ export function App() {
           actually use those variables at all (confirmed in its real
           compiled CSS: gated behind `[data-rich-colors=true]`). */}
       <Toaster theme="light" position="top-right" closeButton richColors />
+      <ConfirmDialogHost />
     </LocaleProvider>
   );
 }

@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { confirmDialog } from "../../primitives/ConfirmDialog.tsx";
 
 import {
   ArrowLeftIcon,
@@ -306,7 +307,13 @@ function ProjectPage({
   }
 
   async function remove(): Promise<void> {
-    if (!window.confirm(t("projects.deleteConfirm", { name: title }))) return;
+    const ok = await confirmDialog({
+      title: t("projects.deleteTitle"),
+      message: t("projects.deleteConfirm", { name: title }),
+      confirmLabel: t("projects.delete"),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteProject(runtime, project.projectId);
       runtime.bumpSessionsVersion();

@@ -57,6 +57,7 @@ import { MoreIcon, PencilIcon, TrashIcon } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
+import { confirmDialog } from "../../primitives/ConfirmDialog.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
 import { Input } from "../../primitives/Input.tsx";
 import { MenuItem } from "../../primitives/MenuItem.tsx";
@@ -332,7 +333,13 @@ export function HistoryChat({
   }
 
   async function remove(row: SessionRow): Promise<void> {
-    if (!window.confirm(t("historyChat.deleteConfirm"))) return;
+    const ok = await confirmDialog({
+      title: t("historyChat.deleteTitle"),
+      message: t("historyChat.deleteConfirm", { name: rowLabel(row, t) }),
+      confirmLabel: t("historyChat.delete"),
+      danger: true,
+    });
+    if (!ok) return;
     await runtime.authedFetch(`/sessions/${row.sessionId}`, {
       method: "DELETE",
     });

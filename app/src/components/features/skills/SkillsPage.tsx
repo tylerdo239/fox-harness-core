@@ -19,6 +19,7 @@ import {
 } from "../../../icons.tsx";
 import { useRuntime } from "../../../runtime.ts";
 import { Button } from "../../primitives/Button.tsx";
+import { confirmDialog } from "../../primitives/ConfirmDialog.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
 import { MenuItem } from "../../primitives/MenuItem.tsx";
 import { useSkillMenu } from "../conversation/SkillMenu.tsx";
@@ -95,7 +96,13 @@ export function SkillsPage({ onBack }: { onBack: () => void }) {
   async function remove(): Promise<void> {
     if (selection.kind !== "custom") return;
     const name = selection.name;
-    if (!window.confirm(t("skills.deleteConfirm", { name }))) return;
+    const ok = await confirmDialog({
+      title: t("skills.deleteTitle"),
+      message: t("skills.deleteConfirm", { name }),
+      confirmLabel: t("skills.delete"),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteCustomSkill(runtime, name);
       toast.success(t("skills.deleted", { name }));

@@ -18,17 +18,16 @@
 // everywhere by the real `LanguageSelect.tsx` dropdown) left `outline`
 // with only ever 1 real size. No point keeping a dimension nothing
 // exercises — add it back for real if a 2nd size is ever actually needed.
-import type { ComponentPropsWithoutRef } from 'react'
+import { forwardRef, type ComponentPropsWithoutRef } from 'react'
 
-export function Button({
-  variant,
-  className,
-  type = 'button',
-  ...rest
-}: ComponentPropsWithoutRef<'button'> & {
-  variant: 'primary' | 'raised' | 'outline' | 'link'
-}) {
+// `danger` (2026-10-29): red fill for destructive confirms (ConfirmDialog.tsx).
+export const Button = forwardRef<
+  HTMLButtonElement,
+  ComponentPropsWithoutRef<'button'> & {
+    variant: 'primary' | 'raised' | 'outline' | 'link' | 'danger'
+  }
+>(function Button({ variant, className, type = 'button', ...rest }, ref) {
   return (
-    <button {...rest} type={type} className={`fh-btn fh-btn-${variant}${className ? ` ${className}` : ''}`} />
+    <button {...rest} ref={ref} type={type} className={`fh-btn fh-btn-${variant}${className ? ` ${className}` : ''}`} />
   )
-}
+})

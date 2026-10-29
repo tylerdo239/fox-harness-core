@@ -9,6 +9,7 @@ import { useLocale } from '../../../i18n/locale.tsx'
 import { ChevronDownIcon, ChevronRightIcon, TrashIcon } from '../../../icons.tsx'
 import { useRuntime } from '../../../runtime.ts'
 import { Button } from '../../primitives/Button.tsx'
+import { confirmDialog } from '../../primitives/ConfirmDialog.tsx'
 import { formatSize } from '../conversation/workspaceApi.ts'
 import {
   clearCanvasHistory,
@@ -61,7 +62,13 @@ export function StorageTab() {
     dir.title ?? (dir.kind === 'project' ? t('storage.untitledProject') : t('historyChat.untitled', { id: dir.id.slice(0, 8) }))
 
   async function removeFile(dir: StorageDir, path: string): Promise<void> {
-    if (!window.confirm(t('storage.deleteFileConfirm', { name: path }))) return
+    const ok = await confirmDialog({
+      title: t('storage.deleteFileTitle'),
+      message: t('storage.deleteFileConfirm', { name: path }),
+      confirmLabel: t('storage.deleteFile'),
+      danger: true,
+    })
+    if (!ok) return
     setBusy(`${dir.id}/${path}`)
     try {
       await deleteStorageFile(runtime, dir, path)
@@ -77,13 +84,19 @@ export function StorageTab() {
   // docs/canvas-storage-plan.md: the assistant's canvas versions, and the panel's own history
   async function freeCanvas(dir: StorageDir, action: { canvas: StorageCanvas; keepLatest: boolean } | 'history'): Promise<void> {
     const name = action === 'history' ? dirTitle(dir) : action.canvas.id
-    const question =
+    const ok = await confirmDialog(
       action === 'history'
-        ? t('storage.canvasHistoryConfirm', { name })
+        ? { title: t('storage.canvasHistoryTitle'), message: t('storage.canvasHistoryConfirm', { name }), confirmLabel: t('storage.canvasHistoryClear'), danger: true }
         : action.keepLatest
-          ? t('storage.canvasKeepLatestConfirm', { name, n: String(action.canvas.versions - 1) })
-          : t('storage.canvasDeleteConfirm', { name })
-    if (!window.confirm(question)) return
+          ? {
+              title: t('storage.canvasKeepLatestTitle'),
+              message: t('storage.canvasKeepLatestConfirm', { name, n: String(action.canvas.versions - 1) }),
+              confirmLabel: t('confirm.delete'),
+              danger: true,
+            }
+          : { title: t('storage.canvasDeleteTitle'), message: t('storage.canvasDeleteConfirm', { name }), confirmLabel: t('storage.canvasDeleteAll'), danger: true },
+    )
+    if (!ok) return
     setBusy(`${dir.id}/canvas`)
     try {
       const freed =
@@ -103,7 +116,13 @@ export function StorageTab() {
     dir.files.length + dir.canvases.reduce((sum, c) => sum + c.versions, 0) + dir.canvasHistory.files
 
   async function clearDir(dir: StorageDir): Promise<void> {
-    if (!window.confirm(t('storage.clearConfirm', { name: dirTitle(dir), n: String(fileCount(dir)) }))) return
+    const ok = await confirmDialog({
+      title: t('storage.clearTitle'),
+      message: t('storage.clearConfirm', { name: dirTitle(dir), n: String(fileCount(dir)) }),
+      confirmLabel: t('storage.clear'),
+      danger: true,
+    })
+    if (!ok) return
     setBusy(dir.id)
     try {
       const freed = await clearStorageDir(runtime, dir)
@@ -259,7 +278,16 @@ function AdminStorageSection({ onChanged }: { onChanged: () => Promise<void> }) 
 
   async function cleanup(dryRun: boolean): Promise<void> {
     if (!validDays) return
-    if (!dryRun && !window.confirm(t('storage.cleanupConfirm', { days: String(olderThanDays) }))) return
+    if (
+      !dryRun &&
+      !(await confirmDialog({
+        title: t('storage.cleanupTitle'),
+        message: t('storage.cleanupConfirm', { days: String(olderThanDays) }),
+        confirmLabel: t('storage.cleanupRun'),
+        danger: true,
+      }))
+    )
+      return
     setRunning(true)
     try {
       const result = await runCleanup(runtime, olderThanDays, dryRun)
