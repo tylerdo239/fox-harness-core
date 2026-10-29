@@ -669,7 +669,6 @@ input[type="text"].fh-session-title-bar-input {
   padding-right: max(0px, calc(var(--fh-chat-side, 0px) + 1em - var(--fh-log-scrollbar, 0px)));
   padding-bottom: calc(var(--fh-dock-height, 0px) + 1em);
 }
-.fh-conversation-root > .fh-canvas-reopen-row,
 .fh-conversation-root > .fh-conversation-empty-heading {
   margin-left: var(--fh-chat-side, 0px);
   margin-right: var(--fh-chat-side, 0px);
@@ -872,6 +871,18 @@ input[type="text"].fh-session-title-bar-input {
 
 .fh-btn-outline:hover {
   background: var(--bg-hover);
+}
+
+.fh-btn-danger {
+  border-radius: 999px;
+  padding: 0 1.3em;
+  border-color: var(--status-danger);
+  background: var(--status-danger);
+  color: #fff;
+}
+
+.fh-btn-danger:hover {
+  background: color-mix(in srgb, var(--status-danger) 85%, #000);
 }
 
 .fh-btn-link {
@@ -2987,7 +2998,7 @@ button:disabled {
 }
 
 .fh-hub-table-head {
-  padding: 12px 2px;
+  padding: 12px 12px;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
   font-size: 12px;
@@ -3012,7 +3023,7 @@ button:disabled {
 }
 
 .fh-hub-project-row {
-  padding: 15px 2px;
+  padding: 15px 12px;
 }
 
 .fh-hub-project-row:hover,
@@ -3443,12 +3454,6 @@ button:disabled {
 
 .fh-sidebar-projects-create {
   padding: 2px 0.4em 6px;
-}
-
-.fh-sidebar-projects-create input {
-  box-sizing: border-box;
-  width: 100%;
-  height: 32px;
 }
 
 .fh-sidebar-project-name {
@@ -4251,6 +4256,32 @@ button.fh-data-studio-tab-active {
   border-top: 1px solid var(--border);
 }
 
+/* Confirm dialog (ConfirmDialog.tsx) — narrower than a form modal, and above
+ * the Settings dialog (1000) since Settings tabs can ask for a confirm too. */
+.fh-confirm-dialog {
+  z-index: 1100;
+}
+
+.fh-confirm-dialog .ds-modal-panel {
+  width: min(420px, 92vw);
+}
+
+.fh-confirm-dialog .ds-modal-footer {
+  border-top: none;
+  padding-top: 4px;
+}
+
+.fh-confirm-message {
+  color: var(--muted);
+  font-size: 0.92em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.fh-confirm-danger .fh-settings-panel-header h2 {
+  color: var(--status-danger);
+}
+
 .ds-form {
   display: flex;
   flex-direction: column;
@@ -4923,11 +4954,6 @@ body.fh-resizing iframe {
 .fh-canvas-chip-row {
   display: flex;
   margin: 4px 0;
-}
-.fh-canvas-reopen-row {
-  display: flex;
-  padding: 8px 0 0;
-  flex: none;
 }
 /* The chat's files as cards, right above the composer (src/components/features/canvas/WorkspaceFiles.tsx). */
 .fh-workspace-files {

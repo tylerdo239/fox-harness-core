@@ -119,7 +119,7 @@ import { StreamedMarkdown } from "./StreamedMarkdown.tsx";
 import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
 import { WorkspaceFiles } from "../canvas/WorkspaceFiles.tsx";
 import { loadCanvasHistory, parseCanvasMarker, receiveCanvasMarker, stripCanvasMarker } from "../canvas/canvas.ts";
-import { CanvasChip, CanvasReopenBar, type CanvasChipEntry } from "../canvas/CanvasChip.tsx";
+import { CanvasChip, type CanvasChipEntry } from "../canvas/CanvasChip.tsx";
 import { TurnFiles, type TurnFilesEntry } from "../canvas/TurnFiles.tsx";
 import { useStickToBottom } from "./useStickToBottom.ts";
 import { useCanvasStore } from "../canvas/store.ts";
@@ -1736,7 +1736,6 @@ export function Conversation({
     <div
       className={`fh-conversation-root${isEmpty ? " fh-conversation-empty" : ""}`}
     >
-      {variant === "default" && <CanvasReopenBar />}
       {!isEmpty && (
         <div id="log" ref={logRef}>
           {(variant === "data-studio" ? withoutRestatedAnswers(entries) : entries).map((entry) => (

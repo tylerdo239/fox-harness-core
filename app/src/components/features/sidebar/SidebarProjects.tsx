@@ -8,6 +8,7 @@ import { ChevronDownIcon, FolderIcon, FolderOpenIcon, MoreIcon, PlusIcon } from 
 import { useLocale } from "../../../i18n/locale.tsx";
 import { useRuntime } from "../../../runtime.ts";
 import { createProject, listProjects, PROJECT_NAME_MAX, type Project } from "../projects/projectsApi.ts";
+import { Input } from "../../primitives/Input.tsx";
 
 interface ChatRow {
   sessionId: string;
@@ -66,8 +67,10 @@ export function SidebarProjects({ onOpenProject }: { onOpenProject: (projectId: 
       </div>
       {creating && (
         <form className="fh-sidebar-projects-create" onSubmit={(event) => void create(event)}>
-          <input
+          <Input
             autoFocus
+            type="text"
+            className="fh-history-chat-search"
             value={name}
             maxLength={PROJECT_NAME_MAX}
             placeholder={t("projects.newName")}
