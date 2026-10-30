@@ -12,6 +12,14 @@ server {
   server_name _;
   root /usr/share/nginx/html;
 
+  # Compress text responses (docs/ui-performance-plan.md): the bundle and style.css shrink ~4-6x. Proxied API
+  # responses are left alone (gzip_proxied is off by default), so streaming and the WebSocket are untouched.
+  gzip on;
+  gzip_vary on;
+  gzip_comp_level 5;
+  gzip_min_length 1024;
+  gzip_types text/css application/javascript text/javascript application/json image/svg+xml;
+
   # Uploads go through the backend (data files for analysis): keep nginx from buffering or capping them first.
   client_max_body_size 80m;
   proxy_request_buffering off;
@@ -19,7 +27,7 @@ server {
   # Browser routes that share a prefix with the API below: the Data Studio pages (`/data-studio`,
   # `/data-studio/chat/<id>`, src/App.tsx) are the SPA's, the API is `/data-studio/<resource>`. Without this a
   # reload of either page went to the backend ({"error":"not found"} / 401). A regex location wins by order, so it
-  # stays above the API one; scripts/serve.mjs reads it from here too.
+  # stays above the API one; vite.config.ts reads it from here too.
   location ~ ^/data-studio(/chat/[^/]+)?/?$ {
     try_files /index.html =404;
     add_header Cache-Control "no-cache";
@@ -55,7 +63,13 @@ server {
   }
   location /docs/_astro/ { add_header Cache-Control "public, max-age=31536000, immutable"; }
 
-  # Hashed assets could be cached long; the bundle names are fixed today, so revalidate instead.
+  # Vite's output (/assets/<name>-<hash>.js): the name changes with the content, so cache it for good. A missing
+  # file is a 404, not the SPA page (an old tab asking for a chunk of a previous build gets a clear failure).
+  location /assets/ {
+    try_files $uri =404;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+  # index.html (fixed name): revalidate on every load (304 when unchanged).
   location = /index.html { add_header Cache-Control "no-cache"; }
   location / {
     try_files $uri /index.html;

@@ -84,14 +84,14 @@ export function EditFieldsDialog({
         </>
       }
     >
-      <div className="ds-form">
-        <label className="ds-field">
+      <div className="ds-form flex flex-col [gap:14px]">
+        <label className="ds-field flex flex-col [gap:6px] [&>span:first-child]:[font-size:0.85em] [&>span:first-child]:font-semibold [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]">
           <span>{t("dsx.chartName")}</span>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
-        <div className="ds-field">
+        <div className="ds-field flex flex-col [gap:6px] [&>span:first-child]:[font-size:0.85em] [&>span:first-child]:font-semibold [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]">
           <span>{t("dsx.xAxis")}</span>
-          <div className="ds-field-row">
+          <div className="ds-field-row flex items-center [gap:8px] [&>*]:[flex:1] [&>*]:min-w-0 [&>button]:flex-none [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]">
             <select value={x} onChange={(e) => setX(e.target.value)}>
               {allColumns.map((c) => (
                 <option key={c} value={c}>
@@ -102,13 +102,13 @@ export function EditFieldsDialog({
             <Input value={labelValue(x)} onChange={(e) => setLabels((p) => ({ ...p, [x]: e.target.value }))} placeholder={t("dsx.axisLabel")} />
           </div>
         </div>
-        <div className="ds-field">
+        <div className="ds-field flex flex-col [gap:6px] [&>span:first-child]:[font-size:0.85em] [&>span:first-child]:font-semibold [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]">
           <span>{t("dsx.ySeries")}</span>
           {numericColumns.map((column) => {
             const on = y.includes(column);
             return (
-              <div key={column} className="ds-field-row">
-                <label className="ds-check">
+              <div key={column} className="ds-field-row flex items-center [gap:8px] [&>*]:[flex:1] [&>*]:min-w-0 [&>button]:flex-none [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]">
+                <label className="ds-check flex items-center [gap:8px] [font-size:0.9em]">
                   <input type="checkbox" checked={on} onChange={() => toggleY(column)} />
                   {column}
                 </label>
@@ -148,7 +148,9 @@ export function EditColorsDialog({
   useEffect(() => {
     if (!open) return;
     const initial: Record<string, string> = {};
-    fields.forEach((f, i) => (initial[f] = colorFor(spec, f, i)));
+    fields.forEach((f, i) => {
+      initial[f] = colorFor(spec, f, i);
+    });
     setColors(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -176,9 +178,9 @@ export function EditColorsDialog({
         </>
       }
     >
-      <div className="ds-form">
+      <div className="ds-form flex flex-col [gap:14px]">
         {fields.map((field, i) => (
-          <div key={field} className="ds-field-row ds-color-row">
+          <div key={field} className="ds-field-row flex items-center [gap:8px] [&>*]:[flex:1] [&>*]:min-w-0 [&>button]:flex-none [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit] ds-color-row justify-between [&_input[type=color]]:flex-none [&_input[type=color]]:[width:56px] [&_input[type=color]]:[height:32px] [&_input[type=color]]:p-0 [&_input[type=color]]:[border:1px_solid_var(--border)] [&_input[type=color]]:[border-radius:6px] [&_input[type=color]]:[background:transparent] [&_input[type=color]]:cursor-pointer">
             <span>{labelFor(field, spec.label_overrides)}</span>
             <input
               type="color"
@@ -251,27 +253,27 @@ export function AddToDashboardDialog({ open, onClose, chartId }: { open: boolean
       {done ? (
         <p>{t("dsx.addedTo", { name: done })}</p>
       ) : (
-        <div className="ds-form">
-          <div className="ds-field">
+        <div className="ds-form flex flex-col [gap:14px]">
+          <div className="ds-field flex flex-col [gap:6px] [&>span:first-child]:[font-size:0.85em] [&>span:first-child]:font-semibold [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]">
             <span>{t("dsx.existingDashboards")}</span>
             {loading ? (
-              <div className="ds-muted">{t("dataStudio.loading")}</div>
+              <div className="ds-muted [color:var(--muted)] [font-size:0.85em]">{t("dataStudio.loading")}</div>
             ) : dashboards.length === 0 ? (
-              <div className="ds-muted">{t("dsx.noDashboards")}</div>
+              <div className="ds-muted [color:var(--muted)] [font-size:0.85em]">{t("dsx.noDashboards")}</div>
             ) : (
-              <div className="ds-pick-list">
+              <div className="ds-pick-list flex flex-col [gap:4px] [max-height:200px] overflow-y-auto">
                 {dashboards.map((d) => (
-                  <button key={d.id} type="button" className="ds-pick" disabled={busy} onClick={() => void pinTo(d.id, d.title)}>
+                  <button key={d.id} type="button" className="ds-pick [height:auto] flex items-center justify-between [padding:8px_12px] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:none] [color:var(--fg)] [font:inherit] text-left [&:hover:not(:disabled)]:[background:color-mix(in_srgb,var(--accent)_8%,transparent)] [&:hover:not(:disabled)]:[border-color:var(--accent)]" disabled={busy} onClick={() => void pinTo(d.id, d.title)}>
                     <span>{d.title}</span>
-                    <span className="ds-muted">{t("dsx.chartsCount", { n: String(d.widget_count) })}</span>
+                    <span className="ds-muted [color:var(--muted)] [font-size:0.85em]">{t("dsx.chartsCount", { n: String(d.widget_count) })}</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <div className="ds-field ds-field-divided">
+          <div className="ds-field flex flex-col [gap:6px] [&>span:first-child]:[font-size:0.85em] [&>span:first-child]:font-semibold [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit] ds-field-divided [padding-top:12px] [border-top:1px_solid_var(--border-subtle)]">
             <span>{t("dsx.createNewDashboard")}</span>
-            <div className="ds-field-row">
+            <div className="ds-field-row flex items-center [gap:8px] [&>*]:[flex:1] [&>*]:min-w-0 [&>button]:flex-none [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]">
               <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder={t("dsx.dashboardNamePlaceholder")} />
               <Button variant="primary" disabled={busy} onClick={() => void createAndPin()}>
                 {t("dsx.create")}

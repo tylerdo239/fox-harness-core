@@ -6,7 +6,7 @@
 import { lazy, Suspense, useCallback, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
 import { useLocale } from '../../../i18n/locale.tsx'
-// Loaded on first use: the panel brings CodeMirror and the file renderers (scripts/build.mjs splits them out).
+// Loaded on first use: the panel brings CodeMirror and the file renderers (Vite splits them out).
 const CanvasPanel = lazy(() => import('./CanvasPanel.tsx').then((module) => ({ default: module.CanvasPanel })))
 import { useCanvasStore } from './store.ts'
 
@@ -70,7 +70,10 @@ export function useCanvasLayout(frameWidth: number, sidebarWidth: number, narrow
     document.body.classList.add('fh-resizing')
     function onMove(move: MouseEvent): void {
       // the button was released where this window could not see it: end the drag here
-      if (move.buttons === 0) return onUp()
+      if (move.buttons === 0) {
+        onUp()
+        return
+      }
       // The handle is the canvas's LEFT edge: dragging left widens it.
       setOverride(clampWidth(startWidth + (startX - move.clientX), CANVAS_MIN_WIDTH, CANVAS_MAX_WIDTH))
     }
@@ -113,7 +116,7 @@ export function CanvasColumn({ layout, sessionId }: { layout: CanvasLayout; sess
   const { t } = useLocale()
   if (layout.overlay) {
     return (
-      <div className="fh-tw fh-canvas-overlay">
+      <div className="fh-tw fh-canvas-overlay fixed [inset:0_0_0_auto] [width:min(100vw,560px)] [z-index:40] [box-shadow:var(--fh-shadow-lv3)]">
         <Suspense fallback={null}>
           <CanvasPanel sessionId={sessionId} overlay />
         </Suspense>
@@ -124,14 +127,14 @@ export function CanvasColumn({ layout, sessionId }: { layout: CanvasLayout; sess
   return (
     <>
       <div
-        className="fh-canvas-handle"
+        className="fh-canvas-handle h-full [cursor:col-resize] [background:transparent] [border-left:1px_solid_transparent] [transition:background_var(--fh-duration-fast)_var(--fh-ease)] [&:hover]:[background:color-mix(in_srgb,var(--fh-accent)_25%,transparent)] [&&:active]:[background:color-mix(in_srgb,var(--fh-accent)_25%,transparent)]"
         role="separator"
         aria-orientation="vertical"
         title={t('canvas.resizeHandle')}
         onMouseDown={layout.onResizeStart}
         onDoubleClick={layout.onResizeReset}
       />
-      <div className="fh-tw fh-canvas-col">
+      <div className="fh-tw fh-canvas-col min-w-0 min-h-0 h-full overflow-hidden">
         <Suspense fallback={null}>
           <CanvasPanel sessionId={sessionId} />
         </Suspense>

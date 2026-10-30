@@ -16,7 +16,7 @@ export function SelectableCard({
     <button
       {...rest}
       type="button"
-      className={`fh-selectable-card${active ? ' active' : ''}${className ? ` ${className}` : ''}`}
+      className={`fh-selectable-card [flex:1] [height:auto] [min-height:92px] flex flex-col items-center justify-center [gap:0.5em] [padding:1em] [background:transparent] [border:1px_solid_var(--border)] [border-radius:12px] [color:var(--fg)] [font-size:0.85em] [&:hover]:[background:var(--bg-hover)] [&.active]:[border-color:var(--accent)] [&&.active]:[background:var(--bg-hover)]${active ? ' active' : ''}${className ? ` ${className}` : ''}`}
     />
   )
 }

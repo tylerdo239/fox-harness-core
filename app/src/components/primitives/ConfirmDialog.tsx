@@ -75,7 +75,7 @@ export function ConfirmDialogHost() {
       open={pending !== null}
       title={pending?.title ?? ''}
       onClose={() => settle(false)}
-      className={`fh-confirm-dialog${pending?.danger ? ' fh-confirm-danger' : ''}`}
+      className={`fh-confirm-dialog [z-index:1100] [&_.ds-modal-panel]:[width:min(420px,92vw)] [&_.ds-modal-footer]:[border-top:none] [&_.ds-modal-footer]:[padding-top:4px]${pending?.danger ? ' fh-confirm-danger [&_.fh-settings-panel-header_h2]:[color:var(--status-danger)]' : ''}`}
       footer={
         <>
           <Button ref={cancelRef} variant="outline" onClick={() => settle(false)}>
@@ -91,7 +91,7 @@ export function ConfirmDialogHost() {
         </>
       }
     >
-      {pending?.message && <div className="fh-confirm-message">{pending.message}</div>}
+      {pending?.message && <div className="fh-confirm-message [color:var(--muted)] [font-size:0.92em] [line-height:1.5] [overflow-wrap:anywhere]">{pending.message}</div>}
     </Modal>
   )
 }

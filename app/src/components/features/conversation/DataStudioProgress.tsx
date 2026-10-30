@@ -13,6 +13,10 @@ type T = (key: TranslationKey, params?: Record<string, string>) => string;
 export type ProgressItem = Record<string, unknown>;
 
 type Status = "started" | "done" | "failed";
+// one literal per status, so the Tailwind move can find each class (docs/ui-performance-plan.md §8)
+const MARK_CLASS = { started: "ds-progress-started", done: "ds-progress-done [color:var(--accent)]", failed: "ds-progress-failed [color:#c0392b]" } as const;
+const AGENT_CLASS = { started: "ds-progress-agent-started [&>.ds-progress-row]:[color:var(--fg)]", done: "ds-progress-agent-done", failed: "ds-progress-agent-failed" } as const;
+const STEP_CLASS = { started: "ds-progress-step-started [color:var(--fg)] font-semibold", done: "ds-progress-step-done", failed: "ds-progress-step-failed" } as const;
 
 interface ToolRow {
   id: string;
@@ -150,8 +154,8 @@ export function buildRunView(items: readonly ProgressItem[]): RunView {
 }
 
 function Mark({ s }: { s: Status }) {
-  if (s === "started") return <span className="ds-spinner ds-progress-mark" aria-hidden />;
-  return <span className={`ds-progress-mark ds-progress-${s}`} aria-hidden>{s === "done" ? "✓" : "✗"}</span>;
+  if (s === "started") return <span className="ds-spinner [&.ds-progress-mark]:[width:10px] [&.ds-progress-mark]:[height:10px] [width:14px] [height:14px] [border:2px_solid_var(--border)] [&&]:[border-top-color:var(--accent)] [border-radius:50%] [animation:fh-spin_0.8s_linear_infinite] ds-progress-mark inline-flex flex-none justify-center [font-size:0.9em]" aria-hidden />;
+  return <span className={`ds-progress-mark inline-flex flex-none justify-center [width:12px] [font-size:0.9em] ${MARK_CLASS[s]}`} aria-hidden>{s === "done" ? "✓" : "✗"}</span>;
 }
 
 function AgentLine({ row, name, live, t }: { row: AgentRow; name: string; live: boolean; t: T }) {
@@ -160,26 +164,26 @@ function AgentLine({ row, name, live, t }: { row: AgentRow; name: string; live: 
   // while running: the agent's latest tool calls; afterwards they fold behind a click
   const shown = running && live ? row.tools.slice(-3) : open ? row.tools : [];
   return (
-    <li className={`ds-progress-agent ds-progress-agent-${row.status}`}>
-      <button type="button" className="ds-progress-row" onClick={() => setOpen((v) => !v)} disabled={row.tools.length === 0}>
+    <li className={`ds-progress-agent ${AGENT_CLASS[row.status]}`}>
+      <button type="button" className="ds-progress-row flex items-center [gap:6px] w-full [height:auto] [padding:2px_0] [border:none] [border-radius:0] [background:transparent] [color:inherit] [font:inherit] text-left [&:disabled]:[opacity:1] [&:disabled]:cursor-default" onClick={() => setOpen((v) => !v)} disabled={row.tools.length === 0}>
         <Mark s={row.status} />
-        <span className="ds-progress-label">{name}</span>
-        {row.part && <span className="ds-progress-part">{row.part}</span>}
+        <span className="ds-progress-label [flex:0_1_auto]">{name}</span>
+        {row.part && <span className="ds-progress-part [padding:0_5px] [border:1px_solid_var(--border)] [border-radius:6px] [font-size:0.85em]">{row.part}</span>}
         {row.tools.length > 0 && (
-          <span className="ds-progress-count">
+          <span className="ds-progress-count inline-flex items-center [gap:2px] [margin-left:auto] [font-size:0.9em]">
             {t("conversation.dsProgressTools", { n: String(row.tools.length) })}
             {!running && (open ? <ChevronDownIcon size={11} /> : <ChevronRightIcon size={11} />)}
           </span>
         )}
       </button>
-      {row.error && <div className="ds-progress-error">{row.error}</div>}
+      {row.error && <div className="ds-progress-error [color:#c0392b] [margin:2px_0_2px_18px]">{row.error}</div>}
       {shown.length > 0 && (
-        <ul className="ds-progress-tools">
+        <ul className="ds-progress-tools p-0 [list-style:none] [margin:0_0_4px_20px]">
           {shown.map((tool) => (
-            <li key={tool.id} className="ds-progress-tool" title={tool.result || undefined}>
+            <li key={tool.id} className="ds-progress-tool flex items-center [gap:6px] [padding:1px_0] min-w-0 [&_code]:[font-size:0.95em] [&_code]:[color:var(--fg)]" title={tool.result || undefined}>
               <Mark s={tool.status} />
               <code>{tool.tool}</code>
-              {tool.args && tool.args !== "{}" && <span className="ds-progress-args">{tool.args}</span>}
+              {tool.args && tool.args !== "{}" && <span className="ds-progress-args overflow-hidden whitespace-nowrap text-ellipsis [font-family:monospace] [font-size:0.9em]">{tool.args}</span>}
             </li>
           ))}
         </ul>
@@ -196,11 +200,11 @@ export function DataStudioProgress({ items, live, t }: { items: readonly Progres
   if (items.length === 0) return null;
 
   const body = (
-    <div className="ds-progress-body">
+    <div className="ds-progress-body [margin-top:6px]">
       {view.steps.length > 0 && (
-        <ol className="ds-progress-steps">
+        <ol className="ds-progress-steps flex flex-wrap [gap:6px_14px] [margin:0_0_8px] p-0 [list-style:none]">
           {view.steps.map((s) => (
-            <li key={s.name} className={`ds-progress-step ds-progress-step-${s.status}`}>
+            <li key={s.name} className={`ds-progress-step inline-flex items-center [gap:5px] ${STEP_CLASS[s.status]}`}>
               <Mark s={s.status} />
               {name(s.name, s.label)}
             </li>
@@ -208,32 +212,32 @@ export function DataStudioProgress({ items, live, t }: { items: readonly Progres
         </ol>
       )}
       {view.parts.length > 1 && (
-        <ul className="ds-progress-parts">
+        <ul className="ds-progress-parts m-0 p-0 [list-style:none] [margin-bottom:6px]">
           {view.parts.map((p) => (
             <li key={p.id}>
-              <span className="ds-progress-part">{p.id}</span> {p.question}
+              <span className="ds-progress-part [padding:0_5px] [border:1px_solid_var(--border)] [border-radius:6px] [font-size:0.85em]">{p.id}</span> {p.question}
             </li>
           ))}
         </ul>
       )}
-      <ul className="ds-progress-agents">
+      <ul className="ds-progress-agents m-0 p-0 [list-style:none]">
         {view.agents.map((row) => (
           <AgentLine key={row.id} row={row} name={name(row.agent, row.label)} live={live} t={t} />
         ))}
       </ul>
       {view.errors.map((e, i) => (
-        <div key={i} className="ds-progress-error">
+        <div key={i} className="ds-progress-error [color:#c0392b] [margin:2px_0_2px_18px]">
           {e}
         </div>
       ))}
     </div>
   );
 
-  if (live) return <div className="ds-progress ds-progress-live">{body}</div>;
+  if (live) return <div className="ds-progress [margin:6px_0_10px] [font-size:0.85em] [color:var(--muted)] ds-progress-live [&&]:[margin-top:10px] [padding:10px_12px] [border:1px_solid_var(--border)] [border-radius:10px] [background:var(--surface)]">{body}</div>;
   const done = view.agents.filter((a) => a.status !== "started").length;
   return (
-    <div className="ds-progress">
-      <button type="button" className="ds-progress-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+    <div className="ds-progress [margin:6px_0_10px] [font-size:0.85em] [color:var(--muted)]">
+      <button type="button" className="ds-progress-toggle inline-flex items-center [gap:6px] [height:auto] [padding:2px_0] [border:none] [background:transparent] [color:var(--muted)] [font:inherit] [&:hover]:[color:var(--fg)]" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         {open ? <ChevronDownIcon size={13} /> : <ChevronRightIcon size={13} />}
         {t("conversation.dsProgressSteps", { n: String(done) })}
       </button>

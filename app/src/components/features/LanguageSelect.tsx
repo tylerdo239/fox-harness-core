@@ -77,7 +77,7 @@ export function LanguageSelect() {
         id="language-select"
         ref={triggerRef}
         type="button"
-        className="fh-lang-select-trigger"
+        className="fh-lang-select-trigger flex items-center justify-between [gap:0.5em] [min-width:160px] [height:34px] [padding:0_0.75em] [background:var(--bg)] [color:var(--fg)] [border:1px_solid_var(--border)] [border-radius:8px] [font-size:0.85em] [&:hover]:[background:var(--bg-hover)]"
         onClick={() => (open ? setOpen(false) : openMenu())}
       >
         <span>{locale === 'vi' ? 'Tiếng Việt' : 'English'}</span>
@@ -88,7 +88,7 @@ export function LanguageSelect() {
         createPortal(
           <div
             ref={popupRef}
-            className="fh-lang-select-popup"
+            className="fh-lang-select-popup fixed [background:var(--bg)] [border:1px_solid_var(--border)] [border-radius:12px] [box-shadow:var(--shadow-lv2)] [padding:4px] [z-index:1001]"
             style={{ left: position.left, top: position.top, width: position.width }}
           >
             <MenuItem variant="popup" active={locale === 'vi'} onClick={() => choose('vi')}>

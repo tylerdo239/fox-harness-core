@@ -44,13 +44,10 @@ export interface Runtime {
   // EITHER `SessionTitleBar.tsx` (top of the chat column) or
   // `HistoryChat.tsx` (sidebar) shows up in the other without either owning
   // the other's internal state. `sessionTitle` is the value to DISPLAY;
-  // `sessionsVersion` is a plain invalidation counter — bump it after a
-  // successful rename and `HistoryChat.tsx`'s existing `refresh()` effect
-  // (already re-fetches on session switch) also re-fetches on a bump,
-  // without exposing that effect/its `rows` state through this context.
+  // `bumpSessionsVersion()` after a change to a chat or a project: refetches
+  // the shared chat list and projects (src/queries.ts).
   sessionTitle: string | undefined
   setSessionTitle: (title: string | undefined) => void
-  sessionsVersion: number
   bumpSessionsVersion: () => void
 }
 

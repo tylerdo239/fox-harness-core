@@ -30,13 +30,11 @@ api/packages/tool/data-studio-agent/python/debug/
 /api/scripts/bench/reports/
 /api/scripts/bench/fixtures/
 
-# app/: the esbuild bundle is build output (app/Dockerfile builds it)
-/app/public/main.js
-/app/public/chunks/
-/app/public/ref.css
-/app/public/tw.css
+# app/: build output (vite.config.ts; app/Dockerfile builds it) — dist/ is ignored above
+/app/src/styles/generated/
 
 # Local benchmark cases (DABStep and its variants, repros), not part of the shared suite
 /api/scripts/bench/cases/dabstep-*.json
 /api/scripts/bench/cases/dabx-*.json
 /api/scripts/bench/cases/repro-*.json
+/app/.parity/

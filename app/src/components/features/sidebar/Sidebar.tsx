@@ -100,14 +100,14 @@ export function Sidebar({
   return (
     <div
       id="sidebar-col"
-      className={`fh-sidebar-col${collapsed ? " fh-sidebar-rail" : ""}`}
+      className={`[#sidebar-col&]:[padding:6px_12px] [#sidebar-col&]:[background:var(--surface)] [#sidebar-col&]:[border-right:1px_solid_var(--border)] [#sidebar-col&]:min-w-0 [#sidebar-col&]:overflow-hidden [#sidebar-col&]:flex [#sidebar-col&]:flex-col fh-sidebar-col${collapsed ? " fh-sidebar-rail [#sidebar-col&]:items-center [#sidebar-col&&]:[padding:6px] [#sidebar-col&_.fh-sidebar-brand-mark]:hidden [#sidebar-col&_.fh-sidebar-brand-name]:hidden [#sidebar-col&_.fh-sidebar-search-toggle]:hidden [#sidebar-col&_.fh-sidebar-region]:hidden [#sidebar-col&_.fh-sidebar-new-session-label]:hidden [#sidebar-col&_.fh-sidebar-account-email]:hidden [#sidebar-col&_.fh-sidebar-account-more]:hidden [#sidebar-col&_.fh-sidebar-logo-row]:[height:36px] [#sidebar-col&_.fh-sidebar-logo-row]:[margin-bottom:12px] [#sidebar-col&_.fh-sidebar-logo-row]:p-0 [#sidebar-col&_.fh-sidebar-logo-row]:justify-center [#sidebar-col&_.fh-sidebar-brand]:flex-none [#sidebar-col&_.fh-sidebar-new-session]:[width:36px] [#sidebar-col&_.fh-sidebar-new-session]:[height:36px] [#sidebar-col&_.fh-sidebar-new-session]:[margin:0_0_12px] [#sidebar-col&_.fh-sidebar-new-session]:p-0 [#sidebar-col&_.fh-sidebar-new-session]:[border-color:transparent] [#sidebar-col&_.fh-sidebar-new-session]:[background:transparent] [#sidebar-col&_.fh-sidebar-skills]:[width:36px] [#sidebar-col&_.fh-sidebar-skills]:justify-center [#sidebar-col&_.fh-sidebar-skills]:[margin:0_0_12px] [#sidebar-col&_.fh-sidebar-skills]:p-0 [#sidebar-col&_.fh-sidebar-skills-label]:hidden [#sidebar-col&_.fh-sidebar-data-analysis]:[width:36px] [#sidebar-col&_.fh-sidebar-data-analysis]:justify-center [#sidebar-col&_.fh-sidebar-data-analysis]:[margin:0_0_12px] [#sidebar-col&_.fh-sidebar-data-analysis]:p-0 [#sidebar-col&_.fh-sidebar-data-analysis-label]:hidden [#sidebar-col&_.fh-sidebar-data-studio]:[width:36px] [#sidebar-col&_.fh-sidebar-data-studio]:justify-center [#sidebar-col&_.fh-sidebar-data-studio]:[margin:0_0_12px] [#sidebar-col&_.fh-sidebar-data-studio]:p-0 [#sidebar-col&_.fh-sidebar-data-studio-label]:hidden [#sidebar-col&_.fh-data-studio-nav-item]:flex-none [#sidebar-col&_.fh-data-studio-nav-item]:[width:36px] [#sidebar-col&_.fh-data-studio-nav-item]:justify-center [#sidebar-col&_.fh-data-studio-nav-item]:[margin:0_0_4px] [#sidebar-col&_.fh-data-studio-nav-item]:p-0 [#sidebar-col&_.fh-data-studio-nav-label]:hidden [#sidebar-col&.fh-data-studio-sidebar_.fh-sidebar-logo-row]:flex-col [#sidebar-col&.fh-data-studio-sidebar_.fh-sidebar-logo-row]:[height:auto] [#sidebar-col&.fh-data-studio-sidebar_.fh-sidebar-logo-row]:[gap:8px] [#sidebar-col&.fh-data-studio-sidebar_.fh-sidebar-brand]:hidden" : ""}`}
     >
-      <div className="fh-sidebar-logo-row">
-        <div className="fh-sidebar-brand">
-          <span className="fh-sidebar-brand-mark">
+      <div className="fh-sidebar-logo-row flex-none flex items-center justify-end [gap:8px] [height:60px] [margin-bottom:8px] [padding:8px_0_8px_4px] overflow-hidden">
+        <div className="fh-sidebar-brand inline-flex items-center [gap:8px] min-w-0 [flex:1] overflow-hidden">
+          <span className="fh-sidebar-brand-mark inline-flex flex-none items-center justify-center [color:var(--accent)]">
             <BrandIcon size={24} />
           </span>
-          <span className="fh-sidebar-brand-name">Fox Agent</span>
+          <span className="fh-sidebar-brand-name [font-size:18px] font-semibold [letter-spacing:0.04em] whitespace-nowrap overflow-hidden text-ellipsis [color:var(--accent)]">Fox Agent</span>
         </div>
         <IconButton
           className="fh-sidebar-search-toggle"
@@ -137,11 +137,11 @@ export function Sidebar({
       </div>
 
       {searchOpen && (
-        <div className="fh-sidebar-search-row">
+        <div className="fh-sidebar-search-row flex-none [padding:0_2px_8px]">
           <Input
             ref={searchInputRef}
             id="session-search-input"
-            className="fh-history-chat-search"
+            className="fh-history-chat-search [input[type=text]&]:w-full [input[type=text]&]:[height:30px] [input[type=text]&]:[padding:0_0.6em] [input[type=text]&]:[border:1px_solid_var(--border)] [input[type=text]&:focus]:[border-color:var(--accent)] [input[type=text]&]:[border-radius:10px] [input[type=text]&]:[background:transparent] [input[type=text]&]:[color:var(--fg)] [input[type=text]&]:[font-size:0.85em]"
             type="text"
             placeholder={t("sidebar.searchPlaceholder")}
             value={query}
@@ -155,7 +155,7 @@ export function Sidebar({
 
       <Button
         variant="raised"
-        className="fh-sidebar-new-session"
+        className="fh-sidebar-new-session flex-none [margin:0_2px_8px]"
         onClick={onNewSession}
         disabled={newSessionDisabled}
       >
@@ -167,7 +167,7 @@ export function Sidebar({
 
       <MenuItem
         variant="nav"
-        className="fh-sidebar-skills"
+        className="fh-sidebar-skills flex-none [margin:0_2px_8px]"
         active={skillsActive}
         onClick={onOpenSkills}
         title={t("sidebar.skills")}
@@ -178,7 +178,7 @@ export function Sidebar({
 
       <MenuItem
         variant="nav"
-        className="fh-sidebar-data-analysis"
+        className="fh-sidebar-data-analysis flex-none [margin:0_2px_8px]"
         active={dataAnalysisActive}
         onClick={onOpenDataAnalysis}
         title={t("sidebar.dataAnalysis")}
@@ -191,7 +191,7 @@ export function Sidebar({
 
       <MenuItem
         variant="nav"
-        className="fh-sidebar-data-studio"
+        className="fh-sidebar-data-studio flex-none [margin:0_2px_8px]"
         onClick={onOpenDataStudio}
         title={t("sidebar.dataStudio")}
       >
@@ -201,12 +201,12 @@ export function Sidebar({
         </span>
       </MenuItem>
 
-      <div className="fh-sidebar-region">
+      <div className="fh-sidebar-region [flex:1] min-h-0 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:[width:8px] [&::-webkit-scrollbar-thumb]:[background:var(--border)] [&::-webkit-scrollbar-thumb]:[border-radius:999px] [&::-webkit-scrollbar-thumb:hover]:[background:var(--muted)] [&::-webkit-scrollbar-track]:[background:transparent]">
         <SidebarProjects onOpenProject={onOpenProject} />
         <HistoryChat query={query} />
       </div>
 
-      <div className="fh-sidebar-foot">
+      <div className="fh-sidebar-foot flex-none flex flex-col [margin-top:auto]">
         <AccountMenu onOpenSettings={onOpenSettings} onLogout={onLogout} onOpenUsage={onOpenUsage} />
       </div>
     </div>

@@ -15,7 +15,8 @@
  * and packages/transport/README.md for the authoritative protocol docs.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 
 import { ConfirmDialogHost } from "./components/primitives/ConfirmDialog.tsx";
@@ -30,234 +31,44 @@ import { SettingsDialog, type SettingsTab } from "./components/features/settings
 import { OPEN_STORAGE_EVENT } from "./components/features/settings/storageApi.ts";
 import { SkillsPage } from "./components/features/skills/SkillsPage.tsx";
 import { DataStudioDashboards } from "./components/features/data-studio/DataStudioDashboards.tsx";
-import { UsageDashboard } from "./components/features/admin/UsageDashboard.tsx";
 import { DataStudioDataSources } from "./components/features/data-studio/DataStudioDataSources.tsx";
-import { DataStudioProfile } from "./components/features/data-studio/DataStudioProfile.tsx";
 import {
   DataStudioSidebar,
   type DataStudioSection,
 } from "./components/features/data-studio/DataStudioSidebar.tsx";
+import { loadChartPlot } from "./components/features/conversation/ChartView.tsx";
+import { loadSqlFormatter, preloadWhenIdle } from "./lazyLoad.ts";
 import { Sidebar } from "./components/features/sidebar/Sidebar.tsx";
 import {
   LocaleProvider,
   translateErrorCode,
   useLocale,
 } from "./i18n/locale.tsx";
+import { AuthError, defaultGatewayUrl, login, logoutRequest, STORAGE_EMAIL, STORAGE_GATEWAY, STORAGE_ROLE, STORAGE_SIDEBAR_COLLAPSED, STORAGE_TOKEN, storedRole, wsBaseFor } from "./auth.ts";
+import { computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_EXPANDED_WIDTH } from "./layout.ts";
+import { invalidateSessions, queryClient } from "./queries.ts";
+import {
+  chatPath,
+  hubPath,
+  initialSessionTarget,
+  isDataStudioUrl,
+  pushUrl,
+  replaceUrl,
+  routeFromUrl,
+  sessionIdFromUrl,
+  type ChatPlace,
+  type Route,
+} from "./routing.ts";
 import { RuntimeContext, type Runtime, type UserRole } from "./runtime.ts";
 import type { ServerToClient } from "./wire.ts";
 
-const STORAGE_TOKEN = "fox-harness/token";
-const STORAGE_GATEWAY = "fox-harness/gatewayUrl";
-const STORAGE_SIDEBAR_COLLAPSED = "fox-harness/sidebarCollapsed";
-const STORAGE_EMAIL = "fox-harness/email";
-// The role `/auth/login` returned, stored next to the token (same lifetime). A stored token with no stored
-// role (a login from before roles existed) reads as "user" — least privilege; the gateway is the real authority.
-const STORAGE_ROLE = "fox-harness/role";
+// The two heaviest pages (recharts; the Data Profile screens with Prism and sql-formatter) load on first use, and
+// in the background once the app is idle (src/lazyLoad.ts, docs/ui-performance-plan.md).
+const loadUsageDashboard = () => import("./components/features/admin/UsageDashboard.tsx");
+const loadDataStudioProfile = () => import("./components/features/data-studio/DataStudioProfile.tsx");
+const UsageDashboard = lazy(() => loadUsageDashboard().then((module) => ({ default: module.UsageDashboard })));
+const DataStudioProfile = lazy(() => loadDataStudioProfile().then((module) => ({ default: module.DataStudioProfile })));
 
-function storedRole(): UserRole {
-  return localStorage.getItem(STORAGE_ROLE) === "admin" ? "admin" : "user";
-}
-
-// Real 2-column frame (sidebar | center), reimplementing dsh's real
-// `dsh-client-ui-layout`'s AppFrame algorithm — read directly from its
-// actual installed (unminified) compiled output, not guessed
-// (docs/code-rules.md's Phase 10 entry has the real research). Same
-// breakpoint (1024px) and rail width (56px) as the real one; deliberately
-// smaller — no drag-to-resize.
-const SIDEBAR_AUTO_COLLAPSE = 1024;
-const SIDEBAR_RAIL_WIDTH = 56;
-const SIDEBAR_EXPANDED_WIDTH = 280;
-
-function clampWidth(px: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, Math.round(px)));
-}
-
-// Same 3-way concession algorithm as dsh's real `computeColumns` — sidebar
-// first, then let center shrink, then (if still too tight) close details
-// entirely. `details` is always 0 here (nothing occupies it), so this
-// project only ever exercises the first two branches in practice.
-function computeColumns(
-  viewport: number,
-  sidebar: number,
-  details: number,
-): { sidebar: number; center: number; details: number } {
-  const s = sidebar === 0 ? SIDEBAR_RAIL_WIDTH : clampWidth(sidebar, 264, 420);
-  const d0 = details === 0 ? 0 : clampWidth(details, 300, 520);
-  if (s + d0 + 640 <= viewport)
-    return { sidebar: s, center: viewport - s - d0, details: d0 };
-  const d1 = d0 === 0 ? 0 : Math.max(300, viewport - s - 640);
-  if (s + d1 + 640 <= viewport) return { sidebar: s, center: 640, details: d1 };
-  return { sidebar: s, center: Math.max(0, viewport - s), details: 0 };
-}
-
-function defaultGatewayUrl(): string {
-  const fromQuery = new URLSearchParams(location.search).get("gateway");
-  return (
-    fromQuery ??
-    localStorage.getItem(STORAGE_GATEWAY) ??
-    // Always the page's own origin: nginx in the web container (app/Dockerfile) and the dev server
-    // (app/scripts/serve.mjs) both forward the API paths and the chat WebSocket to BACKEND_URL (app/.env).
-    location.origin
-  );
-}
-
-function wsBaseFor(httpBase: string): string {
-  return httpBase.replace(/^http/, "ws").replace(/\/$/, "");
-}
-
-// Real `/chat/<id>` URL routing (2026-09-09), hidden until a session
-// actually has content — mirrors the backend's own `sessions.first_message_at`
-// rule (api/migrations/001_init.sql, services/gateway/src/db.ts) that
-// already keeps an unchated session out of `GET /sessions/mine`: nothing
-// session-specific shows anywhere (URL included) until a real message has
-// been sent. Replaces the old `localStorage`-based `STORAGE_SESSION_ID` —
-// the URL is strictly better for this exact piece of state (shareable,
-// bookmarkable, and doesn't leak across tabs of the same origin the way
-// `localStorage` does, a real latent bug the old approach had).
-//
-// Mirrors services/gateway/src/index.ts's own `SESSION_ID_RE` shape — not
-// imported, services/*/app don't share runtime code (this repo's
-// established boundary).
-const SESSION_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// The data-analysis area has its own URLs (2026-09-15) and its chats stay out
-// of the general chat history:
-//   /                          new general chat   /chat/<id>        general chat
-//   /data                      project list       /data/<project>   project page
-//   /data/<project>/chat/<id>  chat in a project  /data/chat/<id>   older data chat without a project
-//   /data-studio               Data Studio home   /data-studio/chat/<id>  chat in Data Studio
-//   /admin/usage               the admin usage dashboard (docs/admin-usage-dashboard-plan.md)
-//   /my-skills                 the user's skills (SkillsPage.tsx); not /skills, the gateway's API route
-type Route =
-  | { view: "adminUsage" }
-  | { view: "skills" }
-  | { view: "chat"; sessionId?: string }
-  | { view: "hub"; projectId: string | null }
-  | { view: "dataChat"; projectId: string | null; sessionId: string }
-  | { view: "dataStudio"; sessionId?: string };
-
-function routeFromUrl(): Route | undefined {
-  const parts = location.pathname.split("/").filter(Boolean);
-  const isId = (part: string | undefined) => part !== undefined && SESSION_ID_RE.test(part);
-  if (parts.length === 0) return { view: "chat" };
-  if (parts[0] === "chat" && parts.length === 2 && isId(parts[1])) return { view: "chat", sessionId: parts[1] };
-  if (parts[0] === "admin" && parts[1] === "usage" && parts.length === 2) return { view: "adminUsage" };
-  if (parts[0] === "my-skills" && parts.length === 1) return { view: "skills" };
-  // docs/data-studio-agent-transfer-plan.md: Data Studio has its own URL space.
-  if (parts[0] === "data-studio") {
-    if (parts.length === 1) return { view: "dataStudio" };
-    if (parts.length === 3 && parts[1] === "chat" && isId(parts[2])) return { view: "dataStudio", sessionId: parts[2] };
-    return undefined;
-  }
-  if (parts[0] !== "data") return undefined;
-  if (parts.length === 1) return { view: "hub", projectId: null };
-  if (parts.length === 2 && isId(parts[1])) return { view: "hub", projectId: parts[1] };
-  if (parts.length === 3 && parts[1] === "chat" && isId(parts[2])) return { view: "dataChat", projectId: null, sessionId: parts[2] };
-  if (parts.length === 4 && isId(parts[1]) && parts[2] === "chat" && isId(parts[3])) {
-    return { view: "dataChat", projectId: parts[1], sessionId: parts[3] };
-  }
-  return undefined;
-}
-
-function sessionIdFromUrl(): string | undefined {
-  const route = routeFromUrl();
-  return route && route.view !== "hub" && route.view !== "adminUsage" && route.view !== "skills" ? route.sessionId : undefined;
-}
-
-// Where a chat lives: the general chat area, the data area (in a project, or none), or Data Studio.
-type ChatPlace = { area: "chat" } | { area: "data"; projectId: string | null } | { area: "data-studio" };
-
-function chatPath(id: string, place: ChatPlace): string {
-  if (place.area === "chat") return `/chat/${id}`;
-  if (place.area === "data-studio") return `/data-studio/chat/${id}`;
-  return place.projectId ? `/data/${place.projectId}/chat/${id}` : `/data/chat/${id}`;
-}
-
-function hubPath(projectId: string | null): string {
-  return projectId ? `/data/${projectId}` : "/data";
-}
-
-// True on any `/data-studio…` address (used for the initial Data Studio mode and for a fresh visit's flow).
-function isDataStudioUrl(): boolean {
-  return location.pathname === "/data-studio" || location.pathname.startsWith("/data-studio/");
-}
-
-// Shared by both the auto-reconnect-on-load effect and handleLogin — what to
-// connect to given whatever's currently in the address bar. `flow` is only
-// set for a brand-new `/data-studio` visit with no id yet (a normal `/chat/`
-// or bare `/` visit gets `undefined`, same as before this flow existed).
-function initialSessionTarget(): { path: string; flow?: string } {
-  const sessionId = sessionIdFromUrl();
-  if (sessionId) return { path: sessionId };
-  return { path: "new", flow: isDataStudioUrl() ? "data-studio" : undefined };
-}
-
-// `replaceState` for transitions the app makes on the user's behalf (the
-// auto-transition from `/` to `/chat/<id>` on a session's first message,
-// or a stale-URL cleanup) — no new history entry, so Back skips past that
-// state entirely. `pushState` for navigation the user actually clicked
-// into (switching to a different chat, hitting "New chat") — Back/Forward
-// should move between conversations someone deliberately opened. Matches
-// how Back behaves on real chat platforms after sending a first message:
-// it does NOT return to a blank compose screen.
-function replaceUrl(path: string): void {
-  history.replaceState(null, "", path);
-}
-function pushUrl(path: string): void {
-  history.pushState(null, "", path);
-}
-// i18n (2026-09-10): services/gateway's `/auth/register`+`/auth/login` now
-// also send a stable `code` alongside the existing `error` string
-// (services/gateway/src/index.ts) — carrying both through lets the catch
-// site translate by `code` (locale.tsx's `translateErrorCode`) while still
-// falling back to the raw `error` message for anything the FE's
-// translation table doesn't recognize (an older gateway with no `code` at
-// all included, a code added to the backend before the FE dictionary
-// catches up, ...). A plain `Error` can't carry the extra field.
-class AuthError extends Error {
-  code?: string;
-  constructor(message: string, code?: string) {
-    super(message);
-    this.code = code;
-  }
-}
-
-async function login(
-  httpBase: string,
-  email: string,
-  password: string,
-): Promise<{ token: string; email: string; role: UserRole }> {
-  const res = await fetch(`${httpBase}/auth/login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      code?: string;
-    };
-    throw new AuthError(
-      body.error ?? `login failed: HTTP ${res.status}`,
-      body.code,
-    );
-  }
-  // Real gap fixed 2026-09-08: services/gateway's real response already
-  // includes `email` (added same day) — the FE had never captured it, so
-  // there was no way to show WHO is logged in anywhere in the UI.
-  const body = (await res.json()) as { token: string; email: string; role?: string };
-  return { token: body.token, email: body.email, role: body.role === "admin" ? "admin" : "user" };
-}
-
-async function logoutRequest(httpBase: string, token: string): Promise<void> {
-  await fetch(`${httpBase}/auth/logout`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}` },
-  }).catch((error: unknown) => {
-    console.error("fox-harness-web: logout request failed", error);
-  });
-}
 
 // i18n (2026-09-10): thin wrapper so `<LocaleProvider>` sits OUTSIDE both
 // of AppInner's returns (the `!authenticated` early-return auth screen and
@@ -267,7 +78,9 @@ async function logoutRequest(httpBase: string, token: string): Promise<void> {
 export function App() {
   return (
     <LocaleProvider>
-      <AppInner />
+      <QueryClientProvider client={queryClient}>
+        <AppInner />
+      </QueryClientProvider>
       {/* Real crash fixed 2026-09-10 (found while jsdom-testing the
           HistoryChat rename flow, not reported directly — user said
           "chưa đổi được tên", and this was the actual root cause): used to
@@ -348,7 +161,6 @@ function AppInner() {
   const [sessionTitle, setSessionTitle] = useState<string | undefined>(
     undefined,
   );
-  const [sessionsVersion, setSessionsVersion] = useState(0);
   const [connectError, setConnectError] = useState<string | null>(null);
   // No UI ever changes these now (2026-09-08, docs/code-rules.md §36) —
   // `gatewayUrl` is still overridable via `?gateway=` in the page URL
@@ -427,12 +239,24 @@ function AppInner() {
     () => localStorage.getItem(STORAGE_EMAIL) ?? "",
   );
   const [userRole, setUserRole] = useState<UserRole>(storedRole);
+  // After sign-in, fetch the split-out code in the background (charts, SQL formatting, the two heavy pages).
+  useEffect(() => {
+    if (!authenticated) return;
+    const pages = userRole === "admin" ? [loadUsageDashboard] : [];
+    preloadWhenIdle([loadChartPlot, loadSqlFormatter, loadDataStudioProfile, ...pages]);
+  }, [authenticated, userRole]);
   // Drives both the URL-update trigger and the visible session-id (session-bar
   // below) — lazy-initialized from whatever the URL already says on first
   // paint, so a direct `/chat/<id>` visit doesn't flash "no session" first.
   const [hasChatted, setHasChatted] = useState(
     () => !!sessionIdFromUrl(),
   );
+
+  // A chat switch (or a new chat getting its id) refetches the chat list and the projects, as the sidebar's own
+  // fetches used to on every `sessionId` change.
+  useEffect(() => {
+    if (sessionId) void invalidateSessions(true);
+  }, [sessionId]);
 
   const frameRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -459,6 +283,7 @@ function AppInner() {
   // left off instead of losing the session over what was only ever a token
   // problem.
   function handleAuthExpired(): void {
+    queryClient.clear();
     localStorage.removeItem(STORAGE_TOKEN);
     localStorage.removeItem(STORAGE_ROLE);
     setUserRole("user");
@@ -907,11 +732,10 @@ function AppInner() {
       newSession: startNewSession,
       sessionTitle,
       setSessionTitle,
-      sessionsVersion,
-      bumpSessionsVersion: () => setSessionsVersion((v) => v + 1),
+      bumpSessionsVersion: () => void invalidateSessions(),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sessionId, userEmail, userRole, status, hasChatted, sessionTitle, sessionsVersion, dataStudioMode],
+    [sessionId, userEmail, userRole, status, hasChatted, sessionTitle, dataStudioMode],
   );
 
   function handleLogin(email: string, password: string): void {
@@ -962,6 +786,7 @@ function AppInner() {
     // the existing self-heal redirects home) but with a confusing
     // "previous session no longer available" toast on what should just be
     // a normal fresh login.
+    queryClient.clear();
     localStorage.removeItem(STORAGE_TOKEN);
     localStorage.removeItem(STORAGE_EMAIL);
     localStorage.removeItem(STORAGE_ROLE);
@@ -1123,16 +948,16 @@ function AppInner() {
     // to sit and want to change settings.
     if (authCheckPending) {
       return (
-        <div className="fh-auth-screen">
-          <div className="fh-auth-loading">
-            <div className="fh-spinner" />
+        <div className="fh-auth-screen relative [min-height:100vh] flex items-center justify-center [padding:2em_1em] [background:var(--bg)]">
+          <div className="fh-auth-loading flex items-center justify-center">
+            <div className="fh-spinner [width:28px] [height:28px] [border:3px_solid_var(--border)] [&&]:[border-top-color:var(--accent)] [border-radius:50%] [animation:fh-spin_0.8s_linear_infinite]" />
           </div>
         </div>
       );
     }
     return (
-      <div className="fh-auth-screen">
-        <div className="fh-auth-screen-controls">
+      <div className="fh-auth-screen relative [min-height:100vh] flex items-center justify-center [padding:2em_1em] [background:var(--bg)]">
+        <div className="fh-auth-screen-controls absolute [top:1.25em] [right:1.25em] flex items-center [gap:0.5em]">
           <LanguageSelect />
           <ThemeToggle />
         </div>
@@ -1149,7 +974,7 @@ function AppInner() {
     <RuntimeContext.Provider value={runtime}>
       <div
         id="app"
-        className="fh-app-frame"
+        className="[#app&]:[height:100vh] [#app&]:grid [#app&]:[grid-template-rows:100%] [#app&]:overflow-hidden [#app&]:[transition:grid-template-columns_var(--duration-base)_var(--ease)] [#app&:has(.fh-canvas-handle:active)]:[transition:none] fh-app-frame"
         ref={frameRef}
         style={{ gridTemplateColumns }}
       >
@@ -1205,9 +1030,11 @@ function AppInner() {
             onLogout={handleLogout}
           />
         )}
-        <div id="center-col" className="fh-center-col">
+        <div id="center-col" className="[#center-col&]:min-w-0 [#center-col&]:min-h-0 [#center-col&]:flex [#center-col&]:flex-col [#center-col&]:overflow-hidden [#center-col&>*]:[max-width:760px] [#center-col&>*]:[margin:0_auto] [#center-col&>*]:w-full [#center-col&>.fh-conversation-root]:[flex:1] [#center-col&>.fh-conversation-root]:min-h-0 [#center-col&>.fh-conversation-root]:flex [#center-col&>.fh-conversation-root]:flex-col [#center-col&>.fh-session-title-bar]:flex-none [#center-col&>.fh-session-title-bar]:[max-width:none] [#center-col&>.fh-session-title-bar]:m-0 [#center-col&>.fh-session-title-bar]:[padding:0.6em_1.25em] [#center-col&>.fh-conversation-root]:[max-width:none] [#center-col&>.fh-conversation-root]:m-0 [#center-col&>.fh-conversation-root]:[--fh-chat-side:max(0px,calc((100%_-_760px)_/_2))] [#center-col&>.fh-skills-page]:flex [#center-col&>.fh-skills-page]:[flex:1] [#center-col&>.fh-skills-page]:flex-col [#center-col&>.fh-skills-page]:min-h-0 [#center-col&>.fh-skills-page]:w-full [#center-col&>.fh-skills-page]:[max-width:none] [#center-col&>.fh-skills-page]:m-0 [#center-col&>.fh-hub-scroll]:[max-width:none] [#center-col&>.fh-hub-scroll]:[flex:1] [#center-col&>.fh-hub-scroll]:min-h-0 [#center-col&>.fh-hub-scroll]:overflow-y-auto [#center-col&>.fh-chat-project-bar]:flex [#center-col&>.fh-chat-project-bar]:flex-none [#center-col&>.fh-chat-project-bar]:[max-width:none] [#center-col&>.fh-chat-project-bar]:m-0 [#center-col&>.fh-chat-project-bar]:[padding:10px_1.25em_0] [#center-col&>.fh-chat-project-bar+.fh-session-title-bar]:[padding-top:0.1em] [#center-col&>.fh-data-studio-admin]:[max-width:none] [#center-col&>.fh-data-studio-admin]:w-full [#center-col&>.fh-data-studio-admin]:[padding:24px_32px] [#center-col&>.fh-data-studio-admin]:overflow-x-auto [#center-col&>.ds-dash-page]:[flex:1] [#center-col&>.ds-dash-page]:min-h-0 [#center-col&>.ds-dash-page]:[max-width:none] [#center-col&>.ds-dash-page]:m-0 [#center-col&>.ds-dash-page]:flex [#center-col&>.ds-dash-page]:flex-col [#center-col&>.ds-dash-page]:overflow-hidden [#center-col&>.fh-hub-page]:flex [#center-col&>.fh-hub-page]:[flex:1] [#center-col&>.fh-hub-page]:flex-col [#center-col&>.fh-hub-page]:min-h-0 [#center-col&>.fh-hub-page]:[max-width:none] [#center-col&>.fh-hub-page]:m-0 [#center-col&>.fh-usage]:flex [#center-col&>.fh-usage]:[flex:1] [#center-col&>.fh-usage]:flex-col [#center-col&>.fh-usage]:min-h-0 [#center-col&>.fh-usage]:w-full [#center-col&>.fh-usage]:[max-width:none] [#center-col&>.fh-usage]:m-0 fh-center-col">
           {usageView && userRole === "admin" ? (
-            <UsageDashboard onBack={leavePage} />
+            <Suspense fallback={null}>
+              <UsageDashboard onBack={leavePage} />
+            </Suspense>
           ) : pageView === "skills" ? (
             <SkillsPage onBack={leavePage} />
           ) : dataStudioMode ? (
@@ -1219,7 +1046,9 @@ function AppInner() {
             ) : visibleDataStudioSection === "data-sources" ? (
               <DataStudioDataSources />
             ) : visibleDataStudioSection === "profile" ? (
-              <DataStudioProfile />
+              <Suspense fallback={null}>
+                <DataStudioProfile />
+              </Suspense>
             ) : (
               <DataStudioDashboards />
             )

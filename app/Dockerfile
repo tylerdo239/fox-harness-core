@@ -1,4 +1,4 @@
-# Frontend image: the React SPA (src/) bundled by esbuild and served by nginx, which also forwards the API and the
+# Frontend image: the React SPA (src/) built by Vite into dist/ and served by nginx, which also forwards the API and the
 # chat WebSocket to the backend on the same origin (so the browser needs no CORS and no gateway URL).
 #
 # Build from THIS folder:
@@ -29,6 +29,6 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 # Runs before nginx's own template step: no BACKEND_URL → refuse to start with a clear message, instead of nginx
 # proxying to a guessed host.
 COPY docker/require-backend-url.sh /docker-entrypoint.d/05-require-backend-url.sh
-COPY --from=build /app/public /usr/share/nginx/html
+COPY --from=build /app/dist /usr/share/nginx/html
 COPY --from=docs /docs-site/dist /usr/share/nginx/html/docs
 EXPOSE 80

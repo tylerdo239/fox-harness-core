@@ -248,7 +248,7 @@ export function computeDisplay(sheets: readonly SheetModel[]): Map<string, Map<s
   // `=B2-A2` on two dates gives a day count, same as in Excel.
   const serial = (d: Date): number => d.getTime() / 86_400_000 + 25_569
 
-  function valueOf(sheetName: string, address: string): EvalResult {
+  function cellValue(sheetName: string, address: string): EvalResult {
     const key = `${sheetName}!${address}`
     const known = memo.get(key)
     if (known instanceof Unsupported) throw known
@@ -264,7 +264,7 @@ export function computeDisplay(sheets: readonly SheetModel[]): Map<string, Map<s
       if (visiting.has(key)) return new FormulaError('#REF!')
       visiting.add(key)
       try {
-        result = evaluateFormula(cell.formula, sheetName, valueOf)
+        result = evaluateFormula(cell.formula, sheetName, cellValue)
       } catch (error) {
         const unsupported = error instanceof Unsupported ? error : new Unsupported(String(error))
         memo.set(key, unsupported)
@@ -291,7 +291,7 @@ export function computeDisplay(sheets: readonly SheetModel[]): Map<string, Map<s
         continue
       }
       try {
-        const v = valueOf(sheet.name, address)
+        const v = cellValue(sheet.name, address)
         if (v instanceof FormulaError) display.set(address, { text: v.code, numeric: false, formulaFallback: false, error: true })
         else display.set(address, { ...displayOf(v, cell.numFmt), formulaFallback: false })
       } catch {

@@ -80,17 +80,17 @@ export function SettingsDialog({
   if (!open) return null
 
   return (
-    <div id="settings-dialog" className="fh-settings-dialog">
-      <div className="fh-settings-mask" onClick={onClose} />
-      <div className="fh-settings-panel" role="dialog" aria-label={t('settings.title')}>
-        <div className="fh-settings-panel-header">
+    <div id="settings-dialog" className="fh-settings-dialog fixed [inset:0] [z-index:1000] flex items-center justify-center">
+      <div className="fh-settings-mask absolute [inset:0] [background:var(--overlay-mask)] [backdrop-filter:blur(2px)]" onClick={onClose} />
+      <div className="fh-settings-panel relative [width:min(720px,92vw)] [height:min(520px,80vh)] flex flex-col [background:var(--bg)] [border:1px_solid_var(--border)] [border-radius:24px] [box-shadow:var(--shadow-lv3)]" role="dialog" aria-label={t('settings.title')}>
+        <div className="fh-settings-panel-header flex-none flex items-center justify-between [padding:0.75em_1em] [border-bottom:1px_solid_var(--border)] [&_h2]:m-0 [&_h2]:[font:var(--fh-text-l,500_1.4em/1.4_inherit)]">
           <h2>{t('settings.title')}</h2>
           <IconButton id="settings-close" variant="plain" className="fh-settings-close" onClick={onClose}>
             <CloseIcon size={14} />
           </IconButton>
         </div>
-        <div className="fh-settings-body">
-          <div className="fh-settings-nav">
+        <div className="fh-settings-body [flex:1] flex min-h-0">
+          <div className="fh-settings-nav flex-none [width:180px] [padding:0.75em] [border-right:1px_solid_var(--border)] flex flex-col [gap:2px]">
             <MenuItem variant="nav" active={tab === 'general'} onClick={() => setTab('general')}>
               <GearIcon size={16} />
               {t('settings.generalTab')}
@@ -111,12 +111,12 @@ export function SettingsDialog({
             )}
           </div>
 
-          <div id="settings-content" className="fh-settings-content">
+          <div id="settings-content" className="fh-settings-content [flex:1] overflow-y-auto [padding:1em_1.25em]">
             {tab === 'general' && (
               <>
-                <div className="fh-settings-field-group">
-                  <div className="fh-settings-section-title">{t('settings.theme')}</div>
-                  <div className="fh-settings-theme-options">
+                <div className="fh-settings-field-group [margin-bottom:1.5em]">
+                  <div className="fh-settings-section-title [font:var(--fh-text-s-strong,600_1em/1.4_inherit)] [margin-bottom:0.6em] [color:var(--fg)]">{t('settings.theme')}</div>
+                  <div className="fh-settings-theme-options flex [gap:0.75em]">
                     <SelectableCard active={theme === 'light'} onClick={() => setTheme('light')}>
                       <SunIcon size={18} />
                       {t('settings.themeLight')}
@@ -128,8 +128,8 @@ export function SettingsDialog({
                   </div>
                 </div>
 
-                <div className="fh-settings-field-group">
-                  <div className="fh-settings-section-title">{t('settings.language')}</div>
+                <div className="fh-settings-field-group [margin-bottom:1.5em]">
+                  <div className="fh-settings-section-title [font:var(--fh-text-s-strong,600_1em/1.4_inherit)] [margin-bottom:0.6em] [color:var(--fg)]">{t('settings.language')}</div>
                   <LanguageSelect />
                 </div>
               </>
@@ -138,12 +138,12 @@ export function SettingsDialog({
             {tab === 'profile' && (
               <>
                 <div className="fh-settings-profile-rows">
-                  <div className="fh-settings-profile-row">
+                  <div className="fh-settings-profile-row flex items-center justify-between [padding:0.75em_0] [border-bottom:1px_solid_var(--border)] [font-size:0.9em] [&:last-child]:[border-bottom:none]">
                     <span>{t('settings.profileEmail')}</span>
-                    <span className="fh-settings-profile-value">{runtime.userEmail}</span>
+                    <span className="fh-settings-profile-value [color:var(--muted)]">{runtime.userEmail}</span>
                   </div>
                 </div>
-                <div className="fh-settings-profile-actions">
+                <div className="fh-settings-profile-actions flex justify-end [margin-top:1em]">
                   <Button
                     variant="outline"
                     className="fh-settings-profile-logout"

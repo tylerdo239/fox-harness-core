@@ -47,26 +47,26 @@ export function SkillMenu({
   }, [activeIndex]);
 
   return (
-    <div ref={listRef} className="fh-skill-menu" role="listbox">
+    <div ref={listRef} className="fh-skill-menu absolute [left:0] [right:0] [bottom:calc(100%_+_6px)] [max-height:280px] overflow-y-auto [padding:4px] [background:var(--bg)] [border:1px_solid_var(--border)] [border-radius:12px] [box-shadow:var(--shadow-lv2)] [z-index:20]" role="listbox">
       {items.map((item, index) => (
         <button
           key={item.name}
           type="button"
           role="option"
           aria-selected={index === activeIndex}
-          className={`fh-skill-menu-item${index === activeIndex ? " active" : ""}`}
+          className={`fh-skill-menu-item flex flex-col items-start [gap:2px] w-full [height:auto] [padding:6px_10px] [border:none] [border-radius:8px] [background:transparent] [color:var(--fg)] text-left cursor-pointer [&.active]:[background:var(--bg-hover)]${index === activeIndex ? " active" : ""}`}
           // Keep focus in the composer so typing continues after a click.
           onMouseDown={(event) => event.preventDefault()}
           onMouseEnter={() => onHover(index)}
           onClick={() => onChoose(item.name)}
         >
-          <span className="fh-skill-menu-name">
+          <span className="fh-skill-menu-name flex items-center [gap:6px] [font-size:0.9em] font-semibold">
             /{item.name}
             {item.source === "custom" && (
-              <span className="fh-skill-menu-badge">{t("skills.mineBadge")}</span>
+              <span className="fh-skill-menu-badge [padding:0_6px] [border-radius:999px] [background:var(--surface)] [color:var(--muted)] [font-size:0.75em] font-medium">{t("skills.mineBadge")}</span>
             )}
           </span>
-          <span className="fh-skill-menu-desc">{item.description}</span>
+          <span className="fh-skill-menu-desc [max-width:100%] overflow-hidden text-ellipsis whitespace-nowrap [font-size:0.8em] [color:var(--muted)]">{item.description}</span>
         </button>
       ))}
     </div>

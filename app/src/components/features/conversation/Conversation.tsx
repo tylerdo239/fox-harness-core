@@ -67,8 +67,9 @@
 import {
   type FormEvent,
   type KeyboardEvent,
-  type ReactNode,
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -78,27 +79,15 @@ import { toast } from "sonner";
 import {
   ArrowDownIcon,
   BrandIcon,
-  ChevronDownIcon,
-  DataAnalysisIcon,
-  FileTextIcon,
-  FolderIcon,
   PaperclipIcon,
-  PencilIcon,
-  PinIcon,
-  SearchIcon,
-  SkillIcon,
   StopIcon,
-  ToolIcon,
 } from "../../../icons.tsx";
 import { translateErrorCode, useLocale } from "../../../i18n/locale.tsx";
-import type { Locale, TranslationKey } from "../../../i18n/translations.ts";
 import { randomId } from "../../../randomId.ts";
 import { useRuntime } from "../../../runtime.ts";
 import type {
-  ContentBlock,
   ServerToClient,
   StreamChunk,
-  TextBlock,
   ToolResultBlock,
   WireMessage,
 } from "../../../wire.ts";
@@ -108,776 +97,19 @@ import {
   refreshSkillMenu,
   SkillApiError,
 } from "../skills/skillsApi.ts";
-import { PendingAttachments, SentAttachments } from "./Attachments.tsx";
+import { PendingAttachments, } from "./Attachments.tsx";
 import { showNoSpace } from "../settings/storageApi.ts";
-import { MAX_ATTACHMENTS, splitAttachments, useAttachments, withAttachments } from "./attachments.ts";
-import { ChartView, type ChartSpec } from "./ChartView.tsx";
-import { DataStudioAnswer, PinToDashboardButton } from "./DataStudioAnswer.tsx";
+import { MAX_ATTACHMENTS, useAttachments, withAttachments } from "./attachments.ts";
 import type { ProgressItem } from "./DataStudioProgress.tsx";
-import { Markdown } from "./Markdown.tsx";
 import { StreamedMarkdown } from "./StreamedMarkdown.tsx";
 import { SkillMenu, slashQuery, useSkillMenu } from "./SkillMenu.tsx";
 import { WorkspaceFiles } from "../canvas/WorkspaceFiles.tsx";
 import { loadCanvasHistory, parseCanvasMarker, receiveCanvasMarker, stripCanvasMarker } from "../canvas/canvas.ts";
-import { CanvasChip, type CanvasChipEntry } from "../canvas/CanvasChip.tsx";
-import { TurnFiles, type TurnFilesEntry } from "../canvas/TurnFiles.tsx";
 import { useStickToBottom } from "./useStickToBottom.ts";
 import { useCanvasStore } from "../canvas/store.ts";
+import { ANALYZE_DATA_TOOL, buildBubbleEntry, contentToText, CREATE_SKILL_TOOL, type LiveBubble, type LogEntry, parseDataStudioMeta, parseWebSearchMeta, SKILL_TOOL, stepKey, truncate, WEB_SEARCH_TOOL, withoutRestatedAnswers } from "./logEntries.ts";
+import { formatElapsed, LogEntryView, runStatusLabel } from "./LogParts.tsx";
 
-// docs/skill-transfer-plan.md, giai đoạn 3: the `create_skill` tool only
-// validates inside the worker, which never knows who the user is. The browser,
-// already signed in as that user, does the actual save.
-const CREATE_SKILL_TOOL = "create_skill";
-
-// Real upstream tool name (`@deepseek-ai/dsh-tool-web`, confirmed against
-// its installed `lib/index.js` — not guessed), Serper plugged in as its
-// search provider (packages/tool/serper-web-search). 2026-09-15: every call
-// merges into a `SearchSourcesPill` instead of a generic `ToolPill` — see
-// `LogEntry`'s `"search"` variant.
-const WEB_SEARCH_TOOL = "web_search";
-
-// The `skill` tool (@deepseek-ai/dsh-tool-skill) shows as "Đã đọc skill <name>"
-// so the user sees which skill the model followed (2026-09-15: no longer hidden).
-const SKILL_TOOL = "skill";
-
-// docs/data-studio-agent-transfer-plan.md — real name registered by
-// packages/tool/data-studio-agent/src/index.ts's `defineTool`.
-const ANALYZE_DATA_TOOL = "analyze_data";
-
-// Real shape of `tool/result`'s `event.data.meta` for a `web_search` call —
-// `dsh-tools`' own `presentationMeta()` output, confirmed against its
-// installed source while researching this feature. Narrowed here rather
-// than trusted blindly: `meta` is `unknown` on the wire (`wire.ts`'s
-// `SessionEvent.data` is deliberately untyped), and a malformed/absent
-// shape must fall back to "0 sources found," never throw.
-function parseWebSearchMeta(
-  meta: unknown,
-): { sources: WebSource[]; truncated: boolean; answer?: string } | undefined {
-  if (typeof meta !== "object" || meta === null) return undefined;
-  const record = meta as Record<string, unknown>;
-  if (!Array.isArray(record.sources)) return undefined;
-  const sources: WebSource[] = [];
-  for (const raw of record.sources) {
-    if (typeof raw !== "object" || raw === null) continue;
-    const source = raw as Record<string, unknown>;
-    if (typeof source.url !== "string") continue;
-    sources.push({
-      url: source.url,
-      title: typeof source.title === "string" ? source.title : undefined,
-      snippet: typeof source.snippet === "string" ? source.snippet : undefined,
-      publishedAt:
-        typeof source.publishedAt === "string" ? source.publishedAt : undefined,
-    });
-  }
-  return {
-    sources,
-    truncated: record.truncated === true,
-    answer: typeof record.answer === "string" ? record.answer : undefined,
-  };
-}
-
-// Real shape of `analyze_data`'s `presentationMeta` output
-// (packages/tool/data-studio-agent/src/index.ts) — same "narrow, never
-// trust the wire" treatment as `parseWebSearchMeta` above.
-interface DataStudioMeta {
-  sql: string | null;
-  columns: string[];
-  rows: Record<string, unknown>[];
-  rowCount: number;
-  chart: ChartSpec | null;
-  // docs/data-studio-admin-ui-plan.md phase 5 — the real `charts` document id
-  // (uuid string, bridge/runner.py's `_persist_chart`), when `chart` is present. Lets
-  // DataStudioResultPill offer "pin to dashboard".
-  chartId: string | null;
-  // Every visual chart (recommended first), each with its own rows + persisted chart_id, plus the
-  // pipeline's follow-up suggestions and assumptions — rendered by DataStudioAnswer.
-  charts: ChartSpec[];
-  followUps: string[];
-  assumptions: string[];
-  truncated: boolean;
-}
-
-function parseDataStudioMeta(meta: unknown): DataStudioMeta | undefined {
-  if (typeof meta !== "object" || meta === null) return undefined;
-  const record = meta as Record<string, unknown>;
-  if (!Array.isArray(record.rows) || !Array.isArray(record.columns)) return undefined;
-  const chart =
-    typeof record.chart === "object" && record.chart !== null
-      ? (record.chart as ChartSpec)
-      : null;
-  return {
-    sql: typeof record.sql === "string" ? record.sql : null,
-    columns: record.columns.filter((c): c is string => typeof c === "string"),
-    rows: record.rows.filter(
-      (r): r is Record<string, unknown> => typeof r === "object" && r !== null,
-    ),
-    rowCount: typeof record.rowCount === "number" ? record.rowCount : 0,
-    chart,
-    chartId: typeof record.chartId === "string" ? record.chartId : null,
-    charts: Array.isArray(record.charts)
-      ? record.charts
-          .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
-          .map((c) => c as ChartSpec)
-      : chart
-        ? [chart]
-        : [],
-    followUps: strings(record.followUps),
-    assumptions: strings(record.assumptions),
-    truncated: record.truncated === true,
-  };
-}
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim() !== "") : [];
-}
-
-// ---- Declarative log state.
-
-// docs/code-rules.md convention this file already follows: real fields,
-// confirmed against installed .d.ts, not guessed.
-interface WebSource {
-  url: string;
-  title?: string;
-  snippet?: string;
-  publishedAt?: string;
-}
-
-type LogEntry =
-  | { kind: "notice"; id: string; text: string; muted?: boolean }
-  | {
-      kind: "tool";
-      id: string;
-      turn: number;
-      name: string;
-      args: string;
-      status: "running" | "done" | "error";
-      resultText: string | null;
-      // Set for the `skill` tool and `/name` invocations: the skill's name.
-      skill?: string;
-    }  // 2026-09-15 (user: "UI dùng tool đang ghi là dùng web_search... ghi là
-  // Đang tra cứu... show chung các kết quả của mọi lần gọi tool search vào
-  // 1") — every `web_search` tool call in the SAME turn merges into ONE of
-  // these instead of a separate `ToolPill` per call. `pendingCalls` counts
-  // calls made but not yet resolved (can be >1 — the model can have
-  // several `web_search` calls in flight, or make more after this turn's
-  // first one already resolved); the pill reads "running" while it's >0.
-  | {
-      kind: "search";
-      id: string;
-      turn: number;
-      pendingCalls: number;
-      hasError: boolean;
-      // The user pressed Stop while this search ran.
-      stopped?: boolean;
-      sources: WebSource[];
-      truncated: boolean;
-      answer?: string;
-    }
-  // docs/data-studio-agent-transfer-plan.md: one pill per `analyze_data`
-  // call (not merged across calls like "search" above — this tool is slow
-  // and deliberately called once per distinct question, so there's no
-  // "several calls in flight" case worth collapsing).
-  | {
-      kind: "data-studio";
-      id: string;
-      turn: number;
-      status: "running" | "done" | "error";
-      // epoch ms when the tool/call fired — lets the pill tick a live elapsed
-      // timer while `status === "running"` (a real call routinely takes
-      // several minutes; without this the pill looks frozen the whole time).
-      startedAt: number;
-      question: string;
-      answer?: string;
-      errorText?: string;
-      sql: string | null;
-      columns: string[];
-      rows: Record<string, unknown>[];
-      rowCount: number;
-      chart: ChartSpec | null;
-      chartId: string | null;
-      charts: ChartSpec[];
-      assumptions: string[];
-      followUps: string[];
-      truncated: boolean;
-      // the steps of the run so far (`fox/data-studio-progress` events), shown live — see DataStudioProgress.tsx
-      progress: ProgressItem[];
-    }
-  | { kind: "bubble"; id: string; role: "user" | "assistant"; text: string }
-  // a canvas_write result: a chip that opens the side panel (components/features/canvas)
-  | ({ kind: "canvas"; id: string } & CanvasChipEntry)
-  // the files a finished turn wrote (TurnFiles.tsx); renders nothing when it wrote none
-  | ({ kind: "turn-files"; id: string } & TurnFilesEntry);
-
-interface LiveBubble {
-  text: string;
-}
-
-function stepKey(turn: number, step: number): string {
-  return `${turn}:${step}`;
-}
-
-function contentToText(content: ContentBlock[]): string {
-  return content
-    .filter((block): block is TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("\n");
-}
-
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max)}…` : text;
-}
-
-// Real gap found and fixed (2026-09-11, user: "ko có lịch sử tool search
-// show trên UI chat khi tìm kiếm xong gồm link ntn") — this app has never
-// rendered a link anywhere: assistant replies and tool-pill result text are
-// both plain JSX text interpolation (React auto-escapes, no HTML/markdown
-// parsing at all). The system prompt explicitly tells the model to "Cite
-// result URLs as markdown links" (packages/tool/duckduckgo-web-search's own
-// `tool:duckduckgo_web_search` section), and duckduckgo_web_search's own
-// rendered tool-result text is literally `${title}\n   ${url}\n   ${snippet}`
-// per result — both only ever showed up as inert text, never a clickable
-// link, which is exactly what reads as "no search history" even though the
-// data was there the whole time.
-//
-// Real markdown rendering added 2026-09-15 (`Markdown.tsx`) for the 2 spots
-// that show actual model output (a finished assistant bubble, the live
-// streaming bubble) — this `linkify()` stays only for `tool-pill-result`
-// below, which never needed more than link detection.
-const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"')\]]+)/g;
-
-function linkify(text: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  let lastIndex = 0;
-  let key = 0;
-  for (const match of text.matchAll(LINK_RE)) {
-    const index = match.index ?? 0;
-    if (index > lastIndex) nodes.push(text.slice(lastIndex, index));
-    const [full, mdLabel, mdUrl, bareUrl] = match;
-    const url = mdUrl ?? bareUrl;
-    nodes.push(
-      <a
-        key={key++}
-        className="fh-link"
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={hostnameOf(url) ?? url}
-      >
-        {mdLabel ?? bareUrl}
-      </a>,
-    );
-    lastIndex = index + full.length;
-  }
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
-  return nodes;
-}
-
-// Real bug fixed 2026-09-11 (user: "có rất nhiều assistant text dưới 1
-// tool-pill mà ko có chữ") — confirmed against a real decompressed session
-// log: every step that makes a tool call has dsh's own `BlockAssembler`
-// split off a text block that's JUST `"\n\n"` right before the `tool-call`
-// block (real captured example: `[{type:"reasoning",...},
-// {type:"text",text:"\n\n"}, {type:"tool-call",...}]`). `"\n\n"` is a
-// non-empty string — truthy in JS — so the old plain `if (!text) return`
-// guard let it straight through, producing a real, persisted, empty-looking
-// bubble every single time the model calls a tool. `.trim()` before the
-// emptiness check (and on the stored value, so a message that DOES have
-// real content doesn't render with stray leading/trailing blank lines
-// either — the same real log shows genuine replies prefixed with their own
-// leading `"\n\n"`) is the correct fix — whitespace-only is exactly
-// "nothing to show," same reasoning already applied to the tool-pill fixes
-// this session.
-function buildBubbleEntry(
-  id: string,
-  role: "user" | "assistant",
-  content: ContentBlock[],
-): LogEntry | undefined {
-  const text = contentToText(content).trim();
-  if (!text) return undefined;
-  return { kind: "bubble", id, role, text };
-}
-
-// Collapsed by default — `expanded`/`onToggle` are lifted to Conversation's
-// own state (`expandedDetails`, a `Set<id>` — was shared with a reasoning
-// toggle too until that was removed entirely, 2026-09-10; kept as a
-// generic `Set` rather than reverting to a tool-pill-only name in case
-// something else needs the same "collapsed detail" pattern later) rather
-// than living on the `LogEntry` itself, since expand/collapse is pure
-// local UI state, not server-log data (same separation `liveBubbles`
-// already keeps from `entries`).
-// The file tools (docs/file-tools-plan.md §4.5) say what they did in words — "Read data/a.csv", "Moved a → b" —
-// instead of "Used read" with the arguments as JSON.
-const FILE_TOOLS = new Set(["read", "write", "edit", "glob", "grep", "file_manage"]);
-const FILE_MANAGE_LABELS: Record<string, TranslationKey> = {
-  list: "fileTool.list",
-  mkdir: "fileTool.mkdir",
-  move: "fileTool.move",
-  copy: "fileTool.copy",
-  delete: "fileTool.delete",
-  zip: "fileTool.zip",
-  unzip: "fileTool.unzip",
-};
-
-// A word past this length (a path, an id) in a tool pill's title may break anywhere (user, 2026-10-28): the line
-// breaker only breaks a path like `data/users/2/38635216-b111-4b18-…/dummy-charts.html` at its few allowed spots, so
-// it jumped to the next line whole and left a long gap at the end of the line before. Short words still wrap whole.
-const LONG_WORD_CHARS = 32;
-
-function breakLongWords(text: string): ReactNode {
-  if (!text.split(" ").some((word) => word.length > LONG_WORD_CHARS)) return text;
-  return text.split(/( )/).map((part, index) =>
-    part.length > LONG_WORD_CHARS ? <span key={index} className="fh-break-anywhere">{part}</span> : part,
-  );
-}
-
-function fileToolLabel(
-  name: string,
-  argsJson: string,
-  t: (key: TranslationKey, params?: Record<string, string>) => string,
-): { text: string; icon: typeof ToolIcon } | undefined {
-  if (!FILE_TOOLS.has(name)) return undefined;
-  let args: Record<string, unknown>;
-  try {
-    args = JSON.parse(argsJson) as Record<string, unknown>;
-  } catch {
-    return undefined;
-  }
-  const str = (key: string) => (typeof args[key] === "string" ? (args[key] as string) : "");
-  const short = (path: string) => (path.length > 60 ? `…${path.slice(-58)}` : path) || ".";
-  switch (name) {
-    case "read":
-      return { text: t("fileTool.read", { target: short(str("file_path")) }), icon: FileTextIcon };
-    case "write":
-      return { text: t("fileTool.write", { target: short(str("file_path")) }), icon: PencilIcon };
-    case "edit":
-      return { text: t("fileTool.edit", { target: short(str("file_path")) }), icon: PencilIcon };
-    case "glob":
-      return { text: t("fileTool.glob", { pattern: str("pattern") }), icon: SearchIcon };
-    case "grep":
-      return { text: t("fileTool.grep", { pattern: str("pattern") }), icon: SearchIcon };
-    default: {
-      const key = FILE_MANAGE_LABELS[str("action")];
-      if (!key) return undefined;
-      return { text: t(key, { target: short(str("path")), to: short(str("to")) }), icon: FolderIcon };
-    }
-  }
-}
-
-function ToolPill({
-  entry,
-  expanded,
-  onToggle,
-  t,
-}: {
-  entry: Extract<LogEntry, { kind: "tool" }>;
-  expanded: boolean;
-  onToggle: () => void;
-  t: (key: TranslationKey, params?: Record<string, string>) => string;
-}) {
-  const params = { name: entry.skill ?? entry.name };
-  const file = entry.skill ? undefined : fileToolLabel(entry.name, entry.args, t);
-  // A failed call reads like a finished one (user, 2026-10-28: don't show failed tool pills to the user): the agent
-  // usually tries again or works around it; what went wrong is still in the details when the pill is opened.
-  const label = file
-    ? entry.status === "running"
-      ? `${file.text}…`
-      : file.text
-    : entry.status === "running"
-      ? t(entry.skill ? "conversation.skillLoading" : "conversation.toolRunning", params)
-      : t(entry.skill ? "conversation.skillLoaded" : "conversation.toolUsed", params);
-  const Icon = entry.skill ? SkillIcon : (file?.icon ?? ToolIcon);
-  return (
-    <div
-      className={`tool-pill${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`}
-    >
-      <button type="button" className="tool-pill-header" onClick={onToggle}>
-        <Icon size={13} />
-        <span>{breakLongWords(label)}</span>
-        <ChevronDownIcon size={13} className="tool-pill-chevron" />
-      </button>
-      {expanded && (
-        <div className="tool-pill-detail">
-          <div className="tool-pill-args">{entry.args}</div>
-          {entry.resultText && (
-            <div className="tool-pill-result">{linkify(entry.resultText)}</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// `undefined` on a malformed URL — callers fall back to the raw string.
-function hostnameOf(url: string): string | undefined {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return undefined;
-  }
-}
-
-// Fallback label when a source has no `title` — bare hostname reads better
-// than a raw URL in a link's visible text (matches the real dsh reference
-// UI's own `sourceLabel()`/`Dd()` behavior found while researching this).
-function sourceLabel(source: WebSource): string {
-  return source.title || hostnameOf(source.url) || source.url;
-}
-
-// 2026-09-15 (user: "đang có issue khi lang là VN mà các ngày hay time
-// trong search chưa đc parse") — Serper mirrors Google's own raw SERP date
-// string verbatim: sometimes absolute ("Jul 25, 2025"), sometimes relative
-// ("7 months ago", "1 year ago") — always English, regardless of this app's
-// own language setting. Real pasted example that surfaced the bug: a
-// results list mixing both forms across different sources in the same
-// response. Parsed and reformatted per-locale here; an unrecognized shape
-// (Serper's date field isn't a documented/stable format) falls back to the
-// raw string as-is rather than showing nothing.
-const RELATIVE_TIME_RE = /^(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago$/i;
-const VI_TIME_UNIT: Record<string, string> = {
-  second: "giây",
-  minute: "phút",
-  hour: "giờ",
-  day: "ngày",
-  week: "tuần",
-  month: "tháng",
-  year: "năm",
-};
-
-function formatPublishedAt(raw: string, locale: Locale): string {
-  const relative = RELATIVE_TIME_RE.exec(raw.trim());
-  if (relative) {
-    const [, amount, unit] = relative;
-    if (locale === "vi") return `${amount} ${VI_TIME_UNIT[unit.toLowerCase()]} trước`;
-    return raw;
-  }
-  const parsedMs = Date.parse(raw);
-  if (!Number.isNaN(parsedMs)) {
-    return new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }).format(new Date(parsedMs));
-  }
-  return raw;
-}
-
-// 2026-09-15: replaces `ToolPill` for every `web_search` call — see
-// `LogEntry`'s `"search"` variant comment for why these merge across calls
-// instead of one pill each. Collapsed by default, same
-// `expandedDetails`/`toggleDetailExpanded` state `ToolPill` uses.
-function SearchSourcesPill({
-  entry,
-  expanded,
-  onToggle,
-  t,
-  locale,
-}: {
-  entry: Extract<LogEntry, { kind: "search" }>;
-  expanded: boolean;
-  onToggle: () => void;
-  t: (key: TranslationKey, params?: Record<string, string>) => string;
-  locale: Locale;
-}) {
-  const isError = entry.hasError && entry.sources.length === 0;
-  const label =
-    entry.pendingCalls > 0
-      ? t("conversation.searching")
-      : entry.stopped
-        ? t("conversation.searchStopped")
-        : isError
-        ? t("conversation.searchFailed")
-        : entry.sources.length === 0
-          ? t("conversation.searchEmpty")
-          : t("conversation.searched", { n: String(entry.sources.length) });
-  return (
-    <div
-      className={`tool-pill search-pill${isError ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`}
-    >
-      <button type="button" className="tool-pill-header" onClick={onToggle}>
-        <SearchIcon size={13} />
-        <span>{label}</span>
-        <ChevronDownIcon size={13} className="tool-pill-chevron" />
-      </button>
-      {expanded && entry.sources.length > 0 && (
-        <div className="tool-pill-detail search-pill-detail">
-          <ol className="search-pill-list">
-            {entry.sources.map((source, index) => (
-              <li key={`${source.url}-${index}`}>
-                <a
-                  className="fh-link search-pill-source-link"
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={hostnameOf(source.url) ?? source.url}
-                >
-                  {sourceLabel(source)}
-                </a>
-                {source.snippet && (
-                  <div className="search-pill-snippet">{source.snippet}</div>
-                )}
-                {source.publishedAt && (
-                  <div className="search-pill-published">
-                    {formatPublishedAt(source.publishedAt, locale)}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ol>
-          {entry.truncated && (
-            <div className="search-pill-truncated">
-              {t("conversation.searchTruncated")}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Builds a markdown table so the row data can reuse Markdown.tsx's existing
-// GFM table styling/scroll wrapper instead of a bespoke `<table>`.
-function rowsToMarkdownTable(columns: string[], rows: Record<string, unknown>[]): string {
-  const escape = (value: unknown): string =>
-    String(value ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
-  const header = `| ${columns.map(escape).join(" | ")} |`;
-  const divider = `| ${columns.map(() => "---").join(" | ")} |`;
-  const body = rows.map((row) => `| ${columns.map((c) => escape(row[c])).join(" | ")} |`);
-  return [header, divider, ...body].join("\n");
-}
-
-// Data Studio (2026-10-19): the result card already shows the pipeline's answer, and the model then often wrote
-// the same answer again under it (session 7ba2a86e: the same four counts twice). The persona tells it not to;
-// this hides a reply that still does — most of its numbers are the card's — so the pipeline's answer, the one
-// the chart and SQL come from, is the only one shown. A reply with something new (a caveat, no numbers) stays.
-function numbersOf(text: string): string[] {
-  return (text.match(/\d[\d.,]*/g) ?? []).map((n) => n.replace(/[.,]+$/, "").replace(/[.,]/g, ""));
-}
-export function restatesAnswer(reply: string, answer: string): boolean {
-  const said = numbersOf(reply);
-  if (said.length < 2) return false;
-  const known = new Set(numbersOf(answer));
-  return said.filter((n) => known.has(n)).length / said.length >= 0.6;
-}
-function withoutRestatedAnswers(entries: LogEntry[]): LogEntry[] {
-  let answer: string | undefined;
-  return entries.filter((entry) => {
-    if (entry.kind === "bubble" && entry.role === "user") answer = undefined;
-    if (entry.kind === "data-studio") answer = entry.answer ?? answer;
-    if (entry.kind === "bubble" && entry.role === "assistant" && answer !== undefined) return !restatesAnswer(entry.text, answer);
-    return true;
-  });
-}
-
-// docs/data-studio-agent-transfer-plan.md — result pill for `analyze_data` (default chat only; the Data Studio
-// route renders `DataStudioAnswer` inline instead). Collapsed by default, same `expandedDetails`/
-// `toggleDetailExpanded` state every other pill in this file uses.
-function DataStudioResultPill({
-  entry,
-  expanded,
-  onToggle,
-  alwaysExpanded,
-  t,
-}: {
-  entry: Extract<LogEntry, { kind: "data-studio" }>;
-  expanded: boolean;
-  onToggle: () => void;
-  // docs/data-studio-agent-transfer-plan.md: the Data Studio route's own
-  // chat (Conversation `variant="data-studio"`) always shows trace/SQL/
-  // table/chart inline instead of collapsing into a click-to-open pill —
-  // same underlying markup either way, just the header loses its toggle
-  // affordance and the detail section is never hidden.
-  alwaysExpanded?: boolean;
-  t: (key: TranslationKey, params?: Record<string, string>) => string;
-}) {
-  // Real calls routinely run 1-10+ minutes (the Python pipeline's own multi-
-  // agent retrieval/SQL/chart steps) — a static label with no feedback for
-  // that whole time reads as frozen. Ticks once a second only while running;
-  // no interval/re-render cost once it settles.
-  const [elapsedMs, setElapsedMs] = useState(() => Date.now() - entry.startedAt);
-  useEffect(() => {
-    if (entry.status !== "running") return;
-    const id = setInterval(() => setElapsedMs(Date.now() - entry.startedAt), 1000);
-    return () => clearInterval(id);
-  }, [entry.status, entry.startedAt]);
-  const elapsedLabel = (() => {
-    const totalSeconds = Math.floor(elapsedMs / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  })();
-  const label =
-    entry.status === "running"
-      ? `${t("conversation.dataStudioRunning")} (${elapsedLabel})`
-      : entry.status === "error"
-        ? t("conversation.dataStudioFailed")
-        : t("conversation.dataStudioDone");
-  const isOpen = alwaysExpanded || expanded;
-  return (
-    <div
-      className={`tool-pill data-studio-pill${entry.status === "error" ? " tool-pill-error" : ""}${isOpen ? " expanded" : ""}${alwaysExpanded ? " data-studio-pill-static" : ""}`}
-    >
-      {alwaysExpanded ? (
-        <div className="tool-pill-header">
-          <DataAnalysisIcon size={13} />
-          <span>{label}</span>
-        </div>
-      ) : (
-        <button type="button" className="tool-pill-header" onClick={onToggle}>
-          <DataAnalysisIcon size={13} />
-          <span>{label}</span>
-          <ChevronDownIcon size={13} className="tool-pill-chevron" />
-        </button>
-      )}
-      {isOpen && (
-        <div className="tool-pill-detail data-studio-pill-detail">
-          {entry.status === "error" && entry.errorText && (
-            <div className="data-studio-error">{entry.errorText}</div>
-          )}
-          {entry.answer && <Markdown text={entry.answer} />}
-          {entry.chart && <ChartView chart={entry.chart} />}
-          {entry.chartId !== null && <PinToDashboardButton chartId={entry.chartId} t={t} />}
-          {entry.sql && <Markdown text={`\`\`\`sql\n${entry.sql}\n\`\`\``} />}
-          {entry.rows.length > 0 && (
-            <Markdown text={rowsToMarkdownTable(entry.columns, entry.rows)} />
-          )}
-          {entry.truncated && (
-            <div className="data-studio-truncated">
-              {t("conversation.dataStudioTruncated", { n: String(entry.rowCount) })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// What the status row says the agent is doing: retrying the model, running a named tool, or thinking.
-const TOOL_LABELS: Partial<Record<string, TranslationKey>> = {
-  python: "tool.python",
-  web_search: "tool.web_search",
-  canvas_write: "tool.canvas_write",
-  read: "tool.read",
-  write: "tool.write",
-  edit: "tool.edit",
-  glob: "tool.search_files",
-  grep: "tool.search_files",
-  file_manage: "tool.file_manage",
-  skill: "tool.skill",
-  analyze_data: "tool.analyze_data",
-};
-
-function runStatusLabel(
-  run: { tools: number; tool?: string; retry?: { n: number; max?: number } },
-  t: (key: TranslationKey, params?: Record<string, string>) => string,
-): string {
-  if (run.retry) return t("conversation.retrying", { n: String(run.retry.n), max: run.retry.max === undefined ? "∞" : String(run.retry.max) });
-  if (run.tools === 0) return t("conversation.thinking");
-  const key = run.tool === undefined ? undefined : TOOL_LABELS[run.tool];
-  return key ? t("conversation.runningNamed", { what: t(key) }) : t("conversation.runningTool");
-}
-
-function formatElapsed(
-  ms: number,
-  t: (key: TranslationKey, params?: Record<string, string>) => string,
-): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return minutes === 0
-    ? t("conversation.elapsedSeconds", { s: String(seconds) })
-    : t("conversation.elapsedMinutes", {
-        m: String(minutes),
-        s: String(seconds).padStart(2, "0"),
-      });
-}
-
-function LogEntryView({
-  entry,
-  isExpanded,
-  onToggleExpanded,
-  alwaysExpandDataStudio,
-  onFollowUp,
-  t,
-  locale,
-}: {
-  entry: LogEntry;
-  isExpanded: (id: string) => boolean;
-  onToggleExpanded: (id: string) => void;
-  alwaysExpandDataStudio: boolean;
-  onFollowUp: (question: string) => void;
-  t: (key: TranslationKey, params?: Record<string, string>) => string;
-  locale: Locale;
-}) {
-  switch (entry.kind) {
-    case "notice":
-      return (
-        <div className={`notice${entry.muted ? " notice-muted" : ""}`}>
-          {entry.text}
-        </div>
-      );
-    case "tool":
-      return (
-        <ToolPill
-          entry={entry}
-          expanded={isExpanded(entry.id)}
-          onToggle={() => onToggleExpanded(entry.id)}
-          t={t}
-        />
-      );
-    case "search":
-      return (
-        <SearchSourcesPill
-          entry={entry}
-          expanded={isExpanded(entry.id)}
-          onToggle={() => onToggleExpanded(entry.id)}
-          t={t}
-          locale={locale}
-        />
-      );
-    case "data-studio":
-      // The Data Studio route shows the reply inline (answer, SQL toggle, chart switcher, suggestions)
-      // like a normal assistant message; the default chat keeps the collapsible pill.
-      if (alwaysExpandDataStudio) return <DataStudioAnswer entry={entry} onFollowUp={onFollowUp} t={t} />;
-      return (
-        <DataStudioResultPill
-          entry={entry}
-          expanded={isExpanded(entry.id)}
-          onToggle={() => onToggleExpanded(entry.id)}
-          alwaysExpanded={alwaysExpandDataStudio}
-          t={t}
-        />
-      );
-    case "canvas":
-      return <CanvasChip entry={entry} />;
-    case "turn-files":
-      return <TurnFiles entry={entry} />;
-    case "bubble":
-      if (entry.role === "user") {
-        // a message with attachments ends with their marker line (attachments.ts): cards above the text
-        const { text, names } = splitAttachments(entry.text);
-        return (
-          <div className="fh-user-message">
-            {names.length > 0 && <SentAttachments names={names} t={t} />}
-            {text && (
-              <div className="bubble bubble-user">
-                <span>{text}</span>
-              </div>
-            )}
-          </div>
-        );
-      }
-      return (
-        <div className="assistant-text">
-          {entry.text && (
-            <div className="assistant-text-body">
-              {/* carries on revealing a reply that was streaming a moment ago; history shows at once */}
-              <StreamedMarkdown id={entry.id} text={entry.text} />
-            </div>
-          )}
-        </div>
-      );
-  }
-}
 
 export function Conversation({
   variant = "default",
@@ -1047,14 +279,14 @@ export function Conversation({
     });
   }
 
-  function toggleDetailExpanded(id: string): void {
+  const toggleDetailExpanded = useCallback((id: string): void => {
     setExpandedDetails((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }
+  }, []);
 
   // `live` = arrived as its own `event` frame, not replayed inside a
   // `snapshot`. Only a live create_skill result saves a skill, so reopening
@@ -1728,51 +960,61 @@ export function Conversation({
   // (same text input/Send button — just bigger, not new fake controls)
   // instead of pinning an empty #log above it.
   const isEmpty = entries.length === 0 && liveBubbles.size === 0 && !run;
+  // Stable props for the memoized LogEntryView (docs/ui-performance-plan.md §6): they change only when what they
+  // read changes, not on every streaming frame.
+  const shownEntries = useMemo(
+    () => (variant === "data-studio" ? withoutRestatedAnswers(entries) : entries),
+    [entries, variant],
+  );
+  const isExpanded = useCallback((id: string) => expandedDetails.has(id), [expandedDetails]);
+  const followUpRef = useRef<(question: string) => void>(() => {});
+  followUpRef.current = (question) => {
+    runtime.send({ type: "followup", text: question });
+    anchorSent();
+  };
+  const onFollowUp = useCallback((question: string) => followUpRef.current(question), []);
   // Streaming text already shows the reply is alive — the status row steps
   // aside until the text stops (next step or tool).
   const streaming = [...liveBubbles.values()].some((bubble) => bubble.text.trim());
 
   return (
     <div
-      className={`fh-conversation-root${isEmpty ? " fh-conversation-empty" : ""}`}
+      className={`fh-conversation-root [&>#log]:[flex:1] [&>#log]:min-h-0 [&>#log]:overflow-y-auto relative [&>#log]:[padding-left:calc(var(--fh-chat-side,0px)_+_1em)] [&>#log]:[padding-right:max(0px,calc(var(--fh-chat-side,0px)_+_1em_-_var(--fh-log-scrollbar,0px)))] [&>#log]:[padding-bottom:calc(var(--fh-dock-height,0px)_+_1em)] [&>.fh-conversation-empty-heading]:[margin-left:var(--fh-chat-side,0px)] [&>.fh-conversation-empty-heading]:[margin-right:var(--fh-chat-side,0px)] [&.fh-conversation-empty]:justify-center [&.fh-conversation-empty]:[gap:1.5em]${isEmpty ? " fh-conversation-empty [&_.fh-composer-dock]:static [&_.fh-composer-dock]:[padding-top:0] [&_.fh-composer-dock]:[background:none] [&_#send-form]:[margin-bottom:0] [&_#send-form]:[padding:1.1em_1.3em] [&_#text-input]:[font-size:1.05em] [&_#text-input]:[min-height:4.5em]" : ""}`}
     >
       {!isEmpty && (
-        <div id="log" ref={logRef}>
-          {(variant === "data-studio" ? withoutRestatedAnswers(entries) : entries).map((entry) => (
+        <div id="log" className="[#log&]:[flex:1] [#log&]:overflow-y-auto [#log&]:[padding:1em] [#log&]:flex [#log&]:flex-col [#log&]:[gap:1rem] [#log&>*]:shrink-0 [#log&>.fh-log-spacer]:[height:0] [#log&>.fh-log-spacer]:[margin-top:-1rem] [#log&>.fh-log-spacer]:pointer-events-none [#log&]:[scrollbar-width:thin] [#log&]:[scrollbar-color:var(--border)_transparent] [#log&::-webkit-scrollbar]:[width:8px] [#log&::-webkit-scrollbar-thumb]:[background:var(--border)] [#log&::-webkit-scrollbar-thumb]:[border-radius:999px] [#log&::-webkit-scrollbar-thumb:hover]:[background:var(--muted)] [#log&::-webkit-scrollbar-track]:[background:transparent]" ref={logRef}>
+          {shownEntries.map((entry) => (
             <LogEntryView
               key={entry.id}
               entry={entry}
-              isExpanded={(id) => expandedDetails.has(id)}
+              isExpanded={isExpanded}
               onToggleExpanded={toggleDetailExpanded}
               alwaysExpandDataStudio={variant === "data-studio"}
-              onFollowUp={(question) => {
-                runtime.send({ type: "followup", text: question });
-                anchorSent();
-              }}
+              onFollowUp={onFollowUp}
               t={t}
               locale={locale}
             />
           ))}
           {[...liveBubbles.entries()].map(([key, bubble]) => (
-            <div key={key} className="assistant-text">
+            <div key={key} className="assistant-text [max-width:100%] [word-break:break-word]">
               {bubble.text.trim() && (
-                <div className="assistant-text-body">
+                <div className="assistant-text-body [color:var(--fg)] [&_:is(h1,h2,h3,h4,h5,h6)]:[margin:0.9em_0_0.4em] [&_:is(h1,h2,h3,h4,h5,h6)]:font-semibold [&_:is(h1,h2,h3,h4,h5,h6)]:[line-height:1.3] [&_:is(h1,h2,h3,h4,h5,h6):first-child]:[margin-top:0] [&_h1]:[font-size:1.35em] [&&_h2]:[font-size:1.2em] [&_:is(h3,h4,h5,h6)]:[font-size:1.05em] [&_p]:[margin:0.5em_0] [&_p:first-child]:[margin-top:0] [&_p:last-child]:[margin-bottom:0] [&_:is(ul,ol)]:[margin:0.5em_0] [&_:is(ul,ol)]:[padding-inline-start:1.4em] [&_li]:[margin:0.2em_0] [&_li>:is(ul,ol)]:[margin:0.2em_0] [&_blockquote]:[margin:0.6em_0] [&_blockquote]:[padding:0.1em_0_0.1em_0.9em] [&_blockquote]:[border-left:3px_solid_var(--border)] [&_blockquote]:[color:var(--muted)] [&_hr]:[margin:1em_0] [&_hr]:[border:none] [&&_hr]:[border-top:1px_solid_var(--border)] [&_strong]:font-semibold [&_.md-inline-code]:[background:var(--surface)] [&_.md-inline-code]:[border:1px_solid_var(--border-subtle)] [&_.md-inline-code]:[border-radius:4px] [&_.md-inline-code]:[padding:0.1em_0.35em] [&_.md-inline-code]:[font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace] [&_.md-inline-code]:[font-size:0.9em]">
                   <StreamedMarkdown id={key} text={bubble.text} live />
                 </div>
               )}
             </div>
           ))}
           {run && (!streaming || !runtime.connected) && (
-            <div className="fh-run-status" role="status">
+            <div className="fh-run-status self-start flex items-center [gap:0.6em] [font-size:0.85em] [color:var(--muted)]" role="status">
               {runtime.connected ? (
                 <>
-                  <span className="fh-run-dots" aria-hidden="true">
+                  <span className="fh-run-dots inline-flex [gap:3px] [&_i]:[width:6px] [&_i]:[height:6px] [&_i]:[border-radius:50%] [&_i]:[background:var(--accent)] [&_i]:[animation:fh-run-dot_1.2s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:0.2s] [&_i:nth-child(3)]:[animation-delay:0.4s]" aria-hidden="true">
                     <i />
                     <i />
                     <i />
                   </span>
                   <span>{runStatusLabel(run, t)}</span>
-                  <span className="fh-run-elapsed">
+                  <span className="fh-run-elapsed [font-variant-numeric:tabular-nums]">
                     {formatElapsed(now - run.startedAt, t)}
                   </span>
                 </>
@@ -1785,13 +1027,13 @@ export function Conversation({
         </div>
       )}
       {isEmpty && (
-        <div className="fh-conversation-empty-heading">
+        <div className="fh-conversation-empty-heading flex flex-row items-center justify-center [gap:0.5em] [color:var(--accent)] [&_h2]:m-0 [&_h2]:[color:var(--fg)] [&_h2]:[font:var(--fh-text-l,500_1.4em/1.4_inherit)]">
           <BrandIcon size={48} />
           <h2>{t("conversation.emptyHeading")}</h2>
         </div>
       )}
       {/* the files box and the composer float over the log's end (style.css .fh-composer-dock) */}
-      <div className="fh-composer-dock" ref={dockRef}>
+      <div className="fh-composer-dock absolute [left:0] [right:var(--fh-log-scrollbar,0px)] [bottom:0] [z-index:3] flex flex-col [padding-top:1.25em] [background:linear-gradient(to_bottom,transparent,var(--bg)_1.25em)] pointer-events-none [--fh-chat-side:max(0px,calc((100%_+_var(--fh-log-scrollbar,0px)_-_760px)_/_2))] [&>*]:pointer-events-auto [&>.fh-workspace-files]:[margin-left:calc(var(--fh-chat-side,0px)_+_1em)] [&>.fh-workspace-files]:[margin-right:max(0px,calc(var(--fh-chat-side,0px)_+_1em_-_var(--fh-log-scrollbar,0px)))] [&>#send-form]:[margin-left:calc(var(--fh-chat-side,0px)_+_1em)] [&>#send-form]:[margin-right:max(0px,calc(var(--fh-chat-side,0px)_+_1em_-_var(--fh-log-scrollbar,0px)))] [&>.fh-scroll-latest]:absolute [&>.fh-scroll-latest]:[top:-22px] [&>.fh-scroll-latest]:[left:var(--fh-log-scrollbar,0px)] [&>.fh-scroll-latest]:[right:0] [&>.fh-scroll-latest]:[margin:0_auto] [&>.fh-scroll-latest]:[z-index:1] [&>.fh-scroll-latest]:[width:32px] [&>.fh-scroll-latest]:[height:32px] [&>.fh-scroll-latest]:inline-flex [&>.fh-scroll-latest]:items-center [&>.fh-scroll-latest]:justify-center [&>.fh-scroll-latest]:p-0 [&>.fh-scroll-latest]:[border:1px_solid_var(--border)] [&>.fh-scroll-latest]:[border-radius:999px] [&>.fh-scroll-latest]:[background:var(--surface)] [&>.fh-scroll-latest]:[color:var(--fg)] [&>.fh-scroll-latest]:[box-shadow:var(--shadow-lv2)] [&>.fh-scroll-latest]:cursor-pointer [&>.fh-scroll-latest]:[animation:fh-scroll-latest-in_160ms_ease-out] [&>.fh-scroll-latest]:[transition:background_120ms_ease,transform_120ms_ease] [&>.fh-scroll-latest:hover]:[background:var(--bg-hover,var(--surface))] [&>.fh-scroll-latest:hover]:[transform:translateY(1px)] [@media(prefers-reduced-motion:reduce)]:[&>.fh-scroll-latest]:[animation:none] [@media(prefers-reduced-motion:reduce)]:[&>.fh-scroll-latest]:[transition:none]" ref={dockRef}>
         {/* the reader is above the end: one click glides back down and follows again;
         it rides just above the files box / composer (style.css .fh-composer-dock > .fh-scroll-latest) */}
         {!atBottom && (
@@ -1807,7 +1049,7 @@ export function Conversation({
         )}
         {variant === "default" && <WorkspaceFiles version={filesVersion} running={!!run} />}
         <form
-          id="send-form"
+          id="send-form" className="[#send-form&]:flex [#send-form&]:flex-col [#send-form&]:[gap:0.5em] [#send-form&]:[margin:0_1em_1em] [#send-form&]:[padding:0.75em_1em] [#send-form&]:[background:var(--bg)] [#send-form&]:[border:1px_solid_var(--border)] [#send-form&]:[border-radius:22px] [#send-form&]:[box-shadow:var(--shadow-lv2)] [#send-form&]:relative"
           onSubmit={onSubmit}
           onDragEnter={(event) => {
             if (!canAttach || !event.dataTransfer.types.includes("Files")) return;
@@ -1825,7 +1067,7 @@ export function Conversation({
             addFiles(event.dataTransfer.files);
           }}
         >
-          {dragDepth > 0 && <div className="fh-composer-drop-hint">{t("attach.dropHint")}</div>}
+          {dragDepth > 0 && <div className="fh-composer-drop-hint absolute [inset:0] [z-index:2] flex items-center justify-center [border:2px_dashed_var(--accent)] [border-radius:inherit] [background:color-mix(in_srgb,var(--bg)_88%,transparent)] [color:var(--accent-text)] font-semibold pointer-events-none">{t("attach.dropHint")}</div>}
           {menuItems.length > 0 && (
             <SkillMenu
               items={menuItems}
@@ -1835,7 +1077,7 @@ export function Conversation({
             />
           )}
           <textarea
-            id="text-input"
+            id="text-input" className="[#text-input&]:[border:none] [#text-input&]:[resize:none] [#text-input&]:overflow-y-auto [#text-input&]:[min-height:1.5em] [#text-input&]:[max-height:15em] [#text-input&]:p-0 [#text-input&]:[background:var(--bg)] [#text-input&]:[color:var(--fg)] [#text-input&]:[font:var(--fh-text-base,1em/1.5_inherit)] [#text-input&:focus]:[outline:none] [#text-input&]:[scrollbar-width:thin] [#text-input&]:[scrollbar-color:var(--border)_transparent] [#text-input&::-webkit-scrollbar]:[width:8px] [#text-input&::-webkit-scrollbar-thumb]:[background:var(--border)] [#text-input&::-webkit-scrollbar-thumb]:[border-radius:999px] [#text-input&::-webkit-scrollbar-thumb:hover]:[background:var(--muted)] [#text-input&::-webkit-scrollbar-track]:[background:transparent]"
             ref={textareaRef}
             rows={1}
             placeholder={t("conversation.placeholder")}
@@ -1853,12 +1095,12 @@ export function Conversation({
             }}
           />
           <PendingAttachments items={attachments.items} onRemove={attachments.remove} onRetry={attachments.retry} t={t} />
-          <div className="fh-composer-actions">
+          <div className="fh-composer-actions flex justify-end">
             {canAttach && (
               <>
                 <button
                   type="button"
-                  className="fh-attach-button"
+                  className="fh-attach-button [margin-right:auto] inline-flex items-center justify-center [width:2.25em] [height:2.25em] p-0 [border:1px_solid_var(--border)] [border-radius:999px] [background:var(--bg)] [color:var(--fg)] cursor-pointer [&_svg]:flex-none [&:hover:not(:disabled)]:[background:var(--bg-hover)] [&:disabled]:[opacity:0.5] [&:disabled]:cursor-default"
                   title={t("attach.button")}
                   aria-label={t("attach.button")}
                   disabled={!!run}
@@ -1882,7 +1124,7 @@ export function Conversation({
               <Button
                 key="stop"
                 variant="primary"
-                className="fh-stop-btn"
+                className="fh-stop-btn inline-flex items-center [&&]:[gap:0.4em]"
                 onClick={stopRun}
               >
                 <StopIcon size={12} fill="currentColor" />

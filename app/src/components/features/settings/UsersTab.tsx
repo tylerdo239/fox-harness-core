@@ -116,10 +116,10 @@ export function UsersTab({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <div className="fh-settings-field-group">
-        <div className="fh-settings-section-title">{t('users.createTitle')}</div>
+      <div className="fh-settings-field-group [margin-bottom:1.5em]">
+        <div className="fh-settings-section-title [font:var(--fh-text-s-strong,600_1em/1.4_inherit)] [margin-bottom:0.6em] [color:var(--fg)]">{t('users.createTitle')}</div>
         <form
-          className="ds-form"
+          className="ds-form flex flex-col [gap:14px]"
           onSubmit={(event) => {
             event.preventDefault()
             void createUser()
@@ -139,15 +139,15 @@ export function UsersTab({ onClose }: { onClose: () => void }) {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          <label className="ds-field">
+          <label className="ds-field flex flex-col [gap:6px] [&>span:first-child]:[font-size:0.85em] [&>span:first-child]:font-semibold [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]">
             <span>{t('users.role')}</span>
             <select value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
               <option value="user">{t('users.roleUser')}</option>
               <option value="admin">{t('users.roleAdmin')}</option>
             </select>
           </label>
-          {validationError && <span className="error">{validationError}</span>}
-          <div className="fh-settings-profile-actions">
+          {validationError && <span className="error [color:var(--error)] [font-size:0.85em]">{validationError}</span>}
+          <div className="fh-settings-profile-actions flex justify-end [margin-top:1em]">
             <Button variant="primary" type="submit" disabled={creating}>
               {creating ? t('users.creating') : t('users.create')}
             </Button>
@@ -155,24 +155,24 @@ export function UsersTab({ onClose }: { onClose: () => void }) {
         </form>
       </div>
 
-      <div className="fh-settings-field-group">
-        <div className="fh-settings-section-title">{t('users.listTitle')}</div>
+      <div className="fh-settings-field-group [margin-bottom:1.5em]">
+        <div className="fh-settings-section-title [font:var(--fh-text-s-strong,600_1em/1.4_inherit)] [margin-bottom:0.6em] [color:var(--fg)]">{t('users.listTitle')}</div>
         {loading ? (
-          <div className="ds-muted">{t('users.loading')}</div>
+          <div className="ds-muted [color:var(--muted)] [font-size:0.85em]">{t('users.loading')}</div>
         ) : users.length === 0 ? (
-          <div className="ds-muted">{t('users.empty')}</div>
+          <div className="ds-muted [color:var(--muted)] [font-size:0.85em]">{t('users.empty')}</div>
         ) : (
           <div className="fh-settings-profile-rows">
             {users.map((user) => {
               const isSelf = user.email === runtime.userEmail
               return (
-                <div key={user.id} className="ds-form fh-settings-profile-row" style={{ alignItems: 'stretch', gap: 8 }}>
-                  <div className="ds-field-row">
+                <div key={user.id} className="ds-form flex flex-col [gap:14px] fh-settings-profile-row items-center justify-between [padding:0.75em_0] [border-bottom:1px_solid_var(--border)] [font-size:0.9em] [&:last-child]:[border-bottom:none]" style={{ alignItems: 'stretch', gap: 8 }}>
+                  <div className="ds-field-row flex items-center [gap:8px] [&>*]:[flex:1] [&>*]:min-w-0 [&>button]:flex-none [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]">
                     <span>
                       {user.email}
-                      {isSelf && <span className="ds-muted"> ({t('users.you')})</span>}
+                      {isSelf && <span className="ds-muted [color:var(--muted)] [font-size:0.85em]"> ({t('users.you')})</span>}
                       <br />
-                      <span className="ds-muted">
+                      <span className="ds-muted [color:var(--muted)] [font-size:0.85em]">
                         {t('users.createdAt', { date: new Date(user.createdAt).toLocaleDateString(dateLocale) })}
                       </span>
                     </span>
@@ -200,7 +200,7 @@ export function UsersTab({ onClose }: { onClose: () => void }) {
                   </div>
                   {resetId === user.id && (
                     <form
-                      className="ds-field-row"
+                      className="ds-field-row flex items-center [gap:8px] [&>*]:[flex:1] [&>*]:min-w-0 [&>button]:flex-none [&_select]:[height:34px] [&_select]:[padding:0_10px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:var(--radius-md)] [&_select]:[background:transparent] [&_select]:[color:var(--fg)] [&_select]:[font:inherit]"
                       onSubmit={(event) => {
                         event.preventDefault()
                         void resetPassword(user)

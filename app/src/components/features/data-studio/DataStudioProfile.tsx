@@ -76,15 +76,15 @@ export function DataStudioProfile() {
 
   return (
     <div className="fh-data-studio-admin">
-      <div className="fh-data-studio-admin-header">
+      <div className="fh-data-studio-admin-header [margin-bottom:16px] [&_h2]:m-0 [&_h2]:[font-size:1.2em]">
         <h2>{t("dataStudio.sectionProfile")}</h2>
       </div>
-      <div className="fh-data-studio-relationship-form">
+      <div className="fh-data-studio-relationship-form flex items-center [gap:8px] [margin-bottom:16px] flex-wrap">
         {TABS.map((tab) => (
           <button
             key={tab.kind}
             type="button"
-            className={`fh-data-studio-tab${activeTab === tab.kind ? " fh-data-studio-tab-active" : ""}`}
+            className={`fh-data-studio-tab [button&]:[background:transparent] [button&]:[color:var(--muted)] [button&]:[border:1px_solid_transparent] [button&]:[border-radius:8px] [button&]:[height:30px] [button&:hover]:[color:var(--fg)] [button&:hover]:[background:var(--surface)]${activeTab === tab.kind ? " fh-data-studio-tab-active [button&&&]:[color:var(--accent-text)] [button&&]:[border-color:var(--accent)] [button&&&]:[background:color-mix(in_srgb,var(--accent)_10%,transparent)]" : ""}`}
             onClick={() => setView({ kind: tab.kind })}
           >
             {t(tab.labelKey)}

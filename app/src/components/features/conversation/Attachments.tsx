@@ -25,36 +25,36 @@ export function PendingAttachments({
 }) {
   if (items.length === 0) return null;
   return (
-    <ul className="fh-attach-chips">
+    <ul className="fh-attach-chips [list-style:none] m-0 p-0 flex flex-wrap [gap:0.5em]">
       {items.map((item) => (
-        <li key={item.id} className={`fh-attach-chip${item.status === "error" ? " fh-attach-chip-error" : ""}`}>
+        <li key={item.id} className={`fh-attach-chip relative flex items-center [gap:0.5em] [width:13.5em] [padding:0.4em_0.4em_0.4em_0.45em] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:var(--surface)] overflow-hidden${item.status === "error" ? " fh-attach-chip-error [&&]:[border-color:var(--error)] [&_.fh-attach-size]:[color:var(--error)]" : ""}`}>
           {item.previewUrl ? (
-            <img className="fh-attach-thumb" src={item.previewUrl} alt="" />
+            <img className="fh-attach-thumb flex-none [width:2.25em] [height:2.25em] [border-radius:var(--radius-sm)] [object-fit:cover]" src={item.previewUrl} alt="" />
           ) : (
-            <span className="fh-attach-icon">
+            <span className="fh-attach-icon flex-none [width:2.25em] [height:2.25em] [border-radius:var(--radius-sm)] [object-fit:cover] flex items-center justify-center [background:var(--bg-hover)] [color:var(--muted)]">
               <FileTextIcon size={16} />
             </span>
           )}
-          <span className="fh-attach-meta">
-            <span className="fh-attach-name" title={item.file.name}>
+          <span className="fh-attach-meta flex flex-col min-w-0 [flex:1] [line-height:1.25]">
+            <span className="fh-attach-name overflow-hidden text-ellipsis whitespace-nowrap [font-size:0.85em]" title={item.file.name}>
               {item.file.name}
             </span>
-            <span className="fh-attach-size">
+            <span className="fh-attach-size [font-size:0.75em] [color:var(--muted)]">
               {item.status === "error"
                 ? t(item.error === "tooLarge" ? "attach.tooLarge" : item.error === "noSpace" ? "attach.noSpace" : "attach.failed")
                 : formatSize(item.file.size)}
             </span>
           </span>
           {item.status === "error" && item.error === "failed" && (
-            <button type="button" className="fh-attach-action" title={t("attach.retry")} onClick={() => onRetry(item.id)}>
+            <button type="button" className="fh-attach-action [&_svg]:flex-none flex-none inline-flex [padding:0.2em] [border:none] [border-radius:var(--radius-sm)] [background:none] [color:var(--muted)] cursor-pointer [&:hover]:[background:var(--bg-hover)] [&:hover]:[color:var(--fg)]" title={t("attach.retry")} onClick={() => onRetry(item.id)}>
               <RetryIcon size={14} />
             </button>
           )}
-          <button type="button" className="fh-attach-action" title={t("attach.remove")} onClick={() => onRemove(item.id)}>
+          <button type="button" className="fh-attach-action [&_svg]:flex-none flex-none inline-flex [padding:0.2em] [border:none] [border-radius:var(--radius-sm)] [background:none] [color:var(--muted)] cursor-pointer [&:hover]:[background:var(--bg-hover)] [&:hover]:[color:var(--fg)]" title={t("attach.remove")} onClick={() => onRemove(item.id)}>
             <CloseIcon size={14} />
           </button>
           {item.status === "uploading" && (
-            <span className="fh-attach-progress" role="progressbar" aria-valuenow={Math.round(item.progress * 100)}>
+            <span className="fh-attach-progress absolute [left:0] [right:0] [bottom:0] [height:3px] [background:var(--border-subtle)] [&>span]:block [&>span]:h-full [&>span]:[background:var(--accent)] [&>span]:[transition:width_var(--duration-fast)_var(--ease)]" role="progressbar" aria-valuenow={Math.round(item.progress * 100)}>
               <span style={{ width: `${Math.round(item.progress * 100)}%` }} />
             </span>
           )}
@@ -108,16 +108,16 @@ export function SentAttachments({ names, t }: { names: string[]; t: T }) {
 
   return (
     <>
-      <ul className="fh-attach-sent">
+      <ul className="fh-attach-sent [list-style:none] m-0 p-0 flex flex-wrap justify-end [gap:0.4em]">
         {names.map((name) => (
           <li key={name}>
-            <button type="button" className="fh-attach-card" title={name} onClick={() => void open(name)}>
+            <button type="button" className="fh-attach-card [&_svg]:flex-none flex items-center [gap:0.4em] [max-width:16em] [padding:0.45em_0.7em] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:var(--surface)] [color:var(--fg)] cursor-pointer [&:hover]:[background:var(--bg-hover)] [&:has(.fh-attach-card-thumb)]:p-0 [&:has(.fh-attach-card-thumb)]:overflow-hidden" title={name} onClick={() => void open(name)}>
               {thumbs[name] ? (
-                <img className="fh-attach-card-thumb" src={thumbs[name]} alt={name} />
+                <img className="fh-attach-card-thumb block [max-width:14em] [max-height:10em] [object-fit:cover]" src={thumbs[name]} alt={name} />
               ) : (
                 <>
                   <FileTextIcon size={16} />
-                  <span className="fh-attach-name">{name}</span>
+                  <span className="fh-attach-name overflow-hidden text-ellipsis whitespace-nowrap [font-size:0.85em]">{name}</span>
                 </>
               )}
             </button>
@@ -125,7 +125,7 @@ export function SentAttachments({ names, t }: { names: string[]; t: T }) {
         ))}
       </ul>
       {preview && (
-        <div className="fh-workspace-preview" role="dialog" onClick={() => setPreview(null)}>
+        <div className="fh-workspace-preview fixed [inset:0] [z-index:50] flex flex-col items-center justify-center [gap:0.5em] [background:rgba(0,0,0,0.7)] [color:#fff] [cursor:zoom-out] [&_img]:[max-width:90vw] [&_img]:[max-height:80vh] [&_img]:[background:#fff] [&_img]:[border-radius:8px]" role="dialog" onClick={() => setPreview(null)}>
           <img src={preview.url} alt={preview.name} />
           <span>{preview.name}</span>
         </div>

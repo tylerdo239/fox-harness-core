@@ -27,7 +27,7 @@
 import { isValidElement, memo, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
-import remarkGfm from "remark-gfm";
+import remarkGfm from "./remarkGfmParse.ts";
 import { toast } from "sonner";
 
 import { copyText } from "../../../clipboard.ts";
@@ -80,9 +80,9 @@ const CodeBlock = memo(
     }
 
     return (
-      <div className="md-code-block">
-        <div className="md-code-block-header">
-          <span className="md-code-block-lang">{language || "text"}</span>
+      <div className="md-code-block [margin:0.6em_0] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] overflow-hidden [background:var(--surface)] [&_pre]:m-0 [&_pre]:[padding:0.8em] [&_pre]:overflow-x-auto [&_code]:[font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace] [&_code]:[font-size:0.85em] [&_code]:[line-height:1.5] [&_code]:[color:var(--fg)] [&_code]:[background:none]">
+        <div className="md-code-block-header flex items-center justify-between [gap:0.5em] [padding:0.3em_0.3em_0.3em_0.8em] [border-bottom:1px_solid_var(--border)] [font-size:0.8em] [color:var(--muted)]">
+          <span className="md-code-block-lang [font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace] [text-transform:lowercase]">{language || "text"}</span>
           <IconButton
             size="sm"
             variant="plain"
@@ -132,7 +132,7 @@ const markdownComponents = {
   a({ href, children }: { href?: string; children?: ReactNode }) {
     return (
       <a
-        className="fh-link"
+        className="fh-link [color:var(--accent-text)] [text-decoration:underline] [&&]:[text-decoration-color:color-mix(in_srgb,currentColor_40%,transparent)] [text-underline-offset:0.15em] [word-break:break-all] [&:hover]:[text-decoration-color:currentColor]"
         href={href}
         target="_blank"
         rel="noopener noreferrer"
@@ -177,7 +177,7 @@ const markdownComponents = {
   },
   table({ children }: { children?: ReactNode }) {
     return (
-      <div className="md-table-wrap">
+      <div className="md-table-wrap [margin:0.6em_0] overflow-x-auto [border:1px_solid_var(--border)] [border-radius:var(--radius-sm)] [&_table]:w-full [&_table]:[border-collapse:collapse] [&_table]:[font-size:0.92em] [&_:is(th,td)]:[padding:0.45em_0.7em] [&_:is(th,td)]:[border-bottom:1px_solid_var(--border)] [&_:is(th,td)]:text-left [&_tr:last-child_td]:[border-bottom:none] [&_th]:[background:var(--surface)] [&_th]:font-semibold [&_th]:whitespace-nowrap">
         <table>{children}</table>
       </div>
     );

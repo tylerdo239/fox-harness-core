@@ -69,8 +69,8 @@ function cardStyleFor(w: { x: number; y: number; w: number; h: number }, look: R
 
 function Spinner({ label }: { label: string }) {
   return (
-    <div className="ds-status ds-dash-pad">
-      <span className="ds-spinner" aria-hidden /> {label}
+    <div className="ds-status inline-flex items-center [gap:8px] [color:var(--muted)] [font-size:0.9em] ds-dash-pad [padding:24px_32px]">
+      <span className="ds-spinner [&.ds-progress-mark]:[width:10px] [&.ds-progress-mark]:[height:10px] [width:14px] [height:14px] [border:2px_solid_var(--border)] [&&]:[border-top-color:var(--accent)] [border-radius:50%] [animation:fh-spin_0.8s_linear_infinite]" aria-hidden /> {label}
     </div>
   );
 }
@@ -122,10 +122,10 @@ function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
 
   return (
     <div className="fh-data-studio-admin">
-      <div className="fh-data-studio-admin-header ds-dash-list-head">
+      <div className="fh-data-studio-admin-header [margin-bottom:16px] [&_h2]:m-0 [&_h2]:[font-size:1.2em] ds-dash-list-head flex items-start justify-between [gap:12px] [&_p]:[margin:4px_0_0]">
         <div>
           <h2>{t("dsx.dashboardsTitle")}</h2>
-          <p className="ds-muted">{t("dsx.dashboardsSubtitle")}</p>
+          <p className="ds-muted [color:var(--muted)] [font-size:0.85em]">{t("dsx.dashboardsSubtitle")}</p>
         </div>
         <Button variant="primary" onClick={() => void create()} disabled={creating}>
           <PlusIcon size={14} /> {t("dsx.newDashboard")}
@@ -133,27 +133,27 @@ function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
       </div>
 
       {loading ? (
-        <p className="fh-data-studio-loading">{t("dataStudio.loading")}</p>
+        <p className="fh-data-studio-loading [padding:48px] text-center [color:var(--muted)]">{t("dataStudio.loading")}</p>
       ) : dashboards.length === 0 ? (
-        <div className="ds-dash-empty">
+        <div className="ds-dash-empty flex flex-col items-center [gap:10px] [margin-top:18px] [padding:40px_16px] [border:1px_dashed_var(--border)] [border-radius:var(--radius-lg)] [color:var(--muted)] text-center">
           <DashboardsIcon size={28} />
           <p>{t("dsx.noDashboardsHint")}</p>
         </div>
       ) : (
-        <div className="ds-dash-cards">
+        <div className="ds-dash-cards grid [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))] [gap:14px] [margin-top:18px]">
           {dashboards.map((d) => (
-            <div key={d.id} className="ds-dash-card">
-              <button type="button" className="ds-dash-card-main" onClick={() => onOpen(d.id)}>
-                <span className="ds-dash-card-title">
+            <div key={d.id} className="ds-dash-card relative flex flex-col [border:1px_solid_var(--border)] [border-radius:var(--radius-lg)] [transition:border-color_var(--fh-duration-fast,0.1s)] [&:hover]:[border-color:var(--accent)] [&:hover_.ds-dash-card-delete]:[opacity:1]">
+              <button type="button" className="ds-dash-card-main [height:auto] flex flex-col items-start [gap:6px] [padding:14px] [border:0] [background:none] [color:var(--fg)] [font:inherit] text-left" onClick={() => onOpen(d.id)}>
+                <span className="ds-dash-card-title flex items-center [gap:6px] font-semibold [&_svg]:[color:var(--accent)]">
                   <DashboardsIcon size={15} /> {d.title}
                 </span>
-                {d.description && <span className="ds-dash-card-desc">{d.description}</span>}
-                <span className="ds-muted ds-dash-card-meta">
+                {d.description && <span className="ds-dash-card-desc [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden [color:var(--muted)] [font-size:0.85em]">{d.description}</span>}
+                <span className="ds-muted [color:var(--muted)] [font-size:0.85em] ds-dash-card-meta [margin-top:auto]">
                   {t("dsx.chartsCount", { n: String(d.widget_count) })} · {new Date(d.updated_at).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US")}
                 </span>
               </button>
               {confirmId === d.id ? (
-                <div className="ds-dash-confirm">
+                <div className="ds-dash-confirm flex flex-wrap items-center [gap:8px] [padding:10px_14px] [border-top:1px_solid_var(--border-subtle)] [font-size:0.85em]">
                   <span>{t("dsx.confirmDelete", { name: d.title })}</span>
                   <Button variant="primary" onClick={() => void remove(d.id)}>
                     {t("dsx.deleteDashboard")}
@@ -163,7 +163,7 @@ function DashboardList({ onOpen }: { onOpen: (id: string) => void }) {
                   </Button>
                 </div>
               ) : (
-                <IconButton className="ds-dash-card-delete" onClick={() => setConfirmId(d.id)} title={t("dsx.deleteDashboard")}>
+                <IconButton className="ds-dash-card-delete absolute [top:8px] [right:8px] [opacity:0]" onClick={() => setConfirmId(d.id)} title={t("dsx.deleteDashboard")}>
                   <TrashIcon size={14} />
                 </IconButton>
               )}
@@ -181,17 +181,17 @@ function WidgetBody({ widget, look }: { widget: WidgetOut; look: ReturnType<type
   const { t } = useLocale();
   if (widget.kind === "text") {
     return (
-      <div className="ds-dash-text" style={{ color: look.theme.ink3 }}>
+      <div className="ds-dash-text [font-size:0.9em] [line-height:1.6] whitespace-pre-wrap" style={{ color: look.theme.ink3 }}>
         {widget.text}
       </div>
     );
   }
-  if (!widget.chart) return <div className="ds-muted ds-dash-center">{t("dsx.deletedChart")}</div>;
+  if (!widget.chart) return <div className="ds-muted [color:var(--muted)] [font-size:0.85em] ds-dash-center flex h-full items-center justify-center">{t("dsx.deletedChart")}</div>;
   const spec = chartOutToSpec(widget.chart, widget.title_override);
   return (
     <>
-      <div className="ds-dash-widget-title">{widget.title_override || widget.chart.title_override || chartTitle(widget.chart, t("conversation.dsTable"))}</div>
-      <div className="ds-dash-widget-plot">
+      <div className="ds-dash-widget-title [margin-bottom:6px] overflow-hidden [font-size:0.95em] font-semibold text-ellipsis whitespace-nowrap">{widget.title_override || widget.chart.title_override || chartTitle(widget.chart, t("conversation.dsTable"))}</div>
+      <div className="ds-dash-widget-plot [flex:1] min-h-0">
         <ChartView chart={spec} height="100%" chromeless />
       </div>
     </>
@@ -235,16 +235,16 @@ function DashboardReport({ id, onBack, onEdit }: { id: string; onBack: () => voi
   }
 
   if (loading) return <Spinner label={t("dataStudio.loading")} />;
-  if (!dash) return <div className="ds-dash-pad ds-muted">{t("dsx.notFound")}</div>;
+  if (!dash) return <div className="ds-dash-pad [padding:24px_32px] ds-muted [color:var(--muted)] [font-size:0.85em]">{t("dsx.notFound")}</div>;
 
   const look = appearanceOf(dash.appearance);
   return (
     <div className="ds-dash-page">
-      <div className="ds-dash-topbar">
-        <button type="button" className="ds-dash-back" onClick={onBack}>
+      <div className="ds-dash-topbar flex-none flex items-center justify-between [gap:12px] [padding:10px_20px] [border-bottom:1px_solid_var(--border)]">
+        <button type="button" className="ds-dash-back inline-flex items-center [gap:6px] [height:auto] p-0 [border:0] [background:none] [color:var(--muted)] [font:inherit] [&&]:font-semibold [&:hover]:[color:var(--fg)]" onClick={onBack}>
           <ArrowLeftIcon size={15} /> {t("dsx.back")}
         </button>
-        <div className="ds-toolbar">
+        <div className="ds-toolbar flex flex-wrap items-center [gap:8px] [&_button]:inline-flex [&_button]:items-center [&_button]:[gap:6px] [&_button]:whitespace-nowrap">
           <Button variant="outline" onClick={savePdf}>
             {t("dsx.savePdf")}
           </Button>
@@ -256,15 +256,15 @@ function DashboardReport({ id, onBack, onEdit }: { id: string; onBack: () => voi
         </div>
       </div>
 
-      <div className="ds-dash-scroll ds-report" style={{ background: look.theme.bg, color: look.theme.ink }}>
+      <div className="ds-dash-scroll [flex:1] min-w-0 min-h-0 overflow-auto ds-report" style={{ background: look.theme.bg, color: look.theme.ink }}>
         <DashboardHeader title={dash.title} description={dash.description} variant={look.header} banner={t("dsx.reportBanner")} />
-        <div className="ds-dash-body">
+        <div className="ds-dash-body [max-width:1152px] [margin:0_auto] [padding:28px_32px]">
           {dash.widgets.length === 0 ? (
-            <div className="ds-dash-empty">{t("dsx.noCharts")}</div>
+            <div className="ds-dash-empty flex flex-col items-center [gap:10px] [margin-top:18px] [padding:40px_16px] [border:1px_dashed_var(--border)] [border-radius:var(--radius-lg)] [color:var(--muted)] text-center">{t("dsx.noCharts")}</div>
           ) : (
-            <div className="ds-dash-grid" style={{ gap: look.gap }}>
+            <div className="ds-dash-grid grid [grid-template-columns:repeat(12,1fr)] [grid-auto-rows:70px]" style={{ gap: look.gap }}>
               {dash.widgets.map((w) => (
-                <div key={w.id} className="ds-dash-widget" style={cardStyleFor(w, look)}>
+                <div key={w.id} className="ds-dash-widget flex flex-col min-w-0 [padding:14px] [border-radius:12px] overflow-hidden" style={cardStyleFor(w, look)}>
                   <WidgetBody widget={w} look={look} />
                 </div>
               ))}
@@ -422,7 +422,7 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
   }
 
   if (loading) return <Spinner label={t("dataStudio.loading")} />;
-  if (!dash) return <div className="ds-dash-pad ds-muted">{t("dsx.notFound")}</div>;
+  if (!dash) return <div className="ds-dash-pad [padding:24px_32px] ds-muted [color:var(--muted)] [font-size:0.85em]">{t("dsx.notFound")}</div>;
 
   const presets = [
     { key: "two-col", label: t("dsx.layoutTwoCol"), w: 6 },
@@ -455,11 +455,11 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
 
   return (
     <div className="ds-dash-page">
-      <div className="ds-dash-topbar">
-        <button type="button" className="ds-dash-back" onClick={onBack}>
+      <div className="ds-dash-topbar flex-none flex items-center justify-between [gap:12px] [padding:10px_20px] [border-bottom:1px_solid_var(--border)]">
+        <button type="button" className="ds-dash-back inline-flex items-center [gap:6px] [height:auto] p-0 [border:0] [background:none] [color:var(--muted)] [font:inherit] [&&]:font-semibold [&:hover]:[color:var(--fg)]" onClick={onBack}>
           <ArrowLeftIcon size={15} /> {t("dsx.builderTitle")}
         </button>
-        <div className="ds-toolbar">
+        <div className="ds-toolbar flex flex-wrap items-center [gap:8px] [&_button]:inline-flex [&_button]:items-center [&_button]:[gap:6px] [&_button]:whitespace-nowrap">
           <Button variant="outline" disabled={saving} onClick={() => void save().then((ok) => ok && onPreview())}>
             {t("dsx.preview")}
           </Button>
@@ -469,43 +469,43 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
         </div>
       </div>
 
-      <div className="ds-builder">
-        <aside className="ds-builder-side">
-          <div className="ds-section-label">{t("dsx.fromChats")}</div>
+      <div className="ds-builder [flex:1] min-h-0 flex overflow-hidden">
+        <aside className="ds-builder-side flex-none [width:250px] flex flex-col [gap:8px] [padding:14px] overflow-y-auto [border-right:1px_solid_var(--border)]">
+          <div className="ds-section-label [margin-bottom:6px] [color:var(--muted)] [font-size:0.7em] font-semibold [letter-spacing:0.04em] [text-transform:uppercase]">{t("dsx.fromChats")}</div>
           {available.length === 0 ? (
-            <p className="ds-muted">{t("dsx.noSavedCharts")}</p>
+            <p className="ds-muted [color:var(--muted)] [font-size:0.85em]">{t("dsx.noSavedCharts")}</p>
           ) : (
             available.map((c) => (
-              <button key={c.chart_id} type="button" className="ds-builder-chart" onClick={() => addChart(c)} title={c.conversation_title ?? undefined}>
-                <span className="ds-builder-chart-title">
+              <button key={c.chart_id} type="button" className="ds-builder-chart [height:auto] flex flex-col items-start [gap:2px] [padding:8px_10px] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:none] [color:var(--fg)] [font:inherit] [&&]:[font-size:0.9em] text-left [&:hover]:[border-color:var(--accent)] [&:hover]:[background:color-mix(in_srgb,var(--accent)_8%,transparent)]" onClick={() => addChart(c)} title={c.conversation_title ?? undefined}>
+                <span className="ds-builder-chart-title flex items-center [gap:6px] font-semibold [&_svg]:[color:var(--accent)]">
                   <ChartBarIcon size={13} /> {chartTitle(c, t("conversation.dsTable")) || c.type}
                 </span>
-                <span className="ds-muted">{c.type}{c.conversation_title ? ` · ${c.conversation_title}` : ""}</span>
+                <span className="ds-muted [color:var(--muted)] [font-size:0.85em]">{c.type}{c.conversation_title ? ` · ${c.conversation_title}` : ""}</span>
               </button>
             ))
           )}
-          <div className="ds-section-label ds-builder-divider">{t("dsx.addWidget")}</div>
-          <button type="button" className="ds-builder-chart" onClick={addText}>
+          <div className="ds-section-label [margin-bottom:6px] [color:var(--muted)] [font-size:0.7em] font-semibold [letter-spacing:0.04em] [text-transform:uppercase] ds-builder-divider [margin-top:10px] [padding-top:12px] [border-top:1px_solid_var(--border-subtle)]">{t("dsx.addWidget")}</div>
+          <button type="button" className="ds-builder-chart [height:auto] flex flex-col items-start [gap:2px] [padding:8px_10px] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:none] [color:var(--fg)] [font:inherit] [&&]:[font-size:0.9em] text-left [&:hover]:[border-color:var(--accent)] [&:hover]:[background:color-mix(in_srgb,var(--accent)_8%,transparent)]" onClick={addText}>
             {t("dsx.textWidget")}
           </button>
         </aside>
 
-        <main className="ds-dash-scroll" style={{ background: look.theme.bg, color: look.theme.ink }}>
-          <div className="ds-builder-preview-header">
+        <main className="ds-dash-scroll [flex:1] min-w-0 min-h-0 overflow-auto" style={{ background: look.theme.bg, color: look.theme.ink }}>
+          <div className="ds-builder-preview-header pointer-events-none">
             <DashboardHeader title={title || t("dsx.dashboardTitlePh")} description={dash.description} variant={look.header} banner={t("dsx.reportBanner")} />
           </div>
-          <div className="ds-dash-body">
+          <div className="ds-dash-body [max-width:1152px] [margin:0_auto] [padding:28px_32px]">
             <input
-              className="ds-builder-title"
+              className="ds-builder-title w-full [margin-bottom:4px] p-0 [border:0] [background:transparent] [font:inherit] [&&]:[font-size:1.7em] [&&]:font-bold [outline:none]"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("dsx.dashboardTitlePh")}
               style={{ color: look.theme.ink }}
             />
-            <p className="ds-muted ds-builder-hint">{t("dsx.dragHint")}</p>
+            <p className="ds-muted [color:var(--muted)] [font-size:0.85em] ds-builder-hint [margin:0_0_14px]">{t("dsx.dragHint")}</p>
             <div
               ref={gridRef}
-              className="ds-dash-grid ds-builder-grid"
+              className="ds-dash-grid grid [grid-template-columns:repeat(12,1fr)] [grid-auto-rows:70px] ds-builder-grid relative"
               style={{ gap: look.gap, minHeight: totalRows * (ROW_H + look.gap) }}
             >
               {widgets.map((w) => {
@@ -513,13 +513,13 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
                 return (
                   <div
                     key={w.key}
-                    className={`ds-dash-widget ds-builder-widget${isSelected ? " selected" : ""}`}
+                    className={`ds-dash-widget flex flex-col min-w-0 [border-radius:12px] overflow-hidden ds-builder-widget [padding:12px] relative [cursor:move] select-none [touch-action:none] [&.selected]:![box-shadow:0_0_0_3px_color-mix(in_srgb,var(--accent)_25%,transparent)] [&:hover_.ds-builder-remove]:[opacity:1]${isSelected ? " selected" : ""}`}
                     style={{ ...cardStyleFor(w, look), ...(isSelected ? { border: "1px solid var(--accent)" } : {}) }}
                     onPointerDown={(e) => startPointer(e, w, "move")}
                   >
                     <button
                       type="button"
-                      className="ds-builder-remove"
+                      className="ds-builder-remove absolute [top:6px] [right:6px] [z-index:2] inline-flex [height:auto] [padding:4px] [border:0] [border-radius:6px] [background:transparent] [color:var(--muted)] [opacity:0] [&:hover]:[background:color-mix(in_srgb,var(--error)_14%,transparent)] [&:hover]:[color:var(--error)]"
                       title={t("dsx.deleteWidget")}
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
@@ -531,18 +531,18 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
                     </button>
                     {w.kind === "text" ? (
                       <textarea
-                        className="ds-builder-textarea"
+                        className="ds-builder-textarea w-full h-full [resize:none] [border:0] [background:transparent] [color:inherit] [font:inherit] [&&]:[font-size:0.9em] [outline:none]"
                         value={w.text ?? ""}
                         placeholder={t("dsx.textPlaceholder")}
                         onPointerDown={(e) => e.stopPropagation()}
                         onChange={(e) => patchWidget(w.key, { text: e.target.value })}
                       />
                     ) : (
-                      <div className="ds-builder-widget-inner">
+                      <div className="ds-builder-widget-inner flex flex-col h-full overflow-hidden pointer-events-none">
                         <WidgetBody widget={w} look={look} />
                       </div>
                     )}
-                    <div className="ds-builder-resize" onPointerDown={(e) => startPointer(e, w, "resize")} />
+                    <div className="ds-builder-resize absolute [right:0] [bottom:0] [width:16px] [height:16px] [border-bottom-right-radius:12px] [background:linear-gradient(135deg,transparent_50%,var(--border)_50%,var(--border)_70%,transparent_70%)] [cursor:se-resize]" onPointerDown={(e) => startPointer(e, w, "resize")} />
                   </div>
                 );
               })}
@@ -550,9 +550,9 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
           </div>
         </main>
 
-        <aside className="ds-builder-side ds-builder-panel">
+        <aside className="ds-builder-side flex-none flex flex-col [padding:14px] overflow-y-auto ds-builder-panel [width:280px] [gap:18px] [border-right:0] [border-left:1px_solid_var(--border)]">
           <PanelSection title={t("dsx.layout")}>
-            <div className="ds-panel-grid ds-panel-grid-2">
+            <div className="ds-panel-grid grid [gap:8px] ds-panel-grid-2 [grid-template-columns:repeat(2,1fr)]">
               {presets.map((p) => (
                 <PanelBtn key={p.key} active={look.ap("layout", "") === p.key} onClick={() => applyPreset(p.key, p.w)}>
                   {p.label}
@@ -561,7 +561,7 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
             </div>
           </PanelSection>
           <PanelSection title={t("dsx.density")}>
-            <div className="ds-panel-grid ds-panel-grid-3">
+            <div className="ds-panel-grid grid [gap:8px] ds-panel-grid-3 [grid-template-columns:repeat(3,1fr)]">
               {densities.map((d) => (
                 <PanelBtn key={d.key} active={look.density === d.key} onClick={() => setAp("density", d.key)}>
                   {d.label}
@@ -570,13 +570,13 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
             </div>
           </PanelSection>
           <PanelSection title={t("dsx.themeSection")}>
-            <div className="ds-panel-grid ds-panel-grid-4">
+            <div className="ds-panel-grid grid [gap:8px] ds-panel-grid-4 [grid-template-columns:repeat(4,1fr)]">
               {themes.map((th) => (
                 <button
                   key={th.key}
                   type="button"
                   title={th.label}
-                  className={`ds-theme-swatch${look.ap("theme", "light") === th.key ? " active" : ""}`}
+                  className={`ds-theme-swatch [height:36px] p-0 [border:2px_solid_var(--border)] [border-radius:var(--radius-md)] [&.active]:[border-color:var(--accent)]${look.ap("theme", "light") === th.key ? " active" : ""}`}
                   style={{ background: THEMES[th.key].swatch }}
                   onClick={() => setAp("theme", th.key)}
                 />
@@ -584,7 +584,7 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
             </div>
           </PanelSection>
           <PanelSection title={t("dsx.cardStyle")}>
-            <div className="ds-panel-grid ds-panel-grid-3">
+            <div className="ds-panel-grid grid [gap:8px] ds-panel-grid-3 [grid-template-columns:repeat(3,1fr)]">
               {cardStyles.map((c) => (
                 <PanelBtn key={c.key} active={look.cardStyle === c.key} onClick={() => setAp("cardStyle", c.key)}>
                   {c.label}
@@ -593,16 +593,16 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
             </div>
           </PanelSection>
           <PanelSection title={t("dsx.headerSection")}>
-            <div className="ds-panel-stack">
+            <div className="ds-panel-stack flex flex-col [gap:8px]">
               {headers.map((h) => (
                 <button
                   key={h.key}
                   type="button"
-                  className={`ds-panel-option${look.header === h.key ? " active" : ""}`}
+                  className={`ds-panel-option [height:auto] [padding:6px_8px] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:none] [color:var(--fg)] [font:inherit] [&&]:[font-size:0.9em] [&:hover]:[background:var(--surface)] [&.active]:[border-color:var(--accent)] [&&.active]:[background:color-mix(in_srgb,var(--accent)_10%,transparent)] [&.active]:[color:var(--accent-text)] [&.active]:font-semibold flex flex-col items-start [gap:2px] text-left${look.header === h.key ? " active" : ""}`}
                   onClick={() => setAp("header", h.key)}
                 >
-                  <span className="ds-panel-option-title">{h.label}</span>
-                  <span className="ds-muted">{h.note}</span>
+                  <span className="ds-panel-option-title font-semibold">{h.label}</span>
+                  <span className="ds-muted [color:var(--muted)] [font-size:0.85em]">{h.note}</span>
                 </button>
               ))}
             </div>
@@ -615,8 +615,8 @@ function DashboardBuilder({ id, onBack, onPreview }: { id: string; onBack: () =>
 
 function PanelSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="ds-panel-section">
-      <div className="ds-section-label">{title}</div>
+    <div className="ds-panel-section flex flex-col [gap:8px] [&_.ds-section-label]:[margin-bottom:0]">
+      <div className="ds-section-label [margin-bottom:6px] [color:var(--muted)] [font-size:0.7em] font-semibold [letter-spacing:0.04em] [text-transform:uppercase]">{title}</div>
       {children}
     </div>
   );
@@ -624,7 +624,7 @@ function PanelSection({ title, children }: { title: string; children: ReactNode 
 
 function PanelBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
-    <button type="button" className={`ds-panel-btn${active ? " active" : ""}`} onClick={onClick}>
+    <button type="button" className={`ds-panel-btn [height:auto] [padding:6px_8px] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:none] [color:var(--fg)] [font:inherit] [&&]:[font-size:0.9em] [&:hover]:[background:var(--surface)] [&.active]:[border-color:var(--accent)] [&&.active]:[background:color-mix(in_srgb,var(--accent)_10%,transparent)] [&.active]:[color:var(--accent-text)] [&.active]:font-semibold${active ? " active" : ""}`} onClick={onClick}>
       {children}
     </button>
   );

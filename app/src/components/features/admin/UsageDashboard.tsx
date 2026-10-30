@@ -64,10 +64,10 @@ function successRate(t: Totals): number | null {
 function Delta({ now, before, lowerIsBetter = false }: { now: number | null; before: number | null; lowerIsBetter?: boolean }) {
   if (now === null || before === null || before === 0) return null;
   const change = (now - before) / before;
-  if (Math.abs(change) < 0.005) return <span className="fh-usage-delta">±0%</span>;
+  if (Math.abs(change) < 0.005) return <span className="fh-usage-delta [font-weight:650] [color:var(--muted)]">±0%</span>;
   const good = lowerIsBetter ? change < 0 : change > 0;
   return (
-    <span className={`fh-usage-delta ${good ? "fh-usage-delta-good" : "fh-usage-delta-bad"}`}>
+    <span className={`fh-usage-delta [font-weight:650] [color:var(--muted)] ${good ? "fh-usage-delta-good [color:var(--status-success)]" : "fh-usage-delta-bad [&&]:[color:var(--status-danger)]"}`}>
       {change > 0 ? "▲" : "▼"} {Math.abs(change * 100).toFixed(Math.abs(change) < 0.1 ? 1 : 0)}%
     </span>
   );
@@ -75,12 +75,12 @@ function Delta({ now, before, lowerIsBetter = false }: { now: number | null; bef
 
 function Kpi({ label, value, hint, delta }: { label: string; value: string; hint?: string; delta?: ReactNode }) {
   return (
-    <div className="fh-usage-kpi">
-      <div className="fh-usage-kpi-label">{label}</div>
-      <div className="fh-usage-kpi-value">{value}</div>
-      <div className="fh-usage-kpi-foot">
+    <div className="fh-usage-kpi [padding:14px_16px] [border:1px_solid_var(--border)] [border-radius:14px] [background:var(--bg)] [box-shadow:var(--shadow-lv1)]">
+      <div className="fh-usage-kpi-label [font-size:0.8em] [color:var(--muted)] font-semibold">{label}</div>
+      <div className="fh-usage-kpi-value [margin-top:6px] [font-size:1.6em] font-bold [line-height:1.1] [font-variant-numeric:tabular-nums] [color:var(--fg)] [@media(max-width:520px)]:[font-size:1.3em]">{value}</div>
+      <div className="fh-usage-kpi-foot flex flex-wrap items-center [gap:6px_10px] [margin-top:6px] [min-height:18px] [font-size:0.78em]">
         {delta}
-        {hint && <span className="fh-usage-kpi-hint">{hint}</span>}
+        {hint && <span className="fh-usage-kpi-hint [color:var(--muted)]">{hint}</span>}
       </div>
     </div>
   );
@@ -88,8 +88,8 @@ function Kpi({ label, value, hint, delta }: { label: string; value: string; hint
 
 function Panel({ title, children, actions, wide }: { title: string; children: ReactNode; actions?: ReactNode; wide?: boolean }) {
   return (
-    <section className={`fh-usage-panel${wide ? " fh-usage-panel-wide" : ""}`}>
-      <header className="fh-usage-panel-head">
+    <section className={`fh-usage-panel min-w-0 [padding:14px_16px] [border:1px_solid_var(--border)] [border-radius:14px] [background:var(--bg)] [box-shadow:var(--shadow-lv1)]${wide ? " fh-usage-panel-wide [grid-column:1_/_-1]" : ""}`}>
+      <header className="fh-usage-panel-head flex items-center justify-between [gap:8px] [margin-bottom:10px] [&_h3]:m-0 [&_h3]:[font-size:0.95em] [&_h3]:[font-weight:650]">
         <h3>{title}</h3>
         {actions}
       </header>
@@ -108,7 +108,7 @@ function SeriesChart({ data, bars, line, format }: {
   format: (v: number) => string;
 }) {
   return (
-    <div className="fh-usage-chart">
+    <div className="fh-usage-chart w-full [height:200px]">
       <ResponsiveContainer width="100%" height={200}>
         {line ? (
           <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -135,17 +135,17 @@ function SeriesChart({ data, bars, line, format }: {
 }
 
 function Ranked({ rows, empty }: { rows: { label: string; hint?: string; value: number; shown: string; tone?: "danger" }[]; empty: string }) {
-  if (rows.length === 0) return <p className="fh-usage-empty">{empty}</p>;
+  if (rows.length === 0) return <p className="fh-usage-empty [margin:4px_0] [color:var(--muted)] [font-size:0.88em]">{empty}</p>;
   const max = Math.max(...rows.map((r) => r.value), 1);
   return (
-    <ul className="fh-usage-ranked">
+    <ul className="fh-usage-ranked [list-style:none] m-0 p-0 flex flex-col [gap:10px]">
       {rows.map((r) => (
         <li key={r.label}>
-          <div className="fh-usage-ranked-label" title={r.hint ?? r.label}>
+          <div className="fh-usage-ranked-label flex justify-between [gap:10px] [font-size:0.88em] [margin-bottom:4px] [&_span]:min-w-0 [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_b]:flex-none [&_b]:font-semibold [&_b]:[font-variant-numeric:tabular-nums]" title={r.hint ?? r.label}>
             <span>{r.label}</span>
-            <b className={r.tone === "danger" ? "fh-usage-danger" : undefined}>{r.shown}</b>
+            <b className={r.tone === "danger" ? "fh-usage-danger [color:var(--status-danger)]" : undefined}>{r.shown}</b>
           </div>
-          <div className="fh-usage-bar"><span style={{ width: r.value > 0 ? `${Math.max(2, (r.value / max) * 100)}%` : 0 }} /></div>
+          <div className="fh-usage-bar [height:6px] [border-radius:999px] [background:var(--surface)] overflow-hidden [&_span]:block [&_span]:h-full [&_span]:[border-radius:999px] [&_span]:[background:var(--accent)]"><span style={{ width: r.value > 0 ? `${Math.max(2, (r.value / max) * 100)}%` : 0 }} /></div>
         </li>
       ))}
     </ul>
@@ -176,13 +176,13 @@ function UsersTable({ report, onOpen, t }: { report: UsageReport; onOpen: (id: n
   const maxTokens = Math.max(1, ...report.users.map((u) => u.inputTokens + u.outputTokens));
   const head = (key: SortKey, label: string) => (
     <th>
-      <button type="button" className={`fh-usage-sort${sort === key ? " fh-usage-sort-on" : ""}`} onClick={() => setSort(key)}>{label}{sort === key ? " ↓" : ""}</button>
+      <button type="button" className={`fh-usage-sort [height:auto] p-0 [border:0] [background:transparent] [color:inherit] [font:inherit] [&&]:font-semibold cursor-pointer${sort === key ? " fh-usage-sort-on [color:var(--accent-text)]" : ""}`} onClick={() => setSort(key)}>{label}{sort === key ? " ↓" : ""}</button>
     </th>
   );
-  if (rows.length === 0) return <p className="fh-usage-empty">{t("usage.empty")}</p>;
+  if (rows.length === 0) return <p className="fh-usage-empty [margin:4px_0] [color:var(--muted)] [font-size:0.88em]">{t("usage.empty")}</p>;
   return (
-    <div className="fh-usage-table-wrap">
-      <table className="fh-usage-table">
+    <div className="fh-usage-table-wrap overflow-x-auto">
+      <table className="fh-usage-table w-full [border-collapse:collapse] [font-size:0.88em] [&_th]:text-left [&_th]:font-semibold [&_th]:[color:var(--muted)] [&_th]:[padding:6px_8px] [&_th]:[border-bottom:1px_solid_var(--border)] [&_th]:whitespace-nowrap [&_td]:[padding:8px] [&_td]:[border-bottom:1px_solid_var(--border-subtle,var(--border))] [&_td]:[font-variant-numeric:tabular-nums] [&_td]:whitespace-nowrap [&_td:first-child]:[min-width:200px]">
         <thead>
           <tr>
             <th>{t("usage.col.user")}</th>
@@ -199,22 +199,22 @@ function UsersTable({ report, onOpen, t }: { report: UsageReport; onOpen: (id: n
           {rows.map((u) => {
             const tokens = u.inputTokens + u.outputTokens;
             return (
-              <tr key={u.id} onClick={() => onOpen(u.id)} className="fh-usage-row">
+              <tr key={u.id} onClick={() => onOpen(u.id)} className="fh-usage-row cursor-pointer [&:hover_td]:[background:var(--bg-hover)]">
                 <td>
-                  <span className="fh-usage-user">
-                    <span className="fh-usage-avatar">{(u.email ?? "?").charAt(0).toUpperCase()}</span>
-                    <span className="fh-usage-user-email">{u.email ?? t("usage.unknownUser", { id: String(u.id) })}</span>
-                    {u.role === "admin" && <span className="fh-usage-tag">admin</span>}
+                  <span className="fh-usage-user inline-flex items-center [gap:8px] min-w-0 [vertical-align:middle]">
+                    <span className="fh-usage-avatar flex-none [width:26px] [height:26px] [border-radius:999px] inline-flex items-center justify-center [background:color-mix(in_srgb,var(--accent)_16%,transparent)] [color:var(--accent-text)] font-bold [font-size:12px]">{(u.email ?? "?").charAt(0).toUpperCase()}</span>
+                    <span className="fh-usage-user-email overflow-hidden text-ellipsis">{u.email ?? t("usage.unknownUser", { id: String(u.id) })}</span>
+                    {u.role === "admin" && <span className="fh-usage-tag inline-flex items-center [height:20px] [padding:0_8px] [border-radius:999px] [font-size:11px] font-semibold [background:color-mix(in_srgb,var(--accent)_12%,transparent)] [color:var(--accent-text)] whitespace-nowrap">admin</span>}
                   </span>
                 </td>
                 <td>{f.n(u.chats)}</td>
                 <td>{f.n(u.turns)}</td>
                 <td title={`${f.n(u.inputTokens)} in · ${f.n(u.outputTokens)} out`}>
-                  <div className="fh-usage-cell-bar"><span style={{ width: `${Math.max(2, (tokens / maxTokens) * 100)}%` }} /></div>
+                  <div className="fh-usage-cell-bar [height:6px] [border-radius:999px] [background:var(--surface)] overflow-hidden [&_span]:block [&_span]:h-full [&_span]:[border-radius:999px] [&_span]:[background:var(--accent)] [width:60px] inline-block [vertical-align:middle] [margin-right:8px]"><span style={{ width: `${Math.max(2, (tokens / maxTokens) * 100)}%` }} /></div>
                   {f.c(tokens)}
                 </td>
                 <td>{f.n(u.toolCalls)}</td>
-                <td className={u.toolErrors > 0 ? "fh-usage-danger" : undefined}>{f.n(u.toolErrors)}</td>
+                <td className={u.toolErrors > 0 ? "fh-usage-danger [color:var(--status-danger)]" : undefined}>{f.n(u.toolErrors)}</td>
                 <td>{f.ms(u.avgTurnMs)}</td>
                 <td>{f.at(u.lastActiveAt)}</td>
               </tr>
@@ -255,25 +255,25 @@ function UserDrawer({ userId, period, onClose, t }: { userId: number; period: Pe
     }
   };
   return (
-    <div className="fh-usage-drawer-backdrop" onClick={onClose}>
-      <aside className="fh-usage-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={t("usage.userChats")}>
+    <div className="fh-usage-drawer-backdrop fixed [inset:0] [z-index:60] [background:var(--overlay-mask,rgb(0_0_0_/_0.3))] flex justify-end" onClick={onClose}>
+      <aside className="fh-usage-drawer [width:min(520px,100%)] h-full overflow-y-auto [padding:18px_20px] [background:var(--bg)] [border-left:1px_solid_var(--border)] [box-shadow:var(--shadow-lv2)] [animation:fh-usage-in_180ms_ease-out] [&_header]:flex [&_header]:items-start [&_header]:justify-between [&_header]:[gap:12px] [&_header]:[margin-bottom:14px] [&_h3]:m-0 [&_h3]:[font-size:1.05em] [&_h3]:[word-break:break-all] [&_header_p]:[margin:2px_0_0] [&_header_p]:[color:var(--muted)] [&_header_p]:[font-size:0.85em] [@media(prefers-reduced-motion:reduce)]:[animation:none]" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={t("usage.userChats")}>
         <header>
           <div>
             <h3>{data?.user.email ?? t("usage.unknownUser", { id: String(userId) })}</h3>
             <p>{t("usage.userChatsHint", { from: f.day(period.from), to: f.day(period.to) })}</p>
           </div>
-          <button type="button" className="fh-usage-icon-btn" onClick={onClose} aria-label={t("usage.close")}><CloseIcon size={18} /></button>
+          <button type="button" className="fh-usage-icon-btn flex-none [width:34px] [height:34px] p-0 inline-flex items-center justify-center [border:1px_solid_var(--border)] [border-radius:999px] [background:var(--bg)] [color:var(--fg)] cursor-pointer [&:hover]:[background:var(--bg-hover)]" onClick={onClose} aria-label={t("usage.close")}><CloseIcon size={18} /></button>
         </header>
-        {error && <p className="fh-usage-error">{error}</p>}
-        {!data && !error && <div className="fh-usage-skeleton" style={{ height: 240 }} />}
-        {data && data.chats.length === 0 && <p className="fh-usage-empty">{t("usage.empty")}</p>}
+        {error && <p className="fh-usage-error [margin:6px_0] [color:var(--status-danger)] [font-size:0.88em]">{error}</p>}
+        {!data && !error && <div className="fh-usage-skeleton [border-radius:14px] [background:var(--surface)] [animation:fh-usage-pulse_1.2s_ease-in-out_infinite] [@media(prefers-reduced-motion:reduce)]:[animation:none]" style={{ height: 240 }} />}
+        {data && data.chats.length === 0 && <p className="fh-usage-empty [margin:4px_0] [color:var(--muted)] [font-size:0.88em]">{t("usage.empty")}</p>}
         {data && data.chats.length > 0 && (
-          <ul className="fh-usage-chats">
+          <ul className="fh-usage-chats [list-style:none] m-0 p-0 flex flex-col [gap:8px] [&_li]:[padding:10px_12px] [&_li]:[border:1px_solid_var(--border)] [&_li]:[border-radius:10px]">
             {data.chats.map((chat) => (
               <li key={chat.sessionId}>
-                <div className="fh-usage-chat-title">{chat.title || t("usage.untitled")}</div>
-                <div className="fh-usage-chat-meta">
-                  <span className="fh-usage-tag">{flowLabel(chat.flow, t)}</span>
+                <div className="fh-usage-chat-title font-semibold overflow-hidden text-ellipsis whitespace-nowrap">{chat.title || t("usage.untitled")}</div>
+                <div className="fh-usage-chat-meta flex flex-wrap items-center [gap:4px_10px] [margin-top:4px] [font-size:0.8em] [color:var(--muted)]">
+                  <span className="fh-usage-tag inline-flex items-center [height:20px] [padding:0_8px] [border-radius:999px] [font-size:11px] font-semibold [background:color-mix(in_srgb,var(--accent)_12%,transparent)] [color:var(--accent-text)] whitespace-nowrap">{flowLabel(chat.flow, t)}</span>
                   <span>{t("usage.chatTurns", { n: f.n(chat.turns) })}</span>
                   <span>{f.c(chat.inputTokens + chat.outputTokens)} tokens</span>
                   <span>{t("usage.chatTools", { n: f.n(chat.toolCalls) })}</span>
@@ -284,7 +284,7 @@ function UserDrawer({ userId, period, onClose, t }: { userId: number; period: Pe
           </ul>
         )}
         {data?.next !== null && data?.next !== undefined && (
-          <button type="button" className="fh-usage-more" disabled={loadingMore} onClick={() => void more()}>{t("usage.loadMore")}</button>
+          <button type="button" className="fh-usage-more [margin-top:12px] [height:34px] w-full [border:1px_solid_var(--border)] [border-radius:10px] [background:var(--bg)] [color:var(--fg)] cursor-pointer [font:inherit]" disabled={loadingMore} onClick={() => void more()}>{t("usage.loadMore")}</button>
         )}
       </aside>
     </div>
@@ -303,10 +303,10 @@ function reasonLabel(kind: string, t: T): string {
 
 function Skeleton() {
   return (
-    <div role="status" className="fh-usage-skeleton-grid">
-      {Array.from({ length: 8 }, (_, i) => <div key={i} className="fh-usage-skeleton" style={{ height: 96 }} />)}
-      <div className="fh-usage-skeleton fh-usage-panel-wide" style={{ height: 240 }} />
-      <div className="fh-usage-skeleton fh-usage-panel-wide" style={{ height: 240 }} />
+    <div role="status" className="fh-usage-skeleton-grid grid [grid-template-columns:repeat(4,minmax(0,1fr))] [gap:12px] [@media(max-width:900px)]:[grid-template-columns:repeat(2,minmax(0,1fr))]">
+      {Array.from({ length: 8 }, (_, i) => <div key={i} className="fh-usage-skeleton [border-radius:14px] [background:var(--surface)] [animation:fh-usage-pulse_1.2s_ease-in-out_infinite] [@media(prefers-reduced-motion:reduce)]:[animation:none]" style={{ height: 96 }} />)}
+      <div className="fh-usage-skeleton [border-radius:14px] [background:var(--surface)] [animation:fh-usage-pulse_1.2s_ease-in-out_infinite] [@media(prefers-reduced-motion:reduce)]:[animation:none] fh-usage-panel-wide [grid-column:1_/_-1]" style={{ height: 240 }} />
+      <div className="fh-usage-skeleton [border-radius:14px] [background:var(--surface)] [animation:fh-usage-pulse_1.2s_ease-in-out_infinite] [@media(prefers-reduced-motion:reduce)]:[animation:none] fh-usage-panel-wide [grid-column:1_/_-1]" style={{ height: 240 }} />
     </div>
   );
 }
@@ -392,54 +392,54 @@ export function UsageDashboard({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="fh-usage">
-      <div className="fh-usage-scroll">
-        <header className="fh-usage-head">
-          <button type="button" className="fh-usage-icon-btn" onClick={onBack} aria-label={t("usage.back")} title={t("usage.back")}><ArrowLeftIcon size={18} /></button>
-          <span className="fh-usage-head-icon"><UsageIcon size={20} /></span>
-          <div className="fh-usage-head-text">
+      <div className="fh-usage-scroll [flex:1] min-h-0 overflow-y-auto [padding:24px_28px_40px] [&>*]:[max-width:1240px] [&>*]:[margin-left:auto] [&>*]:[margin-right:auto] [@media(max-width:520px)]:[padding:16px_16px_32px]">
+        <header className="fh-usage-head flex items-center [gap:12px] [margin-bottom:18px]">
+          <button type="button" className="fh-usage-icon-btn flex-none [width:34px] [height:34px] p-0 inline-flex items-center justify-center [border:1px_solid_var(--border)] [border-radius:999px] [background:var(--bg)] [color:var(--fg)] cursor-pointer [&:hover]:[background:var(--bg-hover)]" onClick={onBack} aria-label={t("usage.back")} title={t("usage.back")}><ArrowLeftIcon size={18} /></button>
+          <span className="fh-usage-head-icon flex-none [width:40px] [height:40px] [border-radius:12px] inline-flex items-center justify-center [background:color-mix(in_srgb,var(--accent)_14%,transparent)] [color:var(--accent-text)]"><UsageIcon size={20} /></span>
+          <div className="fh-usage-head-text [&_h1]:m-0 [&_h1]:[font-size:1.3em] [&_h1]:[font-weight:650] [&_p]:[margin:2px_0_0] [&_p]:[color:var(--muted)] [&_p]:[font-size:0.9em]">
             <h1>{t("usage.title")}</h1>
             <p>{t("usage.subtitle")}</p>
           </div>
         </header>
 
-        <div className="fh-usage-filter">
-          <div className="fh-usage-presets" role="radiogroup" aria-label={t("usage.period")}>
+        <div className="fh-usage-filter flex flex-wrap items-center [gap:10px_16px] [margin-bottom:12px]">
+          <div className="fh-usage-presets flex flex-wrap items-center [gap:6px]" role="radiogroup" aria-label={t("usage.period")}>
             {(["7", "30", "90", "month", "lastMonth"] as const).map((p) => (
-              <button key={p} type="button" role="radio" aria-checked={preset === p} className={`fh-usage-chip${preset === p ? " fh-usage-chip-on" : ""}`} onClick={() => choosePreset(p)}>
+              <button key={p} type="button" role="radio" aria-checked={preset === p} className={`fh-usage-chip inline-flex items-center [gap:6px] [height:32px] [padding:0_12px] [border:1px_solid_var(--border)] [border-radius:999px] [background:var(--bg)] [color:var(--fg)] [font:inherit] [&&]:[font-size:0.85em] [&&]:font-semibold cursor-pointer [transition:border-color_120ms_ease,background_120ms_ease,color_120ms_ease] [&_svg]:[color:var(--accent-text)] [&:hover:not(:disabled)]:[border-color:var(--accent)] [&:hover:not(:disabled)]:[color:var(--accent-text)] [&:disabled]:[opacity:0.45] [&:disabled]:cursor-default${preset === p ? " fh-usage-chip-on [&&]:[border-color:var(--accent)] [&&]:[background:var(--accent)] [&&]:[color:var(--accent-contrast)] [&&:hover:not(:disabled)]:[color:var(--accent-contrast)]" : ""}`} onClick={() => choosePreset(p)}>
                 {p === "month" ? t("usage.thisMonth") : p === "lastMonth" ? t("usage.lastMonth") : t("usage.lastDays", { n: p })}
               </button>
             ))}
           </div>
-          <div className="fh-usage-custom">
+          <div className="fh-usage-custom flex flex-wrap items-center [gap:6px] [&_label]:inline-flex [&_label]:items-center [&_label]:[gap:6px] [&_label]:[font-size:0.85em] [&_label]:[color:var(--muted)] [&_input[type=date]]:[height:32px] [&_input[type=date]]:[padding:0_8px] [&_input[type=date]]:[border:1px_solid_var(--border)] [&_input[type=date]]:[border-radius:8px] [&_input[type=date]]:[background:var(--bg)] [&_input[type=date]]:[color:var(--fg)] [&_input[type=date]]:[font:inherit] [&&_input[type=date]]:[font-size:0.85em] [&_select]:[height:32px] [&_select]:[padding:0_8px] [&_select]:[border:1px_solid_var(--border)] [&_select]:[border-radius:8px] [&_select]:[background:var(--bg)] [&_select]:[color:var(--fg)] [&_select]:[font:inherit] [&&_select]:[font-size:0.85em]">
             <label>{t("usage.from")}<input type="date" value={draft.from} max={today()} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></label>
             <label>{t("usage.to")}<input type="date" value={draft.to} max={today()} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></label>
-            <button type="button" className="fh-usage-chip" disabled={!!rangeError} onClick={applyCustom}>{t("usage.apply")}</button>
+            <button type="button" className="fh-usage-chip inline-flex items-center [gap:6px] [height:32px] [padding:0_12px] [border:1px_solid_var(--border)] [border-radius:999px] [background:var(--bg)] [color:var(--fg)] [font:inherit] [&&]:[font-size:0.85em] [&&]:font-semibold cursor-pointer [transition:border-color_120ms_ease,background_120ms_ease,color_120ms_ease] [&_svg]:[color:var(--accent-text)] [&:hover:not(:disabled)]:[border-color:var(--accent)] [&:hover:not(:disabled)]:[color:var(--accent-text)] [&:disabled]:[opacity:0.45] [&:disabled]:cursor-default" disabled={!!rangeError} onClick={applyCustom}>{t("usage.apply")}</button>
             <select value={period.group} aria-label={t("usage.groupBy")} onChange={(e) => { const group = e.target.value as Group; setPeriod({ ...period, group }); }}>
               <option value="day">{t("usage.byDay")}</option>
               <option value="week">{t("usage.byWeek")}</option>
               <option value="month">{t("usage.byMonth")}</option>
             </select>
           </div>
-          {rangeError && <p className="fh-usage-error">{rangeError}</p>}
+          {rangeError && <p className="fh-usage-error [margin:6px_0] [color:var(--status-danger)] [font-size:0.88em]">{rangeError}</p>}
         </div>
 
         {report && (
-          <div className="fh-usage-range">
+          <div className="fh-usage-range flex flex-wrap items-center justify-between [gap:8px] [margin-bottom:14px] [color:var(--muted)] [font-size:0.85em]">
             <span>{t("usage.range", { from: f.day(report.range.from), to: f.day(report.range.to), prevFrom: f.day(report.range.previousFrom), prevTo: f.day(report.range.previousTo) })}</span>
-            <button type="button" className="fh-usage-chip" onClick={exportSeries}><DownloadIcon size={14} />{t("usage.exportCsv")}</button>
+            <button type="button" className="fh-usage-chip inline-flex items-center [gap:6px] [height:32px] [padding:0_12px] [border:1px_solid_var(--border)] [border-radius:999px] [background:var(--bg)] [color:var(--fg)] [font:inherit] [&&]:[font-size:0.85em] [&&]:font-semibold cursor-pointer [transition:border-color_120ms_ease,background_120ms_ease,color_120ms_ease] [&_svg]:[color:var(--accent-text)] [&:hover:not(:disabled)]:[border-color:var(--accent)] [&:hover:not(:disabled)]:[color:var(--accent-text)] [&:disabled]:[opacity:0.45] [&:disabled]:cursor-default" onClick={exportSeries}><DownloadIcon size={14} />{t("usage.exportCsv")}</button>
           </div>
         )}
-        {loading && report && <div className="fh-usage-progress" />}
-        {error && !report && <p className="fh-usage-error fh-usage-error-big">{error}</p>}
-        {error && report && <p className="fh-usage-error">{t("usage.refreshFailed", { error })}</p>}
+        {loading && report && <div className="fh-usage-progress [height:2px] [margin-bottom:10px] [background:linear-gradient(90deg,transparent,var(--accent),transparent)] [&&]:[background-size:50%_100%] [&&]:[background-repeat:no-repeat] [animation:fh-usage-progress_1s_linear_infinite] [@media(prefers-reduced-motion:reduce)]:[animation:none]" />}
+        {error && !report && <p className="fh-usage-error [margin:6px_0] [color:var(--status-danger)] [font-size:0.88em] fh-usage-error-big [padding:40px_0] text-center">{error}</p>}
+        {error && report && <p className="fh-usage-error [margin:6px_0] [color:var(--status-danger)] [font-size:0.88em]">{t("usage.refreshFailed", { error })}</p>}
         {!report && !error && <Skeleton />}
 
         {report && totals && previous && (
-          <div className={`fh-usage-body${loading ? " fh-usage-body-dim" : ""}`}>
+          <div className={`fh-usage-body [transition:opacity_160ms_ease]${loading ? " fh-usage-body-dim [opacity:0.55]" : ""}`}>
             {totals.turns === 0 && report.users.length === 0 && (
-              <p className="fh-usage-empty fh-usage-empty-big">{report.since ? t("usage.emptyPeriod") : t("usage.noDataYet")}</p>
+              <p className="fh-usage-empty [margin:4px_0] [color:var(--muted)] [font-size:0.88em] fh-usage-empty-big [padding:18px] [&&]:[margin-bottom:14px] [border:1px_dashed_var(--border)] [border-radius:12px] text-center">{report.since ? t("usage.emptyPeriod") : t("usage.noDataYet")}</p>
             )}
-            <div className="fh-usage-kpis">
+            <div className="fh-usage-kpis grid [grid-template-columns:repeat(4,minmax(0,1fr))] [gap:12px] [margin-bottom:14px] [@media(max-width:900px)]:[grid-template-columns:repeat(2,minmax(0,1fr))]">
               <Kpi label={t("usage.kpi.activeUsers")} value={f.n(totals.activeUsers)} delta={<Delta now={totals.activeUsers} before={previous.activeUsers} />} />
               <Kpi label={t("usage.kpi.chats")} value={f.n(totals.chats)} delta={<Delta now={totals.chats} before={previous.chats} />} />
               <Kpi label={t("usage.kpi.turns")} value={f.n(totals.turns)} delta={<Delta now={totals.turns} before={previous.turns} />} />
@@ -455,9 +455,9 @@ export function UsageDashboard({ onBack }: { onBack: () => void }) {
               <Kpi label={t("usage.kpi.attachments")} value={f.n(totals.attachments)} delta={<Delta now={totals.attachments} before={previous.attachments} />} />
             </div>
 
-            {totals.failedTurns > 0 && <p className="fh-usage-alert">{t("usage.failedAlert", { n: f.n(totals.failedTurns) })}</p>}
+            {totals.failedTurns > 0 && <p className="fh-usage-alert [margin:0_0_14px] [padding:10px_14px] [border-radius:10px] [font-size:0.9em] [border:1px_solid_color-mix(in_srgb,var(--status-danger)_40%,var(--border))] [background:color-mix(in_srgb,var(--status-danger)_8%,var(--bg))] [color:var(--status-danger)]">{t("usage.failedAlert", { n: f.n(totals.failedTurns) })}</p>}
 
-            <div className="fh-usage-grid">
+            <div className="fh-usage-grid grid [grid-template-columns:repeat(2,minmax(0,1fr))] [gap:14px] [@media(max-width:900px)]:[grid-template-columns:1fr]">
               <Panel title={t("usage.chart.tokens")}>
                 <SeriesChart data={seriesData} format={f.c} bars={[
                   { key: "input", name: t("usage.input"), color: "var(--accent)", stack: "t" },
@@ -491,8 +491,8 @@ export function UsageDashboard({ onBack }: { onBack: () => void }) {
                   ].filter((r) => totals.turns > 0 || r.value > 0)}
                 />
                 {report.outcomes.kinds.length > 0 && (
-                  <div className="fh-usage-kinds">
-                    {report.outcomes.kinds.map((k) => <span key={k.kind} className="fh-usage-tag">{reasonLabel(k.kind, t)} · {f.n(k.count)}</span>)}
+                  <div className="fh-usage-kinds flex flex-wrap [gap:6px] [margin-top:12px]">
+                    {report.outcomes.kinds.map((k) => <span key={k.kind} className="fh-usage-tag inline-flex items-center [height:20px] [padding:0_8px] [border-radius:999px] [font-size:11px] font-semibold [background:color-mix(in_srgb,var(--accent)_12%,transparent)] [color:var(--accent-text)] whitespace-nowrap">{reasonLabel(k.kind, t)} · {f.n(k.count)}</span>)}
                   </div>
                 )}
               </Panel>
@@ -522,7 +522,7 @@ export function UsageDashboard({ onBack }: { onBack: () => void }) {
               </Panel>
 
               <Panel title={t("usage.dataStudio")}>
-                <div className="fh-usage-tiles">
+                <div className="fh-usage-tiles grid [grid-template-columns:repeat(2,minmax(0,1fr))] [gap:10px] [&>div]:flex [&>div]:flex-col [&>div]:[gap:2px] [&>div]:[padding:10px_12px] [&>div]:[border-radius:10px] [&>div]:[background:var(--surface)] [&_b]:[font-size:1.3em] [&&_b]:font-bold [&_b]:[font-variant-numeric:tabular-nums] [&_span]:[font-size:0.78em] [&_span]:[color:var(--muted)]">
                   <div><b>{f.n(report.dataStudio.turns)}</b><span>{t("usage.ds.questions")}</span></div>
                   <div><b>{f.c(report.dataStudio.inputTokens + report.dataStudio.outputTokens)}</b><span>{t("usage.ds.pipeline")}</span></div>
                   <div><b>{f.c(report.dataStudio.embeddingTokens)}</b><span>{t("usage.ds.embedding")}</span></div>
@@ -530,7 +530,7 @@ export function UsageDashboard({ onBack }: { onBack: () => void }) {
                 </div>
               </Panel>
               <Panel title={t("usage.overhead")}>
-                <div className="fh-usage-tiles">
+                <div className="fh-usage-tiles grid [grid-template-columns:repeat(2,minmax(0,1fr))] [gap:10px] [&>div]:flex [&>div]:flex-col [&>div]:[gap:2px] [&>div]:[padding:10px_12px] [&>div]:[border-radius:10px] [&>div]:[background:var(--surface)] [&_b]:[font-size:1.3em] [&&_b]:font-bold [&_b]:[font-variant-numeric:tabular-nums] [&_span]:[font-size:0.78em] [&_span]:[color:var(--muted)]">
                   <div><b>{f.c(report.overhead.compactionTokens)}</b><span>{t("usage.oh.compaction")}</span></div>
                   <div><b>{f.n(report.overhead.failedCalls)}</b><span>{t("usage.oh.failed")}</span></div>
                   <div><b>{report.overhead.cacheShare === null ? "—" : f.pct(report.overhead.cacheShare)}</b><span>{t("usage.oh.cache")}</span></div>
@@ -541,12 +541,12 @@ export function UsageDashboard({ onBack }: { onBack: () => void }) {
               <Panel
                 wide
                 title={t("usage.byUser")}
-                actions={<button type="button" className="fh-usage-chip" onClick={exportUsers} disabled={report.users.length === 0}><DownloadIcon size={14} />{t("usage.exportCsv")}</button>}
+                actions={<button type="button" className="fh-usage-chip inline-flex items-center [gap:6px] [height:32px] [padding:0_12px] [border:1px_solid_var(--border)] [border-radius:999px] [background:var(--bg)] [color:var(--fg)] [font:inherit] [&&]:[font-size:0.85em] [&&]:font-semibold cursor-pointer [transition:border-color_120ms_ease,background_120ms_ease,color_120ms_ease] [&_svg]:[color:var(--accent-text)] [&:hover:not(:disabled)]:[border-color:var(--accent)] [&:hover:not(:disabled)]:[color:var(--accent-text)] [&:disabled]:[opacity:0.45] [&:disabled]:cursor-default" onClick={exportUsers} disabled={report.users.length === 0}><DownloadIcon size={14} />{t("usage.exportCsv")}</button>}
               >
                 <UsersTable report={report} onOpen={setOpenUser} t={t} />
               </Panel>
             </div>
-            <p className="fh-usage-foot">{t("usage.privacy")}{report.since ? ` ${t("usage.since", { at: f.at(report.since) })}` : ""}</p>
+            <p className="fh-usage-foot [margin-top:16px] [color:var(--muted)] [font-size:0.8em] text-center">{t("usage.privacy")}{report.since ? ` ${t("usage.since", { at: f.at(report.since) })}` : ""}</p>
           </div>
         )}
       </div>

@@ -57,6 +57,7 @@ import { MoreIcon, PencilIcon, TrashIcon } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
+import { fetchMySessions, MY_SESSIONS_KEY, queryClient, useMySessions } from "../../../queries.ts";
 import { confirmDialog } from "../../primitives/ConfirmDialog.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
 import { Input } from "../../primitives/Input.tsx";
@@ -139,7 +140,9 @@ export function HistoryChat({
 }) {
   const runtime = useRuntime();
   const { t } = useLocale();
-  const [rows, setRows] = useState<SessionRow[]>([]);
+  // the shared chat list (src/queries.ts)
+  const sessionsQuery = useMySessions();
+  const rows: SessionRow[] = sessionsQuery.data ?? [];
   const [menuRow, setMenuRow] = useState<SessionRow | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
     top: number;
@@ -157,18 +160,17 @@ export function HistoryChat({
   sessionIdRef.current = runtime.sessionId;
 
   async function refresh(): Promise<void> {
-    const res = await runtime.authedFetch("/sessions/mine");
-    if (!res.ok) return;
-    const list = (await res.json()) as SessionRow[];
-    setRows(list);
-    // 2026-09-15 (`SessionTitleBar.tsx`) — this fetch already happens on
-    // every rename (this component's own AND the title bar's, via
-    // `runtime.sessionsVersion` in the effect below) and on session switch,
-    // so reporting the active row's title here is enough to keep the title
-    // bar in sync with all 3 sources without duplicating any fetch logic.
-    const active = list.find((row) => row.sessionId === sessionIdRef.current);
-    runtime.setSessionTitle(active?.title ?? undefined);
+    await queryClient.invalidateQueries({ queryKey: MY_SESSIONS_KEY });
   }
+
+  // 2026-09-15 (`SessionTitleBar.tsx`): after every fetch of the list (a rename here or in the title bar, a chat
+  // switch) report the active chat's title, so the title bar stays in sync without a fetch of its own.
+  // `dataUpdatedAt`, not `data`: an unchanged list keeps the same object but must still report.
+  useEffect(() => {
+    if (!sessionsQuery.data) return;
+    const active = sessionsQuery.data.find((row) => row.sessionId === sessionIdRef.current);
+    runtime.setSessionTitle(active?.title ?? undefined);
+  }, [sessionsQuery.dataUpdatedAt, runtime.sessionId]);
 
   // Automatic titles: the worker's dsh-session-title appends `session/title`
   // events — first the first words of the first message (source `fallback`),
@@ -180,9 +182,10 @@ export function HistoryChat({
     // The row appears only once gateway marks the first message, which can
     // land a moment after the title event.
     for (let attempt = 0; attempt < 5; attempt++) {
-      const res = await runtime.authedFetch("/sessions/mine");
-      if (!res.ok) return;
-      const list = (await res.json()) as SessionRow[];
+      const list = await queryClient
+        .fetchQuery({ queryKey: MY_SESSIONS_KEY, queryFn: () => fetchMySessions(runtime), staleTime: 0 })
+        .catch(() => undefined);
+      if (!list) return;
       if (list.some((r) => r.sessionId === sessionId)) {
         await runtime.authedFetch(`/sessions/${sessionId}`, {
           method: "PATCH",
@@ -207,17 +210,8 @@ export function HistoryChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    // The active session isn't in `GET /sessions/mine`'s row set until its
-    // first real WS connect commits a `sessions` insert (services/gateway's
-    // WS upgrade handler) — refetch whenever the active session changes so
-    // a brand-new session's row appears without a manual reload.
-    // `runtime.sessionsVersion`: also refetch whenever `SessionTitleBar.tsx`
-    // renames the active session from OUTSIDE this component — see
-    // `runtime.ts`'s own comment on that field.
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runtime.sessionId, runtime.sessionsVersion]);
+  // (The list refetches on a chat switch and after any change: App.tsx and `runtime.bumpSessionsVersion()`
+  // invalidate it — a brand-new chat's row appears once its first message is in.)
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -359,12 +353,12 @@ export function HistoryChat({
     <div id="fh-history-chat-list">
       {groups.length === 0 && <></>}
       {groups.map((group) => (
-        <div key={group.key} className="fh-history-chat-group">
-          <div className="fh-history-chat-group-label">{group.label}</div>
+        <div key={group.key} className="fh-history-chat-group flex flex-col">
+          <div className="fh-history-chat-group-label [padding:0.6em_0.75em_0.3em] [color:var(--muted)] [font-size:0.75em] font-medium">{group.label}</div>
           {group.rows.map((row) => (
             <div
               key={row.sessionId}
-              className={`fh-history-chat-row${row.sessionId === runtime.sessionId ? " active" : ""}${menuRow?.sessionId === row.sessionId ? " menu-open" : ""}`}
+              className={`fh-history-chat-row flex items-center [gap:6px] [height:32px] [padding:0_8px] [font-size:0.85em] cursor-pointer [border-radius:8px] [margin:0_0.4em] [transition:background_var(--duration-fast)_var(--ease)] [&:hover]:[background:var(--bg-hover)] [&&.active]:[background:var(--bg-hover)] [&.active_.fh-history-chat-row-title]:[color:var(--accent-text)] [&:hover_.fh-history-chat-row-menu-trigger]:inline-flex [&&.menu-open_.fh-history-chat-row-menu-trigger]:inline-flex${row.sessionId === runtime.sessionId ? " active" : ""}${menuRow?.sessionId === row.sessionId ? " menu-open" : ""}`}
               onClick={() => {
                 if (renamingRow?.sessionId === row.sessionId) return;
                 if (row.sessionId !== runtime.sessionId)
@@ -375,7 +369,7 @@ export function HistoryChat({
                 <Input
                   ref={renameInputRef}
                   type="text"
-                  className="fh-history-chat-row-rename-input"
+                  className="fh-history-chat-row-rename-input [input[type=text]&]:[flex:1] [input[type=text]&]:min-w-0 [input[type=text]&]:[height:22px] [input[type=text]&]:[padding:0_4px] [input[type=text]&]:[border-radius:6px] [input[type=text]&]:[font-size:14px] [input[type=text]&]:[line-height:20px]"
                   value={renameValue}
                   // No native `maxLength` here on purpose — it would
                   // silently swallow keystrokes/paste past 255 chars
@@ -415,7 +409,7 @@ export function HistoryChat({
                 />
               ) : (
                 <>
-                  <span className="fh-history-chat-row-title">
+                  <span className="fh-history-chat-row-title [flex:1] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap [color:var(--fg)] [font-size:14px] [line-height:20px]">
                     {rowLabel(row, t)}
                   </span>
                 </>
@@ -424,7 +418,7 @@ export function HistoryChat({
                 <IconButton
                   size="sm"
                   variant="plain"
-                  className="fh-history-chat-row-menu-trigger"
+                  className="fh-history-chat-row-menu-trigger [button&]:hidden"
                   title={t("historyChat.rowActions")}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -444,7 +438,7 @@ export function HistoryChat({
         createPortal(
           <div
             ref={menuPopupRef}
-            className="fh-history-chat-row-menu-popup"
+            className="fh-history-chat-row-menu-popup fixed [min-width:160px] [background:var(--bg)] [border:1px_solid_var(--border)] [border-radius:12px] [box-shadow:var(--shadow-lv2)] [padding:4px] [z-index:50]"
             style={{ top: menuPosition.top, left: menuPosition.left }}
           >
             <MenuItem
