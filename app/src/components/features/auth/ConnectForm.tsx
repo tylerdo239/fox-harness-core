@@ -29,14 +29,14 @@ export function ConnectForm({
   const [password, setPassword] = useState("");
 
   return (
-    <div className="fh-auth-card">
-      <div className="fh-auth-brand">
+    <div className="fh-auth-card w-full [max-width:360px] flex flex-col [gap:1.25em] [padding:2em] [background:var(--surface)] [border:1px_solid_var(--border)] [border-radius:16px] [box-shadow:var(--shadow-lv2)]">
+      <div className="fh-auth-brand [&_h1]:[font:var(--fh-text-l,600_1.4em/1_inherit)] [&_h1]:[margin:0_0_0.35em] [&_p]:m-0 [&_p]:[color:var(--muted)] [&_p]:[font-size:0.9em]">
         <h1>Fox Agent</h1>
         <p>{t("auth.loginTitle")}</p>
       </div>
 
       <form
-        id="connect-form"
+        id="connect-form" className="[#connect-form&]:flex [#connect-form&]:flex-col [#connect-form&]:[gap:0.9em] [#connect-form&_label]:flex [#connect-form&_label]:flex-col [#connect-form&_label]:[gap:0.35em] [#connect-form&_label]:[font-size:0.8em] [#connect-form&_label]:[color:var(--muted)] [#connect-form&_input]:w-full [#connect-form&_#connect-submit]:[margin-top:0.25em] [#connect-form&_#connect-submit]:w-full"
         onSubmit={(event) => {
           event.preventDefault();
           onLogin(email, password);
@@ -70,7 +70,7 @@ export function ConnectForm({
         </Button>
 
         {error && (
-          <span id="connect-error" className="error">
+          <span id="connect-error" className="error [color:var(--error)] [font-size:0.85em]">
             {error}
           </span>
         )}

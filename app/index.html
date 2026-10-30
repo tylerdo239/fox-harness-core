@@ -35,23 +35,9 @@
         } catch (e) {}
       })();
     </script>
-    <!-- Design tokens (was a dynamically-injected UI plugin, Phase 4-12 — now
-       a real static stylesheet, 2026-09-08 follow-up). Loaded before
-       style.css so the shell's `var(--fh-*, <fallback>)` reads always see
-       real values, not just fallbacks. -->
-    <link rel="stylesheet" href="/theme.css" />
-    <!-- `sonner`'s own compiled stylesheet (2026-09-08 — real toast library,
-       replacing a hand-rolled one). Copied from node_modules on every build
-       by app/vite.config.ts, so it can't silently drift out of sync with
-       the installed version. Loaded BEFORE style.css so style.css's
-       `[data-sonner-toaster][data-sonner-theme]` color overrides win their
-       specificity tie by source order, no `!important` needed. -->
-    <link rel="stylesheet" href="/sonner.css" />
-    <link rel="stylesheet" href="/style.css" />
-    <!-- the reference data-profile screens (src/ref/, Tailwind scoped to .fh-ref; vite.config.ts) -->
-    <link rel="stylesheet" href="/ref.css" />
-    <!-- the canvas side panel and the components ported with it (Tailwind scoped to .fh-tw; vite.config.ts) -->
-    <link rel="stylesheet" href="/tw.css" />
+    <!-- All styles: src/styles/app.css (theme tokens, sonner, the app's Tailwind, the canvas and Data Profile
+       scoped Tailwind builds, in that cascade order). Vite builds it into one hashed /assets/ file. -->
+    <link rel="stylesheet" href="/src/styles/app.css" />
   </head>
   <body>
     <!-- The entire app is one real React tree (app/src/App.tsx,

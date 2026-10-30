@@ -979,10 +979,10 @@ export function Conversation({
 
   return (
     <div
-      className={`fh-conversation-root${isEmpty ? " fh-conversation-empty" : ""}`}
+      className={`fh-conversation-root [&>#log]:[flex:1] [&>#log]:min-h-0 [&>#log]:overflow-y-auto relative [&>#log]:[padding-left:calc(var(--fh-chat-side,0px)_+_1em)] [&>#log]:[padding-right:max(0px,calc(var(--fh-chat-side,0px)_+_1em_-_var(--fh-log-scrollbar,0px)))] [&>#log]:[padding-bottom:calc(var(--fh-dock-height,0px)_+_1em)] [&>.fh-conversation-empty-heading]:[margin-left:var(--fh-chat-side,0px)] [&>.fh-conversation-empty-heading]:[margin-right:var(--fh-chat-side,0px)] [&.fh-conversation-empty]:justify-center [&.fh-conversation-empty]:[gap:1.5em]${isEmpty ? " fh-conversation-empty [&_.fh-composer-dock]:static [&_.fh-composer-dock]:[padding-top:0] [&_.fh-composer-dock]:[background:none] [&_#send-form]:[margin-bottom:0] [&_#send-form]:[padding:1.1em_1.3em] [&_#text-input]:[font-size:1.05em] [&_#text-input]:[min-height:4.5em]" : ""}`}
     >
       {!isEmpty && (
-        <div id="log" ref={logRef}>
+        <div id="log" className="[#log&]:[flex:1] [#log&]:overflow-y-auto [#log&]:[padding:1em] [#log&]:flex [#log&]:flex-col [#log&]:[gap:1rem] [#log&>*]:shrink-0 [#log&>.fh-log-spacer]:[height:0] [#log&>.fh-log-spacer]:[margin-top:-1rem] [#log&>.fh-log-spacer]:pointer-events-none [#log&]:[scrollbar-width:thin] [#log&]:[scrollbar-color:var(--border)_transparent] [#log&::-webkit-scrollbar]:[width:8px] [#log&::-webkit-scrollbar-thumb]:[background:var(--border)] [#log&::-webkit-scrollbar-thumb]:[border-radius:999px] [#log&::-webkit-scrollbar-thumb:hover]:[background:var(--muted)] [#log&::-webkit-scrollbar-track]:[background:transparent]" ref={logRef}>
           {shownEntries.map((entry) => (
             <LogEntryView
               key={entry.id}
@@ -996,25 +996,25 @@ export function Conversation({
             />
           ))}
           {[...liveBubbles.entries()].map(([key, bubble]) => (
-            <div key={key} className="assistant-text">
+            <div key={key} className="assistant-text [max-width:100%] [word-break:break-word]">
               {bubble.text.trim() && (
-                <div className="assistant-text-body">
+                <div className="assistant-text-body [color:var(--fg)] [&_:is(h1,h2,h3,h4,h5,h6)]:[margin:0.9em_0_0.4em] [&_:is(h1,h2,h3,h4,h5,h6)]:font-semibold [&_:is(h1,h2,h3,h4,h5,h6)]:[line-height:1.3] [&_:is(h1,h2,h3,h4,h5,h6):first-child]:[margin-top:0] [&_h1]:[font-size:1.35em] [&&_h2]:[font-size:1.2em] [&_:is(h3,h4,h5,h6)]:[font-size:1.05em] [&_p]:[margin:0.5em_0] [&_p:first-child]:[margin-top:0] [&_p:last-child]:[margin-bottom:0] [&_:is(ul,ol)]:[margin:0.5em_0] [&_:is(ul,ol)]:[padding-inline-start:1.4em] [&_li]:[margin:0.2em_0] [&_li>:is(ul,ol)]:[margin:0.2em_0] [&_blockquote]:[margin:0.6em_0] [&_blockquote]:[padding:0.1em_0_0.1em_0.9em] [&_blockquote]:[border-left:3px_solid_var(--border)] [&_blockquote]:[color:var(--muted)] [&_hr]:[margin:1em_0] [&_hr]:[border:none] [&&_hr]:[border-top:1px_solid_var(--border)] [&_strong]:font-semibold [&_.md-inline-code]:[background:var(--surface)] [&_.md-inline-code]:[border:1px_solid_var(--border-subtle)] [&_.md-inline-code]:[border-radius:4px] [&_.md-inline-code]:[padding:0.1em_0.35em] [&_.md-inline-code]:[font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace] [&_.md-inline-code]:[font-size:0.9em]">
                   <StreamedMarkdown id={key} text={bubble.text} live />
                 </div>
               )}
             </div>
           ))}
           {run && (!streaming || !runtime.connected) && (
-            <div className="fh-run-status" role="status">
+            <div className="fh-run-status self-start flex items-center [gap:0.6em] [font-size:0.85em] [color:var(--muted)]" role="status">
               {runtime.connected ? (
                 <>
-                  <span className="fh-run-dots" aria-hidden="true">
+                  <span className="fh-run-dots inline-flex [gap:3px] [&_i]:[width:6px] [&_i]:[height:6px] [&_i]:[border-radius:50%] [&_i]:[background:var(--accent)] [&_i]:[animation:fh-run-dot_1.2s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:0.2s] [&_i:nth-child(3)]:[animation-delay:0.4s]" aria-hidden="true">
                     <i />
                     <i />
                     <i />
                   </span>
                   <span>{runStatusLabel(run, t)}</span>
-                  <span className="fh-run-elapsed">
+                  <span className="fh-run-elapsed [font-variant-numeric:tabular-nums]">
                     {formatElapsed(now - run.startedAt, t)}
                   </span>
                 </>
@@ -1027,13 +1027,13 @@ export function Conversation({
         </div>
       )}
       {isEmpty && (
-        <div className="fh-conversation-empty-heading">
+        <div className="fh-conversation-empty-heading flex flex-row items-center justify-center [gap:0.5em] [color:var(--accent)] [&_h2]:m-0 [&_h2]:[color:var(--fg)] [&_h2]:[font:var(--fh-text-l,500_1.4em/1.4_inherit)]">
           <BrandIcon size={48} />
           <h2>{t("conversation.emptyHeading")}</h2>
         </div>
       )}
       {/* the files box and the composer float over the log's end (style.css .fh-composer-dock) */}
-      <div className="fh-composer-dock" ref={dockRef}>
+      <div className="fh-composer-dock absolute [left:0] [right:var(--fh-log-scrollbar,0px)] [bottom:0] [z-index:3] flex flex-col [padding-top:1.25em] [background:linear-gradient(to_bottom,transparent,var(--bg)_1.25em)] pointer-events-none [--fh-chat-side:max(0px,calc((100%_+_var(--fh-log-scrollbar,0px)_-_760px)_/_2))] [&>*]:pointer-events-auto [&>.fh-workspace-files]:[margin-left:calc(var(--fh-chat-side,0px)_+_1em)] [&>.fh-workspace-files]:[margin-right:max(0px,calc(var(--fh-chat-side,0px)_+_1em_-_var(--fh-log-scrollbar,0px)))] [&>#send-form]:[margin-left:calc(var(--fh-chat-side,0px)_+_1em)] [&>#send-form]:[margin-right:max(0px,calc(var(--fh-chat-side,0px)_+_1em_-_var(--fh-log-scrollbar,0px)))] [&>.fh-scroll-latest]:absolute [&>.fh-scroll-latest]:[top:-22px] [&>.fh-scroll-latest]:[left:var(--fh-log-scrollbar,0px)] [&>.fh-scroll-latest]:[right:0] [&>.fh-scroll-latest]:[margin:0_auto] [&>.fh-scroll-latest]:[z-index:1] [&>.fh-scroll-latest]:[width:32px] [&>.fh-scroll-latest]:[height:32px] [&>.fh-scroll-latest]:inline-flex [&>.fh-scroll-latest]:items-center [&>.fh-scroll-latest]:justify-center [&>.fh-scroll-latest]:p-0 [&>.fh-scroll-latest]:[border:1px_solid_var(--border)] [&>.fh-scroll-latest]:[border-radius:999px] [&>.fh-scroll-latest]:[background:var(--surface)] [&>.fh-scroll-latest]:[color:var(--fg)] [&>.fh-scroll-latest]:[box-shadow:var(--shadow-lv2)] [&>.fh-scroll-latest]:cursor-pointer [&>.fh-scroll-latest]:[animation:fh-scroll-latest-in_160ms_ease-out] [&>.fh-scroll-latest]:[transition:background_120ms_ease,transform_120ms_ease] [&>.fh-scroll-latest:hover]:[background:var(--bg-hover,var(--surface))] [&>.fh-scroll-latest:hover]:[transform:translateY(1px)] [@media(prefers-reduced-motion:reduce)]:[&>.fh-scroll-latest]:[animation:none] [@media(prefers-reduced-motion:reduce)]:[&>.fh-scroll-latest]:[transition:none]" ref={dockRef}>
         {/* the reader is above the end: one click glides back down and follows again;
         it rides just above the files box / composer (style.css .fh-composer-dock > .fh-scroll-latest) */}
         {!atBottom && (
@@ -1049,7 +1049,7 @@ export function Conversation({
         )}
         {variant === "default" && <WorkspaceFiles version={filesVersion} running={!!run} />}
         <form
-          id="send-form"
+          id="send-form" className="[#send-form&]:flex [#send-form&]:flex-col [#send-form&]:[gap:0.5em] [#send-form&]:[margin:0_1em_1em] [#send-form&]:[padding:0.75em_1em] [#send-form&]:[background:var(--bg)] [#send-form&]:[border:1px_solid_var(--border)] [#send-form&]:[border-radius:22px] [#send-form&]:[box-shadow:var(--shadow-lv2)] [#send-form&]:relative"
           onSubmit={onSubmit}
           onDragEnter={(event) => {
             if (!canAttach || !event.dataTransfer.types.includes("Files")) return;
@@ -1067,7 +1067,7 @@ export function Conversation({
             addFiles(event.dataTransfer.files);
           }}
         >
-          {dragDepth > 0 && <div className="fh-composer-drop-hint">{t("attach.dropHint")}</div>}
+          {dragDepth > 0 && <div className="fh-composer-drop-hint absolute [inset:0] [z-index:2] flex items-center justify-center [border:2px_dashed_var(--accent)] [border-radius:inherit] [background:color-mix(in_srgb,var(--bg)_88%,transparent)] [color:var(--accent-text)] font-semibold pointer-events-none">{t("attach.dropHint")}</div>}
           {menuItems.length > 0 && (
             <SkillMenu
               items={menuItems}
@@ -1077,7 +1077,7 @@ export function Conversation({
             />
           )}
           <textarea
-            id="text-input"
+            id="text-input" className="[#text-input&]:[border:none] [#text-input&]:[resize:none] [#text-input&]:overflow-y-auto [#text-input&]:[min-height:1.5em] [#text-input&]:[max-height:15em] [#text-input&]:p-0 [#text-input&]:[background:var(--bg)] [#text-input&]:[color:var(--fg)] [#text-input&]:[font:var(--fh-text-base,1em/1.5_inherit)] [#text-input&:focus]:[outline:none] [#text-input&]:[scrollbar-width:thin] [#text-input&]:[scrollbar-color:var(--border)_transparent] [#text-input&::-webkit-scrollbar]:[width:8px] [#text-input&::-webkit-scrollbar-thumb]:[background:var(--border)] [#text-input&::-webkit-scrollbar-thumb]:[border-radius:999px] [#text-input&::-webkit-scrollbar-thumb:hover]:[background:var(--muted)] [#text-input&::-webkit-scrollbar-track]:[background:transparent]"
             ref={textareaRef}
             rows={1}
             placeholder={t("conversation.placeholder")}
@@ -1095,12 +1095,12 @@ export function Conversation({
             }}
           />
           <PendingAttachments items={attachments.items} onRemove={attachments.remove} onRetry={attachments.retry} t={t} />
-          <div className="fh-composer-actions">
+          <div className="fh-composer-actions flex justify-end">
             {canAttach && (
               <>
                 <button
                   type="button"
-                  className="fh-attach-button"
+                  className="fh-attach-button [margin-right:auto] inline-flex items-center justify-center [width:2.25em] [height:2.25em] p-0 [border:1px_solid_var(--border)] [border-radius:999px] [background:var(--bg)] [color:var(--fg)] cursor-pointer [&_svg]:flex-none [&:hover:not(:disabled)]:[background:var(--bg-hover)] [&:disabled]:[opacity:0.5] [&:disabled]:cursor-default"
                   title={t("attach.button")}
                   aria-label={t("attach.button")}
                   disabled={!!run}
@@ -1124,7 +1124,7 @@ export function Conversation({
               <Button
                 key="stop"
                 variant="primary"
-                className="fh-stop-btn"
+                className="fh-stop-btn inline-flex items-center [&&]:[gap:0.4em]"
                 onClick={stopRun}
               >
                 <StopIcon size={12} fill="currentColor" />

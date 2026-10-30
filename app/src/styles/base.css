@@ -1,0 +1,255 @@
+/* The app's base styles (docs/ui-performance-plan.md §8): everything that is not a component's own look and so
+   stays CSS — the :root aliases of the design tokens, element defaults (body, button, text inputs), the overrides of
+   what libraries render (sonner toasts, highlight.js code), keyframes and print. Component styles are Tailwind classes
+   in the components themselves. Plain CSS, not `@layer base`: Tailwind drops base-layer rules whose classes it
+   can't find in the source, and highlight.js's `hljs-*` classes only exist at run time. app.css imports it
+   between Tailwind's base and the utilities, so the utilities still come after it. */
+:root {
+  color-scheme: light dark;
+  --bg: var(--fh-bg, #ffffff);
+  --surface: var(--fh-surface, #f7f7f7);
+  --fg: var(--fh-text, #1a1a1a);
+  --muted: var(--fh-muted, #6b6b6b);
+  --border: var(--fh-border, #dddddd);
+  --bubble-user: var(--fh-bubble-user, #fdece0);
+  --bubble-assistant: var(--fh-bubble-assistant, #f2f2f2);
+  --bubble-live: var(--fh-bubble-live, #fff8e1);
+  --accent: var(--fh-accent, #ff7a1f);
+  --accent-contrast: var(--fh-accent-contrast, #ffffff);
+  --accent-text: var(--fh-alias-accent-text, #b3450c);
+  --error: var(--fh-error, #c0392b);
+  --radius-sm: var(--fh-radius-sm, 6px);
+  --radius-md: var(--fh-radius-md, 10px);
+  --radius-lg: var(--fh-radius-lg, 10px);
+  --shadow-sm: var(--fh-shadow-sm, none);
+  --status-success: var(--fh-alias-status-success, #1a7f37);
+  --status-neutral: var(--fh-alias-status-neutral, #6b6b6b);
+  --status-danger: var(--fh-alias-status-danger, #c0392b);
+  --overlay-mask: var(--fh-specific-overlay-mask, rgba(0, 0, 0, 0.4));
+  --shadow-lv1: var(--fh-shadow-lv1, 0 2px 4px 0 rgba(0, 0, 0, 0.05));
+  --shadow-lv2: var(--fh-shadow-lv2, 0 4px 12px 0 rgba(0, 0, 0, 0.06));
+  --shadow-lv3: var(--fh-shadow-lv3, 0 12px 32px 0 rgba(0, 0, 0, 0.12));
+  --ease: var(--fh-ease, ease-in-out);
+  --duration-fast: var(--fh-duration-fast, 0.1s);
+  --duration-base: var(--fh-duration-base, 0.2s);
+  --bg-hover: var(--fh-alias-bg-hover, #ececed);
+  --bg-raised: var(--fh-alias-bg-raised, #f5f5f6);
+  --border-subtle: var(--fh-alias-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--fh-bg, #14161a);
+    --surface: var(--fh-surface, #1b1d22);
+    --fg: var(--fh-text, #eaeaea);
+    --muted: var(--fh-muted, #9a9a9a);
+    --border: var(--fh-border, #333640);
+    --bubble-user: var(--fh-bubble-user, #3a2712);
+    --bubble-assistant: var(--fh-bubble-assistant, #24262b);
+    --bubble-live: var(--fh-bubble-live, #3a3316);
+    --accent: var(--fh-accent, #d9600f);
+    --accent-contrast: var(--fh-accent-contrast, #ffffff);
+    --accent-text: var(--fh-alias-accent-text, #f37021);
+    --error: var(--fh-error, #ff8a75);
+    --shadow-sm: var(--fh-shadow-sm, none);
+    --status-success: var(--fh-alias-status-success, #3fb950);
+    --status-neutral: var(--fh-alias-status-neutral, #9a9a9a);
+    --status-danger: var(--fh-alias-status-danger, #ff8a75);
+    --overlay-mask: var(--fh-specific-overlay-mask, rgba(0, 0, 0, 0.6));
+    --bg-hover: var(--fh-alias-bg-hover, #2a2a2c);
+    --bg-raised: var(--fh-alias-bg-raised, #1e1e20);
+    --border-subtle: var(--fh-alias-border-subtle, rgba(255, 255, 255, 0.08));
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: var(
+    --fh-text-s,
+    14px/1.45 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif
+  );
+}
+
+@keyframes fh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  font: inherit;
+  height: 34px;
+  padding: 0 0.7em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+button {
+  font: var(--fh-text-s-strong, inherit);
+  height: 34px;
+  padding: 0 0.9em;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+[data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--surface);
+  --normal-border: var(--border);
+  --normal-text: var(--fg);
+  --success-bg: var(--surface);
+  --success-border: var(--status-success);
+  --success-text: var(--status-success);
+  --error-bg: var(--surface);
+  --error-border: var(--error);
+  --error-text: var(--error);
+  --border-radius: 12px;
+  font-family: var(--fh-font, inherit);
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font: var(--fh-text-s-strong, 500 14px/22px inherit);
+}
+@keyframes fh-scroll-latest-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+:root {
+  --syntax-comment: var(--fh-syntax-comment, #6b7280);
+  --syntax-number: var(--fh-syntax-number, #0550ae);
+  --syntax-function: var(--fh-syntax-function, #8250df);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --syntax-comment: var(--fh-syntax-comment, #9198a1);
+    --syntax-number: var(--fh-syntax-number, #79c0ff);
+    --syntax-function: var(--fh-syntax-function, #d2a8ff);
+  }
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-type {
+  color: var(--accent-text);
+}
+.hljs-string,
+.hljs-addition {
+  color: var(--status-success);
+}
+.hljs-deletion {
+  color: var(--status-danger);
+}
+.hljs-number {
+  color: var(--syntax-number);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-built_in {
+  color: var(--syntax-function);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable {
+  color: var(--fg);
+}
+.hljs-tag,
+.hljs-name {
+  color: var(--accent-text);
+}
+.hljs-meta,
+.hljs-punctuation {
+  color: var(--muted);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+
+@keyframes fh-run-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media print {
+  body.ds-printing #sidebar-col,
+  body.ds-printing .ds-dash-topbar,
+  body.ds-printing [data-sonner-toaster],
+  body.ds-printing .fh-settings-dialog {
+    display: none !important;
+  }
+
+  body.ds-printing,
+  body.ds-printing #app,
+  body.ds-printing #center-col,
+  body.ds-printing .ds-dash-page,
+  body.ds-printing .ds-dash-scroll {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body.ds-printing .ds-report {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.ds-printing .ds-dash-widget {
+    break-inside: avoid;
+  }
+}
+body.fh-resizing iframe {
+  pointer-events: none;
+}
+
+@keyframes fh-ds-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fh-usage-progress { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+@keyframes fh-usage-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fh-usage-pulse { 50% { opacity: 0.5; } }

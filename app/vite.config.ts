@@ -2,12 +2,10 @@
 // Build and dev server for the web UI (docs/ui-performance-plan.md, phase 1 — replaces scripts/build.mjs and
 // scripts/serve.mjs). `vite build` writes dist/ (what the nginx image serves); `vite` is the dev server with HMR.
 //
-// What stays exactly as before, so the page looks the same:
-// - the stylesheets: public/theme.css, sonner.css, style.css, ref.css, tw.css, linked from index.html in the same
-//   order, copied byte for byte (Vite does not touch public/). ref.css and tw.css are still the two scoped Tailwind
-//   builds (tailwind.ref.config.cjs, tailwind.canvas.config.cjs), made by the plugin below.
-// - the API paths the dev server forwards: read from nginx.conf.template, like serve.mjs did.
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+// Styles: src/styles/app.css, one Vite/Tailwind entry (postcss.config.cjs, tailwind.config.cjs) that keeps the old
+// stylesheets' cascade order; the canvas and Data Profile scoped Tailwind builds are made by the plugin below.
+// The API paths the dev server forwards are read from nginx.conf.template, like serve.mjs did.
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,10 +16,10 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 const appRoot = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
-// The two scoped Tailwind stylesheets and sonner's own CSS, written into public/ (served and copied as-is).
+// The two scoped Tailwind builds (canvas, Data Profile), written to src/styles/generated/ and imported by app.css.
 const TAILWIND_BUILDS = [
-  { input: 'src/ref/ref.css', config: 'tailwind.ref.config.cjs', output: 'public/ref.css' },
-  { input: 'src/tw/tw.css', config: 'tailwind.canvas.config.cjs', output: 'public/tw.css' },
+  { input: 'src/ref/ref.css', config: 'tailwind.ref.config.cjs', output: 'src/styles/generated/ref.css' },
+  { input: 'src/tw/tw.css', config: 'tailwind.canvas.config.cjs', output: 'src/styles/generated/tw.css' },
 ]
 
 async function buildStaticCss(): Promise<boolean> {
@@ -34,12 +32,12 @@ async function buildStaticCss(): Promise<boolean> {
     // tailwindcss caches its config by path; drop it so a dev edit of a config is picked up
     delete require.cache[require.resolve(join(appRoot, item.config))]
     const result = await postcss([tailwind(join(appRoot, item.config))]).process(readFileSync(from, 'utf8'), { from, to })
+    mkdirSync(dirname(to), { recursive: true })
     if (!existsSync(to) || readFileSync(to, 'utf8') !== result.css) {
       writeFileSync(to, result.css)
       changed = true
     }
   }
-  copyFileSync(join(appRoot, 'node_modules/sonner/dist/styles.css'), join(appRoot, 'public/sonner.css'))
   return changed
 }
 
@@ -58,7 +56,7 @@ function staticCss(): Plugin {
         clearTimeout(timer)
         timer = setTimeout(() => {
           buildStaticCss()
-            .then((changed) => changed && server.ws.send({ type: 'full-reload' }))
+            .then(() => undefined) // a changed file is picked up by Vite's own CSS hot update
             .catch((error) => server.config.logger.error(`[fh-static-css] ${error}`))
         }, 150)
       }

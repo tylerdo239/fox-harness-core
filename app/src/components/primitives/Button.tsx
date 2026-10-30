@@ -21,6 +21,16 @@
 import { forwardRef, type ComponentPropsWithoutRef } from 'react'
 
 // `danger` (2026-10-29): red fill for destructive confirms (ConfirmDialog.tsx).
+// One literal per variant (not `fh-...-${variant}`), so each class is a literal the Tailwind move can find
+// (docs/ui-performance-plan.md §8).
+const VARIANT_CLASS = {
+  primary: 'fh-btn-primary [border-radius:999px] [padding:0_1.3em]',
+  raised: 'fh-btn-raised [height:38px] [padding:8px_16px] [border:1px_solid_var(--border)] [border-radius:999px] [background:var(--bg-raised)] [color:var(--fg)] [font-size:14px] font-medium [transition:background_var(--duration-fast)_var(--ease)] [&:hover]:[background:var(--bg-hover)]',
+  outline: 'fh-btn-outline [height:34px] [padding:0_1em] [background:transparent] [color:var(--fg)] [border:1px_solid_var(--border)] [border-radius:999px] [font-size:0.85em] [transition:background_var(--duration-fast)_var(--ease)] [&:hover]:[background:var(--bg-hover)]',
+  link: 'fh-btn-link [height:28px] [padding:0_10px] [border-radius:14px] [background:transparent] [border:none] [color:var(--accent-text)] [font:inherit] [&&]:[font-size:0.85em] [&:hover]:[text-decoration:underline] [&:hover]:[background:transparent]',
+  danger: 'fh-btn-danger [border-radius:999px] [padding:0_1.3em] [border-color:var(--status-danger)] [background:var(--status-danger)] [color:#fff] [&:hover]:[background:color-mix(in_srgb,var(--status-danger)_85%,#000)]',
+} as const
+
 export const Button = forwardRef<
   HTMLButtonElement,
   ComponentPropsWithoutRef<'button'> & {
@@ -28,6 +38,6 @@ export const Button = forwardRef<
   }
 >(function Button({ variant, className, type = 'button', ...rest }, ref) {
   return (
-    <button {...rest} ref={ref} type={type} className={`fh-btn fh-btn-${variant}${className ? ` ${className}` : ''}`} />
+    <button {...rest} ref={ref} type={type} className={`fh-btn inline-flex items-center justify-center [gap:6px] cursor-pointer [&.fh-ds-import]:[height:40px] [&.fh-ds-import]:[padding:0_1.4em] [&.fh-ds-import]:font-semibold [&.fh-ds-import]:[box-shadow:0_2px_10px_color-mix(in_srgb,var(--accent)_35%,transparent)] [&.fh-ds-import:disabled]:[box-shadow:none] ${VARIANT_CLASS[variant]}${className ? ` ${className}` : ''}`} />
   )
 })

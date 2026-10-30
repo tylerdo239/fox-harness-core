@@ -55,7 +55,7 @@ export function linkify(text: string): ReactNode[] {
     nodes.push(
       <a
         key={key++}
-        className="fh-link"
+        className="fh-link [color:var(--accent-text)] [text-decoration:underline] [&&]:[text-decoration-color:color-mix(in_srgb,currentColor_40%,transparent)] [text-underline-offset:0.15em] [word-break:break-all] [&:hover]:[text-decoration-color:currentColor]"
         href={url}
         target="_blank"
         rel="noopener noreferrer"
@@ -99,7 +99,7 @@ export const LONG_WORD_CHARS = 32;
 export function breakLongWords(text: string): ReactNode {
   if (!text.split(" ").some((word) => word.length > LONG_WORD_CHARS)) return text;
   return text.split(/( )/).map((part, index) =>
-    part.length > LONG_WORD_CHARS ? <span key={index} className="fh-break-anywhere">{part}</span> : part,
+    part.length > LONG_WORD_CHARS ? <span key={index} className="fh-break-anywhere [word-break:break-all]">{part}</span> : part,
   );
 }
 
@@ -161,16 +161,16 @@ export function ToolPill({
   const Icon = entry.skill ? SkillIcon : (file?.icon ?? ToolIcon);
   return (
     <div
-      className={`tool-pill${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`}
+      className={`tool-pill self-start [max-width:85%] [border-radius:12px] [background:var(--bg-raised)] [border:1px_solid_var(--border-subtle)] [font-size:0.85em] overflow-hidden [&.expanded_.tool-pill-chevron]:[transform:rotate(180deg)]${entry.status === "error" ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`}
     >
-      <button type="button" className="tool-pill-header" onClick={onToggle}>
+      <button type="button" className="tool-pill-header flex items-center [gap:0.5em] w-full [height:auto] [min-height:34px] [padding:0.5em_0.8em] [background:transparent] [border:none] [color:var(--muted)] text-left cursor-pointer [&>svg]:flex-none [&:hover]:[background:var(--bg-hover)]" onClick={onToggle}>
         <Icon size={13} />
         <span>{breakLongWords(label)}</span>
-        <ChevronDownIcon size={13} className="tool-pill-chevron" />
+        <ChevronDownIcon size={13} className="tool-pill-chevron [margin-left:auto] flex-none [transition:transform_var(--duration-fast)_var(--ease)]" />
       </button>
       {expanded && (
-        <div className="tool-pill-detail">
-          <div className="tool-pill-args">{entry.args}</div>
+        <div className="tool-pill-detail [padding:0_0.8em_0.7em] [border-top:1px_solid_var(--border-subtle)] [margin-top:0.1em] [&&]:[padding-top:0.6em] [font-family:ui-monospace,monospace] [font-size:0.9em] whitespace-pre-wrap [word-break:break-word] [color:var(--muted)] [max-height:320px] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:[width:8px] [&::-webkit-scrollbar-thumb]:[background:var(--border)] [&::-webkit-scrollbar-thumb]:[border-radius:999px] [&::-webkit-scrollbar-thumb:hover]:[background:var(--muted)] [&::-webkit-scrollbar-track]:[background:transparent]">
+          <div className="tool-pill-args [margin-bottom:0.5em]">{entry.args}</div>
           {entry.resultText && (
             <div className="tool-pill-result">{linkify(entry.resultText)}</div>
           )}
@@ -264,20 +264,20 @@ export function SearchSourcesPill({
           : t("conversation.searched", { n: String(entry.sources.length) });
   return (
     <div
-      className={`tool-pill search-pill${isError ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`}
+      className={`tool-pill self-start [max-width:85%] [border-radius:12px] [background:var(--bg-raised)] [border:1px_solid_var(--border-subtle)] [font-size:0.85em] overflow-hidden [&.expanded_.tool-pill-chevron]:[transform:rotate(180deg)] search-pill${isError ? " tool-pill-error" : ""}${expanded ? " expanded" : ""}`}
     >
-      <button type="button" className="tool-pill-header" onClick={onToggle}>
+      <button type="button" className="tool-pill-header flex items-center [gap:0.5em] w-full [height:auto] [min-height:34px] [padding:0.5em_0.8em] [background:transparent] [border:none] [color:var(--muted)] text-left cursor-pointer [&>svg]:flex-none [&:hover]:[background:var(--bg-hover)]" onClick={onToggle}>
         <SearchIcon size={13} />
         <span>{label}</span>
-        <ChevronDownIcon size={13} className="tool-pill-chevron" />
+        <ChevronDownIcon size={13} className="tool-pill-chevron [margin-left:auto] flex-none [transition:transform_var(--duration-fast)_var(--ease)]" />
       </button>
       {expanded && entry.sources.length > 0 && (
-        <div className="tool-pill-detail search-pill-detail">
-          <ol className="search-pill-list">
+        <div className="tool-pill-detail [padding:0_0.8em_0.7em] [border-top:1px_solid_var(--border-subtle)] [margin-top:0.1em] [&&]:[padding-top:0.6em] [font-size:0.9em] [word-break:break-word] [color:var(--muted)] [max-height:320px] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:[width:8px] [&::-webkit-scrollbar-thumb]:[background:var(--border)] [&::-webkit-scrollbar-thumb]:[border-radius:999px] [&::-webkit-scrollbar-thumb:hover]:[background:var(--muted)] [&::-webkit-scrollbar-track]:[background:transparent] search-pill-detail [font-family:var(--fh-font,inherit)] whitespace-normal">
+          <ol className="search-pill-list m-0 [padding-inline-start:1.4em] [&_li]:[margin:0_0_0.7em] [&_li:last-child]:[margin-bottom:0]">
             {entry.sources.map((source, index) => (
               <li key={`${source.url}-${index}`}>
                 <a
-                  className="fh-link search-pill-source-link"
+                  className="fh-link [color:var(--accent-text)] [text-decoration:underline] [&&]:[text-decoration-color:color-mix(in_srgb,currentColor_40%,transparent)] [text-underline-offset:0.15em] [word-break:break-all] [&:hover]:[text-decoration-color:currentColor] search-pill-source-link font-medium"
                   href={source.url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -286,10 +286,10 @@ export function SearchSourcesPill({
                   {sourceLabel(source)}
                 </a>
                 {source.snippet && (
-                  <div className="search-pill-snippet">{source.snippet}</div>
+                  <div className="search-pill-snippet [margin-top:0.15em] [color:var(--muted)]">{source.snippet}</div>
                 )}
                 {source.publishedAt && (
-                  <div className="search-pill-published">
+                  <div className="search-pill-published [margin-top:0.15em] [font-size:0.85em] [color:var(--muted)]">
                     {formatPublishedAt(source.publishedAt, locale)}
                   </div>
                 )}
@@ -297,7 +297,7 @@ export function SearchSourcesPill({
             ))}
           </ol>
           {entry.truncated && (
-            <div className="search-pill-truncated">
+            <div className="search-pill-truncated [margin-top:0.6em] [padding-top:0.5em] [border-top:1px_solid_var(--border-subtle)] [font-size:0.85em] [color:var(--muted)] italic">
               {t("conversation.searchTruncated")}
             </div>
           )}
@@ -353,24 +353,24 @@ export function DataStudioResultPill({
   const isOpen = alwaysExpanded || expanded;
   return (
     <div
-      className={`tool-pill data-studio-pill${entry.status === "error" ? " tool-pill-error" : ""}${isOpen ? " expanded" : ""}${alwaysExpanded ? " data-studio-pill-static" : ""}`}
+      className={`tool-pill self-start [max-width:85%] [border-radius:12px] [background:var(--bg-raised)] [border:1px_solid_var(--border-subtle)] [font-size:0.85em] overflow-hidden [&.expanded_.tool-pill-chevron]:[transform:rotate(180deg)] data-studio-pill${entry.status === "error" ? " tool-pill-error" : ""}${isOpen ? " expanded" : ""}${alwaysExpanded ? " data-studio-pill-static [&_.tool-pill-header]:cursor-default" : ""}`}
     >
       {alwaysExpanded ? (
-        <div className="tool-pill-header">
+        <div className="tool-pill-header flex items-center [gap:0.5em] w-full [height:auto] [min-height:34px] [padding:0.5em_0.8em] [background:transparent] [border:none] [color:var(--muted)] text-left cursor-pointer [&>svg]:flex-none [&:hover]:[background:var(--bg-hover)]">
           <DataAnalysisIcon size={13} />
           <span>{label}</span>
         </div>
       ) : (
-        <button type="button" className="tool-pill-header" onClick={onToggle}>
+        <button type="button" className="tool-pill-header flex items-center [gap:0.5em] w-full [height:auto] [min-height:34px] [padding:0.5em_0.8em] [background:transparent] [border:none] [color:var(--muted)] text-left cursor-pointer [&>svg]:flex-none [&:hover]:[background:var(--bg-hover)]" onClick={onToggle}>
           <DataAnalysisIcon size={13} />
           <span>{label}</span>
-          <ChevronDownIcon size={13} className="tool-pill-chevron" />
+          <ChevronDownIcon size={13} className="tool-pill-chevron [margin-left:auto] flex-none [transition:transform_var(--duration-fast)_var(--ease)]" />
         </button>
       )}
       {isOpen && (
-        <div className="tool-pill-detail data-studio-pill-detail">
+        <div className="tool-pill-detail [padding:0_0.8em_0.7em] [border-top:1px_solid_var(--border-subtle)] [margin-top:0.1em] [&&]:[padding-top:0.6em] [font-size:0.9em] [word-break:break-word] [color:var(--muted)] [max-height:320px] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:[width:8px] [&::-webkit-scrollbar-thumb]:[background:var(--border)] [&::-webkit-scrollbar-thumb]:[border-radius:999px] [&::-webkit-scrollbar-thumb:hover]:[background:var(--muted)] [&::-webkit-scrollbar-track]:[background:transparent] data-studio-pill-detail [font-family:var(--fh-font,inherit)] whitespace-normal flex flex-col [gap:0.9em]">
           {entry.status === "error" && entry.errorText && (
-            <div className="data-studio-error">{entry.errorText}</div>
+            <div className="data-studio-error [color:var(--muted)]">{entry.errorText}</div>
           )}
           {entry.answer && <Markdown text={entry.answer} />}
           {entry.chart && <ChartView chart={entry.chart} />}
@@ -380,7 +380,7 @@ export function DataStudioResultPill({
             <Markdown text={rowsToMarkdownTable(entry.columns, entry.rows)} />
           )}
           {entry.truncated && (
-            <div className="data-studio-truncated">
+            <div className="data-studio-truncated [padding-top:0.5em] [border-top:1px_solid_var(--border-subtle)] [font-size:0.85em] [color:var(--muted)] italic">
               {t("conversation.dataStudioTruncated", { n: String(entry.rowCount) })}
             </div>
           )}
@@ -452,7 +452,7 @@ export const LogEntryView = memo(function LogEntryView({
   switch (entry.kind) {
     case "notice":
       return (
-        <div className={`notice${entry.muted ? " notice-muted" : ""}`}>
+        <div className={`notice self-center [font-size:0.8em] [color:var(--error)]${entry.muted ? " notice-muted [color:var(--muted)]" : ""}`}>
           {entry.text}
         </div>
       );
@@ -497,10 +497,10 @@ export const LogEntryView = memo(function LogEntryView({
         // a message with attachments ends with their marker line (attachments.ts): cards above the text
         const { text, names } = splitAttachments(entry.text);
         return (
-          <div className="fh-user-message">
+          <div className="fh-user-message self-end flex flex-col items-end [gap:0.4em] [max-width:85%] [&_.bubble]:[max-width:100%]">
             {names.length > 0 && <SentAttachments names={names} t={t} />}
             {text && (
-              <div className="bubble bubble-user">
+              <div className="bubble [max-width:85%] [padding:0.55em_0.8em] [border-radius:22px] [box-shadow:var(--shadow-lv1)] whitespace-pre-wrap [word-break:break-word] bubble-user self-end [background:var(--bubble-user)]">
                 <span>{text}</span>
               </div>
             )}
@@ -508,9 +508,9 @@ export const LogEntryView = memo(function LogEntryView({
         );
       }
       return (
-        <div className="assistant-text">
+        <div className="assistant-text [max-width:100%] [word-break:break-word]">
           {entry.text && (
-            <div className="assistant-text-body">
+            <div className="assistant-text-body [color:var(--fg)] [&_:is(h1,h2,h3,h4,h5,h6)]:[margin:0.9em_0_0.4em] [&_:is(h1,h2,h3,h4,h5,h6)]:font-semibold [&_:is(h1,h2,h3,h4,h5,h6)]:[line-height:1.3] [&_:is(h1,h2,h3,h4,h5,h6):first-child]:[margin-top:0] [&_h1]:[font-size:1.35em] [&_h2]:[font-size:1.2em] [&_:is(h3,h4,h5,h6)]:[font-size:1.05em] [&_p]:[margin:0.5em_0] [&_p:first-child]:[margin-top:0] [&_p:last-child]:[margin-bottom:0] [&_:is(ul,ol)]:[margin:0.5em_0] [&_:is(ul,ol)]:[padding-inline-start:1.4em] [&_li]:[margin:0.2em_0] [&_li>:is(ul,ol)]:[margin:0.2em_0] [&_blockquote]:[margin:0.6em_0] [&_blockquote]:[padding:0.1em_0_0.1em_0.9em] [&_blockquote]:[border-left:3px_solid_var(--border)] [&_blockquote]:[color:var(--muted)] [&_hr]:[margin:1em_0] [&_hr]:[border:none] [&&_hr]:[border-top:1px_solid_var(--border)] [&_strong]:font-semibold [&_.md-inline-code]:[background:var(--surface)] [&_.md-inline-code]:[border:1px_solid_var(--border-subtle)] [&_.md-inline-code]:[border-radius:4px] [&_.md-inline-code]:[padding:0.1em_0.35em] [&_.md-inline-code]:[font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace] [&_.md-inline-code]:[font-size:0.9em]">
               {/* carries on revealing a reply that was streaming a moment ago; history shows at once */}
               <StreamedMarkdown id={entry.id} text={entry.text} />
             </div>

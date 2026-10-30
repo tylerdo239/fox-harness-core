@@ -135,8 +135,8 @@ const TABLE_ROW_LIMIT = 100;
 function DataTable({ columns, rows, locale }: { columns: string[]; rows: Record<string, unknown>[]; locale: string }) {
   const cols = columns.length > 0 ? columns : Object.keys(rows[0] ?? {});
   return (
-    <div className="ds-table-wrap">
-      <table className="ds-table">
+    <div className="ds-table-wrap [max-height:360px] overflow-auto [border:1px_solid_var(--border-subtle)] [border-radius:var(--radius-md)]">
+      <table className="ds-table w-full [border-collapse:collapse] [font-size:0.85em] [&_th]:sticky [&_th]:[top:0] [&_th]:[padding:6px_10px] [&_th]:[background:var(--surface)] [&_th]:font-semibold [&_th]:text-left [&_th]:whitespace-nowrap [&_td]:[max-width:320px] [&_td]:[padding:5px_10px] [&_td]:[border-top:1px_solid_var(--border-subtle)] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
         <thead>
           <tr>
             {cols.map((c) => (
@@ -214,7 +214,7 @@ export function DataStudioAnswer({
   if (entry.status === "running") {
     // the chat's own "running a tool…" line is the indicator; here only the live steps
     return (
-      <div className="ds-answer">
+      <div className="ds-answer flex flex-col [gap:14px] [max-width:100%] [font-family:var(--fh-font,inherit)]">
         <DataStudioProgress items={entry.progress} live t={t} />
       </div>
     );
@@ -222,8 +222,8 @@ export function DataStudioAnswer({
 
   if (entry.status === "error") {
     return (
-      <div className="ds-answer">
-        <div className="ds-error">
+      <div className="ds-answer flex flex-col [gap:14px] [max-width:100%] [font-family:var(--fh-font,inherit)]">
+        <div className="ds-error [padding:10px_12px] [border:1px_solid_var(--error)] [border-radius:var(--radius-md)] [color:var(--error)] [font-size:0.9em]">
           <strong>{t("conversation.dataStudioFailed")}</strong>
           {entry.errorText && <div>{entry.errorText}</div>}
         </div>
@@ -233,17 +233,17 @@ export function DataStudioAnswer({
   }
 
   return (
-    <div className="ds-answer">
+    <div className="ds-answer flex flex-col [gap:14px] [max-width:100%] [font-family:var(--fh-font,inherit)]">
       <DataStudioProgress items={entry.progress} live={false} t={t} />
       {entry.answer && (
-        <div className="assistant-text-body">
+        <div className="assistant-text-body [color:var(--fg)] [&_:is(h1,h2,h3,h4,h5,h6)]:[margin:0.9em_0_0.4em] [&_:is(h1,h2,h3,h4,h5,h6)]:font-semibold [&_:is(h1,h2,h3,h4,h5,h6)]:[line-height:1.3] [&_:is(h1,h2,h3,h4,h5,h6):first-child]:[margin-top:0] [&_h1]:[font-size:1.35em] [&_h2]:[font-size:1.2em] [&_:is(h3,h4,h5,h6)]:[font-size:1.05em] [&_p]:[margin:0.5em_0] [&_p:first-child]:[margin-top:0] [&_p:last-child]:[margin-bottom:0] [&_:is(ul,ol)]:[margin:0.5em_0] [&_:is(ul,ol)]:[padding-inline-start:1.4em] [&_li]:[margin:0.2em_0] [&_li>:is(ul,ol)]:[margin:0.2em_0] [&_blockquote]:[margin:0.6em_0] [&_blockquote]:[padding:0.1em_0_0.1em_0.9em] [&_blockquote]:[border-left:3px_solid_var(--border)] [&_blockquote]:[color:var(--muted)] [&_hr]:[margin:1em_0] [&_hr]:[border:none] [&&_hr]:[border-top:1px_solid_var(--border)] [&_strong]:font-semibold [&_.md-inline-code]:[background:var(--surface)] [&_.md-inline-code]:[border:1px_solid_var(--border-subtle)] [&_.md-inline-code]:[border-radius:4px] [&_.md-inline-code]:[padding:0.1em_0.35em] [&_.md-inline-code]:[font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace] [&_.md-inline-code]:[font-size:0.9em]">
           <Markdown text={entry.answer} />
         </div>
       )}
 
       {sql && (
-        <div className="ds-sql">
-          <button type="button" className="ds-sql-toggle" onClick={() => setShowSql((v) => !v)} aria-expanded={showSql}>
+        <div className="ds-sql flex flex-col [gap:6px]">
+          <button type="button" className="ds-sql-toggle [height:auto] inline-flex items-center [gap:4px] self-start p-0 [border:0] [background:none] [color:var(--muted)] [font:inherit] [&&]:[font-size:0.8em] [&&]:font-medium cursor-pointer [&:hover]:[color:var(--fg)]" onClick={() => setShowSql((v) => !v)} aria-expanded={showSql}>
             {showSql ? <ChevronDownIcon size={13} /> : <ChevronRightIcon size={13} />}
             <CodeIcon size={13} />
             {t("conversation.dsViewSql")}
@@ -253,7 +253,7 @@ export function DataStudioAnswer({
       )}
 
       {viewCount > 0 && (
-        <div className="ds-visual">
+        <div className="ds-visual flex flex-col [gap:12px] [padding:14px] [border:1px_solid_var(--border-subtle)] [border-radius:var(--radius-lg)] [background:var(--bg)] [&_.chart-view-title]:[font-size:1em] [&_.chart-view-title]:font-semibold">
           {activeChart ? (
             <ChartView chart={activeChart} height={320} />
           ) : (
@@ -261,9 +261,9 @@ export function DataStudioAnswer({
           )}
 
           <div className="ds-views">
-            <div className="ds-views-head">
-              <div className="ds-section-label">{t("conversation.dsVisualizations")}</div>
-              <div className="ds-toolbar">
+            <div className="ds-views-head flex flex-wrap items-center justify-between [gap:8px] [margin-bottom:6px] [&_.ds-section-label]:[margin-bottom:0]">
+              <div className="ds-section-label [margin-bottom:6px] [color:var(--muted)] [font-size:0.7em] font-semibold [letter-spacing:0.04em] [text-transform:uppercase]">{t("conversation.dsVisualizations")}</div>
+              <div className="ds-toolbar flex flex-wrap items-center [gap:8px] [&_button]:inline-flex [&_button]:items-center [&_button]:[gap:6px] [&_button]:whitespace-nowrap">
                 {activeChart?.chart_id && (
                   <Button variant="outline" onClick={() => setEditing("dashboard")}>
                     <DashboardsIcon size={13} /> {t("dsx.addToDashboard")}
@@ -273,42 +273,42 @@ export function DataStudioAnswer({
                   <GearIcon size={13} /> {t("dsx.editFields")}
                 </Button>
                 <Button variant="outline" disabled={colorFields.length === 0} onClick={() => setEditing("colors")}>
-                  <span className="ds-swatch" aria-hidden /> {t("dsx.editColors")}
+                  <span className="ds-swatch [width:12px] [height:12px] [border-radius:50%] [background:conic-gradient(#3b82f6,#10b981,#f59e0b,#ef4444,#8b5cf6,#3b82f6)]" aria-hidden /> {t("dsx.editColors")}
                 </Button>
               </div>
             </div>
             {viewCount > 1 && (
-              <div className="ds-view-cards">
+              <div className="ds-view-cards grid [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))] [gap:8px]">
                 {specs.map((chart, i) => {
                   const Icon = CHART_ICON[(chart.type ?? "bar").toLowerCase()] ?? ChartBarIcon;
                   return (
                     <button
                       key={`${chart.type}-${i}`}
                       type="button"
-                      className={`ds-view-card${i === current ? " active" : ""}`}
+                      className={`ds-view-card [height:auto] flex flex-col items-start [gap:4px] [padding:10px_12px] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:none] [color:var(--fg)] [font:inherit] text-left cursor-pointer [transition:background_var(--fh-duration-fast,0.1s),border-color_var(--fh-duration-fast,0.1s)] [&_svg]:[color:var(--muted)] [&:hover]:[background:var(--surface)] [&.active]:[border-color:var(--accent)] [&&.active]:[background:color-mix(in_srgb,var(--accent)_8%,transparent)] [&.active_svg]:[color:var(--accent)]${i === current ? " active" : ""}`}
                       onClick={() => setActive(i)}
                     >
                       <Icon size={16} />
-                      <span className="ds-view-card-title">{chartLabel(chart.type, t)}</span>
-                      {chart.title && chart.type !== "table" && <span className="ds-view-card-desc">{resolveChart(chart).title}</span>}
+                      <span className="ds-view-card-title [font-size:0.85em] font-semibold">{chartLabel(chart.type, t)}</span>
+                      {chart.title && chart.type !== "table" && <span className="ds-view-card-desc [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden [color:var(--muted)] [font-size:0.75em]">{resolveChart(chart).title}</span>}
                     </button>
                   );
                 })}
                 {syntheticTable && (
                   <button
                     type="button"
-                    className={`ds-view-card${current === specs.length ? " active" : ""}`}
+                    className={`ds-view-card [height:auto] flex flex-col items-start [gap:4px] [padding:10px_12px] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:none] [color:var(--fg)] [font:inherit] text-left cursor-pointer [transition:background_var(--fh-duration-fast,0.1s),border-color_var(--fh-duration-fast,0.1s)] [&_svg]:[color:var(--muted)] [&:hover]:[background:var(--surface)] [&.active]:[border-color:var(--accent)] [&&.active]:[background:color-mix(in_srgb,var(--accent)_8%,transparent)] [&.active_svg]:[color:var(--accent)]${current === specs.length ? " active" : ""}`}
                     onClick={() => setActive(specs.length)}
                   >
                     <TableIcon size={16} />
-                    <span className="ds-view-card-title">{t("conversation.dsTable")}</span>
+                    <span className="ds-view-card-title [font-size:0.85em] font-semibold">{t("conversation.dsTable")}</span>
                   </button>
                 )}
               </div>
             )}
           </div>
 
-          <div className="ds-meta">
+          <div className="ds-meta flex flex-wrap items-center [gap:8px] [color:var(--muted)] [font-size:0.8em]">
             <span>{(entry.rowCount || entry.rows.length) === 1 ? t("conversation.dsRow") : t("conversation.dsRows", { n: String(entry.rowCount || entry.rows.length) })}</span>
             {entry.truncated && <span>· {t("conversation.dataStudioTruncated", { n: String(entry.rows.length) })}</span>}
           </div>
@@ -341,7 +341,7 @@ export function DataStudioAnswer({
       )}
 
       {entry.assumptions.length > 0 && (
-        <ul className="ds-assumptions">
+        <ul className="ds-assumptions flex flex-col [gap:4px] m-0 p-0 [list-style:none] [color:var(--muted)] [font-size:0.8em] [&_li]:flex [&_li]:items-start [&_li]:[gap:6px] [&_svg]:shrink-0 [&_svg]:[margin-top:2px]">
           {entry.assumptions.map((assumption, i) => (
             <li key={i}>
               <LightbulbIcon size={13} />
@@ -352,10 +352,10 @@ export function DataStudioAnswer({
       )}
 
       {entry.followUps.length > 0 && (
-        <div className="ds-suggestions">
-          <div className="ds-section-label">{t("conversation.dsSuggestions")}</div>
+        <div className="ds-suggestions flex flex-col [gap:6px] [padding-top:12px] [border-top:1px_solid_var(--border-subtle)]">
+          <div className="ds-section-label [margin-bottom:6px] [color:var(--muted)] [font-size:0.7em] font-semibold [letter-spacing:0.04em] [text-transform:uppercase]">{t("conversation.dsSuggestions")}</div>
           {entry.followUps.map((question, i) => (
-            <button key={i} type="button" className="ds-suggestion" onClick={() => onFollowUp(question)}>
+            <button key={i} type="button" className="ds-suggestion [height:auto] flex items-start [gap:8px] [padding:8px_12px] [border:1px_solid_var(--border)] [border-radius:var(--radius-md)] [background:none] [color:var(--accent-text)] [font:inherit] [&&]:[font-size:0.9em] text-left cursor-pointer [&_svg]:shrink-0 [&_svg]:[margin-top:3px] [&:hover]:[background:color-mix(in_srgb,var(--accent)_8%,transparent)]" onClick={() => onFollowUp(question)}>
               <SuggestionIcon size={13} />
               <span>{question}</span>
             </button>

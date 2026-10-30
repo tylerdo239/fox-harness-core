@@ -353,12 +353,12 @@ export function HistoryChat({
     <div id="fh-history-chat-list">
       {groups.length === 0 && <></>}
       {groups.map((group) => (
-        <div key={group.key} className="fh-history-chat-group">
-          <div className="fh-history-chat-group-label">{group.label}</div>
+        <div key={group.key} className="fh-history-chat-group flex flex-col">
+          <div className="fh-history-chat-group-label [padding:0.6em_0.75em_0.3em] [color:var(--muted)] [font-size:0.75em] font-medium">{group.label}</div>
           {group.rows.map((row) => (
             <div
               key={row.sessionId}
-              className={`fh-history-chat-row${row.sessionId === runtime.sessionId ? " active" : ""}${menuRow?.sessionId === row.sessionId ? " menu-open" : ""}`}
+              className={`fh-history-chat-row flex items-center [gap:6px] [height:32px] [padding:0_8px] [font-size:0.85em] cursor-pointer [border-radius:8px] [margin:0_0.4em] [transition:background_var(--duration-fast)_var(--ease)] [&:hover]:[background:var(--bg-hover)] [&&.active]:[background:var(--bg-hover)] [&.active_.fh-history-chat-row-title]:[color:var(--accent-text)] [&:hover_.fh-history-chat-row-menu-trigger]:inline-flex [&&.menu-open_.fh-history-chat-row-menu-trigger]:inline-flex${row.sessionId === runtime.sessionId ? " active" : ""}${menuRow?.sessionId === row.sessionId ? " menu-open" : ""}`}
               onClick={() => {
                 if (renamingRow?.sessionId === row.sessionId) return;
                 if (row.sessionId !== runtime.sessionId)
@@ -369,7 +369,7 @@ export function HistoryChat({
                 <Input
                   ref={renameInputRef}
                   type="text"
-                  className="fh-history-chat-row-rename-input"
+                  className="fh-history-chat-row-rename-input [input[type=text]&]:[flex:1] [input[type=text]&]:min-w-0 [input[type=text]&]:[height:22px] [input[type=text]&]:[padding:0_4px] [input[type=text]&]:[border-radius:6px] [input[type=text]&]:[font-size:14px] [input[type=text]&]:[line-height:20px]"
                   value={renameValue}
                   // No native `maxLength` here on purpose — it would
                   // silently swallow keystrokes/paste past 255 chars
@@ -409,7 +409,7 @@ export function HistoryChat({
                 />
               ) : (
                 <>
-                  <span className="fh-history-chat-row-title">
+                  <span className="fh-history-chat-row-title [flex:1] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap [color:var(--fg)] [font-size:14px] [line-height:20px]">
                     {rowLabel(row, t)}
                   </span>
                 </>
@@ -418,7 +418,7 @@ export function HistoryChat({
                 <IconButton
                   size="sm"
                   variant="plain"
-                  className="fh-history-chat-row-menu-trigger"
+                  className="fh-history-chat-row-menu-trigger [button&]:hidden"
                   title={t("historyChat.rowActions")}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -438,7 +438,7 @@ export function HistoryChat({
         createPortal(
           <div
             ref={menuPopupRef}
-            className="fh-history-chat-row-menu-popup"
+            className="fh-history-chat-row-menu-popup fixed [min-width:160px] [background:var(--bg)] [border:1px_solid_var(--border)] [border-radius:12px] [box-shadow:var(--shadow-lv2)] [padding:4px] [z-index:50]"
             style={{ top: menuPosition.top, left: menuPosition.left }}
           >
             <MenuItem

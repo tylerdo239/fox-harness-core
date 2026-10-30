@@ -2,8 +2,7 @@
 node_modules/
 lib/
 dist/
-public/ref.css
-public/tw.css
+src/styles/generated/
 *.tsbuildinfo
 # any .env at any depth — a plain `.env` only matches the context root
 **/.env

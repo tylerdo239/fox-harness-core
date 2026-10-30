@@ -1,11 +1,11 @@
 # app
 
-The web UI — its own pnpm project, deployed on its own: `docker build ./app` (nginx serves `public/` and
+The web UI — its own pnpm project, deployed on its own: `docker build ./app` (nginx serves the Vite build, `dist/`, and
 forwards the API + chat WebSocket to `BACKEND_URL`). It imports nothing from `api/`.
 
 **One single, normally-built React app, shared by every user (2026-09-08).**
 Not a plugin host, not a manifest-driven shell — just an ordinary React SPA.
-`public/` is the entire deployable artifact: build it once, serve it from
+`dist/` (`pnpm run build`) is the entire deployable artifact: build it once, serve it from
 any static host, every user gets the same bundle.
 
 This replaces an increasingly elaborate per-session, dynamically-composed
@@ -63,7 +63,7 @@ real dsh research behind them is preserved for the historical record in
     choice card, a pill CTA in 4 color variants) — collapsed into these 5
     components + `variant`/`size` props, not a redesign (every pixel
     value carried over verbatim from whichever old class it replaced,
-    verified in `public/style.css`'s own "Real primitives" section
+    verified in the old `style.css`'s "Real primitives" section (now Tailwind classes in each primitive)
     comment).
   - **`features/auth/`** — only ever rendered together, on the pre-login
     `.fh-auth-screen` (`App.tsx`):
@@ -220,12 +220,11 @@ real dsh research behind them is preserved for the historical record in
   `App.tsx`, `toast.success(...)` called directly from anywhere (e.g.
   `ConnectForm.tsx` after a successful registration) with no
   context/prop-drilling needed. Themed via CSS variable overrides in
-  `public/style.css` pointed at this app's own tokens, not sonner's
-  built-in palette — `public/sonner.css` (sonner's own real compiled
-  stylesheet) is copied from `node_modules` on every build by
-  `vite.config.ts`, never hand-maintained, so it can't drift out of
-  sync with whatever version is actually installed.
-- **`public/theme.css`** — design tokens (`--fh-*`), a real static
+  `src/styles/base.css` pointed at this app's own tokens, not sonner's
+  built-in palette — sonner's own stylesheet is imported straight from
+  `node_modules` by `src/styles/app.css`, so it can't drift out of sync
+  with whatever version is actually installed.
+- **`src/styles/theme.css`** — design tokens (`--fh-*`), a real static
   stylesheet now (used to be a UI plugin that injected a `<style>` tag at
   runtime). Brand accent is `#F37021` (orange, user-specified 2026-09-08,
   `docs/code-rules.md` §40) in both light and dark — `--fh-accent-contrast`
@@ -234,8 +233,17 @@ real dsh research behind them is preserved for the historical record in
   derived shades, picked from real computed WCAG contrast ratios rather
   than guessed, since plain white-on-orange and plain orange-on-light-
   surface both fail AA's 4.5:1.
-- **`public/style.css`** — shell layout/structure, reads every color value
-  through `var(--fh-*, <fallback>)`.
+- **Styles are Tailwind classes in the components** (2026-10-30,
+  `docs/ui-performance-plan.md` §8): Tailwind 3.4, no preflight
+  (`tailwind.config.cjs`), mostly arbitrary values that read the tokens
+  (`[color:var(--muted)]`, `[&:hover]:[background:var(--bg-hover)]`). The
+  old class names (`fh-…`, `ds-…`) stay on the elements as markers for
+  tests and queries. What is not a component's look — element defaults,
+  `:root` token aliases, sonner / highlight.js overrides, keyframes, print —
+  is `src/styles/base.css` (plain CSS before the utilities; not `@layer base`,
+  which would drop highlight.js's run-time `hljs-*` rules). A class that must win over
+  another of equal specificity on the same element is written one class
+  stronger (`[&&]:…`): Tailwind orders arbitrary utilities alphabetically.
 
 Talks to `services/gateway`'s real wire protocol directly (`src/wire.ts`,
 mirrored from `packages/agent-core (transport)`'s real shapes, not imported — this
@@ -260,12 +268,12 @@ Vite since 2026-10-30 (`docs/ui-performance-plan.md`, replaced `scripts/build.mj
   `dist/assets/`, React in its production build. The canvas libraries, charts (`ChartPlot.tsx`), sql-formatter and
   the Usage / Data Profile pages are separate chunks, fetched on first use and once the app is idle after sign-in
   (`src/lazyLoad.ts`).
-- The stylesheets are unchanged: `public/theme.css`, `sonner.css`, `style.css`, `ref.css`, `tw.css`, linked from
-  `index.html` in that order and copied as-is. `ref.css` / `tw.css` are the two scoped Tailwind builds
-  (`tailwind.ref.config.cjs`, `tailwind.canvas.config.cjs`) the `fh-static-css` plugin in `vite.config.ts` writes;
-  in dev it rebuilds them when a source file changes.
+- One stylesheet, `src/styles/app.css`, built by Vite + Tailwind (`postcss.config.cjs`) into a hashed
+  `/assets/*.css`: theme tokens, sonner, `base.css`, the app's utilities, then the two scoped Tailwind builds of the
+  canvas panel and the Data Profile screens (`tailwind.canvas.config.cjs`, `tailwind.ref.config.cjs`), which the
+  `fh-static-css` plugin in `vite.config.ts` writes to `src/styles/generated/` (rebuilt in dev on a source change).
 - nginx (`nginx.conf.template`) gzips text, caches `/assets/` for a year (`immutable`, names change with content)
-  and revalidates `index.html` and the stylesheets (`no-cache`).
+  and revalidates `index.html` (`no-cache`).
 
 Checks (`docs/ui-performance-plan.md` §3):
 
@@ -393,7 +401,7 @@ genuine `401` afterward. Two real bugs found this way (not by TypeScript):
 `packages/agent-core (transport)`'s `inject` array still requiring the just-deleted
 `clientManifest` service (would have left the whole transport plugin
 permanently pending, zero errors, just a WS port that never opens); several
-new `<button>`s missing the `id` attributes `style.css` and this project's
+new `<button>`s missing the `id` attributes the styles and this project's
 own test scripts depend on. Full writeup: `docs/code-rules.md` §30.
 
 Still never driven through an ACTUAL browser (no Claude in Chrome throughout

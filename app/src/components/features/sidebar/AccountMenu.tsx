@@ -70,19 +70,19 @@ export function AccountMenu({ onOpenSettings, onLogout, onOpenUsage }: { onOpenS
       <button
         id="account-menu-trigger"
         ref={triggerRef}
-        className="fh-sidebar-account"
+        className="fh-sidebar-account flex items-center [gap:0.6em] [height:44px] [margin:0.25em_0] [padding:0_0.5em] [background:transparent] [border:none] [color:var(--fg)] text-left [border-radius:12px] [transition:background_var(--duration-fast)_var(--ease)] [&:hover]:[background:var(--bg-hover)] [&:hover_.fh-sidebar-account-more]:[opacity:1]"
         type="button"
         onClick={() => (open ? setOpen(false) : openMenu())}
         title={t('sidebar.accountMenu')}
       >
-        <span className="fh-sidebar-account-avatar">{initial}</span>
-        <span className="fh-sidebar-account-email">{runtime.userEmail || t('sidebar.account')}</span>
-        <MoreIcon size={16} className="fh-sidebar-account-more" />
+        <span className="fh-sidebar-account-avatar inline-flex flex-none items-center justify-center [width:28px] [height:28px] [border-radius:999px] [background:var(--accent)] [color:var(--accent-contrast)] [font-size:0.8em] font-semibold">{initial}</span>
+        <span className="fh-sidebar-account-email min-w-0 overflow-hidden text-ellipsis whitespace-nowrap [font-size:0.85em]">{runtime.userEmail || t('sidebar.account')}</span>
+        <MoreIcon size={16} className="fh-sidebar-account-more flex-none [margin-left:auto] [color:var(--muted)] [opacity:0.7]" />
       </button>
       {open &&
         position &&
         createPortal(
-          <div ref={popupRef} className="fh-account-menu-popup" style={{ left: position.left, bottom: position.bottom }}>
+          <div ref={popupRef} className="fh-account-menu-popup fixed [min-width:200px] [background:var(--bg)] [border:1px_solid_var(--border)] [border-radius:12px] [box-shadow:var(--shadow-lv2)] [padding:4px] [z-index:50]" style={{ left: position.left, bottom: position.bottom }}>
             <MenuItem
               variant="popup"
               onClick={() => {

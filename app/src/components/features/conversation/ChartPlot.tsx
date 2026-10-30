@@ -78,7 +78,7 @@ export function ChartPlot({
   const fill = height === "100%";
   const wrapStyle = fill ? { height: "100%" } : undefined;
   const titleText = chartTitle(chart, t("conversation.dsTable"));
-  const title = !chromeless && titleText ? <div className="chart-view-title">{titleText}</div> : null;
+  const title = !chromeless && titleText ? <div className="chart-view-title [margin-bottom:0.4em] font-medium [font-size:0.9em] [color:var(--muted)]">{titleText}</div> : null;
 
   if (rows.length === 0) return null;
 
@@ -86,11 +86,11 @@ export function ChartPlot({
     const field = chart.value_field ?? chart.y?.[0] ?? Object.keys(rows[0] ?? {})[0];
     const value = field ? rows[0]?.[field] : undefined;
     return (
-      <div className="chart-view" style={wrapStyle}>
+      <div className="chart-view w-full" style={wrapStyle}>
         {title}
-        <div className="ds-stat" style={fill ? undefined : { height }}>
-          <div className="ds-stat-value">{value === null || value === undefined ? "—" : formatCell(value)}</div>
-          <div className="ds-stat-label">{field ? label(field) : ""}</div>
+        <div className="ds-stat flex flex-col items-center justify-center [gap:4px] [min-height:160px] h-full" style={fill ? undefined : { height }}>
+          <div className="ds-stat-value [font-size:3rem] font-bold [font-variant-numeric:tabular-nums]">{value === null || value === undefined ? "—" : formatCell(value)}</div>
+          <div className="ds-stat-label [color:var(--muted)] [font-size:0.9em]">{field ? label(field) : ""}</div>
         </div>
       </div>
     );
@@ -99,10 +99,10 @@ export function ChartPlot({
   if (type === "table") {
     const columns = chart.y && chart.y.length > 0 ? chart.y : Object.keys(rows[0] ?? {});
     return (
-      <div className="chart-view" style={wrapStyle}>
+      <div className="chart-view w-full" style={wrapStyle}>
         {title}
-        <div className="ds-table-wrap" style={fill ? { height: "100%", maxHeight: "none" } : undefined}>
-          <table className="ds-table">
+        <div className="ds-table-wrap [max-height:360px] overflow-auto [border:1px_solid_var(--border-subtle)] [border-radius:var(--radius-md)]" style={fill ? { height: "100%", maxHeight: "none" } : undefined}>
+          <table className="ds-table w-full [border-collapse:collapse] [font-size:0.85em] [&_th]:sticky [&_th]:[top:0] [&_th]:[padding:6px_10px] [&_th]:[background:var(--surface)] [&_th]:font-semibold [&_th]:text-left [&_th]:whitespace-nowrap [&_td]:[max-width:320px] [&_td]:[padding:5px_10px] [&_td]:[border-top:1px_solid_var(--border-subtle)] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
             <thead>
               <tr>
                 {columns.map((c) => (
@@ -241,7 +241,7 @@ export function ChartPlot({
     // one row per group, names on the left: long names and rankings read well; tall lists scroll
     const rowsHeight = Math.max(240, data.length * 28 + 40);
     return (
-      <div className="chart-view" style={wrapStyle}>
+      <div className="chart-view w-full" style={wrapStyle}>
         {title}
         <div style={{ height: fill ? "100%" : height, overflowY: "auto" }}>
           <div style={{ height: rowsHeight }}>
@@ -281,7 +281,7 @@ export function ChartPlot({
   }
 
   return (
-    <div className="chart-view" style={wrapStyle}>
+    <div className="chart-view w-full" style={wrapStyle}>
       {title}
       <div style={fill ? { height: "100%" } : undefined}>
         <ResponsiveContainer width="100%" height={height}>

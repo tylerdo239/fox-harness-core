@@ -23,7 +23,7 @@ export function CanvasChip({ entry }: { entry: CanvasChipEntry }) {
     ? Code2
     : format === 'xlsx' || format === 'csv' ? FileSpreadsheet : format === 'pdf' ? FileType2 : FileText
   return (
-    <div className="fh-tw fh-canvas-chip-row">
+    <div className="fh-tw fh-canvas-chip-row flex [margin:4px_0]">
       <button
         type="button"
         onClick={() => {

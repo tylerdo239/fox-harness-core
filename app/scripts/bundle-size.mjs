@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 
 // 2026-10-30: 233 KB after phase 1, 256 KB with React 19 (+~11 KB) and TanStack Query (+~12 KB, 7 -> 2 requests
-// when the app opens). Raise only on purpose, with the reason here.
-const ENTRY_BUDGET = 260 * 1024
+// when the app opens); 271 KB once style.css moved into Tailwind classes (the class strings now ship in the JS).
+// Raise only on purpose, with the reason here.
+const ENTRY_BUDGET = 275 * 1024
 const dist = fileURLToPath(new URL('../dist/', import.meta.url))
 const html = readFileSync(join(dist, 'index.html'), 'utf8')
 const initial = new Set([...html.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)].map((m) => m[1]))

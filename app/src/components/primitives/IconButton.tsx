@@ -18,6 +18,11 @@
 // at each of those rules for why.
 import type { ComponentPropsWithoutRef } from 'react'
 
+// One literal per variant (not `fh-...-${variant}`), so each class is a literal the Tailwind move can find
+// (docs/ui-performance-plan.md §8).
+const SIZE_CLASS = { md: 'fh-icon-btn-md [width:28px] [height:28px]', sm: 'fh-icon-btn-sm [width:16px] [height:16px] [&&]:[border-radius:4px]' } as const
+const VARIANT_CLASS = { bordered: 'fh-icon-btn-bordered [border:1px_solid_var(--border)] [color:var(--fg)]', plain: 'fh-icon-btn-plain [border:none] [color:var(--muted)] [&:hover]:[color:var(--fg)]' } as const
+
 export function IconButton({
   size = 'md',
   variant = 'bordered',
@@ -31,7 +36,7 @@ export function IconButton({
     <button
       {...rest}
       type="button"
-      className={`fh-icon-btn fh-icon-btn-${size} fh-icon-btn-${variant}${className ? ` ${className}` : ''}`}
+      className={`fh-icon-btn inline-flex items-center justify-center p-0 [background:transparent] [border-radius:999px] [transition:background_var(--duration-fast)_var(--ease),color_var(--duration-fast)_var(--ease)] [&:hover]:[background:var(--bg-hover)] ${SIZE_CLASS[size]} ${VARIANT_CLASS[variant]}${className ? ` ${className}` : ''}`}
     />
   )
 }

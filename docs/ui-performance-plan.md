@@ -1,4 +1,4 @@
-# Hiệu năng và nền tảng UI (2026-10-30, giai đoạn 1–4 xong)
+# Hiệu năng và nền tảng UI (2026-10-30, giai đoạn 1–5 xong)
 
 Mục tiêu: web (`app/`) tải nhanh và chạy mượt hơn, code dễ sửa hơn, trên một tech stack chuẩn — **giữ nguyên layout
 và style**. Mọi bước trong plan này phải ra giao diện y hệt trước đó (0 pixel khác), kiểm bằng `app/scripts/ui-parity.mjs`
@@ -29,7 +29,7 @@ lần đầu **2.284 ms, 5.069 KB**.
 | Router | Tự viết, tách ra `src/routing.ts` + unit test | Không dùng TanStack Router — lý do ở §5 |
 | Dữ liệu từ server | **TanStack Query** cho danh sách chat và dự án; WebSocket chat tự quản (`runtime.ts`) | §5 |
 | State client | zustand (canvas) | Giữ |
-| Style | `theme.css` / `style.css` + 2 bản Tailwind 3 có phạm vi, như cũ | Đổi sang Tailwind v4 + shadcn: §8, chưa làm |
+| Style | **Tailwind 3.4** trong component + `base.css` + 2 bản Tailwind 3 có phạm vi (canvas, Data Profile) | §8 |
 | Test | **Vitest** (`pnpm test`), `scripts/ui-parity.mjs`, `scripts/ui-flows.mjs` (Playwright, Chrome có sẵn) | §3 |
 | Lint | **Biome** (`pnpm lint`) | Formatter tắt (không đổi định dạng toàn repo) |
 | Ngân sách kích thước | `scripts/bundle-size.mjs`, chạy cuối `pnpm run build` | §7 |
@@ -139,17 +139,26 @@ của trình duyệt không tìm thấy tin cũ. Xem lại khi có chat hàng tr
 | Đo lại cuối giai đoạn 4 (cách đo §1) | Mở lần đầu **237 ms, 314 KB** (gốc 2.297 ms, 5.069 KB); tải lại 77 ms, 4 KB |
 | Ngân sách | `scripts/bundle-size.mjs` cuối `pnpm run build`: JS trang đầu ≤ **260 KB gzip** (hiện 255,6). 233 KB sau giai đoạn 1; +~11 KB React 19, +~12 KB TanStack Query |
 
-## 8. Giai đoạn 5 — style sang hệ thống chung (chưa làm, đề xuất gộp với thiết kế lại)
+## 8. Giai đoạn 5 — style sang Tailwind (xong 2026-10-30)
 
-Không làm lúc này: không nhanh hơn chút nào, chuyển dở dang thì có hai hệ style song song (khó hơn bây giờ), và nếu
-sắp thiết kế lại giao diện thì chuyển 150 KB CSS sang Tailwind *giống từng pixel* rồi thiết kế lại là làm hai lần.
-Khi làm (cùng đợt thiết kế lại, hoặc riêng nếu không thiết kế lại):
+Tailwind **3.4**, không phải 4: khung canvas và các màn Data Profile đã là Tailwind 3 (mỗi khu một bản build có phạm vi,
+`tailwind.canvas.config.cjs`, `tailwind.ref.config.cjs`; `src/ref/` đồng bộ từ repo tham khảo viết bằng Tailwind 3).
+Tailwind 4 cho phần còn lại thì phải cài hai phiên bản trùng tên gói, hoặc sửa code đồng bộ. Lên 4 cả ba cùng lúc là
+một việc riêng sau này.
 
-1. Token trong `theme.css` → theme của Tailwind v4 (cùng tên biến CSS, cùng giá trị).
-2. Từng nhóm component từ class trong `style.css` sang Tailwind / shadcn; nếu giữ giao diện thì `ui-parity.mjs`
-   phải ra 0 pixel (DOM class sẽ khác — so pixel); xong nhóm nào xoá CSS cũ của nhóm đó.
-3. Hai bản Tailwind 3 (`ref.css`, `tw.css`) gộp vào một khi các component đó đã chuyển.
-4. Khi `style.css` hết, bỏ plugin `fh-static-css`; CSS do Vite build và có hash.
+| Phần | Kết quả |
+| --- | --- |
+| Một stylesheet | `src/styles/app.css` (Vite + Tailwind, `postcss.config.cjs`, `tailwind.config.cjs`, không preflight): `theme.css` → sonner → base → utilities → Data Profile → canvas, đúng thứ tự cascade cũ; một file `/assets/*.css` có hash. `public/` không còn file nào |
+| `style.css` (842 rule, 974 selector) | **868 selector thành class Tailwind trên chính phần tử** (`.a` → utility; `.a:hover .b` → `[&:hover_.b]:…` trên `.a`; `#log > .x` → `[#log&>.x]:…`; media → `[@media(…)]:`), giữ nguyên độ ưu tiên của selector. **38 selector chết** (class / id không phần tử nào có) bị xoá |
+| Còn là CSS | `src/styles/base.css` (~250 dòng, CSS thường, nằm giữa base của Tailwind và utilities — không dùng `@layer base` vì Tailwind 3 bỏ rule của base layer có class không thấy trong mã nguồn, như `hljs-*` của highlight.js): alias token trên `:root`, mặc định của thẻ (`body`, `button`, ô nhập), ghi đè sonner và màu highlight.js (class do thư viện sinh ra), keyframes, in ấn |
+| Class ghép động | `fh-btn-${variant}` … thành bảng tra một-literal-mỗi-biến-thể (`VARIANT_CLASS`, `SIZE_CLASS`, `BADGE_TONE_CLASS`, `MARK/AGENT/STEP_CLASS`); tên class trong DOM không đổi |
+| Thứ tự cascade | Tailwind xếp utility tuỳ ý theo chữ cái, không theo thứ tự file cũ. Mỗi cặp utility cùng độ ưu tiên đặt cùng thuộc tính (hoặc viết tắt / đầy đủ) trên một phần tử — kể cả class trong primitive cộng class truyền vào qua prop, và các mục bảng tra loại trừ nhau — và các utility nhắm phần tử con từ những phần tử cha khác nhau trong cùng component (`.fh-hub h1` / `.fh-hub-header h1`) — được so với thứ tự cũ; 206 cặp ngược được nâng người thắng thêm một class (`[&&]:…`). Hai ô nhập dùng `fh-history-chat-search` có thêm `[input[type=text]&:focus]:[border-color:…]` vì rule focus chung của ô nhập nằm ở `base.css`, trước utilities. Một utility không bao giờ có tác dụng (màu đỏ của mục "Xoá" trong menu chat, luôn bị `.fh-menu-item` đè trong CSS cũ) bị bỏ |
+| Class cũ | Giữ làm mốc (`fh-…`, `ds-…`): test, `querySelector` và người đọc vẫn dùng; không còn CSS nào gắn với chúng ngoài `base.css` |
+| Kiểm | `scripts/ui-styles.mjs`: 41 trạng thái (menu, dialog, mọi tab cài đặt, hover, đổi tên, xác nhận xoá, toast, ô soạn tin có chữ, menu skill, thẻ file đính kèm, lỗi đăng nhập, trang dự án và các tab, Data Studio, theme tối, cửa sổ hẹp, điện thoại), so computed style **mọi thuộc tính của mọi phần tử** (cả `::before` / `::after` / `::placeholder`) giữa bản gốc và bản mới; `ui-parity.mjs` với `PARITY_IGNORE_CLASS=1` (pixel + DOM trừ `class`); `ui-flows.mjs` |
+| Kích thước | Chuỗi class nằm trong JS: JS trang đầu 255,6 → 271 KB gzip (budget 275); CSS 27 → 30 KB gzip |
+
+Giới hạn của việc kiểm: trạng thái không chụp (vd. thanh dung lượng gần đầy, canvas đang mở) chỉ được bảo đảm bằng
+phân tích tĩnh thứ tự cascade ở trên, không bằng so trực tiếp.
 
 ## 9. Rủi ro và quay lại
 

@@ -36,8 +36,8 @@ function ChartPlaceholder({ chart: input, height = 280, chromeless = false }: Ch
   const fill = height === "100%";
   const titleText = chartTitle(chart, t("conversation.dsTable"));
   return (
-    <div className="chart-view" style={fill ? { height: "100%" } : undefined}>
-      {!chromeless && titleText ? <div className="chart-view-title">{titleText}</div> : null}
+    <div className="chart-view w-full" style={fill ? { height: "100%" } : undefined}>
+      {!chromeless && titleText ? <div className="chart-view-title [margin-bottom:0.4em] font-medium [font-size:0.9em] [color:var(--muted)]">{titleText}</div> : null}
       <div style={{ height: fill ? "100%" : height }} />
     </div>
   );

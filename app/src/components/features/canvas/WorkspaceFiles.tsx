@@ -196,7 +196,7 @@ export function WorkspaceFiles({ version = 0, running }: { version?: number; run
   }
 
   return (
-    <div className="fh-tw fh-workspace-files">
+    <div className="fh-tw fh-workspace-files [margin:0_1em_0.5em] flex-none">
       <div className="rounded-xl border border-border bg-surface">
         <div className="flex items-center gap-1 pr-1.5">
           <button

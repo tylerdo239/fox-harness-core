@@ -31,8 +31,7 @@ api/packages/tool/data-studio-agent/python/debug/
 /api/scripts/bench/fixtures/
 
 # app/: build output (vite.config.ts; app/Dockerfile builds it) — dist/ is ignored above
-/app/public/ref.css
-/app/public/tw.css
+/app/src/styles/generated/
 
 # Local benchmark cases (DABStep and its variants, repros), not part of the shared suite
 /api/scripts/bench/cases/dabstep-*.json

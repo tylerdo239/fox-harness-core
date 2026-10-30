@@ -76,7 +76,7 @@ export function SessionTitleBar() {
         <Input
           ref={inputRef}
           type="text"
-          className="fh-session-title-bar-input"
+          className="fh-session-title-bar-input [input[type=text]&]:w-full [input[type=text]&]:[max-width:100%] [input[type=text]&]:[height:auto] [input[type=text]&]:[padding:0.15em_0.4em] [input[type=text]&]:[margin-left:-0.4em] [input[type=text]&]:[border-radius:var(--radius-sm)] [input[type=text]&]:[font-size:1em] [input[type=text]&]:[font-weight:60]"
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => {
@@ -100,7 +100,7 @@ export function SessionTitleBar() {
       ) : (
         <button
           type="button"
-          className="fh-session-title-bar-display"
+          className="fh-session-title-bar-display block [max-width:100%] [padding:0.15em_0.4em] [margin-left:-0.4em] [border:none] [border-radius:var(--radius-sm)] [background:transparent] [color:var(--fg)] [font-size:1em] font-semibold text-left cursor-text overflow-hidden text-ellipsis whitespace-nowrap [&:hover]:[background:var(--bg-hover)]"
           onClick={startEditing}
         >
           {runtime.sessionTitle ?? t("conversation.untitledSession")}

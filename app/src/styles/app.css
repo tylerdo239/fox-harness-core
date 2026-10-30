@@ -1,0 +1,9 @@
+/* The app's one stylesheet (docs/ui-performance-plan.md §8), built by Vite + Tailwind into a hashed file. Same
+   cascade order as the five stylesheets index.html used to link one after another: */
+@import './theme.css';                 /* design tokens (--fh-*), light and dark */
+@import 'sonner/dist/styles.css';      /* toasts; theme.css / base.css override some of its variables */
+@import './tailwind-base.css';         /* Tailwind's --tw-* defaults (no preflight) */
+@import './base.css';                  /* element defaults, library overrides, keyframes (plain CSS) */
+@import './tailwind-utilities.css';    /* the app's utility classes (tailwind.config.cjs) */
+@import './generated/ref.css';         /* Data Profile screens, Tailwind scoped to .fh-ref (vite.config.ts) */
+@import './generated/tw.css';          /* canvas panel, Tailwind scoped to .fh-tw (vite.config.ts) */

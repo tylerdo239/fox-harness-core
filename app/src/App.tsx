@@ -948,16 +948,16 @@ function AppInner() {
     // to sit and want to change settings.
     if (authCheckPending) {
       return (
-        <div className="fh-auth-screen">
-          <div className="fh-auth-loading">
-            <div className="fh-spinner" />
+        <div className="fh-auth-screen relative [min-height:100vh] flex items-center justify-center [padding:2em_1em] [background:var(--bg)]">
+          <div className="fh-auth-loading flex items-center justify-center">
+            <div className="fh-spinner [width:28px] [height:28px] [border:3px_solid_var(--border)] [&&]:[border-top-color:var(--accent)] [border-radius:50%] [animation:fh-spin_0.8s_linear_infinite]" />
           </div>
         </div>
       );
     }
     return (
-      <div className="fh-auth-screen">
-        <div className="fh-auth-screen-controls">
+      <div className="fh-auth-screen relative [min-height:100vh] flex items-center justify-center [padding:2em_1em] [background:var(--bg)]">
+        <div className="fh-auth-screen-controls absolute [top:1.25em] [right:1.25em] flex items-center [gap:0.5em]">
           <LanguageSelect />
           <ThemeToggle />
         </div>
@@ -974,7 +974,7 @@ function AppInner() {
     <RuntimeContext.Provider value={runtime}>
       <div
         id="app"
-        className="fh-app-frame"
+        className="[#app&]:[height:100vh] [#app&]:grid [#app&]:[grid-template-rows:100%] [#app&]:overflow-hidden [#app&]:[transition:grid-template-columns_var(--duration-base)_var(--ease)] [#app&:has(.fh-canvas-handle:active)]:[transition:none] fh-app-frame"
         ref={frameRef}
         style={{ gridTemplateColumns }}
       >
@@ -1030,7 +1030,7 @@ function AppInner() {
             onLogout={handleLogout}
           />
         )}
-        <div id="center-col" className="fh-center-col">
+        <div id="center-col" className="[#center-col&]:min-w-0 [#center-col&]:min-h-0 [#center-col&]:flex [#center-col&]:flex-col [#center-col&]:overflow-hidden [#center-col&>*]:[max-width:760px] [#center-col&>*]:[margin:0_auto] [#center-col&>*]:w-full [#center-col&>.fh-conversation-root]:[flex:1] [#center-col&>.fh-conversation-root]:min-h-0 [#center-col&>.fh-conversation-root]:flex [#center-col&>.fh-conversation-root]:flex-col [#center-col&>.fh-session-title-bar]:flex-none [#center-col&>.fh-session-title-bar]:[max-width:none] [#center-col&>.fh-session-title-bar]:m-0 [#center-col&>.fh-session-title-bar]:[padding:0.6em_1.25em] [#center-col&>.fh-conversation-root]:[max-width:none] [#center-col&>.fh-conversation-root]:m-0 [#center-col&>.fh-conversation-root]:[--fh-chat-side:max(0px,calc((100%_-_760px)_/_2))] [#center-col&>.fh-skills-page]:flex [#center-col&>.fh-skills-page]:[flex:1] [#center-col&>.fh-skills-page]:flex-col [#center-col&>.fh-skills-page]:min-h-0 [#center-col&>.fh-skills-page]:w-full [#center-col&>.fh-skills-page]:[max-width:none] [#center-col&>.fh-skills-page]:m-0 [#center-col&>.fh-hub-scroll]:[max-width:none] [#center-col&>.fh-hub-scroll]:[flex:1] [#center-col&>.fh-hub-scroll]:min-h-0 [#center-col&>.fh-hub-scroll]:overflow-y-auto [#center-col&>.fh-chat-project-bar]:flex [#center-col&>.fh-chat-project-bar]:flex-none [#center-col&>.fh-chat-project-bar]:[max-width:none] [#center-col&>.fh-chat-project-bar]:m-0 [#center-col&>.fh-chat-project-bar]:[padding:10px_1.25em_0] [#center-col&>.fh-chat-project-bar+.fh-session-title-bar]:[padding-top:0.1em] [#center-col&>.fh-data-studio-admin]:[max-width:none] [#center-col&>.fh-data-studio-admin]:w-full [#center-col&>.fh-data-studio-admin]:[padding:24px_32px] [#center-col&>.fh-data-studio-admin]:overflow-x-auto [#center-col&>.ds-dash-page]:[flex:1] [#center-col&>.ds-dash-page]:min-h-0 [#center-col&>.ds-dash-page]:[max-width:none] [#center-col&>.ds-dash-page]:m-0 [#center-col&>.ds-dash-page]:flex [#center-col&>.ds-dash-page]:flex-col [#center-col&>.ds-dash-page]:overflow-hidden [#center-col&>.fh-hub-page]:flex [#center-col&>.fh-hub-page]:[flex:1] [#center-col&>.fh-hub-page]:flex-col [#center-col&>.fh-hub-page]:min-h-0 [#center-col&>.fh-hub-page]:[max-width:none] [#center-col&>.fh-hub-page]:m-0 [#center-col&>.fh-usage]:flex [#center-col&>.fh-usage]:[flex:1] [#center-col&>.fh-usage]:flex-col [#center-col&>.fh-usage]:min-h-0 [#center-col&>.fh-usage]:w-full [#center-col&>.fh-usage]:[max-width:none] [#center-col&>.fh-usage]:m-0 fh-center-col">
           {usageView && userRole === "admin" ? (
             <Suspense fallback={null}>
               <UsageDashboard onBack={leavePage} />
