@@ -1,13 +1,14 @@
 // "Dự án" tree in the sidebar (2026-10-19, user screenshot): projects as
 // folders with their chats nested under each one. Same data as the project
 // hub — `/projects` plus `/sessions/mine` grouped by `projectId`.
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { ChevronDownIcon, FolderIcon, FolderOpenIcon, MoreIcon, PlusIcon } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import { useRuntime } from "../../../runtime.ts";
-import { createProject, listProjects, PROJECT_NAME_MAX, type Project } from "../projects/projectsApi.ts";
+import { createProject, PROJECT_NAME_MAX, type Project } from "../projects/projectsApi.ts";
+import { useMySessions, useProjects } from "../../../queries.ts";
 import { Input } from "../../primitives/Input.tsx";
 
 interface ChatRow {
@@ -22,19 +23,11 @@ export function SidebarProjects({ onOpenProject }: { onOpenProject: (projectId: 
   const [open, setOpen] = useState(true);
   // collapsed by default; a click on a project shows its chats
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [chats, setChats] = useState<ChatRow[]>([]);
+  // shared with the history list and the project hub (src/queries.ts)
+  const projects: Project[] = useProjects().data ?? [];
+  const chats: ChatRow[] = useMySessions().data ?? [];
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-
-  useEffect(() => {
-    listProjects(runtime).then(setProjects).catch(() => {});
-    runtime
-      .authedFetch("/sessions/mine")
-      .then((res) => (res.ok ? (res.json() as Promise<ChatRow[]>) : []))
-      .then(setChats)
-      .catch(() => {});
-  }, [runtime.sessionId, runtime.sessionsVersion]);
 
   async function create(event: FormEvent): Promise<void> {
     event.preventDefault();

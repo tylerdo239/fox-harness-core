@@ -57,6 +57,7 @@ import { MoreIcon, PencilIcon, TrashIcon } from "../../../icons.tsx";
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
+import { fetchMySessions, MY_SESSIONS_KEY, queryClient, useMySessions } from "../../../queries.ts";
 import { confirmDialog } from "../../primitives/ConfirmDialog.tsx";
 import { IconButton } from "../../primitives/IconButton.tsx";
 import { Input } from "../../primitives/Input.tsx";
@@ -139,7 +140,9 @@ export function HistoryChat({
 }) {
   const runtime = useRuntime();
   const { t } = useLocale();
-  const [rows, setRows] = useState<SessionRow[]>([]);
+  // the shared chat list (src/queries.ts)
+  const sessionsQuery = useMySessions();
+  const rows: SessionRow[] = sessionsQuery.data ?? [];
   const [menuRow, setMenuRow] = useState<SessionRow | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
     top: number;
@@ -157,18 +160,17 @@ export function HistoryChat({
   sessionIdRef.current = runtime.sessionId;
 
   async function refresh(): Promise<void> {
-    const res = await runtime.authedFetch("/sessions/mine");
-    if (!res.ok) return;
-    const list = (await res.json()) as SessionRow[];
-    setRows(list);
-    // 2026-09-15 (`SessionTitleBar.tsx`) — this fetch already happens on
-    // every rename (this component's own AND the title bar's, via
-    // `runtime.sessionsVersion` in the effect below) and on session switch,
-    // so reporting the active row's title here is enough to keep the title
-    // bar in sync with all 3 sources without duplicating any fetch logic.
-    const active = list.find((row) => row.sessionId === sessionIdRef.current);
-    runtime.setSessionTitle(active?.title ?? undefined);
+    await queryClient.invalidateQueries({ queryKey: MY_SESSIONS_KEY });
   }
+
+  // 2026-09-15 (`SessionTitleBar.tsx`): after every fetch of the list (a rename here or in the title bar, a chat
+  // switch) report the active chat's title, so the title bar stays in sync without a fetch of its own.
+  // `dataUpdatedAt`, not `data`: an unchanged list keeps the same object but must still report.
+  useEffect(() => {
+    if (!sessionsQuery.data) return;
+    const active = sessionsQuery.data.find((row) => row.sessionId === sessionIdRef.current);
+    runtime.setSessionTitle(active?.title ?? undefined);
+  }, [sessionsQuery.dataUpdatedAt, runtime.sessionId]);
 
   // Automatic titles: the worker's dsh-session-title appends `session/title`
   // events — first the first words of the first message (source `fallback`),
@@ -180,9 +182,10 @@ export function HistoryChat({
     // The row appears only once gateway marks the first message, which can
     // land a moment after the title event.
     for (let attempt = 0; attempt < 5; attempt++) {
-      const res = await runtime.authedFetch("/sessions/mine");
-      if (!res.ok) return;
-      const list = (await res.json()) as SessionRow[];
+      const list = await queryClient
+        .fetchQuery({ queryKey: MY_SESSIONS_KEY, queryFn: () => fetchMySessions(runtime), staleTime: 0 })
+        .catch(() => undefined);
+      if (!list) return;
       if (list.some((r) => r.sessionId === sessionId)) {
         await runtime.authedFetch(`/sessions/${sessionId}`, {
           method: "PATCH",
@@ -207,17 +210,8 @@ export function HistoryChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    // The active session isn't in `GET /sessions/mine`'s row set until its
-    // first real WS connect commits a `sessions` insert (services/gateway's
-    // WS upgrade handler) — refetch whenever the active session changes so
-    // a brand-new session's row appears without a manual reload.
-    // `runtime.sessionsVersion`: also refetch whenever `SessionTitleBar.tsx`
-    // renames the active session from OUTSIDE this component — see
-    // `runtime.ts`'s own comment on that field.
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runtime.sessionId, runtime.sessionsVersion]);
+  // (The list refetches on a chat switch and after any change: App.tsx and `runtime.bumpSessionsVersion()`
+  // invalidate it — a brand-new chat's row appears once its first message is in.)
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();

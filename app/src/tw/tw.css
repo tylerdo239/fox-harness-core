@@ -1,4 +1,4 @@
-/* Input of public/tw.css (scripts/build.mjs, tailwind.canvas.config.cjs): the canvas panel and the components
+/* Input of public/tw.css (vite.config.ts, tailwind.canvas.config.cjs): the canvas panel and the components
    ported with it, written in Tailwind like their source app. `.fh-tw` wraps each of them; utilities apply to
    DESCENDANTS of it only (Tailwind's `important` selector), so the wrapper itself carries plain CSS. */
 @tailwind base;

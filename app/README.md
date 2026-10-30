@@ -223,7 +223,7 @@ real dsh research behind them is preserved for the historical record in
   `public/style.css` pointed at this app's own tokens, not sonner's
   built-in palette — `public/sonner.css` (sonner's own real compiled
   stylesheet) is copied from `node_modules` on every build by
-  `scripts/build.mjs`, never hand-maintained, so it can't drift out of
+  `vite.config.ts`, never hand-maintained, so it can't drift out of
   sync with whatever version is actually installed.
 - **`public/theme.css`** — design tokens (`--fh-*`), a real static
   stylesheet now (used to be a UI plugin that injected a `<style>` tag at
@@ -248,34 +248,40 @@ and `{followup|steer}` commands. See `services/gateway/README.md` and
 ## Build
 
 ```
-cd app && pnpm install && pnpm run build   # tsc --noEmit (typecheck) then
-                  # scripts/build.mjs (esbuild — one IIFE bundle,
-                  # React embedded normally, no external/module-loader
-                  # tricks needed since there's only one bundle now)
+cd app && pnpm install
+pnpm dev        # Vite dev server with HMR, port 5173 (PORT= to override); needs app/.env
+pnpm run build  # tsc --noEmit (typecheck), then vite build -> dist/
+pnpm preview    # serve dist/ locally
 ```
 
-Type checking emits nothing (`noEmit`); `public/` holds only the 5
-real files the app needs: `index.html`, `main.js` (the real esbuild
-bundle), `theme.css`, `sonner.css`, `style.css`. (2026-09-08 fix,
-`docs/code-rules.md` §44 — `app/tsconfig.json` used to point `outDir`
-at `public` itself, so every `tsc -b` run dumped 19 stray, genuinely
-HTTP-servable files — `App.js`, `components/*.js`, `.tsbuildinfo`, ... —
-straight into the same directory `scripts/serve.mjs` serves live.)
+Vite since 2026-10-30 (`docs/ui-performance-plan.md`, replaced `scripts/build.mjs` + `scripts/serve.mjs`):
+
+- `index.html` (app root) loads `src/main.tsx`; Vite writes `dist/index.html` and the hashed, minified bundle to
+  `dist/assets/`, React in its production build. The canvas libraries, charts (`ChartPlot.tsx`), sql-formatter and
+  the Usage / Data Profile pages are separate chunks, fetched on first use and once the app is idle after sign-in
+  (`src/lazyLoad.ts`).
+- The stylesheets are unchanged: `public/theme.css`, `sonner.css`, `style.css`, `ref.css`, `tw.css`, linked from
+  `index.html` in that order and copied as-is. `ref.css` / `tw.css` are the two scoped Tailwind builds
+  (`tailwind.ref.config.cjs`, `tailwind.canvas.config.cjs`) the `fh-static-css` plugin in `vite.config.ts` writes;
+  in dev it rebuilds them when a source file changes.
+- nginx (`nginx.conf.template`) gzips text, caches `/assets/` for a year (`immutable`, names change with content)
+  and revalidates `index.html` and the stylesheets (`no-cache`).
+
+Checks (`docs/ui-performance-plan.md` §3):
+
+```
+pnpm check      # tsc, Biome lint (pnpm lint), Vitest unit tests (pnpm test; *.test.ts[x] next to the code)
+pnpm run build  # ends with scripts/bundle-size.mjs: first-load JS must stay under its gzip budget
+node scripts/ui-parity.mjs   # two running builds, same pages: pixel + DOM compare (OLD_URL, NEW_URL, PARITY_*)
+node scripts/ui-flows.mjs    # one running build: URLs, Back/Forward, reloads, deep links, logout (APP_URL, PARITY_*)
+```
+
+Server data shared by several components (the chat list, the projects) goes through TanStack Query
+(`src/queries.ts`); `runtime.bumpSessionsVersion()` invalidates it after a change.
 
 Configuration: `app/.env` (copy `app/.env.example`) — only `BACKEND_URL`. The page always calls its own origin;
-`scripts/serve.mjs` (dev) and nginx (`Dockerfile`, production) forward the API paths and the chat WebSocket to
+the Vite dev server and nginx (`Dockerfile`, production) forward the API paths and the chat WebSocket to
 `BACKEND_URL`, the path list being `nginx.conf.template`'s for both.
-
-Then serve `public/` — **`pnpm dev`** (bundles, then `scripts/serve.mjs`; port
-5173 by default, `PORT=` to override), not a generic static server. Real
-reason this matters, not just a preference: a plain `python3 -m
-http.server` sends no `Cache-Control` header at all, so browsers apply
-their own heuristic caching and can keep showing an OLD `main.js`/`style.css`
-after a rebuild even on a normal reload — confirmed twice in this project
-(`curl` proved the server was serving fresh bytes both times; the browser
-just wasn't asking for them). `scripts/serve.mjs` sends
-`Cache-Control: no-store` on every response specifically to make that whole
-class of problem impossible — see `docs/code-rules.md` §29.
 
 Before login, the whole viewport is a dedicated `.fh-auth-screen` (no
 `#app` grid, no `#header` — those only mount once `connected`, 2026-09-08
@@ -404,5 +410,5 @@ never an actual click-through.
   reason IS available and already renders as a notice line, so the failure
   isn't fully silent, but there's no dedicated error state on the bubble.
 - No rendering for `image` content blocks — text and reasoning only.
-- `public/main.js` ships React's unminified development build (~1MB) — this
-  project has no production-vs-dev build distinction anywhere yet.
+- highlight.js (code highlighting in chat, ~380 KB before minify) is still in the main bundle: loading it later
+  would show code blocks uncolored for a moment (`docs/ui-performance-plan.md`, phase 2).

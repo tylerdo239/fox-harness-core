@@ -1,4 +1,4 @@
-/* Input of the reference data-profile screens' stylesheet (built to public/ref.css by scripts/build.mjs).
+/* Input of the reference data-profile screens' stylesheet (built to public/ref.css by vite.config.ts).
    Everything is scoped to .fh-ref: the page wrapper (DataStudioProfile.tsx) and the radix portal container
    (src/ref/shims/portal.ts). Theme variables = the reference's globals.css. */
 /* base: with preflight off this is only Tailwind's --tw-* variable defaults (translate, ring, shadow…),

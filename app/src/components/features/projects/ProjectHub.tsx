@@ -28,6 +28,7 @@ import {
 import { useLocale } from "../../../i18n/locale.tsx";
 import type { TranslationKey } from "../../../i18n/translations.ts";
 import { useRuntime } from "../../../runtime.ts";
+import { MY_SESSIONS_KEY, queryClient, useMySessions, useProjects } from "../../../queries.ts";
 import { showNoSpace, StorageFullError } from "../settings/storageApi.ts";
 import {
   fetchWorkspaceFile,
@@ -40,7 +41,6 @@ import {
   createProject,
   deleteProject,
   listProjectChats,
-  listProjects,
   PROJECT_NAME_MAX,
   promoteProjectOutput,
   renameProject,
@@ -73,20 +73,17 @@ export function ProjectHub({
 }) {
   const runtime = useRuntime();
   const { t } = useLocale();
-  const [projects, setProjects] = useState<Project[] | undefined>();
+  // shared with the sidebar (src/queries.ts); undefined while the first load is in flight, [] once it failed
+  const projectsQuery = useProjects();
+  const projects: Project[] | undefined = projectsQuery.data ?? (projectsQuery.isError ? [] : undefined);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
 
   useEffect(() => {
-    listProjects(runtime)
-      .then(setProjects)
-      .catch(() => {
-        setProjects([]);
-        toast.error(t("projects.loadFailed"));
-      });
+    if (projectsQuery.isError) toast.error(t("projects.loadFailed"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [projectsQuery.isError]);
 
   const visible = useMemo(
     () => (projects ?? []).filter((project) => project.name.toLowerCase().includes(query.trim().toLowerCase())),
@@ -652,34 +649,34 @@ export function ProjectChatBar({
   const runtime = useRuntime();
   const [project, setProject] = useState<{ projectId: string; name: string } | null>(null);
 
+  // The open chat's row in the shared chat list (src/queries.ts), reported once per chat.
+  const sessions = useMySessions().data;
+  const reportedRef = useRef<string | null>(null);
   useEffect(() => {
-    let cancelled = false;
-    let found = false;
-    async function lookup(): Promise<void> {
-      const res = await runtime.authedFetch("/sessions/mine");
-      if (!res.ok || cancelled) return;
-      const rows = (await res.json()) as { sessionId: string; flow: string; projectId: string | null; projectName: string | null }[];
-      const row = rows.find((item) => item.sessionId === runtime.sessionId);
-      if (cancelled || !row) return;
-      found = true;
-      onChatPlace(row.sessionId, row.flow, row.projectId);
-      if (row.projectId && row.projectName) setProject({ projectId: row.projectId, name: row.projectName });
-    }
     setProject(null);
-    if (runtime.sessionId) void lookup();
-    // A brand-new chat is listed only once its first message is in; look again
+    reportedRef.current = null;
+    if (!runtime.sessionId) return;
+    // A brand-new chat is listed only once its first message is in; refetch the list
     // when a live turn starts. onFrame replays past frames on subscribe — skip those.
     let live = false;
     const unsubscribe = runtime.onFrame((frame) => {
-      if (live && !found && frame.type === "event" && frame.event.type === "turn/start") void lookup();
+      if (live && reportedRef.current !== runtime.sessionId && frame.type === "event" && frame.event.type === "turn/start") {
+        void queryClient.invalidateQueries({ queryKey: MY_SESSIONS_KEY });
+      }
     });
     live = true;
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
+    return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runtime.sessionId]);
+  useEffect(() => {
+    if (!runtime.sessionId || reportedRef.current === runtime.sessionId) return;
+    const row = sessions?.find((item) => item.sessionId === runtime.sessionId);
+    if (!row) return;
+    reportedRef.current = row.sessionId;
+    onChatPlace(row.sessionId, row.flow, row.projectId);
+    if (row.projectId && row.projectName) setProject({ projectId: row.projectId, name: row.projectName });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, runtime.sessionId]);
 
   if (!project) return null;
   return (

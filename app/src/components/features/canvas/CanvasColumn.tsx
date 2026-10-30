@@ -6,7 +6,7 @@
 import { lazy, Suspense, useCallback, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
 import { useLocale } from '../../../i18n/locale.tsx'
-// Loaded on first use: the panel brings CodeMirror and the file renderers (scripts/build.mjs splits them out).
+// Loaded on first use: the panel brings CodeMirror and the file renderers (Vite splits them out).
 const CanvasPanel = lazy(() => import('./CanvasPanel.tsx').then((module) => ({ default: module.CanvasPanel })))
 import { useCanvasStore } from './store.ts'
 
@@ -70,7 +70,10 @@ export function useCanvasLayout(frameWidth: number, sidebarWidth: number, narrow
     document.body.classList.add('fh-resizing')
     function onMove(move: MouseEvent): void {
       // the button was released where this window could not see it: end the drag here
-      if (move.buttons === 0) return onUp()
+      if (move.buttons === 0) {
+        onUp()
+        return
+      }
       // The handle is the canvas's LEFT edge: dragging left widens it.
       setOverride(clampWidth(startWidth + (startX - move.clientX), CANVAS_MIN_WIDTH, CANVAS_MAX_WIDTH))
     }

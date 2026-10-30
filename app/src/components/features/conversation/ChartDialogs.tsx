@@ -148,7 +148,9 @@ export function EditColorsDialog({
   useEffect(() => {
     if (!open) return;
     const initial: Record<string, string> = {};
-    fields.forEach((f, i) => (initial[f] = colorFor(spec, f, i)));
+    fields.forEach((f, i) => {
+      initial[f] = colorFor(spec, f, i);
+    });
     setColors(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

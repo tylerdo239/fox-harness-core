@@ -7,7 +7,7 @@
     <!-- Real root-cause bug fixed 2026-09-10 — every asset href/src below is
        an ABSOLUTE path (`/theme.css`, not `./theme.css`). This exact file
        is served unchanged for every real route (`/`, `/chat/<id>`, ...) by
-       `app/scripts/serve.mjs`'s SPA fallback — but a RELATIVE path resolves
+       the dev server's (Vite) and nginx's SPA fallback — but a RELATIVE path resolves
        against whatever the browser's address bar currently shows, not
        where the HTML came from. `./theme.css` on `/chat/<uuid>` resolves
        to `/chat/theme.css` (the browser drops everything after the last
@@ -42,15 +42,15 @@
     <link rel="stylesheet" href="/theme.css" />
     <!-- `sonner`'s own compiled stylesheet (2026-09-08 — real toast library,
        replacing a hand-rolled one). Copied from node_modules on every build
-       by app/scripts/build.mjs, so it can't silently drift out of sync with
+       by app/vite.config.ts, so it can't silently drift out of sync with
        the installed version. Loaded BEFORE style.css so style.css's
        `[data-sonner-toaster][data-sonner-theme]` color overrides win their
        specificity tie by source order, no `!important` needed. -->
     <link rel="stylesheet" href="/sonner.css" />
     <link rel="stylesheet" href="/style.css" />
-    <!-- the reference data-profile screens (src/ref/, Tailwind scoped to .fh-ref; scripts/build.mjs) -->
+    <!-- the reference data-profile screens (src/ref/, Tailwind scoped to .fh-ref; vite.config.ts) -->
     <link rel="stylesheet" href="/ref.css" />
-    <!-- the canvas side panel and the components ported with it (Tailwind scoped to .fh-tw; scripts/build.mjs) -->
+    <!-- the canvas side panel and the components ported with it (Tailwind scoped to .fh-tw; vite.config.ts) -->
     <link rel="stylesheet" href="/tw.css" />
   </head>
   <body>
@@ -63,6 +63,7 @@
        targets. -->
     <div id="root"></div>
 
-    <script type="module" src="/main.js"></script>
+    <!-- Vite bundles src/main.tsx into a hashed /assets/ file and moves this tag into <head> (docs/ui-performance-plan.md). -->
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

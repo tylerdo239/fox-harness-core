@@ -12,7 +12,7 @@
 // reason `runtime.ts`'s `RuntimeContext`/`useRuntime()` (in this same
 // directory's parent) is a Context and not a per-component hook.
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react'
 
 import { en, vi, type Locale, type TranslationKey } from './translations.ts'
 
@@ -48,24 +48,24 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   // choosing "English" while already on English is a no-op click, not a
   // flip, which `toggle()` alone can't express. `toggle()` now just calls
   // this with the flipped value.
-  function setLocale(next: Locale): void {
-    localStorage.setItem(STORAGE_LOCALE, next)
-    setLocaleState(next)
-  }
-
-  function toggle(): void {
-    setLocale(locale === 'vi' ? 'en' : 'vi')
-  }
-
-  function t(key: TranslationKey, params?: Record<string, string>): string {
-    let text = DICTS[locale][key]
-    if (params) {
-      for (const [name, value] of Object.entries(params)) text = text.replaceAll(`{${name}}`, value)
+  // One value per locale (docs/ui-performance-plan.md §6): `t` keeps its identity until the language changes, so
+  // memoized components that take it as a prop (the chat log's entries) skip re-rendering.
+  const value = useMemo<LocaleContextValue>(() => {
+    function setLocale(next: Locale): void {
+      localStorage.setItem(STORAGE_LOCALE, next)
+      setLocaleState(next)
     }
-    return text
-  }
+    function t(key: TranslationKey, params?: Record<string, string>): string {
+      let text = DICTS[locale][key]
+      if (params) {
+        for (const [name, value] of Object.entries(params)) text = text.replaceAll(`{${name}}`, value)
+      }
+      return text
+    }
+    return { locale, t, toggle: () => setLocale(locale === 'vi' ? 'en' : 'vi'), setLocale }
+  }, [locale])
 
-  return <LocaleContext.Provider value={{ locale, t, toggle, setLocale }}>{children}</LocaleContext.Provider>
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
 }
 
 export function useLocale(): LocaleContextValue {

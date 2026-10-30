@@ -4,7 +4,6 @@
 // active chart with a "recommended visualizations" switcher (plus the raw data table), row count,
 // assumptions, and clickable follow-up suggestions. The default chat keeps its pill (Conversation.tsx).
 import { useEffect, useMemo, useState } from "react";
-import { format } from "sql-formatter";
 import { toast } from "sonner";
 
 import { useLocale } from "../../../i18n/locale.tsx";
@@ -28,6 +27,7 @@ import { useRuntime } from "../../../runtime.ts";
 import { Button } from "../../primitives/Button.tsx";
 import { dsApi, type ChartUpdate } from "../data-studio/dsApi.ts";
 import { AddToDashboardDialog, EditColorsDialog, EditFieldsDialog } from "./ChartDialogs.tsx";
+import { useSqlFormatter } from "../../../lazyLoad.ts";
 import { ChartView, EDITABLE_CHART_TYPES, resolveChart, type ChartSpec } from "./ChartView.tsx";
 import { DataStudioProgress, type ProgressItem } from "./DataStudioProgress.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -120,10 +120,11 @@ function formatCell(value: unknown, locale: string): string {
   return String(value);
 }
 
-function prettySql(sql: string): string {
+function prettySql(sql: string, formatter: ReturnType<typeof useSqlFormatter>): string {
+  if (!formatter) return sql; // sql-formatter still loading (src/lazyLoad.ts)
   try {
     // Dremio speaks Trino/Presto-style SQL. The pipeline emits one long line; keep it readable.
-    return format(sql, { language: "trino", keywordCase: "upper" });
+    return formatter.format(sql, { language: "trino", keywordCase: "upper" });
   } catch {
     return sql; // unparseable dialect fragment — show it as-is
   }
@@ -175,7 +176,8 @@ export function DataStudioAnswer({
   const runtime = useRuntime();
   // The chart toolbar (edit fields / colors -> PATCH /data-studio/charts/:id, add to dashboard): the chart is the
   // asker's own, so every user gets it (docs/data-studio-user-dashboards-plan.md).
-  const sql = useMemo(() => (entry.sql ? prettySql(entry.sql) : ""), [entry.sql]);
+  const sqlFormatter = useSqlFormatter();
+  const sql = useMemo(() => (entry.sql ? prettySql(entry.sql, sqlFormatter) : ""), [entry.sql, sqlFormatter]);
 
   // Working copy of the charts so toolbar edits (fields / colors / labels) repaint immediately; each edit is
   // also persisted with PATCH /data-studio/charts/:id when the chart has been saved (has a chart_id).

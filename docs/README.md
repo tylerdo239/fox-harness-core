@@ -4,6 +4,7 @@ Current:
 - `core-architecture.md` — START HERE: every component of `api/`, how a chat turn runs, and why.
 - `deploy.md` — deploying the two images (`app/`, `api/`).
 - `admin-guide.md` — admin manual (users, Data Studio sources and who may query them); the user manual is `/docs` (`app/docs-site/`).
+- `ui-performance-plan.md` — web UI performance and stack with layout and styles kept pixel-identical: phases 1-4 done 2026-10-30 (Vite, lazy chunks, gzip/cache, TanStack Query, file splits, React 19, Vitest/Biome, bundle budget; checked by `app/scripts/ui-parity.mjs` and `ui-flows.mjs`); phase 5 (styles to Tailwind v4) proposed together with a redesign.
 - `chat-attachments-plan.md` — attaching files in chat (default + data-analysis), done 2026-10-08.
 - `file-tools-plan.md` — done 2026-10-22: dedicated file tools (`read`/`edit`/`write`/`glob`/`grep` + new `file_manage`) for file work, `bash` kept for everyone only for programs no tool covers, `python` in the default flow, write gaps of the fs tools closed.
 - `admin-usage-dashboard-plan.md` — done 2026-10-22: agent usage recorded per LLM call and per turn into MariaDB (migration 002), `/admin/usage` API and dashboard route; Data Studio pipeline tokens included, no cost.

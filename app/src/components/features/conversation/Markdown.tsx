@@ -27,7 +27,7 @@
 import { isValidElement, memo, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
-import remarkGfm from "remark-gfm";
+import remarkGfm from "./remarkGfmParse.ts";
 import { toast } from "sonner";
 
 import { copyText } from "../../../clipboard.ts";
