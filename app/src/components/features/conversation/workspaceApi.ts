@@ -21,8 +21,8 @@ export function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// Same cap as services/orchestrator's config.maxUploadBytes.
-export const MAX_UPLOAD_BYTES = 70 * 1024 * 1024;
+// Upload cap for chat attachments and project files: same as the gateway's MAX_UPLOAD_BYTES (default 50 MB).
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 // `undefined` when there is no working directory (not a data-analysis chat).
 export async function listWorkspaceFiles(
   runtime: Runtime,

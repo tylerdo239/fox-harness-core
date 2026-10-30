@@ -183,7 +183,7 @@ export const config = {
     ? (existsSync(noConfineRunner) ? noConfineRunner : undefined)
     : (existsSync(confineRunner) ? confineRunner : undefined),
   requireSandbox: envOr('FOX_REQUIRE_SANDBOX', isProd ? '1' : '0') === '1',
-  maxUploadBytes: envIntOr('MAX_UPLOAD_BYTES', 70 * 1024 * 1024),
+  maxUploadBytes: envIntOr('MAX_UPLOAD_BYTES', 50 * 1024 * 1024),
   // 0 = unlimited. Counted over sessions that have an open browser connection.
   maxConcurrentSessions: envIntOr('MAX_CONCURRENT_SESSIONS', 0),
   maxSessionsPerUser: envIntOr('MAX_SESSIONS_PER_USER', 0),
